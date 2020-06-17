@@ -1,2 +1,1 @@
-# nodeplusplus
-Node++
+# Node++
