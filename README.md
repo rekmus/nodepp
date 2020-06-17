@@ -6,3 +6,9 @@ There are a couple of breaches that I think need to be introduced in order to en
 
 1. OpenSSL linkage will be mandatory. All low-level security functions will be removed from npp_lib.
 1. USERS will be based on the [ORM](https://silgy.org/mysqldaogen) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
+1. There will be different default hashing algorithm for passwords.
+1. HTTP/2
+1. epoll will finally be implemented.
+
+Please add your comments, interest in contributing, wishes, etc. in Issues or silgy.help@gmail.com.
+
