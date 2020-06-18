@@ -11,6 +11,7 @@ There are a couple of breaches that I think need to be introduced in order to en
 1. HTTP/2
 1. epoll will finally be implemented.
 1. Popular packaging support.
+1. OUT and similar macros will take std::strings as arguments (with C-style strings still supported).
 
 Please add your comments, interest in contributing, wishes, etc. in Issues or silgy.help@gmail.com.
 
