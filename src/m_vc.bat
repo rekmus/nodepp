@@ -4,6 +4,7 @@ echo Making npp_app using Microsoft compiler...
 
 cl npp_app.cpp ^
 ..\lib\npp_eng.c ..\lib\npp_lib.c ..\lib\npp_usr.c ^
+-D NPP_APP ^
 /EHsc ^
 -I . -I ..\lib ^
 /Fe..\bin\npp_app

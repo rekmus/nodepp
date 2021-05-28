@@ -1,8 +1,31 @@
 /* --------------------------------------------------------------------------
-   Node++ Web App Engine
-   Jurek Muszynski
-   nodeplusplus.org
-   Started: August 2015 as Silgy
+
+    MIT License
+
+    Copyright (c) 2020 Jurek Muszyński
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+-----------------------------------------------------------------------------
+
+    Node++ Web App Engine
+
 -------------------------------------------------------------------------- */
 
 #ifndef NPP_H
@@ -37,6 +60,8 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <limits.h>     /* INT_MAX */
+
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -105,7 +130,7 @@ typedef char str256k[1024*256];
 #define LOG_DBG                         4               /* for debug mode -- most detailed */
 
 
-#define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99% cases */
+#define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99.99% cases */
 #define MAX_LONG_URI_VAL_LEN            65535           /* max long value length received in URI -- 64 kB - 1 B */
 
 #define QSBUF                           MAX_URI_VAL_LEN+1
@@ -158,9 +183,11 @@ typedef char str256k[1024*256];
 #define CHAR_GREATER_EQUAL              "&#8805;"
 
 
+#ifndef NPP_APP
 #ifndef NPP_SVC
-#ifndef NPP_WATCHER
-#define NPP_APP
+#ifndef NPP_CLIENT
+#define NPP_CLIENT
+#endif
 #endif
 #endif
 
@@ -184,31 +211,35 @@ typedef char str256k[1024*256];
 #endif  /* _WIN32 */
 
 
-#ifdef NPP_WATCHER
-#define NPP_CLIENT
+#ifdef NPP_WATCHER  /* only basic support */
 #ifdef HTTPS
 #undef HTTPS
 #endif
-#endif
-
-#ifdef NPP_CLIENT
 #ifdef DBMYSQL
 #undef DBMYSQL
 #endif
 #ifdef USERS
 #undef USERS
 #endif
+#endif  /* NPP_WATCHER */
+
+
+#ifdef NPP_CLIENT
+#ifdef USERS
+#undef USERS
+#endif
 #endif  /* NPP_CLIENT */
+
+
+#ifdef HTTPS
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#endif
 
 
 #ifdef DBMYSQL
 #include <mysql.h>
 #include <mysqld_error.h>
-#endif
-
-#ifdef HTTPS
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 #endif
 
 
