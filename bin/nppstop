@@ -1,0 +1,28 @@
+#!/bin/sh
+
+export NPP_DIR=/home/ec2-user/live
+
+# ---------------------------------------------------------------------
+
+echo "Stopping Node++ App..."
+
+# ---------------------------------------------------------------------
+# Services
+
+if [ -n "$(find $NPP_DIR/bin -name 'npp_*.pid' | head -1)" ]
+then
+    for f in $NPP_DIR/bin/npp_*.pid
+    do
+        kill `cat ${f}`
+    done
+fi
+
+# ---------------------------------------------------------------------
+# Main app
+
+if [ -f $NPP_DIR/bin/npp_app.pid ]
+then
+    kill `cat $NPP_DIR/bin/npp_app.pid`
+fi
+
+# ---------------------------------------------------------------------

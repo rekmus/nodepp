@@ -1,0 +1,24 @@
+#!/bin/sh
+
+export NPP_DIR=/home/ec2-user/live
+
+export NPP_SVC_PROCESSES=0
+
+# ---------------------------------------------------------------------
+
+echo "Starting Node++ App..."
+
+# ---------------------------------------------------------------------
+# Main app
+
+nohup $NPP_DIR/bin/npp_app > /dev/null 2>&1 &
+
+# ---------------------------------------------------------------------
+# Services
+
+for i in `seq 1 $NPP_SVC_PROCESSES`
+do
+    nohup $NPP_DIR/bin/npp_svc > /dev/null 2>&1 &
+done
+
+sleep 1  # return to prompt

@@ -1,0 +1,32 @@
+#!/bin/sh
+
+
+echo Making npp_app...
+
+g++ npp_app.cpp \
+../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
+-I. -I../lib \
+-lrt -lz -lcrypto -lssl \
+-s -O3 \
+-o ../bin/npp_app
+
+
+echo Making npp_svc...
+
+g++ npp_svc.cpp \
+../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
+-D NPP_SVC \
+-I. -I../lib \
+-lrt \
+-s -O3 \
+-o ../bin/npp_svc
+
+
+echo Making npp_watcher...
+
+gcc ../lib/npp_watcher.c \
+../lib/npp_lib.c \
+-D NPP_WATCHER \
+-I. -I../lib \
+-s -O3 \
+-o ../bin/npp_watcher
