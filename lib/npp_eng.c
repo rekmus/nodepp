@@ -1830,7 +1830,7 @@ static bool init(int argc, char **argv)
 
     /* libSHA1 test */
 
-    uint8_t sha1_res1[SHA1_DIGEST_SIZE];
+/*    uint8_t sha1_res1[SHA1_DIGEST_SIZE];
     char    sha1_res2[64];
 
     DBG("");
@@ -1840,7 +1840,7 @@ static bool init(int argc, char **argv)
     libSHA1((unsigned char*)"abc", 3, sha1_res1);
 
     digest_to_hex(sha1_res1, sha1_res2);
-    DBG("     Got: [%s]\n", sha1_res2);
+    DBG("     Got: [%s]\n", sha1_res2);*/
 
     /* fill the M_random_numbers up */
 

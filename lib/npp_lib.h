@@ -205,7 +205,7 @@ typedef struct {
 } message_t;
 
 
-#define npp_message(code)             lib_get_message(ci, code)
+#define npp_message(code)               lib_get_message(ci, code)
 #define MSG(code)                       lib_get_message(ci, code)
 #define MSG_CAT_GREEN(code)             npp_is_msg_main_cat(code, MSG_CAT_MESSAGE)
 #define MSG_CAT_ORANGE(code)            npp_is_msg_main_cat(code, MSG_CAT_WARNING)
@@ -369,8 +369,6 @@ typedef json_t JSON;
 #endif
 
 
-#ifdef JSON_NO_AUTO_AMPERSANDS
-
 #define JSON_TO_STRING(json)                lib_json_to_string(json)
 #define JSON_TO_STRING_PRETTY(json)         lib_json_to_string_pretty(json)
 #define JSON_FROM_STRING(json, str)         lib_json_from_string(json, str, 0, 0)
@@ -423,65 +421,6 @@ typedef json_t JSON;
 #define JSON_LOG_DBG(json, name)            lib_json_log_dbg(json, name)
 #define JSON_LOG_INF(json, name)            lib_json_log_inf(json, name)
 
-#else  /* JSON_NO_AUTO_AMPERSANDS not defined */
-
-#define JSON_TO_STRING(json)                lib_json_to_string(&json)
-#define JSON_TO_STRING_PRETTY(json)         lib_json_to_string_pretty(&json)
-#define JSON_FROM_STRING(json, str)         lib_json_from_string(&json, str, 0, 0)
-
-
-#define JSON_ADD_STR(json, name, val)       lib_json_add(&json, name, val, 0, 0, 0, 0, JSON_STRING, -1)
-#define JSON_ADD_STR_A(json, i, val)        lib_json_add(&json, NULL, val, 0, 0, 0, 0, JSON_STRING, i)
-#define JSON_ADD_INT(json, name, val)       lib_json_add(&json, name, NULL, val, 0, 0, 0, JSON_INTEGER, -1)
-#define JSON_ADD_INT_A(json, i, val)        lib_json_add(&json, NULL, NULL, val, 0, 0, 0, JSON_INTEGER, i)
-#define JSON_ADD_UINT(json, name, val)      lib_json_add(&json, name, NULL, 0, val, 0, 0, JSON_UNSIGNED, -1)
-#define JSON_ADD_UINT_A(json, i, val)       lib_json_add(&json, NULL, NULL, 0, val, 0, 0, JSON_UNSIGNED, i)
-#define JSON_ADD_FLOAT(json, name, val)     lib_json_add(&json, name, NULL, 0, 0, val, 0, JSON_FLOAT, -1)
-#define JSON_ADD_FLOAT_A(json, i, val)      lib_json_add(&json, NULL, NULL, 0, 0, val, 0, JSON_FLOAT, i)
-#define JSON_ADD_DOUBLE(json, name, val)    lib_json_add(&json, name, NULL, 0, 0, 0, val, JSON_DOUBLE, -1)
-#define JSON_ADD_DOUBLE_A(json, i, val)     lib_json_add(&json, NULL, NULL, 0, 0, 0, val, JSON_DOUBLE, i)
-#define JSON_ADD_BOOL(json, name, val)      lib_json_add(&json, name, NULL, val, 0, 0, 0, JSON_BOOL, -1)
-#define JSON_ADD_BOOL_A(json, i, val)       lib_json_add(&json, NULL, NULL, val, 0, 0, 0, JSON_BOOL, i)
-
-#define JSON_ADD_RECORD(json, name, val)    lib_json_add_record(&json, name, &val, FALSE, -1)
-#define JSON_ADD_RECORD_A(json, i, val)     lib_json_add_record(&json, NULL, &val, FALSE, i)
-
-#define JSON_ADD_ARRAY(json, name, val)     lib_json_add_record(&json, name, &val, TRUE, -1)
-#define JSON_ADD_ARRAY_A(json, i, val)      lib_json_add_record(&json, NULL, &val, TRUE, i)
-
-#define JSON_PRESENT(json, name)            lib_json_present(&json, name)
-
-#define JSON_GET_STR(json, name)            lib_json_get_str(&json, name, -1)
-#define JSON_GET_STR_A(json, i)             lib_json_get_str(&json, NULL, i)
-#define JSON_GET_INT(json, name)            lib_json_get_int(&json, name, -1)
-#define JSON_GET_INT_A(json, i)             lib_json_get_int(&json, NULL, i)
-#define JSON_GET_UINT(json, name)           lib_json_get_uint(&json, name, -1)
-#define JSON_GET_UINT_A(json, i)            lib_json_get_uint(&json, NULL, i)
-#define JSON_GET_FLOAT(json, name)          lib_json_get_float(&json, name, -1)
-#define JSON_GET_FLOAT_A(json, i)           lib_json_get_float(&json, NULL, i)
-#define JSON_GET_DOUBLE(json, name)         lib_json_get_double(&json, name, -1)
-#define JSON_GET_DOUBLE_A(json, i)          lib_json_get_double(&json, NULL, i)
-#define JSON_GET_BOOL(json, name)           lib_json_get_bool(&json, name, -1)
-#define JSON_GET_BOOL_A(json, i)            lib_json_get_bool(&json, NULL, i)
-
-#define JSON_GET_RECORD(json, name, val)    lib_json_get_record(&json, name, &val, -1)
-#define JSON_GET_RECORD_A(json, i, val)     lib_json_get_record(&json, NULL, &val, i)
-
-#define JSON_GET_ARRAY(json, name, val)     lib_json_get_record(&json, name, &val, -1)
-#define JSON_GET_ARRAY_A(json, i, val)      lib_json_get_record(&json, NULL, &val, i)
-
-
-#define JSON_RESET(json)                    lib_json_reset(&json)
-#define JSON_COUNT(json)                    json.cnt
-
-#define JSON_LOG_DBG(json, name)            lib_json_log_dbg(&json, name)
-#define JSON_LOG_INF(json, name)            lib_json_log_inf(&json, name)
-
-#endif  /* JSON_NO_AUTO_AMPERSANDS */
-
-
-/* for backward compatibility */
-#define npp_read_param(param, val)        npp_read_param_str(param, val)
 
 
 #define AI_USERS_ALL                        0       /* all users */
@@ -630,8 +569,6 @@ extern "C" {
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
 #endif
 
-    char *md5(const char* str);
-
     int Base64encode_len(int len);
     int Base64encode(char *coded_dst, const char *plain_src, int len_plain_src);
     int Base64decode_len(const char *coded_src);
@@ -652,28 +589,5 @@ extern "C" {
 }   // extern "C"
 #endif
 
-
-#include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct {
-    uint32_t state[5];
-    uint32_t count[2];
-    uint8_t  buffer[64];
-} SHA1_CTX;
-
-#define SHA1_DIGEST_SIZE 20
-
-void libSHA1(unsigned char *ptr, unsigned int size, unsigned char *outbuf);
-
-void digest_to_hex(const uint8_t digest[SHA1_DIGEST_SIZE], char *output);
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif  /* NPP_LIB_H */
