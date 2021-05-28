@@ -437,7 +437,7 @@ int main(int argc, char **argv)
 //  for ( ; hit<1000; ++hit )   /* test only */
     for ( ;; )
     {
-        lib_update_time_globals();
+        npp_update_time_globals();
 
 #ifdef _WIN32   /* Windows */
         strftime(M_resp_date, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
@@ -1378,12 +1378,12 @@ static void read_conf()
     {
         char conf_path[1024];
         sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
-        if ( !(conf_read=lib_read_conf(conf_path)) )   /* no config file there */
-            conf_read = lib_read_conf("npp.conf");
+        if ( !(conf_read=npp_read_conf(conf_path)) )   /* no config file there */
+            conf_read = npp_read_conf("npp.conf");
     }
     else    /* no NPP_DIR -- try current dir */
     {
-        conf_read = lib_read_conf("npp.conf");
+        conf_read = npp_read_conf("npp.conf");
     }
     
     if ( conf_read )
@@ -1635,7 +1635,7 @@ static bool init(int argc, char **argv)
     ALWAYS("");
     ALWAYS("Server:");
     ALWAYS("-------");
-    ALWAYS("              NPP_DIR = %s", G_appdir);
+    ALWAYS("               NPP_DIR = %s", G_appdir);
     ALWAYS("    WEB_SERVER_VERSION = %s", WEB_SERVER_VERSION);
 #ifdef MEM_TINY
     ALWAYS("          Memory model = MEM_TINY");
@@ -1986,7 +1986,7 @@ static bool init(int argc, char **argv)
 
 #endif  /* ASYNC */
 
-    sort_messages();
+    npp_sort_messages();
 
     G_initialized = 1;
 
@@ -5180,7 +5180,7 @@ static void clean_up()
 -------------------------------------------------------------------------- */
 static void sigdisp(int sig)
 {
-    lib_update_time_globals();
+    npp_update_time_globals();
     ALWAYS("");
     ALWAYS_T("Exiting due to receiving signal: %d", sig);
     clean_up();
@@ -5999,16 +5999,16 @@ int main(int argc, char *argv[])
     if ( G_appdir[0] )
     {
         sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !lib_read_conf(config) )   /* no config file there */
+        if ( !npp_read_conf(config) )   /* no config file there */
         {
             strcpy(config, "npp.conf");
-            lib_read_conf(config);
+            npp_read_conf(config);
         }
     }
     else    /* no NPP_DIR -- try current dir */
     {
         strcpy(config, "npp.conf");
-        lib_read_conf(config);
+        npp_read_conf(config);
     }
 
     /* ------------------------------------------------------------------- */
@@ -6181,7 +6181,7 @@ int main(int argc, char *argv[])
 
     /* ------------------------------------------------------------------- */
 
-    sort_messages();
+    npp_sort_messages();
 
     G_initialized = 1;
 
@@ -6197,7 +6197,7 @@ int main(int argc, char *argv[])
 
         if ( mq_receive(G_queue_req, (char*)&req, ASYNC_REQ_MSG_SIZE, NULL) != -1 )
         {
-            lib_update_time_globals();
+            npp_update_time_globals();
             
             /* start new log file every day */
 
@@ -6633,7 +6633,7 @@ void svc_out_check_realloc_bin(const char *data, int len)
 -------------------------------------------------------------------------- */
 static void sigdisp(int sig)
 {
-    lib_update_time_globals();
+    npp_update_time_globals();
     ALWAYS("");
     ALWAYS_T("Exiting due to receiving signal: %d", sig);
     clean_up();

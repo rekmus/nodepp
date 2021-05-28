@@ -148,7 +148,7 @@ void npp_lib_init()
 
     /* time globals */
 
-    lib_update_time_globals();
+    npp_update_time_globals();
 
     /* log file fd */
 
@@ -967,7 +967,7 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     /* in case message was added after init */
 
     if ( G_initialized )
-        sort_messages();
+        npp_sort_messages();
 }
 
 
@@ -1000,7 +1000,7 @@ int compare_messages(const void *a, const void *b)
 /* --------------------------------------------------------------------------
    Sort and index messages by languages
 -------------------------------------------------------------------------- */
-void sort_messages()
+void npp_sort_messages()
 {
     qsort(&G_messages, G_next_msg, sizeof(message_t), compare_messages);
 
@@ -1291,8 +1291,11 @@ static void load_strings()
 
     if ( G_appdir[0] == EOS ) return;
 
+#ifdef _WIN32
+    sprintf(bindir, "%s\\bin", G_appdir);
+#else
     sprintf(bindir, "%s/bin", G_appdir);
-
+#endif
     if ( (dir=opendir(bindir)) == NULL )
     {
         DBG("Couldn't open directory [%s]", bindir);
@@ -1304,8 +1307,11 @@ static void load_strings()
         if ( 0 != strncmp(dirent->d_name, "strings.", 8) )
             continue;
 
+#ifdef _WIN32
+        sprintf(namewpath, "%s\\%s", bindir, dirent->d_name);
+#else
         sprintf(namewpath, "%s/%s", bindir, dirent->d_name);
-
+#endif
         DBG("namewpath [%s]", namewpath);
 
 #ifdef _WIN32   /* Windows */
@@ -1553,7 +1559,7 @@ void lib_get_exec_name(char *dst, const char *path)
 /* --------------------------------------------------------------------------
    Update G_now, G_ptm and G_dt
 -------------------------------------------------------------------------- */
-void lib_update_time_globals()
+void npp_update_time_globals()
 {
     G_now = time(NULL);
     G_ptm = gmtime(&G_now);
@@ -1618,11 +1624,11 @@ bool read_snippets(bool first_scan, const char *path)
 
     if ( G_appdir[0] )
     {
-        sprintf(resdir, "%s/snippets", G_appdir);
+        sprintf(resdir, "%s\\snippets", G_appdir);
     }
     else    /* no NPP_DIR */
     {
-        sprintf(resdir, "../snippets");
+        sprintf(resdir, "..\\snippets");
     }
 
 #else   /* Linux -- don't fool around */
@@ -8250,7 +8256,7 @@ int date_cmp(const char *str1, const char *str2)
 /* --------------------------------------------------------------------------
    Read the config file
 -------------------------------------------------------------------------- */
-bool lib_read_conf(const char *file)
+bool npp_read_conf(const char *file)
 {
     FILE *h_file=NULL;
 
@@ -8389,15 +8395,18 @@ char *lib_create_pid_file(const char *name)
 {
 static char pidfilename[512];
     FILE    *fpid=NULL;
-    char    command[512];
+    char    command[1024];
 
     G_pid = getpid();
 
+    if ( G_appdir[0] )
 #ifdef _WIN32   /* Windows */
-    sprintf(pidfilename, "%s\\bin\\%s.pid", G_appdir, name);
+        sprintf(pidfilename, "%s\\bin\\%s.pid", G_appdir, name);
 #else
-    sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
+        sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
 #endif
+    else    /* empty NPP_DIR */
+        sprintf(pidfilename, "%s.pid", name);
 
     /* check if the pid file already exists */
 
@@ -8576,7 +8585,12 @@ bool log_start(const char *prefix, bool test)
         if ( G_appdir[0] )
         {
             char fffname[512];       /* full file name with path */
+
+#ifdef _WIN32
+            sprintf(fffname, "%s\\logs\\%s", G_appdir, ffname);
+#else
             sprintf(fffname, "%s/logs/%s", G_appdir, ffname);
+#endif
             if ( NULL == (M_log_fd=fopen(fffname, "a")) )
             {
                 if ( NULL == (M_log_fd=fopen(ffname, "a")) )  /* try current dir */

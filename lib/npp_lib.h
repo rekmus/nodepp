@@ -444,7 +444,7 @@ extern "C" {
     bool lib_csrft_ok(int ci);
     void npp_add_message(int code, const char *lang, const char *message, ...);
     int  compare_messages(const void *a, const void *b);
-    void sort_messages(void);
+    void npp_sort_messages(void);
     char *lib_get_message(int ci, int code);
     bool npp_is_msg_main_cat(int code, const char *cat);
     void npp_add_string(const char *lang, const char *str, const char *str_lang);
@@ -454,7 +454,7 @@ extern "C" {
     void lib_close_db(void);
     bool lib_file_exists(const char *fname);
     void lib_get_exec_name(char *dst, const char *path);
-    void lib_update_time_globals(void);
+    void npp_update_time_globals(void);
     bool read_snippets(bool first_scan, const char *path);
     char *npp_get_snippet(const char *name);
     unsigned npp_get_snippet_len(const char *name);
@@ -553,7 +553,7 @@ extern "C" {
     int  npp_minify(char *dest, const char *src);
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
-    bool lib_read_conf(const char *file);
+    bool npp_read_conf(const char *file);
     bool npp_read_param_str(const char *param, char *dest);
     bool npp_read_param_int(const char *param, int *dest);
     char *lib_create_pid_file(const char *name);

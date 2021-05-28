@@ -63,12 +63,12 @@ static void restart()
     INF_T(M_watcherStopCmd);
     system(M_watcherStopCmd);
 
-    lib_update_time_globals();
+    npp_update_time_globals();
 
     INF_T("Waiting %d second(s)...", M_watcherWait);
     sleep(M_watcherWait);
 
-    lib_update_time_globals();
+    npp_update_time_globals();
 
     INF_T("Starting...");
     INF_T(M_watcherStartCmd);
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 
     npp_lib_init();
 
-    sort_messages();
+    npp_sort_messages();
 
     G_initialized = 1;
 
@@ -105,16 +105,16 @@ int main(int argc, char *argv[])
     if ( G_appdir[0] )
     {
         sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !lib_read_conf(config) )   /* no config file there */
+        if ( !npp_read_conf(config) )   /* no config file there */
         {
             strcpy(config, "npp.conf");
-            lib_read_conf(config);
+            npp_read_conf(config);
         }
     }
     else    /* no NPP_DIR -- try current dir */
     {
         strcpy(config, "npp.conf");
-        lib_read_conf(config);
+        npp_read_conf(config);
     }
 
     /* ------------------------------------------------------------------- */
@@ -159,14 +159,14 @@ int main(int argc, char *argv[])
 
     if ( !CALL_REST_HTTP(NULL, NULL, "GET", url, 0) )
     {
-        lib_update_time_globals();
+        npp_update_time_globals();
         ERR_T("Couldn't connect");
         restart();
     }
 
     /* ------------------------------------------------------------------- */
 
-    lib_update_time_globals();
+    npp_update_time_globals();
 
     INF_T("npp_watcher ended");
 
