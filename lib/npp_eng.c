@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020 Jurek Muszyński
+    Copyright (c) 2020 Jurek Muszynski
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
     Node++ Web App Engine
     Main web engine module
+    nodepp.org
 
 -------------------------------------------------------------------------- */
 
