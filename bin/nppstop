@@ -9,9 +9,9 @@ echo "Stopping Node++ App..."
 # ---------------------------------------------------------------------
 # Services
 
-if [ -n "$(find $NPP_DIR/bin -name 'npp_*.pid' | head -1)" ]
+if [ -n "$(find $NPP_DIR/bin -name 's_*.pid' | head -1)" ]
 then
-    for f in $NPP_DIR/bin/npp_*.pid
+    for f in $NPP_DIR/bin/s_*.pid
     do
         kill `cat ${f}`
     done

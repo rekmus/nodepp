@@ -6040,7 +6040,7 @@ int main(int argc, char *argv[])
 
     char logprefix[64];
 
-    sprintf(logprefix, "npp_%d", G_pid);
+    sprintf(logprefix, "s_%d", G_pid);
 
     if ( !log_start(logprefix, G_test) )
         return EXIT_FAILURE;
