@@ -6062,6 +6062,27 @@ char *nospaces(char *dst, const char *src)
 }
 
 
+/* --------------------------------------------------------------------------
+   Binary to string
+---------------------------------------------------------------------------*/
+char *lib_bin2hex(char *dst, const unsigned char *src, int len)
+{
+    char *d=dst;
+    char hex[4];
+    int i;
+
+    for ( i=0; i<len; ++i )
+    {
+        sprintf(hex, "%02x", src[i]);
+        d = stpcpy(d, hex);
+    }
+
+    *d = EOS;
+
+    return dst;
+}
+
+
 
 #ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------

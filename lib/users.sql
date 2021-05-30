@@ -1,5 +1,5 @@
 -- ----------------------------------------------------------------------------
--- Silgy user tables -- MySQL version
+-- Node++ user tables -- MySQL version
 -- ----------------------------------------------------------------------------
 
 -- users
@@ -12,12 +12,12 @@ create table users (
     email_u char(120),              -- uppercase version
     name varchar(120),
     phone varchar(30),
-    passwd1 char(30),               -- base64 of SHA1 hash
-    passwd2 char(30),               -- base64 of SHA1 hash
+    passwd1 char(64),               -- SHA256 hash in hex
+    passwd2 char(64),               -- SHA256 hash in hex
     lang char(5),
     about varchar(250),
     avatar_name varchar(60),
-    avatar_data blob,               -- 64 kB
+    avatar_data blob,               -- 64 KiB
     group_id int,
     auth_level tinyint,             -- 10 = user, 20 = customer, 30 = staff, 40 = moderator, 50 = admin, 100 = root
     status tinyint,                 -- 0 = inactive, 1 = active, 2 = locked, 3 = requires password change, 9 = deleted
@@ -71,7 +71,7 @@ create index users_logins_uid on users_logins (user_id);
 -- account activations
 
 create table users_activations (
-    linkkey char(30) primary key,
+    linkkey char(20) primary key,
     user_id int,
     created datetime,
     activated datetime
@@ -96,7 +96,7 @@ create table users_messages (
     user_id int,
     msg_id int,
     email varchar(120),
-    message text,               -- 64 kB limit
+    message text,               -- 64 KiB limit
     created datetime,
     primary key (user_id, msg_id)
 );

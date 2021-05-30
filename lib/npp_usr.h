@@ -34,6 +34,9 @@
 #define NPP_USR_H
 
 
+#define PASSWORD_HASH_BUFLEN            65                      /* SHA256 digest length * 2 + EOS */
+
+
 #define DB_UAGENT_LEN                   250                     /* User-Agent length stored in ulogins table */
 #define PASSWD_RESET_KEY_LEN            20                      /* password reset key length */
 

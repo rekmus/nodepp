@@ -936,8 +936,8 @@ int npp_usr_login(int ci)
     char        sql[SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
-    char        p1[32], p2[32];
-    char        str1[32], str2[32];
+    char        p1[PASSWORD_HASH_BUFLEN], p2[PASSWORD_HASH_BUFLEN];
+    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
     char        status;
     int         visits;
     int         ula_cnt;
@@ -1328,7 +1328,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     QSVAL   rpasswd;
     QSVAL   message;
     char    sql[SQLBUF];
-    char    str1[32], str2[32];
+    char    str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
 
     DBG("create_account");
 
@@ -1643,7 +1643,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
         /* --------------------------------------------------------------- */
 
-        char str1[32], str2[32];
+        char str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
 
         get_hashes(str1, str2, dst_login, email, password);
 
@@ -1759,7 +1759,7 @@ int npp_usr_save_account(int ci)
     QSVAL       save;
     int         plen;
     char        sql[SQLBUF];
-    char        str1[32], str2[32];
+    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2454,7 +2454,7 @@ int npp_usr_change_password(int ci)
     QSVAL       submit;
     int         uid;
     char        sql[SQLBUF];
-    char        str1[32], str2[32];
+    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2553,7 +2553,7 @@ int npp_usr_reset_password(int ci)
     QSVAL       submit;
     int         uid;
     char        sql[SQLBUF];
-    char        str1[32], str2[32];
+    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2676,14 +2676,16 @@ void npp_usr_logout(int ci)
 -------------------------------------------------------------------------- */
 static void doit(char *result1, char *result2, const char *login, const char *email, const char *src)
 {
-    char    tmp[4096];
-    unsigned char digest[20];
-    int     i, j=0;
+#ifdef NPP_SILGY_PASSWORDS  /* Silgy legacy */
 
-    sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src); /* login */
+    char tmp[4096];
+    unsigned char digest[20];
+    int i, j=0;
+
+    sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     Base64encode(tmp, (char*)digest, 20);
-    for ( i=0; tmp[i] != EOS; ++i ) /* drop non-alphanumeric characters */
+    for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
             result1[j++] = tmp[i];
@@ -2692,15 +2694,34 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     j = 0;
 
-    sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src); /* email */
+    sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     Base64encode(tmp, (char*)digest, 20);
-    for ( i=0; tmp[i] != EOS; ++i ) /* drop non-alphanumeric characters */
+    for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
             result2[j++] = tmp[i];
     }
     result2[j] = EOS;
+
+#else   /* Use SHA256 */
+
+    char tmp[4096];
+    unsigned char digest[SHA256_DIGEST_LENGTH];
+
+    sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
+    SHA256((unsigned char*)tmp, strlen(tmp), digest);
+    lib_bin2hex(result1, digest, SHA256_DIGEST_LENGTH);
+
+    DBG("result1 [%s]", result1);
+
+    sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
+    SHA256((unsigned char*)tmp, strlen(tmp), digest);
+    lib_bin2hex(result2, digest, SHA256_DIGEST_LENGTH);
+
+    DBG("result2 [%s]", result2);
+
+#endif  /* NPP_SILGY_PASSWORDS */
 }
 
 

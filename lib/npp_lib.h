@@ -527,6 +527,7 @@ extern "C" {
     char *stp_right(char *str);
     bool strdigits(const char *src);
     char *nospaces(char *dst, const char *src);
+    char *lib_bin2hex(char *dst, const unsigned char *src, int len);
     void init_random_numbers(void);
     void npp_random(char *dest, int len);
     void msleep(int msec);
