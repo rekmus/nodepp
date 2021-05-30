@@ -15,9 +15,8 @@ There are a couple of breaches that I think need to be introduced in order to en
 
 Please add your comments, interest in contributing, wishes, etc. in Issues or silgy.help@gmail.com.
 
-===========================================
- Silgy project migration to Node++ project
-===========================================
+
+## Silgy project migration to Node++ project
 
 1. Replace lib directory with the new one
 
