@@ -7925,7 +7925,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
 /* --------------------------------------------------------------------------
    Send an email with attachement
 -------------------------------------------------------------------------- */
-bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const char *att_data, int att_data_len)
+bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len)
 {
     DBG("Sending email to [%s], subject [%s], with attachement [%s]", to, subject, att_name);
 
@@ -8985,7 +8985,7 @@ int Base64encode_len(int len)
     return ((len + 2) / 3 * 4) + 1;
 }
 
-int Base64encode(char *encoded, const char *string, int len)
+int Base64encode(char *encoded, const unsigned char *string, int len)
 {
     int i;
     char *p;
@@ -9050,9 +9050,9 @@ static void unix_time(struct timespec *spec)
 
 int clock_gettime_win(struct timespec *spec)
 {
-   static  struct timespec startspec;
-   static double ticks2nano;
-   static __int64 startticks, tps=0;
+static struct timespec startspec;
+static double ticks2nano;
+static __int64 startticks, tps=0;
    __int64 tmp, curticks;
 
    QueryPerformanceFrequency((LARGE_INTEGER*)&tmp); // some strange system can possibly change freq?
@@ -9138,4 +9138,4 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 
     return NULL;
 }
-#endif
+#endif  /* _WIN32 */

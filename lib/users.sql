@@ -8,12 +8,12 @@ create table users (
     id int auto_increment primary key,
     login char(30),
     login_u char(30),               -- uppercase version
-    email char(120),
-    email_u char(120),              -- uppercase version
+    email varchar(120),
+    email_u varchar(120),           -- uppercase version
     name varchar(120),
     phone varchar(30),
-    passwd1 char(64),               -- SHA256 hash in hex
-    passwd2 char(64),               -- SHA256 hash in hex
+    passwd1 char(44),               -- SHA256 hash in base64
+    passwd2 char(44),               -- SHA256 hash in base64
     lang char(5),
     about varchar(250),
     avatar_name varchar(60),
