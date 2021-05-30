@@ -571,10 +571,28 @@ extern "C" {
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
 #endif
 
+#ifdef APPLE_BASE64
     int Base64encode_len(int len);
     int Base64encode(char *encoded, const unsigned char *string, int len);
     int Base64decode_len(const char *coded_src);
     int Base64decode(char *plain_dst, const char *coded_src);
+#else
+
+    #define Base64encode(dst, src, len)     b64_encode(src, len, dst)
+
+    // in : buffer of "raw" binary to be encoded.
+    // in_len : number of bytes to be encoded.
+    // out : pointer to buffer with enough memory, user is responsible for memory allocation, receives null-terminated string
+    // returns size of output including null byte
+    unsigned int b64_encode(const unsigned char* in, unsigned int in_len, unsigned char* out);
+
+    // in : buffer of base64 string to be decoded.
+    // in_len : number of bytes to be decoded.
+    // out : pointer to buffer with enough memory, user is responsible for memory allocation, receives "raw" binary
+    // returns size of output excluding null byte
+    unsigned int b64_decode(const unsigned char* in, unsigned int in_len, unsigned char* out);
+
+#endif  /* APPLE_BASE64 */
 
 #ifdef _WIN32   /* Windows */
     int getpid(void);

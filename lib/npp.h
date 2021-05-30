@@ -78,6 +78,8 @@
 #include <signal.h>
 #include <dirent.h>
 
+#include "base64.h"
+
 #ifdef __cplusplus
 #include <iostream>
 #include <cctype>
