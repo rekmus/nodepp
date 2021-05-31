@@ -571,11 +571,8 @@ extern "C" {
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
 #endif
 
-    unsigned int b64_encode(const unsigned char* in, unsigned int in_len, char* out);
-    unsigned int b64_decode(const char* in, unsigned int in_len, unsigned char* out);
-
-    #define Base64encode(dst, src, len)     b64_encode(src, len, dst)
-
+    int b64_encode(char *dst, const unsigned char* src, int len);
+    int b64_decode(unsigned char *dst, const char* src);
 
 #ifdef _WIN32   /* Windows */
     int getpid(void);

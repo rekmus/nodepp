@@ -2684,7 +2684,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
-    Base64encode(tmp, digest, 20);
+    b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
@@ -2696,7 +2696,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
-    Base64encode(tmp, digest, 20);
+    b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
@@ -2711,13 +2711,13 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
-    Base64encode(result1, digest, SHA256_DIGEST_LENGTH);
+    b64_encode(result1, digest, SHA256_DIGEST_LENGTH);
 
     DBG("result1 [%s]", result1);
 
     sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
-    Base64encode(result2, digest, SHA256_DIGEST_LENGTH);
+    b64_encode(result2, digest, SHA256_DIGEST_LENGTH);
 
     DBG("result2 [%s]", result2);
 
