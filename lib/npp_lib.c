@@ -7324,7 +7324,7 @@ static char dst[JSON_VAL_LEN+1];
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
             dst[0] = EOS;
             return dst;
         }
@@ -7370,7 +7370,7 @@ int lib_json_get_int(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7408,7 +7408,7 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7466,7 +7466,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7508,7 +7508,7 @@ double lib_json_get_double(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7548,7 +7548,7 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -7612,7 +7612,7 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
     {
         if ( i >= json->cnt )
         {
-            ERR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 #ifdef DUMP

@@ -89,7 +89,7 @@ typedef char                            bool;
 #endif  /* __cplusplus */
 
 
-#define WEB_SERVER_VERSION              "0.0.1"
+#define WEB_SERVER_VERSION              "0.0.2"
 /* alias */
 #define NPP_VERSION                     WEB_SERVER_VERSION
 
