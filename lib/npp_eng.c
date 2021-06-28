@@ -56,11 +56,6 @@ char        G_cipherList[1024]="";
 char        G_certFile[256]="";
 char        G_certChainFile[256]="";
 char        G_keyFile[256]="";
-char        G_dbHost[128]="";
-int         G_dbPort=0;
-char        G_dbName[128]="";
-char        G_dbUser[128]="";
-char        G_dbPassword[128]="";
 int         G_usersRequireAccountActivation=0;
 char        G_blockedIPList[256]="";
 char        G_whiteList[256]="";
@@ -77,10 +72,6 @@ int         G_sessions=0;               /* number of active user sessions */
 int         G_sessions_hwm=0;           /* highest number of active user sessions (high water mark) */
 char        G_last_modified[32]="";     /* response header field with server's start time */
 //bool        G_initialized=0;
-
-#ifdef DBMYSQL
-MYSQL       *G_dbconn=NULL;             /* database connection */
-#endif
 
 /* asynchorous processing */
 #ifndef _WIN32

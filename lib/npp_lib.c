@@ -56,6 +56,16 @@ char        G_dt[20]="";                /* datetime for database or log (YYYY-MM
 char        G_tmp[TMP_BUFSIZE];         /* temporary string buffer */
 bool        G_initialized=0;
 
+/* database */
+#ifdef DBMYSQL
+MYSQL       *G_dbconn=NULL;             /* database connection */
+#endif
+char        G_dbHost[128]="";
+int         G_dbPort=0;
+char        G_dbName[128]="";
+char        G_dbUser[128]="";
+char        G_dbPassword[128]="";
+
 /* messages */
 message_t   G_messages[MAX_MESSAGES]={0};
 int         G_next_msg=0;
