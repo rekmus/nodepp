@@ -1,0 +1,4 @@
+#!/bin/sh
+
+$NPP_DIR/bin/npp_app
+
