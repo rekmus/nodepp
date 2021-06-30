@@ -5954,16 +5954,6 @@ char        G_last_modified[32]="";     /* response header field with server's s
 //bool        G_initialized=0;
 
 
-#ifdef DBMYSQL
-MYSQL       *G_dbconn=NULL;             /* database connection */
-char        G_dbHost[128]="";
-int         G_dbPort=0;
-char        G_dbName[128]="";
-char        G_dbUser[128]="";
-char        G_dbPassword[128]="";
-#endif
-
-
 static char *M_pidfile;                 /* pid file name */
 static char *M_async_shm=NULL;
 
