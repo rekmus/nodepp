@@ -792,8 +792,11 @@ int main(int argc, char **argv)
                         if ( !conn[i].resource[0] && conn[i].status==200 && !conn[i].bot && !conn[i].head_only && 0==strcmp(conn[i].host, APP_DOMAIN) )
                         {
                             ++G_cnts_today.visits;
-                            if ( conn[i].mobile )
+
+                            if ( conn[i].ua_type == UA_TYPE_MOB )
                                 ++G_cnts_today.visits_mob;
+                            if ( conn[i].ua_type == UA_TYPE_TAB )
+                                ++G_cnts_today.visits_tab;
                             else
                                 ++G_cnts_today.visits_dsk;
                         }
@@ -4031,7 +4034,7 @@ static void reset_conn(int ci, char new_state)
     conn[ci].req3[0] = EOS;
     conn[ci].id[0] = EOS;
     conn[ci].uagent[0] = EOS;
-    conn[ci].mobile = FALSE;
+    conn[ci].ua_type = UA_TYPE_DSK;
     conn[ci].referer[0] = EOS;
     conn[ci].keep_alive = FALSE;
     conn[ci].proto[0] = EOS;
@@ -4521,9 +4524,11 @@ static int parse_req(int ci, int len)
     if ( REQ_BOT )
         ++G_cnts_today.req_bot;
 
-    if ( conn[ci].mobile )
+    if ( conn[ci].ua_type == UA_TYPE_MOB )
         ++G_cnts_today.req_mob;
-    else
+    else if ( conn[ci].ua_type == UA_TYPE_TAB )
+        ++G_cnts_today.req_tab;
+    else    /* desktop */
         ++G_cnts_today.req_dsk;
 
     /* Block IP? ---------------------------------------------------------------- */
@@ -4848,12 +4853,22 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 #endif
         strcpy(conn[ci].uagent, value);
         strcpy(uvalue, upper(value));
-        if ( strstr(uvalue, "ANDROID") || strstr(uvalue, "IPHONE") || strstr(uvalue, "SYMBIAN") || strstr(uvalue, "BLACKBERRY") || strstr(uvalue, "MOBILE") )
+
+        if ( strstr(uvalue, "IPAD") || strstr(uvalue, "TABLET") || strstr(uvalue, "KINDLE") || strstr(uvalue, "PLAYBOOK") || strstr(uvalue, "SM-T555") )
         {
-            conn[ci].mobile = TRUE;
+            conn[ci].ua_type = UA_TYPE_TAB;
+            DBG("ua_type = UA_TYPE_TAB");
+        }
+        else if ( strstr(uvalue, "ANDROID") || strstr(uvalue, "IPHONE") || strstr(uvalue, "BLACKBERRY") || strstr(uvalue, "MOBILE") || strstr(uvalue, "SYMBIAN") )
+        {
+            conn[ci].ua_type = UA_TYPE_MOB;
+            DBG("ua_type = UA_TYPE_MOB");
+        }
+        else
+        {
+            DBG("ua_type = UA_TYPE_DSK");
         }
 
-        DBG("mobile = %s", conn[ci].mobile?"TRUE":"FALSE");
 
         if ( !REQ_BOT &&
                 (strstr(uvalue, "BOT")
@@ -5478,7 +5493,7 @@ void eng_async_req(int ci, const char *service, const char *data, char response,
     strcpy(req.hdr.req3, conn[ci].req3);
     strcpy(req.hdr.id, conn[ci].id);
     strcpy(req.hdr.uagent, conn[ci].uagent);
-    req.hdr.mobile = conn[ci].mobile;
+    req.hdr.ua_type = conn[ci].ua_type;
     strcpy(req.hdr.referer, conn[ci].referer);
     req.hdr.clen = conn[ci].clen;
     strcpy(req.hdr.in_cookie, conn[ci].in_cookie);
@@ -6231,7 +6246,7 @@ int main(int argc, char *argv[])
             strcpy(conn[0].req3, req.hdr.req3);
             strcpy(conn[0].id, req.hdr.id);
             strcpy(conn[0].uagent, req.hdr.uagent);
-            conn[0].mobile = req.hdr.mobile;
+            conn[0].ua_type = req.hdr.ua_type;
             strcpy(conn[0].referer, req.hdr.referer);
             conn[0].clen = req.hdr.clen;
             strcpy(conn[0].in_cookie, req.hdr.in_cookie);

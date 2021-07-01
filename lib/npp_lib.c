@@ -2909,10 +2909,12 @@ static void format_counters(counters_fmt_t *s, counters_t *n)
 {
     amt(s->req, n->req);
     amt(s->req_dsk, n->req_dsk);
+    amt(s->req_tab, n->req_tab);
     amt(s->req_mob, n->req_mob);
     amt(s->req_bot, n->req_bot);
     amt(s->visits, n->visits);
     amt(s->visits_dsk, n->visits_dsk);
+    amt(s->visits_tab, n->visits_tab);
     amt(s->visits_mob, n->visits_mob);
     amt(s->blocked, n->blocked);
     amtd(s->average, n->average);
@@ -3214,25 +3216,25 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 
     if ( REQ_DSK )  /* desktop -- 3 days' stats */
     {
-        OUT("<tr><th>counter</th><th colspan=3>the day before</th><th colspan=3>yesterday</th><th colspan=3>today</th></tr>");
-        OUT("<tr><td rowspan=2>all traffic (parsed requests)</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td></tr>");
-        OUT("<tr><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", b.req, b.req_dsk, b.req_mob, y.req, y.req_dsk, y.req_mob, t.req, t.req_dsk, t.req_mob);
-        OUT("<tr><td>bots</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td></tr>", b.req_bot, y.req_bot, t.req_bot);
-        OUT("<tr><td rowspan=2>visits</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td></tr>");
-        OUT("<tr><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td></tr>", b.visits, b.visits_dsk, b.visits_mob, y.visits, y.visits_dsk, y.visits_mob, t.visits, t.visits_dsk, t.visits_mob);
-        OUT("<tr><td>attempts blocked</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td></tr>", b.blocked, y.blocked, t.blocked);
-        OUT("<tr><td>average</td><td colspan=3 class=r>%s ms</td><td colspan=3 class=r>%s ms</td><td colspan=3 class=r>%s ms</td></tr>", b.average, y.average, t.average);
+        OUT("<tr><th>counter</th><th colspan=4>the day before</th><th colspan=4>yesterday</th><th colspan=4>today</th></tr>");
+        OUT("<tr><td rowspan=2>all traffic (parsed requests)</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td></tr>");
+        OUT("<tr><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", b.req, b.req_dsk, b.req_tab, b.req_mob, y.req, y.req_dsk, y.req_tab, y.req_mob, t.req, t.req_dsk, t.req_tab, t.req_mob);
+        OUT("<tr><td>bots</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td></tr>", b.req_bot, y.req_bot, t.req_bot);
+        OUT("<tr><td rowspan=2>visits</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td></tr>");
+        OUT("<tr><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", b.visits, b.visits_dsk, b.visits_tab, b.visits_mob, y.visits, y.visits_dsk, y.visits_tab, y.visits_mob, t.visits, t.visits_dsk, t.visits_tab, t.visits_mob);
+        OUT("<tr><td>attempts blocked</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td></tr>", b.blocked, y.blocked, t.blocked);
+        OUT("<tr><td>average</td><td colspan=4 class=r>%s ms</td><td colspan=4 class=r>%s ms</td><td colspan=4 class=r>%s ms</td></tr>", b.average, y.average, t.average);
     }
     else    /* mobile -- 2 days' stats */
     {
-        OUT("<tr><th>counter</th><th colspan=3>yesterday</th><th colspan=3>today</th></tr>");
-        OUT("<tr><td rowspan=2>all traffic (parsed requests)</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td></tr>");
-        OUT("<tr><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", y.req, y.req_dsk, y.req_mob, t.req, t.req_dsk, t.req_mob);
-        OUT("<tr><td>bots</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td></tr>", y.req_bot, t.req_bot);
-        OUT("<tr><td rowspan=2>visits</td><td>all</td><td>dsk</td><td>mob</td><td>all</td><td>dsk</td><td>mob</td></tr>");
-        OUT("<tr><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td></tr>", y.visits, y.visits_dsk, y.visits_mob, t.visits, t.visits_dsk, t.visits_mob);
-        OUT("<tr><td>attempts blocked</td><td colspan=3 class=r>%s</td><td colspan=3 class=r>%s</td></tr>", y.blocked, t.blocked);
-        OUT("<tr><td>average</td><td colspan=3 class=r>%s ms</td><td colspan=3 class=r>%s ms</td></tr>", y.average, t.average);
+        OUT("<tr><th>counter</th><th colspan=4>yesterday</th><th colspan=4>today</th></tr>");
+        OUT("<tr><td rowspan=2>all traffic (parsed requests)</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td></tr>");
+        OUT("<tr><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", y.req, y.req_dsk, y.req_tab, y.req_mob, t.req, t.req_dsk, t.req_tab, t.req_mob);
+        OUT("<tr><td>bots</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td></tr>", y.req_bot, t.req_bot);
+        OUT("<tr><td rowspan=2>visits</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td><td>all</td><td>dsk</td><td>tab</td><td>mob</td></tr>");
+        OUT("<tr><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td><td class=r><b>%s</b></td><td class=r>%s</td><td class=r>%s</td><td class=r>%s</td></tr>", y.visits, y.visits_dsk, y.visits_tab, y.visits_mob, t.visits, t.visits_dsk, t.visits_tab, t.visits_mob);
+        OUT("<tr><td>attempts blocked</td><td colspan=4 class=r>%s</td><td colspan=4 class=r>%s</td></tr>", y.blocked, t.blocked);
+        OUT("<tr><td>average</td><td colspan=4 class=r>%s ms</td><td colspan=4 class=r>%s ms</td></tr>", y.average, t.average);
     }
 
     OUT("</table>");

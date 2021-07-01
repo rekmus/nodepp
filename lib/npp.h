@@ -150,7 +150,8 @@ typedef char str256k[1024*256];
 
 #define VIEW_DEFAULT                    '0'
 #define VIEW_DESKTOP                    '1'
-#define VIEW_MOBILE                     '2'
+#define VIEW_TABLET                     '2'
+#define VIEW_MOBILE                     '3'
 
 
 #define SQLBUF                          4096            /* SQL query buffer size */
@@ -244,6 +245,13 @@ typedef char str256k[1024*256];
 #endif
 
 
+/* client types */
+
+#define UA_TYPE_DSK                 (char)0     /* desktop (large screen) */
+#define UA_TYPE_TAB                 (char)1     /* tablet (medium screen) */
+#define UA_TYPE_MOB                 (char)2     /* phone (small screen) */
+
+
 /* request macros */
 
 #define REQ_METHOD                  conn[ci].method
@@ -254,10 +262,12 @@ typedef char str256k[1024*256];
 #define REQ_OPTIONS                 (0==strcmp(conn[ci].method, "OPTIONS"))
 #define REQ_URI                     conn[ci].uri
 #define REQ_CONTENT_TYPE            conn[ci].in_ctypestr
-#define REQ_DSK                     !conn[ci].mobile
-#define REQ_MOB                     conn[ci].mobile
 #define REQ_BOT                     conn[ci].bot
 #define REQ_LANG                    conn[ci].lang
+
+#define REQ_DSK                     (conn[ci].ua_type==UA_TYPE_DSK)
+#define REQ_TAB                     (conn[ci].ua_type==UA_TYPE_TAB)
+#define REQ_MOB                     (conn[ci].ua_type==UA_TYPE_MOB)
 
 #define PROTOCOL                    (conn[ci].secure?"https":"http")
 #define COLON_POSITION              (conn[ci].secure?5:4)
@@ -889,10 +899,12 @@ typedef struct {
 typedef struct {
     unsigned req;            /* all parsed requests */
     unsigned req_dsk;        /* all requests with desktop UA */
+    unsigned req_tab;        /* all requests with tablet UA */
     unsigned req_mob;        /* all requests with mobile UA */
     unsigned req_bot;        /* all requests with HTTP header indicating well-known search-engine bots */
     unsigned visits;         /* all visits to domain (Host=APP_DOMAIN) landing page (no action/resource), excl. bots that got 200 */
     unsigned visits_dsk;     /* like visits -- desktop only */
+    unsigned visits_tab;     /* like visits -- tablets only */
     unsigned visits_mob;     /* like visits -- mobile only */
     unsigned blocked;        /* attempts from blocked IP */
     double   elapsed;        /* sum of elapsed time of all requests for calculating average */
@@ -922,7 +934,7 @@ typedef struct {
     char     req3[MAX_RESOURCE_LEN+1];
     char     id[MAX_RESOURCE_LEN+1];
     char     uagent[MAX_VALUE_LEN+1];
-    bool     mobile;
+    char     ua_type;
     char     referer[MAX_VALUE_LEN+1];
     unsigned clen;
     char     in_cookie[MAX_VALUE_LEN+1];
@@ -1044,7 +1056,7 @@ typedef struct {                            /* request details for npp_svc */
     char     req3[MAX_RESOURCE_LEN+1];
     char     id[MAX_RESOURCE_LEN+1];
     char     uagent[MAX_VALUE_LEN+1];
-    bool     mobile;
+    char     ua_type;
     char     referer[MAX_VALUE_LEN+1];
     unsigned clen;
     char     in_cookie[MAX_VALUE_LEN+1];
@@ -1097,7 +1109,7 @@ typedef struct {
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
     char     proto[16];                      /* HTTP request version */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
-    bool     mobile;
+    char     ua_type;
     bool     keep_alive;
     char     referer[MAX_VALUE_LEN+1];
     unsigned clen;                           /* incoming & outgoing content length */
@@ -1201,10 +1213,12 @@ typedef struct {
 typedef struct {
     char req[64];
     char req_dsk[64];
+    char req_tab[64];
     char req_mob[64];
     char req_bot[64];
     char visits[64];
     char visits_dsk[64];
+    char visits_tab[64];
     char visits_mob[64];
     char blocked[64];
     char average[64];
