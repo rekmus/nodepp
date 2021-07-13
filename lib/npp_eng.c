@@ -5256,7 +5256,7 @@ static bool init_ssl()
 
     G_ssl_lib_initialized = TRUE;
 
-    method = TLS_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
+    method = SSLv23_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
 
     M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
 
