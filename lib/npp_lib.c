@@ -6533,7 +6533,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
         else if ( json->rec[i].type == JSON_RECORD )
         {
             intptr_t jp;
-            sscanf(json->rec[i].value, "%p", &jp);
+            sscanf(json->rec[i].value, "%p", (void**)&jp);
             char tmp[JSON_BUFSIZE];
             json_to_string(tmp, (JSON*)jp, FALSE);
             p = stpcpy(p, tmp);
@@ -6541,7 +6541,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
         else if ( json->rec[i].type == JSON_ARRAY )
         {
             intptr_t jp;
-            sscanf(json->rec[i].value, "%p", &jp);
+            sscanf(json->rec[i].value, "%p", (void**)&jp);
             char tmp[JSON_BUFSIZE];
             json_to_string(tmp, (JSON*)jp, TRUE);
             p = stpcpy(p, tmp);
@@ -6620,7 +6620,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
                 p = stpcpy(p, json_indent(level));
             }
             intptr_t jp;
-            sscanf(json->rec[i].value, "%p", &jp);
+            sscanf(json->rec[i].value, "%p", (void**)&jp);
             char tmp[JSON_BUFSIZE];
             json_to_string_pretty(tmp, (JSON*)jp, FALSE, level+1);
             p = stpcpy(p, tmp);
@@ -6633,7 +6633,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
                 p = stpcpy(p, json_indent(level));
             }
             intptr_t jp;
-            sscanf(json->rec[i].value, "%p", &jp);
+            sscanf(json->rec[i].value, "%p", (void**)&jp);
             char tmp[JSON_BUFSIZE];
             json_to_string_pretty(tmp, (JSON*)jp, TRUE, level+1);
             p = stpcpy(p, tmp);
@@ -7633,7 +7633,7 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
         if ( json->rec[i].type == JSON_RECORD || json->rec[i].type == JSON_ARRAY )
         {
             intptr_t jp;
-            sscanf(json->rec[i].value, "%p", &jp);
+            sscanf(json->rec[i].value, "%p", (void**)&jp);
             memcpy(json_sub, (JSON*)jp, sizeof(JSON));
             return TRUE;
         }
@@ -7655,7 +7655,7 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
             if ( json->rec[i].type == JSON_RECORD || json->rec[i].type == JSON_ARRAY )
             {
                 intptr_t jp;
-                sscanf(json->rec[i].value, "%p", &jp);
+                sscanf(json->rec[i].value, "%p", (void**)&jp);
                 memcpy(json_sub, (JSON*)jp, sizeof(JSON));
                 return TRUE;
             }
