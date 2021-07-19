@@ -62,7 +62,9 @@ static void restart()
 
     INF_T("Stopping...");
     INF_T(M_watcherStopCmd);
-    system(M_watcherStopCmd);
+
+    if ( system(M_watcherStopCmd) != EXIT_SUCCESS )
+        WAR("Couldn't execute %s", M_watcherStopCmd);
 
     npp_update_time_globals();
 
@@ -73,7 +75,9 @@ static void restart()
 
     INF_T("Starting...");
     INF_T(M_watcherStartCmd);
-    system(M_watcherStartCmd);
+
+    if ( system(M_watcherStartCmd) != EXIT_SUCCESS )
+        WAR("Couldn't execute %s", M_watcherStartCmd);
 
 #ifdef APP_ADMIN_EMAIL
     if ( strlen(APP_ADMIN_EMAIL) )
