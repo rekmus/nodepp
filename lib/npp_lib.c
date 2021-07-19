@@ -3548,7 +3548,7 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
                 p = stpcpy(p, "Content-Type: application/x-www-form-urlencoded; charset=utf-8\r\n");
         }
         char tmp[64];
-        sprintf(tmp, "Content-Length: %d\r\n", strlen(json?jtmp:(char*)req));
+        sprintf(tmp, "Content-Length: %ld\r\n", (long)strlen(json?jtmp:(char*)req));
         p = stpcpy(p, tmp);
     }
 
@@ -6265,7 +6265,12 @@ void init_random_numbers()
 
     if ( urandom_fd )
     {
-        read(urandom_fd, &M_random_numbers, RANDOM_NUMBERS);
+        if ( read(urandom_fd, &M_random_numbers, RANDOM_NUMBERS) < RANDOM_NUMBERS )
+        {
+            WAR("Couldn't read from /dev/urandom");
+            close(urandom_fd);
+            return;
+        }
 
         close(urandom_fd);
 
@@ -8519,7 +8524,9 @@ static char pidfilename[512];
 #else
         sprintf(command, "rm %s", pidfilename);
 #endif
-        system(command);
+
+        if ( system(command) != EXIT_SUCCESS )
+            WAR("Couldn't execute %s", command);
 
         msleep(100);
     }

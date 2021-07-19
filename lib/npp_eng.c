@@ -5167,7 +5167,8 @@ static void clean_up()
 #else
         sprintf(command, "rm %s", M_pidfile);
 #endif
-        system(command);
+        if ( system(command) != EXIT_SUCCESS )
+            WAR("Couldn't execute %s", command);
     }
 
 #ifdef DBMYSQL
@@ -5702,9 +5703,6 @@ void npp_add_to_static_res(const char *name, const char *src)
 -------------------------------------------------------------------------- */
 void eng_block_ip(const char *value, bool autoblocked)
 {
-    char    fname[1024];
-    char    comm[1024];
-
     if ( G_blockedIPList[0] == EOS ) return;
 
     if ( G_blacklist_cnt > MAX_BLACKLIST-1 )
@@ -5719,6 +5717,9 @@ void eng_block_ip(const char *value, bool autoblocked)
         return;
     }
 
+    char fname[1024];
+    char command[1024];
+
     strcpy(G_blacklist[G_blacklist_cnt++], value);
 
     if ( G_blockedIPList[0] == '/' )    /* full path */
@@ -5728,8 +5729,10 @@ void eng_block_ip(const char *value, bool autoblocked)
     else
         strcpy(fname, G_blockedIPList);
 
-    sprintf(comm, "echo \"%s\t# %sblocked on %s\" >> %s", value, autoblocked?"auto":"", G_dt, fname);
-    system(comm);
+    sprintf(command, "echo \"%s\t# %sblocked on %s\" >> %s", value, autoblocked?"auto":"", G_dt, fname);
+
+    if ( system(command) != EXIT_SUCCESS )
+        WAR("Couldn't execute %s", command);
 
     WAR("IP %s blacklisted", value);
 }
