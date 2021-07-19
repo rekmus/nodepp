@@ -133,7 +133,7 @@ static char M_random_initialized=0;
 
 
 static void load_err_messages(void);
-static void load_strings(void);
+static bool load_strings(void);
 static void minify_1(char *dest, const char *src, int len);
 static int  minify_2(char *dest, const char *src);
 static void get_byteorder32(void);
@@ -143,7 +143,7 @@ static void get_byteorder64(void);
 /* --------------------------------------------------------------------------
    Library init
 -------------------------------------------------------------------------- */
-void npp_lib_init()
+bool npp_lib_init()
 {
     int i;
 
@@ -171,7 +171,8 @@ void npp_lib_init()
 
 #ifndef NPP_CLIENT
     /* load strings */
-    load_strings();
+    if ( !load_strings() )
+        return FALSE;
 
     for ( i=0; i<MAX_SNIPPETS; ++i )
         strcpy(G_snippets[i].name, "-");
@@ -180,6 +181,8 @@ void npp_lib_init()
 #ifdef ICONV
     setlocale(LC_ALL, "");
 #endif
+
+    return TRUE;
 }
 
 
@@ -1287,7 +1290,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
 /* --------------------------------------------------------------------------
    Load strings
 -------------------------------------------------------------------------- */
-static void load_strings()
+static bool load_strings()
 {
     int     i, len;
     char    bindir[STATIC_PATH_LEN];        /* full path to bin */
@@ -1300,7 +1303,7 @@ static void load_strings()
 
     DBG("load_strings");
 
-    if ( G_appdir[0] == EOS ) return;
+    if ( G_appdir[0] == EOS ) return TRUE;
 
 #ifdef _WIN32
     sprintf(bindir, "%s\\bin", G_appdir);
@@ -1310,7 +1313,7 @@ static void load_strings()
     if ( (dir=opendir(bindir)) == NULL )
     {
         DBG("Couldn't open directory [%s]", bindir);
-        return;
+        return FALSE;
     }
 
     while ( (dirent=readdir(dir)) )
@@ -1342,10 +1345,19 @@ static void load_strings()
                 ERR("Couldn't allocate %d bytes for %s", len, dirent->d_name);
                 fclose(fd);
                 closedir(dir);
-                return;
+                return FALSE;
             }
 
-            fread(data, len, 1, fd);
+            if ( fread(data, len, 1, fd) != 1 )
+            {
+                ERR("Couldn't read from %s", dirent->d_name);
+                fclose(fd);
+                closedir(dir);
+                free(data);
+                data = NULL;
+                return FALSE;
+            }
+
             fclose(fd);
             *(data+len) = EOS;
 
@@ -1357,6 +1369,8 @@ static void load_strings()
     }
 
     closedir(dir);
+
+    return TRUE;
 }
 
 
@@ -1850,7 +1864,13 @@ bool read_snippets(bool first_scan, const char *path)
                 return FALSE;
             }
 
-            fread(G_snippets[i].data, G_snippets[i].len, 1, fd);
+            if ( fread(G_snippets[i].data, G_snippets[i].len, 1, fd) != 1 )
+            {
+                ERR("Couldn't read from %s", G_snippets[i].name);
+                fclose(fd);
+                closedir(dir);
+                return FALSE;
+            }
 
             fclose(fd);
 
@@ -3182,17 +3202,17 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     OUT("<h2>Memory</h2>");
 
     int  mem_used;
-    char mem_used_kb[64];
-    char mem_used_mb[64];
-    char mem_used_gb[64];
+    char mem_used_kib[64];
+    char mem_used_mib[64];
+    char mem_used_gib[64];
 
     mem_used = lib_get_memory();
 
-    amt(mem_used_kb, mem_used);
-    amtd(mem_used_mb, (double)mem_used/1024);
-    amtd(mem_used_gb, (double)mem_used/1024/1024);
+    amt(mem_used_kib, mem_used);
+    amtd(mem_used_mib, (double)mem_used/1024);
+    amtd(mem_used_gib, (double)mem_used/1024/1024);
 
-    OUT("<p>HWM: %s kB (%s MB / %s GB)</p>", mem_used_kb, mem_used_mb, mem_used_gb);
+    OUT("<p>HWM: %s kB (%s MiB / %s GiB)</p>", mem_used_kib, mem_used_mib, mem_used_gib);
 
     OUT("<h2>Counters</h2>");
 
@@ -8319,7 +8339,13 @@ bool npp_read_conf(const char *file)
         return FALSE;
     }
 
-    fread(M_conf, size, 1, h_file);
+    if ( fread(M_conf, size, 1, h_file) != 1 )
+    {
+        printf("ERROR: Couldn't read from %s\n", file);
+        fclose(h_file);
+        return FALSE;
+    }
+
     *(M_conf+size) = EOS;
 
     fclose(h_file);
@@ -8465,7 +8491,14 @@ static char pidfilename[512];
         }
         rewind(fpid);
         char oldpid[64];
-        fread(oldpid, fsize, 1, fpid);
+
+        if ( fread(oldpid, fsize, 1, fpid) != 1 )
+        {
+            ERR("Couldn't read from the old pid file");
+            fclose(fpid);
+            return NULL;
+        }
+
         fclose(fpid);
         oldpid[fsize] = EOS;
         DBG("oldpid [%s]", oldpid);

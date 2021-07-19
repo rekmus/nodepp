@@ -95,7 +95,8 @@ int main(int argc, char *argv[])
 
     /* library init ------------------------------------------------------ */
 
-    npp_lib_init();
+    if ( !npp_lib_init() )
+		return EXIT_FAILURE;
 
     npp_sort_messages();
 

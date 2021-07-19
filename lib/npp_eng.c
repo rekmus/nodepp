@@ -242,7 +242,7 @@ static char *get_http_descr(int status_code);
 static void dump_counters(void);
 static void clean_up(void);
 static void sigdisp(int sig);
-static void gen_page_msg(int ci, int code);
+static void render_page_msg(int ci, int code);
 static bool init_ssl(void);
 
 
@@ -1547,7 +1547,8 @@ static bool init(int argc, char **argv)
 
     /* init Node++ library */
 
-    npp_lib_init();
+    if ( !npp_lib_init() )
+        return FALSE;
 
     /* read the config file or set defaults */
 
@@ -2898,7 +2899,14 @@ static bool read_files(const char *host, const char *directory, char source, boo
                     return FALSE;
                 }
 
-                fread(data_tmp, M_stat[i].len, 1, fd);
+                if ( fread(data_tmp, M_stat[i].len, 1, fd) != 1 )
+                {
+                    ERR("Couldn't read from %s", M_stat[i].name);
+                    fclose(fd);
+                    closedir(dir);
+                    return FALSE;
+                }
+
                 *(data_tmp+M_stat[i].len) = EOS;
 
                 M_stat[i].len = npp_minify(data_tmp_min, data_tmp);   /* new length */
@@ -2941,11 +2949,23 @@ static bool read_files(const char *host, const char *directory, char source, boo
             }
             else if ( M_stat[i].source == STATIC_SOURCE_RES )
             {
-                fread(M_stat[i].data+OUT_HEADER_BUFSIZE, M_stat[i].len, 1, fd);
+                if ( fread(M_stat[i].data+OUT_HEADER_BUFSIZE, M_stat[i].len, 1, fd) != 1 )
+                {
+                    ERR("Couldn't read from %s", M_stat[i].name);
+                    fclose(fd);
+                    closedir(dir);
+                    return FALSE;
+                }
             }
             else    /* snippet */
             {
-                fread(M_stat[i].data, M_stat[i].len, 1, fd);
+                if ( fread(M_stat[i].data, M_stat[i].len, 1, fd) != 1 )
+                {
+                    ERR("Couldn't read from %s", M_stat[i].name);
+                    fclose(fd);
+                    closedir(dir);
+                    return FALSE;
+                }
             }
 
             fclose(fd);
@@ -3353,7 +3373,7 @@ static void process_req(int ci)
                     ret = ERR_SERVER_TOOBUSY;
             }
 
-            gen_page_msg(ci, ret);
+            render_page_msg(ci, ret);
         }
 
         RES_DONT_CACHE;
@@ -5109,13 +5129,14 @@ static void dump_counters()
     ALWAYS("Counters:\n");
     ALWAYS("            req: %u", G_cnts_today.req);
     ALWAYS("        req_dsk: %u", G_cnts_today.req_dsk);
+    ALWAYS("        req_tab: %u", G_cnts_today.req_tab);
     ALWAYS("        req_mob: %u", G_cnts_today.req_mob);
     ALWAYS("        req_bot: %u", G_cnts_today.req_bot);
     ALWAYS("         visits: %u", G_cnts_today.visits);
     ALWAYS("     visits_dsk: %u", G_cnts_today.visits_dsk);
+    ALWAYS("     visits_tab: %u", G_cnts_today.visits_tab);
     ALWAYS("     visits_mob: %u", G_cnts_today.visits_mob);
     ALWAYS("        blocked: %u", G_cnts_today.blocked);
-//       DBG("        elapsed: %.3lf ms", G_cnts_today.elapsed);
     ALWAYS("        average: %.3lf ms", G_cnts_today.average);
     ALWAYS("connections HWM: %d", G_open_conn_hwm);
     ALWAYS("   sessions HWM: %d", G_sessions_hwm);
@@ -5198,9 +5219,9 @@ static void sigdisp(int sig)
 /* --------------------------------------------------------------------------
    Generic message page
 -------------------------------------------------------------------------- */
-static void gen_page_msg(int ci, int code)
+static void render_page_msg(int ci, int code)
 {
-    DBG("gen_page_msg");
+    DBG("render_page_msg");
 
 #ifdef APP_ERROR_PAGE
 
@@ -5986,7 +6007,8 @@ int main(int argc, char *argv[])
 
     /* library init ------------------------------------------------------ */
 
-    npp_lib_init();
+    if ( !npp_lib_init() )
+        return EXIT_FAILURE;
 
     /* read the config file or set defaults ------------------------------ */
 

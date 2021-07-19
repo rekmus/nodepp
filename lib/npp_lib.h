@@ -433,7 +433,7 @@ typedef json_t JSON;
 #ifdef __cplusplus
 extern "C" {
 #endif
-    void npp_lib_init(void);
+    bool npp_lib_init(void);
     void npp_lib_done(void);
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
     void npp_set_tz(int ci);
