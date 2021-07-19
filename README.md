@@ -51,3 +51,13 @@ If you use USERS module: unless you want to force users to reset their passwords
 1. Define `NPP_SILGY_PASSWORDS` in `npp_app.h`
 
 Note that by default Node++ uses SHA256 hashes instead of SHA1 for passwords. They are longer and require `passwd1` and `passwd2` columns in `users` table to be 44 characters long.
+
+
+## Ubuntu
+
+Apart from installing GCC, this might be required:
+
+```
+sudo apt-get install libz-dev
+sudo apt-get install libssl-dev
+```

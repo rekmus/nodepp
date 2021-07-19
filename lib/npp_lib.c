@@ -8524,7 +8524,6 @@ static char pidfilename[512];
 #else
         sprintf(command, "rm %s", pidfilename);
 #endif
-
         if ( system(command) != EXIT_SUCCESS )
             WAR("Couldn't execute %s", command);
 
