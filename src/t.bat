@@ -2,4 +2,4 @@
 
 set NPP_DIR=..
 
-..\bin\npp_app 8080
+%NPP_DIR%\bin\npp_app 8080
