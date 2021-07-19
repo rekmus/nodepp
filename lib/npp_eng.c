@@ -6683,7 +6683,8 @@ static void clean_up()
 #else
         sprintf(command, "rm %s", M_pidfile);
 #endif
-        system(command);
+        if ( system(command) != EXIT_SUCCESS )
+            WAR("Couldn't execute %s", command);
     }
 
 #ifdef DBMYSQL
