@@ -1112,7 +1112,7 @@ typedef struct {
 #endif  /* RESOURCE_LEVELS > 2 */
 #endif  /* RESOURCE_LEVELS > 1 */
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
-    char     proto[16];                      /* HTTP request version */
+    char     proto[4];                       /* HTTP request version */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
     char     ua_type;
     bool     keep_alive;

@@ -1472,9 +1472,9 @@ static void log_request(int ci)
     strftime(logtime, 64, "%d/%b/%Y:%H:%M:%S +0000", G_ptm);
 
     if ( G_logCombined )
-        INF("%s - - [%s] \"%s /%s %s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].referer, conn[ci].uagent, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].referer, conn[ci].uagent, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
     else
-        INF("%s - - [%s] \"%s /%s %s\" %d %u  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
 }
 
 
@@ -4301,16 +4301,18 @@ static int parse_req(int ci, int len)
 #endif
     /* -------------------------------------------------------------- */
 
+    i += 6;   /* skip the space and HTTP/ */
+
     j = 0;
     while ( i < hlen && conn[ci].in[i] != '\r' && conn[ci].in[i] != '\n' )
     {
-        if ( conn[ci].in[i] != ' ' && j < 15 )
+        if ( j < 3 )
             conn[ci].proto[j++] = conn[ci].in[i];
         ++i;
     }
     conn[ci].proto[j] = EOS;
 #ifdef DUMP
-//    DBG("proto [%s]", conn[ci].proto);
+    DBG("proto [%s]", conn[ci].proto);
 #endif
 
     /* -------------------------------------------------------------- */
@@ -5110,7 +5112,8 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         lib_set_datetime_formats(conn[ci].lang);
     }
-    else if ( 0==strcmp(ulabel, "UPGRADE") )    /* HTTP/2 */
+#ifdef HTTP2
+    else if ( 0==strcmp(ulabel, "UPGRADE") )
     {
         if ( strcmp(value, "h2") == 0 )
         {
@@ -5121,6 +5124,10 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             INF("Client wants to switch to HTTP/2 cleartext");
         }
     }
+    else if ( 0==strcmp(ulabel, "HTTP2-SETTINGS") )
+    {
+    }
+#endif  /* HTTP2 */
     else if ( 0==strcmp(ulabel, "EXPECT") )
     {
         if ( 0==strcmp(value, "100-continue") )
