@@ -99,6 +99,7 @@ counters_t  G_cnts_day_before={0};      /* day before's counters */
 /* locals */
 
 http_status_t   M_http_status[]={
+        {101, "Switching Protocols"},
         {200, "OK"},
         {201, "Created"},
         {206, "Partial Content"},
@@ -4049,9 +4050,21 @@ static void reset_conn(int ci, char new_state)
     conn[ci].upgrade2https = FALSE;
     conn[ci].data_sent = 0;
     conn[ci].resource[0] = EOS;
+#if RESOURCE_LEVELS > 1
     conn[ci].req1[0] = EOS;
+#if RESOURCE_LEVELS > 2
     conn[ci].req2[0] = EOS;
+#if RESOURCE_LEVELS > 3
     conn[ci].req3[0] = EOS;
+#if RESOURCE_LEVELS > 4
+    conn[ci].req4[0] = EOS;
+#if RESOURCE_LEVELS > 5
+    conn[ci].req5[0] = EOS;
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
     conn[ci].id[0] = EOS;
     conn[ci].uagent[0] = EOS;
     conn[ci].ua_type = UA_TYPE_DSK;
@@ -4141,10 +4154,10 @@ static int parse_req(int ci, int len)
 //  if ( conn[ci].conn_state != STATE_SENDING ) /* ignore Range requests for now */
 //      conn[ci].conn_state = STATE_RECEIVED;   /* by default */
 
-    if ( len < 14 ) /* ignore any junk */
+    if ( len < 14 )  /* ignore any junk */
     {
         DBG("request len < 14, ignoring");
-        return 400;  /* Bad Request */
+        return 400;   /* Bad Request */
     }
 
     /* look for end of header */
@@ -4216,7 +4229,7 @@ static int parse_req(int ci, int len)
             }
             else if ( 0==strcmp(conn[ci].method, "HEAD") )
             {
-                conn[ci].head_only = TRUE;  /* send only a header */
+                conn[ci].head_only = TRUE;  /* respond with the header only */
             }
             else
             {
@@ -4449,6 +4462,7 @@ static int parse_req(int ci, int len)
 
         conn[ci].resource[MAX_RESOURCE_LEN] = EOS;
 
+#if RESOURCE_LEVELS > 1
         /* REQ1 */
 
         if ( token && (token=strtok(NULL, slash)) )
@@ -4456,6 +4470,7 @@ static int parse_req(int ci, int len)
             strncpy(conn[ci].req1, token, MAX_RESOURCE_LEN);
             conn[ci].req1[MAX_RESOURCE_LEN] = EOS;
 
+#if RESOURCE_LEVELS > 2
             /* REQ2 */
 
             if ( token=strtok(NULL, slash) )
@@ -4463,15 +4478,39 @@ static int parse_req(int ci, int len)
                 strncpy(conn[ci].req2, token, MAX_RESOURCE_LEN);
                 conn[ci].req2[MAX_RESOURCE_LEN] = EOS;
 
+#if RESOURCE_LEVELS > 3
                 /* REQ3 */
 
                 if ( token=strtok(NULL, slash) )
                 {
                     strncpy(conn[ci].req3, token, MAX_RESOURCE_LEN);
                     conn[ci].req3[MAX_RESOURCE_LEN] = EOS;
+
+#if RESOURCE_LEVELS > 4
+                    /* REQ4 */
+
+                    if ( token=strtok(NULL, slash) )
+                    {
+                        strncpy(conn[ci].req4, token, MAX_RESOURCE_LEN);
+                        conn[ci].req4[MAX_RESOURCE_LEN] = EOS;
+
+#if RESOURCE_LEVELS > 5
+                        /* REQ5 */
+
+                        if ( token=strtok(NULL, slash) )
+                        {
+                            strncpy(conn[ci].req5, token, MAX_RESOURCE_LEN);
+                            conn[ci].req5[MAX_RESOURCE_LEN] = EOS;
+                        }
+#endif  /* RESOURCE_LEVELS > 5 */
+                    }
+#endif  /* RESOURCE_LEVELS > 4 */
                 }
+#endif  /* RESOURCE_LEVELS > 3 */
             }
+#endif  /* RESOURCE_LEVELS > 2 */
         }
+#endif  /* RESOURCE_LEVELS > 1 */
 
         /* -------------------------------------------------------------- */
         /* ID for REST stuff */
@@ -4494,9 +4533,21 @@ static int parse_req(int ci, int len)
 
 #ifdef DUMP
         DBG("REQ0 [%s]", conn[ci].resource);
+#if RESOURCE_LEVELS > 1
         DBG("REQ1 [%s]", conn[ci].req1);
+#if RESOURCE_LEVELS > 2
         DBG("REQ2 [%s]", conn[ci].req2);
+#if RESOURCE_LEVELS > 3
         DBG("REQ3 [%s]", conn[ci].req3);
+#if RESOURCE_LEVELS > 4
+        DBG("REQ4 [%s]", conn[ci].req4);
+#if RESOURCE_LEVELS > 5
+        DBG("REQ5 [%s]", conn[ci].req5);
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
         DBG("  ID [%s]", conn[ci].id);
 #endif
         /* -------------------------------------------------------------- */
@@ -5061,9 +5112,13 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "UPGRADE") )    /* HTTP/2 */
     {
-        if ( strcmp(value, "h2c") == 0 )
+        if ( strcmp(value, "h2") == 0 )
         {
             INF("Client wants to switch to HTTP/2");
+        }
+        else if ( strcmp(value, "h2c") == 0 )
+        {
+            INF("Client wants to switch to HTTP/2 cleartext");
         }
     }
     else if ( 0==strcmp(ulabel, "EXPECT") )
@@ -5519,9 +5574,21 @@ void eng_async_req(int ci, const char *service, const char *data, char response,
     req.hdr.post = conn[ci].post;
     strcpy(req.hdr.uri, conn[ci].uri);
     strcpy(req.hdr.resource, conn[ci].resource);
+#if RESOURCE_LEVELS > 1
     strcpy(req.hdr.req1, conn[ci].req1);
+#if RESOURCE_LEVELS > 2
     strcpy(req.hdr.req2, conn[ci].req2);
+#if RESOURCE_LEVELS > 3
     strcpy(req.hdr.req3, conn[ci].req3);
+#if RESOURCE_LEVELS > 4
+    strcpy(req.hdr.req4, conn[ci].req4);
+#if RESOURCE_LEVELS > 5
+    strcpy(req.hdr.req5, conn[ci].req5);
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
     strcpy(req.hdr.id, conn[ci].id);
     strcpy(req.hdr.uagent, conn[ci].uagent);
     req.hdr.ua_type = conn[ci].ua_type;
@@ -6275,9 +6342,21 @@ int main(int argc, char *argv[])
             conn[0].post = req.hdr.post;
             strcpy(conn[0].uri, req.hdr.uri);
             strcpy(conn[0].resource, req.hdr.resource);
+#if RESOURCE_LEVELS > 1
             strcpy(conn[0].req1, req.hdr.req1);
+#if RESOURCE_LEVELS > 2
             strcpy(conn[0].req2, req.hdr.req2);
+#if RESOURCE_LEVELS > 3
             strcpy(conn[0].req3, req.hdr.req3);
+#if RESOURCE_LEVELS > 4
+            strcpy(conn[0].req4, req.hdr.req4);
+#if RESOURCE_LEVELS > 5
+            strcpy(conn[0].req5, req.hdr.req5);
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
             strcpy(conn[0].id, req.hdr.id);
             strcpy(conn[0].uagent, req.hdr.uagent);
             conn[0].ua_type = req.hdr.ua_type;

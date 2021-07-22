@@ -34,6 +34,14 @@
 #define NPP_LIB_H
 
 
+/* logs */
+
+#define LOG_ALWAYS                      0               /* print always */
+#define LOG_ERR                         1               /* print errors only */
+#define LOG_WAR                         2               /* print errors and warnings */
+#define LOG_INF                         3               /* print errors and warnings and info */
+#define LOG_DBG                         4               /* for debug mode -- most detailed */
+
 #define ALWAYS(str, ...)                log_write(LOG_ALWAYS, str, ##__VA_ARGS__)
 #define ERR(str, ...)                   log_write(LOG_ERR, str, ##__VA_ARGS__)
 #define WAR(str, ...)                   log_write(LOG_WAR, str, ##__VA_ARGS__)

@@ -122,15 +122,6 @@ typedef char str256k[1024*256];
 #define EOS                             ((char)0)       /* End Of String */
 
 
-/* log levels */
-
-#define LOG_ALWAYS                      0               /* print always */
-#define LOG_ERR                         1               /* print errors only */
-#define LOG_WAR                         2               /* print errors and warnings */
-#define LOG_INF                         3               /* print errors and warnings and info */
-#define LOG_DBG                         4               /* for debug mode -- most detailed */
-
-
 #define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99.99% cases */
 #define MAX_LONG_URI_VAL_LEN            65535           /* max long value length received in URI -- 64 kB - 1 B */
 
@@ -426,6 +417,11 @@ typedef char str256k[1024*256];
 
 
 #define OUT_HEADER_BUFSIZE              4096            /* response header buffer length */
+
+
+#ifndef RESOURCE_LEVELS
+#define RESOURCE_LEVELS                 3
+#endif
 
 
 #ifndef CUST_HDR_LEN
@@ -766,6 +762,8 @@ typedef char str256k[1024*256];
 #define REQ1(res)                       (0==strcmp(conn[ci].req1, res))
 #define REQ2(res)                       (0==strcmp(conn[ci].req2, res))
 #define REQ3(res)                       (0==strcmp(conn[ci].req3, res))
+#define REQ4(res)                       (0==strcmp(conn[ci].req4, res))
+#define REQ5(res)                       (0==strcmp(conn[ci].req5, res))
 #define ID                              conn[ci].id
 #define US                              uses[conn[ci].usi]
 #define AUS                             auses[conn[ci].usi]
@@ -1034,9 +1032,21 @@ typedef struct {                            /* request details for npp_svc */
     bool     post;
     char     uri[MAX_URI_LEN+1];
     char     resource[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 1
     char     req1[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 2
     char     req2[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 3
     char     req3[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 4
+    char     req4[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 5
+    char     req5[MAX_RESOURCE_LEN+1];
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
     char     id[MAX_RESOURCE_LEN+1];
     char     uagent[MAX_VALUE_LEN+1];
     char     ua_type;
@@ -1086,9 +1096,21 @@ typedef struct {
     bool     post;                           /* request method = POST */
     char     uri[MAX_URI_LEN+1];             /* requested URI string */
     char     resource[MAX_RESOURCE_LEN+1];   /* from URI (REQ0) */
+#if RESOURCE_LEVELS > 1
     char     req1[MAX_RESOURCE_LEN+1];       /* from URI -- level 1 */
+#if RESOURCE_LEVELS > 2
     char     req2[MAX_RESOURCE_LEN+1];       /* from URI -- level 2 */
+#if RESOURCE_LEVELS > 3
     char     req3[MAX_RESOURCE_LEN+1];       /* from URI -- level 3 */
+#if RESOURCE_LEVELS > 4
+    char     req4[MAX_RESOURCE_LEN+1];       /* from URI -- level 4 */
+#if RESOURCE_LEVELS > 5
+    char     req5[MAX_RESOURCE_LEN+1];       /* from URI -- level 5 */
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
     char     proto[16];                      /* HTTP request version */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
