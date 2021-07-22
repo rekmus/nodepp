@@ -249,6 +249,24 @@ typedef struct {
 
 
 
+/* convenient & fast string building */
+
+#define STRM_BEGIN(buf)                 G_strm=buf
+
+#define STRMS(str)                      (G_strm = stpcpy(G_strm, str))
+
+#ifdef _MSC_VER /* Microsoft compiler */
+    #define STRM(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), STRMS(G_tmp))
+#else   /* GCC */
+    #define STRMM(str, ...)                  (sprintf(G_tmp, str, __VA_ARGS__), STRMS(G_tmp))   /* STRM with multiple args */
+    #define CHOOSE_STRM(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, NAME, ...) NAME          /* single or multiple? */
+    #define STRM(...)                        CHOOSE_STRM(__VA_ARGS__, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMS)(__VA_ARGS__)
+#endif  /* _MSC_VER */
+
+#define STRM_END                        *G_strm = EOS
+
+
+
 /* format amount */
 
 #define AMT(val)                        npp_amt(val)

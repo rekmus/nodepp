@@ -55,6 +55,7 @@ struct tm   *G_ptm={0};                 /* human readable current time */
 char        G_dt[20]="";                /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
 char        G_tmp[TMP_BUFSIZE];         /* temporary string buffer */
 bool        G_initialized=0;
+char        *G_strm=NULL;
 
 /* database */
 #ifdef DBMYSQL
@@ -8514,9 +8515,6 @@ static char pidfilename[512];
 #else
         sprintf(command, "kill `cat %s`", pidfilename);
 #endif  /* _WIN32 */
-//        system(command);
-
-//        msleep(100);
 
         INF("Removing pid file...");
 #ifdef _WIN32   /* Windows */

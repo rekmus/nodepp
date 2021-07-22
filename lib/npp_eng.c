@@ -4900,6 +4900,8 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 || strstr(uvalue, "ZGRAB")
                 || strstr(uvalue, "DOMAINSONO")
                 || strstr(uvalue, "NETCRAFT")
+                || 0==strncmp(uvalue, "APPENGINE", 9)
+                || 0==strncmp(uvalue, "NETSYSTEMSRESEARCH", 18)
                 || 0==strncmp(uvalue, "CURL", 4)
                 || 0==strncmp(uvalue, "BUBING", 6)
                 || 0==strncmp(uvalue, "CLOUD MAPPING", 13)
@@ -4949,6 +4951,56 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         strcpy(conn[ci].referer, value);
 //      if ( !conn[ci].uri[0] && value[0] )
 //          INF("Referer: [%s]", value);
+    }
+    else if ( 0==strcmp(ulabel, "CONTENT-TYPE") )
+    {
+        strcpy(conn[ci].in_ctypestr, value);
+
+        strcpy(uvalue, upper(value));
+
+        int len = strlen(value);
+
+        if ( len > 15 && 0==strncmp(uvalue, "APPLICATION/JSON", 16) )
+        {
+            conn[ci].in_ctype = CONTENT_TYPE_JSON;
+        }
+        else if ( len > 32 && 0==strncmp(uvalue, "APPLICATION/X-WWW-FORM-URLENCODED", 33) )
+        {
+            conn[ci].in_ctype = CONTENT_TYPE_URLENCODED;
+        }
+        else if ( len > 18 && 0==strncmp(uvalue, "MULTIPART/FORM-DATA", 19) )
+        {
+            conn[ci].in_ctype = CONTENT_TYPE_MULTIPART;
+
+            if ( p=(char*)strstr(value, "boundary=") )
+            {
+                strcpy(conn[ci].boundary, p+9);
+                DBG("boundary: [%s]", conn[ci].boundary);
+            }
+        }
+        else if ( len > 23 && 0==strncmp(uvalue, "APPLICATION/OCTET-STREAM", 24) )
+        {
+            conn[ci].in_ctype = CONTENT_TYPE_OCTET_STREAM;
+        }
+    }
+    else if ( 0==strcmp(ulabel, "AUTHORIZATION") )
+    {
+        strcpy(conn[ci].authorization, value);
+    }
+    else if ( 0==strcmp(ulabel, "FROM") )
+    {
+        strcpy(uvalue, upper(value));
+        if ( !REQ_BOT && (strstr(uvalue, "GOOGLEBOT") || strstr(uvalue, "BINGBOT") || strstr(uvalue, "YANDEX") || strstr(uvalue, "CRAWLER")) )
+            REQ_BOT = TRUE;
+    }
+    else if ( 0==strcmp(ulabel, "IF-MODIFIED-SINCE") )
+    {
+        conn[ci].if_mod_since = time_http2epoch(value);
+    }
+    else if ( !conn[ci].secure && !G_test && 0==strcmp(ulabel, "UPGRADE-INSECURE-REQUESTS") && 0==strcmp(value, "1") )
+    {
+        DBG("Client wants to upgrade to HTTPS");
+        conn[ci].upgrade2https = TRUE;
     }
     else if ( 0==strcmp(ulabel, "X-FORWARDED-FOR") )    /* keep first IP as client IP */
     {
@@ -5007,55 +5059,12 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         lib_set_datetime_formats(conn[ci].lang);
     }
-    else if ( 0==strcmp(ulabel, "CONTENT-TYPE") )
+    else if ( 0==strcmp(ulabel, "UPGRADE") )    /* HTTP/2 */
     {
-        strcpy(conn[ci].in_ctypestr, value);
-
-        strcpy(uvalue, upper(value));
-
-        int len = strlen(value);
-
-        if ( len > 15 && 0==strncmp(uvalue, "APPLICATION/JSON", 16) )
+        if ( strcmp(value, "h2c") == 0 )
         {
-            conn[ci].in_ctype = CONTENT_TYPE_JSON;
+            INF("Client wants to switch to HTTP/2");
         }
-        else if ( len > 32 && 0==strncmp(uvalue, "APPLICATION/X-WWW-FORM-URLENCODED", 33) )
-        {
-            conn[ci].in_ctype = CONTENT_TYPE_URLENCODED;
-        }
-        else if ( len > 18 && 0==strncmp(uvalue, "MULTIPART/FORM-DATA", 19) )
-        {
-            conn[ci].in_ctype = CONTENT_TYPE_MULTIPART;
-
-            if ( p=(char*)strstr(value, "boundary=") )
-            {
-                strcpy(conn[ci].boundary, p+9);
-                DBG("boundary: [%s]", conn[ci].boundary);
-            }
-        }
-        else if ( len > 23 && 0==strncmp(uvalue, "APPLICATION/OCTET-STREAM", 24) )
-        {
-            conn[ci].in_ctype = CONTENT_TYPE_OCTET_STREAM;
-        }
-    }
-    else if ( 0==strcmp(ulabel, "AUTHORIZATION") )
-    {
-        strcpy(conn[ci].authorization, value);
-    }
-    else if ( 0==strcmp(ulabel, "FROM") )
-    {
-        strcpy(uvalue, upper(value));
-        if ( !REQ_BOT && (strstr(uvalue, "GOOGLEBOT") || strstr(uvalue, "BINGBOT") || strstr(uvalue, "YANDEX") || strstr(uvalue, "CRAWLER")) )
-            REQ_BOT = TRUE;
-    }
-    else if ( 0==strcmp(ulabel, "IF-MODIFIED-SINCE") )
-    {
-        conn[ci].if_mod_since = time_http2epoch(value);
-    }
-    else if ( !conn[ci].secure && !G_test && 0==strcmp(ulabel, "UPGRADE-INSECURE-REQUESTS") && 0==strcmp(value, "1") )
-    {
-        DBG("Client wants to upgrade to HTTPS");
-        conn[ci].upgrade2https = TRUE;
     }
     else if ( 0==strcmp(ulabel, "EXPECT") )
     {

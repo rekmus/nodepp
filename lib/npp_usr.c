@@ -774,27 +774,27 @@ static int generic_user_activation_email(int ci, int uid, const char *email, con
     char subject[256];
     char message[4096];
 
-    OUTP_BEGIN(message);
+    STRM_BEGIN(message);
 
-    OUTP("Dear %s,\n\n", npp_usr_name(NULL, NULL, NULL, uid));
-    OUTP("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", conn[ci].website);
+    STRM("Dear %s,\n\n", npp_usr_name(NULL, NULL, NULL, uid));
+    STRM("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", conn[ci].website);
 #ifdef HTTPS
     if ( G_test )
-        OUTP("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
     else
-        OUTP("https://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("https://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
 #else
-    OUTP("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
+    STRM("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
 #endif  /* HTTPS */
-    OUTP("Please keep in mind that this link will only be valid for the next %d hours.\n\n", USER_ACTIVATION_HOURS);
-    OUTP("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
+    STRM("Please keep in mind that this link will only be valid for the next %d hours.\n\n", USER_ACTIVATION_HOURS);
+    STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
 #ifdef APP_CONTACT_EMAIL
-    OUTP("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
 #endif
-    OUTP("Kind Regards\n");
-    OUTP("%s\n", conn[ci].website);
+    STRM("Kind Regards\n");
+    STRM("%s\n", conn[ci].website);
 
-    OUTP_END;
+    STRM_END;
 
     sprintf(subject, "%s Account Activation", conn[ci].website);
 
@@ -1049,17 +1049,17 @@ int npp_usr_login(int ci)
                 char subject[256];
                 char message[4096];
 
-                OUTP_BEGIN(message);
+                STRM_BEGIN(message);
 
-                OUTP("Dear %s,\n\n", npp_usr_name(us.login, us.email, us.name, 0));
-                OUTP("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", conn[ci].website, MAX_ULA_BEFORE_LOCK);
+                STRM("Dear %s,\n\n", npp_usr_name(us.login, us.email, us.name, 0));
+                STRM("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", conn[ci].website, MAX_ULA_BEFORE_LOCK);
 #ifdef APP_CONTACT_EMAIL
-                OUTP("Please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+                STRM("Please contact us at %s.\n\n", APP_CONTACT_EMAIL);
 #endif
-                OUTP("Kind Regards\n");
-                OUTP("%s\n", conn[ci].website);
+                STRM("Kind Regards\n");
+                STRM("%s\n", conn[ci].website);
 
-                OUTP_END;
+                STRM_END;
 
                 sprintf(subject, "%s account locked", conn[ci].website);
 
@@ -1528,28 +1528,28 @@ static int new_account_notification(int ci, const char *login, const char *email
     char subject[256];
     char message[4096];
 
-    OUTP_BEGIN(message);
+    STRM_BEGIN(message);
 
-    OUTP("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
-    OUTP("An account has been created for you at %s.\n\n", conn[ci].website);
-    OUTP("Please visit this address to log in:\n\n");
+    STRM("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
+    STRM("An account has been created for you at %s.\n\n", conn[ci].website);
+    STRM("Please visit this address to log in:\n\n");
 #ifdef HTTPS
     if ( G_test )
-        OUTP("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+        STRM("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
     else
-        OUTP("https://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+        STRM("https://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
 #else
-    OUTP("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+    STRM("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
 #endif
     if ( status == USER_STATUS_PASSWORD_CHANGE )
-        OUTP("Your password is %s and you will have to change it on your first login.\n\n", passwd[0]?passwd:"empty");
+        STRM("Your password is %s and you will have to change it on your first login.\n\n", passwd[0]?passwd:"empty");
 #ifdef APP_CONTACT_EMAIL
-    OUTP("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
 #endif
-    OUTP("Kind Regards\n");
-    OUTP("%s\n", conn[ci].website);
+    STRM("Kind Regards\n");
+    STRM("%s\n", conn[ci].website);
 
-    OUTP_END;
+    STRM_END;
 
     sprintf(subject, "Welcome to %s", conn[ci].website);
 
@@ -2178,27 +2178,27 @@ int npp_usr_send_passwd_reset_email(int ci)
     char subject[256];
     char message[4096];
 
-    OUTP_BEGIN(message);
+    STRM_BEGIN(message);
 
-    OUTP("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
-    OUTP("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", conn[ci].website);
+    STRM("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
+    STRM("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", conn[ci].website);
 #ifdef HTTPS
     if ( G_test )
-        OUTP("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
     else
-        OUTP("https://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("https://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
 #else
-    OUTP("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
+    STRM("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
 #endif  /* HTTPS */
-    OUTP("Please keep in mind that this link will only be valid for the next 24 hours.\n\n");
-    OUTP("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
+    STRM("Please keep in mind that this link will only be valid for the next 24 hours.\n\n");
+    STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
 #ifdef APP_CONTACT_EMAIL
-    OUTP("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
 #endif
-    OUTP("Kind Regards\n");
-    OUTP("%s\n", conn[ci].website);
+    STRM("Kind Regards\n");
+    STRM("%s\n", conn[ci].website);
 
-    OUTP_END;
+    STRM_END;
 
     sprintf(subject, "%s Password Reset", conn[ci].website);
 

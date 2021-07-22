@@ -348,23 +348,6 @@ typedef char str256k[1024*256];
 #endif  /* _MSC_VER */
 
 
-/* convenient & fast string building */
-
-#define OUTP_BEGIN(buf)                 char *p4outp=buf
-
-#define OUTPS(str)                      (p4outp = stpcpy(p4outp, str))
-
-#ifdef _MSC_VER /* Microsoft compiler */
-    #define OUTP(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), OUTPS(G_tmp))
-#else   /* GCC */
-    #define OUTPM(str, ...)                  (sprintf(G_tmp, str, __VA_ARGS__), OUTPS(G_tmp))   /* OUTP with multiple args */
-    #define CHOOSE_OUTP(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, NAME, ...) NAME          /* single or multiple? */
-    #define OUTP(...)                        CHOOSE_OUTP(__VA_ARGS__, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPM, OUTPS)(__VA_ARGS__)
-#endif  /* _MSC_VER */
-
-#define OUTP_END                        *p4outp = EOS
-
-
 
 /* HTTP header -- resets respbuf! */
 #define PRINT_HTTP_STATUS(val)          (sprintf(G_tmp, "HTTP/1.1 %d %s\r\n", val, get_http_descr(val)), HOUT(G_tmp))
@@ -1279,6 +1262,7 @@ extern time_t       G_now;                      /* current time */
 extern struct tm    *G_ptm;                     /* human readable current time */
 extern char         G_last_modified[32];        /* response header field with server's start time */
 extern bool         G_initialized;
+extern char         *G_strm;
 
 /* messages */
 extern message_t    G_messages[MAX_MESSAGES];
