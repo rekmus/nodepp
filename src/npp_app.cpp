@@ -75,7 +75,7 @@ bool npp_app_init(int argc, char *argv[])
 
 
 /* --------------------------------------------------------------------------------
-   Called when new anonymous user session starts
+   Called when new anonymous session is starting
    ------------------------------
    Return true if everything OK
    ------------------------------
@@ -111,6 +111,8 @@ bool npp_app_user_login(int ci)
    ******* Only for USERS *******
    ------------------------------
    Called when downgrading logged in user session to anonymous
+   Application session data (AUS) will be zero-ed as well, unless
+   DONT_RESET_AUS_ON_LOGOUT is defined
 -------------------------------------------------------------------------------- */
 void npp_app_user_logout(int ci)
 {
@@ -119,7 +121,7 @@ void npp_app_user_logout(int ci)
 
 
 /* --------------------------------------------------------------------------------
-   Called when closing anonymous user session
+   Called when closing anonymous session
    After calling this the session memory will be zero-ed
 -------------------------------------------------------------------------------- */
 void npp_app_session_done(int ci)

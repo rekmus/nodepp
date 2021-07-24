@@ -564,7 +564,7 @@ void libusr_luses_downgrade(int usi, int ci, bool usr_logout)
         if ( mysql_query(G_dbconn, sql) )
             ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
     }
-#ifndef DONT_RESET_AUSES_ON_LOGOUT
+#ifndef DONT_RESET_AUS_ON_LOGOUT
     memset(&auses[usi], 0, sizeof(ausession_t));
 #endif
 }
