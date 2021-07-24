@@ -412,17 +412,24 @@ typedef char str256k[1024*256];
 /* identity */
 #define PRINT_HTTP_SERVER               HOUT("Server: Node++\r\n")
 
+/* HTTP2 */
+#define PRINT_HTTP2_UPGRADE_CLEAR       HOUT("Connection: Upgrade\r\nUpgrade: h2c\r\n")
+
 /* must be last! */
 #define PRINT_HTTP_END_OF_HEADER        HOUT("\r\n")
+
+
+#define HTTP2_CLIENT_PREFACE            "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
 
 #define OUT_HEADER_BUFSIZE              4096            /* response header buffer length */
 
 
+/* App-configurable settings */
+
 #ifndef RESOURCE_LEVELS
 #define RESOURCE_LEVELS                 3
 #endif
-
 
 #ifndef CUST_HDR_LEN
 #define CUST_HDR_LEN                    255
@@ -443,6 +450,8 @@ typedef char str256k[1024*256];
 #define MAX_VALUE_LEN                   255             /* max request value length */
 #define MAX_RESOURCE_LEN                127             /* max resource's name length -- as a first part of URI */
 #define MAX_RESOURCES                   10000           /* for M_auth_levels */
+
+#define HTTP2_SETTINGS_LEN              MAX_VALUE_LEN
 
 /* mainly memory usage */
 
@@ -910,9 +919,21 @@ typedef struct {
     char     payload_location;
     char     uri[MAX_URI_LEN+1];
     char     resource[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 1
     char     req1[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 2
     char     req2[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 3
     char     req3[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 4
+    char     req4[MAX_RESOURCE_LEN+1];
+#if RESOURCE_LEVELS > 5
+    char     req5[MAX_RESOURCE_LEN+1];
+#endif  /* RESOURCE_LEVELS > 5 */
+#endif  /* RESOURCE_LEVELS > 4 */
+#endif  /* RESOURCE_LEVELS > 3 */
+#endif  /* RESOURCE_LEVELS > 2 */
+#endif  /* RESOURCE_LEVELS > 1 */
     char     id[MAX_RESOURCE_LEN+1];
     char     uagent[MAX_VALUE_LEN+1];
     char     ua_type;
@@ -1112,7 +1133,10 @@ typedef struct {
 #endif  /* RESOURCE_LEVELS > 2 */
 #endif  /* RESOURCE_LEVELS > 1 */
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
-    char     proto[4];                       /* HTTP request version */
+    char     http_ver[4];                    /* HTTP request version */
+#ifdef HTTP2
+    char     http2_settings[HTTP2_SETTINGS_LEN+1];
+#endif  /* HTTP2 */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
     char     ua_type;
     bool     keep_alive;
@@ -1202,6 +1226,16 @@ typedef struct {
     time_t   modified;
     char     source;
 } stat_res_t;
+
+
+/* HTTP/2 frame */
+
+typedef struct {
+    unsigned char length[3];
+    unsigned char type;
+    unsigned char flags;
+    unsigned char stream_id[4];
+} http2_frame_hdr_t;
 
 
 /* admin info */

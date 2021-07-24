@@ -747,7 +747,6 @@ int main(int argc, char **argv)
                         DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #endif  /* DUMP */
-//                        sockets_ready--;
                     }
 
                     /* --------------------------------------------------------------------------------------- */
@@ -756,12 +755,7 @@ int main(int argc, char **argv)
                     if ( conn[i].conn_state == CONN_STATE_READY_FOR_PARSE )
                     {
                         conn[i].status = parse_req(i, bytes);
-//#ifdef HTTPS
-//#ifdef DOMAINONLY       /* redirect to final domain first */
-//                        if ( !conn[i].secure && conn[i].upgrade2https && 0!=strcmp(conn[i].host, APP_DOMAIN) )
-//                            conn[i].upgrade2https = FALSE;
-//#endif
-//#endif  /* HTTPS */
+
                         if ( conn[i].conn_state != CONN_STATE_READING_DATA )
                         {
 #ifdef DUMP
@@ -785,10 +779,6 @@ int main(int argc, char **argv)
 #else
                         clock_gettime(MONOTONIC_CLOCK_NAME, &conn[i].proc_start);
 #endif
-//#ifdef HTTPS
-//                        if ( conn[i].upgrade2https && conn[i].status==200 )
-//                            conn[i].status = 301;
-//#endif
                         /* update visits counter */
                         if ( !conn[i].resource[0] && conn[i].status==200 && !conn[i].bot && !conn[i].head_only && 0==strcmp(conn[i].host, APP_DOMAIN) )
                         {
@@ -1472,9 +1462,9 @@ static void log_request(int ci)
     strftime(logtime, 64, "%d/%b/%Y:%H:%M:%S +0000", G_ptm);
 
     if ( G_logCombined )
-        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].referer, conn[ci].uagent, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].http_ver, conn[ci].status, conn[ci].clen, conn[ci].referer, conn[ci].uagent, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
     else
-        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].proto, conn[ci].status, conn[ci].clen, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u  #%u  %.3lf ms%s", conn[ci].ip, logtime, conn[ci].method, conn[ci].uri, conn[ci].http_ver, conn[ci].status, conn[ci].clen, conn[ci].req, conn[ci].elapsed, REQ_BOT?"  [bot]":"");
 }
 
 
@@ -3554,6 +3544,19 @@ static void gen_response_header(int ci)
 
     PRINT_HTTP_STATUS(conn[ci].status);
 
+#ifdef HTTP2
+
+    if ( conn[ci].status == 101 )
+    {
+#ifdef DUMP
+        DBG("Responding with 101");
+#endif
+        PRINT_HTTP2_UPGRADE_CLEAR;
+    }
+
+#endif  /* HTTP2 */
+
+
     /* Date */
 
     PRINT_HTTP_DATE;
@@ -4048,7 +4051,6 @@ static void reset_conn(int ci, char new_state)
     }
     conn[ci].was_read = 0;
     conn[ci].upgrade2https = FALSE;
-    conn[ci].data_sent = 0;
     conn[ci].resource[0] = EOS;
 #if RESOURCE_LEVELS > 1
     conn[ci].req1[0] = EOS;
@@ -4066,11 +4068,14 @@ static void reset_conn(int ci, char new_state)
 #endif  /* RESOURCE_LEVELS > 2 */
 #endif  /* RESOURCE_LEVELS > 1 */
     conn[ci].id[0] = EOS;
+    conn[ci].http_ver[0] = EOS;
+#ifdef HTTP2
+    conn[ci].http2_settings[0] = EOS;
+#endif  /* HTTP2 */
     conn[ci].uagent[0] = EOS;
     conn[ci].ua_type = UA_TYPE_DSK;
-    conn[ci].referer[0] = EOS;
     conn[ci].keep_alive = FALSE;
-    conn[ci].proto[0] = EOS;
+    conn[ci].referer[0] = EOS;
     conn[ci].clen = 0;
     conn[ci].in_cookie[0] = EOS;
     conn[ci].cookie_in_a[0] = EOS;
@@ -4089,6 +4094,7 @@ static void reset_conn(int ci, char new_state)
 
     conn[ci].cust_headers[0] = EOS;
     conn[ci].cust_headers_len = 0;
+    conn[ci].data_sent = 0;
 
     conn[ci].out_data = conn[ci].out_data_alloc;
 
@@ -4307,12 +4313,12 @@ static int parse_req(int ci, int len)
     while ( i < hlen && conn[ci].in[i] != '\r' && conn[ci].in[i] != '\n' )
     {
         if ( j < 3 )
-            conn[ci].proto[j++] = conn[ci].in[i];
+            conn[ci].http_ver[j++] = conn[ci].in[i];
         ++i;
     }
-    conn[ci].proto[j] = EOS;
+    conn[ci].http_ver[j] = EOS;
 #ifdef DUMP
-    DBG("proto [%s]", conn[ci].proto);
+    DBG("http_ver [%s]", conn[ci].http_ver);
 #endif
 
     /* -------------------------------------------------------------- */
@@ -4391,6 +4397,20 @@ static int parse_req(int ci, int len)
             }
         }
     }
+
+    /* -------------------------------------------------------------- */
+    /* -------------------------------------------------------------- */
+    /* The request headers have been read at this point */
+
+    /* -------------------------------------------------------------- */
+    /* HTTP/2 requires HTTP2-settings to be present */
+
+#ifdef HTTP2
+
+    if ( conn[ci].status == 101 && !conn[ci].http2_settings[0] )
+        return 400;     /* Bad request */
+
+#endif  /* HTTP2 */
 
     /* -------------------------------------------------------------- */
     /* determine whether main host has been requested */
@@ -4835,10 +4855,13 @@ static int parse_req(int ci, int len)
 -------------------------------------------------------------------------- */
 static int set_http_req_val(int ci, const char *label, const char *value)
 {
-    char    ulabel[MAX_LABEL_LEN+1];
-    char    uvalue[MAX_VALUE_LEN+1];
-    char    *p;
-    int     i;
+    char ulabel[MAX_LABEL_LEN+1];
+    char uvalue[MAX_VALUE_LEN+1];
+    char *p;
+    int  i;
+#ifdef HTTP2
+    char http2_settings[HTTP2_SETTINGS_LEN+1];
+#endif  /* HTTP2 */
 
     /* only for low-level tests ------------------------------------- */
 //  DBG("label: [%s], value: [%s]", label, value);
@@ -5115,13 +5138,10 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 #ifdef HTTP2
     else if ( 0==strcmp(ulabel, "UPGRADE") )
     {
-        if ( strcmp(value, "h2") == 0 )
+        if ( strcmp(value, "h2c") == 0 )
         {
-            INF("Client wants to switch to HTTP/2");
-        }
-        else if ( strcmp(value, "h2c") == 0 )
-        {
-            INF("Client wants to switch to HTTP/2 cleartext");
+            INF("Client wants to switch to HTTP/2 (cleartext)");
+            conn[ci].status = 101;
         }
     }
     else if ( 0==strcmp(ulabel, "HTTP2-SETTINGS") )
@@ -5153,7 +5173,8 @@ static bool check_block_ip(int ci, const char *rule, const char *value)
             || (rule[0]=='R' && 0==strcmp(value, "wp-login.php"))           /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "wp-config.php"))          /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "administrator"))          /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "phpmyadmin"))             /* Resource */
+            || (rule[0]=='R' && 0==strncmp(value, "phpmyadmin", 10))        /* Resource */
+            || (rule[0]=='R' && 0==strncmp(value, "phpMyAdmin", 10))        /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "java.php"))               /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "logon.php"))              /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "log.php"))                /* Resource */
