@@ -601,7 +601,7 @@ int main(int argc, char **argv)
 
                                 if ( bytes > 1 )
                                     conn[i].in[bytes] = EOS;
-                                else if ( bytes == 1 )  /* when browser splits the request to prevent BEAST attack */
+                                else if ( bytes == 1 )   /* when browser splits the request to prevent BEAST attack */
                                 {
                                     bytes = SSL_read(conn[i].ssl, conn[i].in+1, IN_BUFSIZE-2) + 1;
                                     if ( bytes > 1 )
@@ -739,7 +739,7 @@ int main(int argc, char **argv)
 
                         sockets_ready--;
                     }
-                    else
+                    else    /* not IN nor OUT */
                     {
 #ifdef DUMP
                         DBG("Not IN nor OUT, ci=%d, fd=%d conn_state = %c", i, conn[i].fd, conn[i].conn_state);
@@ -799,9 +799,9 @@ int main(int argc, char **argv)
 #endif
                         gen_response_header(i);
                     }
-                }
-            }
-        }
+                }   /* for on active sockets */
+            }   /* some of the existing connections are ready to read/write */
+        }   /* some of the sockets are ready to read/write */
 
 #ifdef DUMP
         if ( sockets_ready != 0 )
@@ -1173,7 +1173,7 @@ static void set_state(int ci, int bytes)
 #endif
             conn[ci].conn_state = CONN_STATE_SENDING_BODY;
         }
-        else /* assuming the whole body has been sent at once */
+        else    /* assuming the whole body has been sent at once */
         {
             log_request(ci);
 
@@ -3546,16 +3546,17 @@ static void gen_response_header(int ci)
 
 #ifdef HTTP2
 
-    if ( conn[ci].status == 101 )
+    if ( conn[ci].status == 101 )   /* upgrade to HTTP/2 cleartext requested (rare) */
     {
 #ifdef DUMP
         DBG("Responding with 101");
 #endif
         PRINT_HTTP2_UPGRADE_CLEAR;
     }
+    else    /* normal response */
+    {
 
 #endif  /* HTTP2 */
-
 
     /* Date */
 
@@ -3812,6 +3813,10 @@ static          bool first=TRUE;
     }
 
     /* ------------------------------------------------------------- */
+
+#ifdef HTTP2
+    }
+#endif
 
     PRINT_HTTP_END_OF_HEADER;
 
@@ -5146,6 +5151,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "HTTP2-SETTINGS") )
     {
+        strcpy(conn[ci].http2_settings, value);
     }
 #endif  /* HTTP2 */
     else if ( 0==strcmp(ulabel, "EXPECT") )

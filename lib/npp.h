@@ -421,6 +421,29 @@ typedef char str256k[1024*256];
 
 #define HTTP2_CLIENT_PREFACE            "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
+#define HTTP2_FRAME_TYPE_DATA           0x0
+#define HTTP2_FRAME_TYPE_HEADERS        0x1
+#define HTTP2_FRAME_TYPE_PRIORITY       0x2
+#define HTTP2_FRAME_TYPE_RST_STREAM     0x3
+#define HTTP2_FRAME_TYPE_SETTINGS       0x4     /* SETTINGS frames always apply to a connection, never a single stream. */
+#define HTTP2_FRAME_TYPE_PING           0x6
+#define HTTP2_FRAME_TYPE_GOAWAY         0x7
+#define HTTP2_FRAME_TYPE_WINDOW_UPDATE  0x8
+
+#define HTTP2_FRAME_FLAG_ACK            0x1     /* for SETTINGS & PING frames */
+#define HTTP2_FRAME_FLAG_END_STREAM     0x1
+#define HTTP2_FRAME_FLAG_END_HEADERS    0x4
+#define HTTP2_FRAME_FLAG_PADDED         0x8
+#define HTTP2_FRAME_FLAG_PRIORITY       0x20
+
+#define HTTP2_SETTINGS_HEADER_TABLE_SIZE        0x1     /* default: 4,096 */
+#define HTTP2_SETTINGS_ENABLE_PUSH              0x2     /* default: 1 */
+#define HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS   0x3     /* default: unlimited */
+#define HTTP2_SETTINGS_INITIAL_WINDOW_SIZE      0x4     /* default: 65,535 */
+#define HTTP2_SETTINGS_MAX_FRAME_SIZE           0x5     /* default: 16,384 */
+#define HTTP2_SETTINGS_MAX_HEADER_LIST_SIZE     0x6     /* default: unlimited */
+
+
 
 #define OUT_HEADER_BUFSIZE              4096            /* response header buffer length */
 
@@ -1136,6 +1159,7 @@ typedef struct {
     char     http_ver[4];                    /* HTTP request version */
 #ifdef HTTP2
     char     http2_settings[HTTP2_SETTINGS_LEN+1];
+    int32_t  http2_last_stream_id;
 #endif  /* HTTP2 */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
     char     ua_type;
@@ -1228,14 +1252,44 @@ typedef struct {
 } stat_res_t;
 
 
-/* HTTP/2 frame */
+/* HTTP/2 frames */
 
 typedef struct {
     unsigned char length[3];
     unsigned char type;
     unsigned char flags;
-    unsigned char stream_id[4];
+    int32_t       stream_id;
 } http2_frame_hdr_t;
+
+
+typedef struct {
+    char    pad_len;
+    int32_t stream_dep;
+    uint8_t weight;
+} http2_HEADERS_pld_t;
+
+
+typedef struct {
+    uint16_t id;
+    uint32_t value;
+} http2_SETTINGS_pld_t;
+
+
+typedef struct {
+    char    pad_len;
+    int32_t stream_id;
+} http2_PUSH_PROMISE_pld_t;
+
+
+typedef struct {
+    int32_t last_stream_id;
+    int32_t error_code;
+} http2_GOAWAY_pld_t;
+
+
+typedef struct {
+    int32_t wnd_size_inc;
+} http2_WINDOW_SIZE_pld_t;
 
 
 /* admin info */
