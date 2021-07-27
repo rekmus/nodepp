@@ -419,6 +419,9 @@ typedef char str256k[1024*256];
 #define PRINT_HTTP_END_OF_HEADER        HOUT("\r\n")
 
 
+#define HTTP2_ALPHA                     HTTP2
+
+
 #define HTTP2_CLIENT_PREFACE            "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
 #define HTTP2_FRAME_TYPE_DATA           0x0
@@ -426,9 +429,11 @@ typedef char str256k[1024*256];
 #define HTTP2_FRAME_TYPE_PRIORITY       0x2
 #define HTTP2_FRAME_TYPE_RST_STREAM     0x3
 #define HTTP2_FRAME_TYPE_SETTINGS       0x4     /* SETTINGS frames always apply to a connection, never a single stream. */
+#define HTTP2_FRAME_TYPE_PUSH_PROMISE   0x5
 #define HTTP2_FRAME_TYPE_PING           0x6
 #define HTTP2_FRAME_TYPE_GOAWAY         0x7
 #define HTTP2_FRAME_TYPE_WINDOW_UPDATE  0x8
+#define HTTP2_FRAME_TYPE_CONTINUATION   0x9
 
 #define HTTP2_FRAME_FLAG_ACK            0x1     /* for SETTINGS & PING frames */
 #define HTTP2_FRAME_FLAG_END_STREAM     0x1
@@ -442,6 +447,21 @@ typedef char str256k[1024*256];
 #define HTTP2_SETTINGS_INITIAL_WINDOW_SIZE      0x4     /* default: 65,535 */
 #define HTTP2_SETTINGS_MAX_FRAME_SIZE           0x5     /* default: 16,384 */
 #define HTTP2_SETTINGS_MAX_HEADER_LIST_SIZE     0x6     /* default: unlimited */
+
+#define HTTP2_NO_ERROR                  0x0     /* Graceful shutdown */
+#define HTTP2_PROTOCOL_ERROR            0x1     /* Protocol error detected */
+#define HTTP2_INTERNAL_ERROR            0x2     /* Implementation fault */
+#define HTTP2_FLOW_CONTROL_ERROR        0x3     /* Flow-control limits exceeded */
+#define HTTP2_SETTINGS_TIMEOUT          0x4     /* Settings not acknowledged */
+#define HTTP2_STREAM_CLOSED             0x5     /* Frame received for closed stream */
+#define HTTP2_FRAME_SIZE_ERROR          0x6     /* Frame size incorrect */
+#define HTTP2_REFUSED_STREAM            0x7     /* Stream not processed */
+#define HTTP2_CANCEL                    0x8     /* Stream cancelled */
+#define HTTP2_COMPRESSION_ERROR         0x9     /* Compression state not updated */
+#define HTTP2_CONNECT_ERROR             0xA     /* TCP connection error for CONNECT method */
+#define HTTP2_ENHANCE_YOUR_CALM         0xB     /* Processing capacity exceeded */
+#define HTTP2_INADEQUATE_SECURITY       0xC     /* Negotiated TLS parameters not acceptable */
+#define HTTP2_HTTP_1_1_REQUIRED         0xD     /* Use HTTP/1.1 for the request */
 
 
 
@@ -1159,6 +1179,8 @@ typedef struct {
     char     http_ver[4];                    /* HTTP request version */
 #ifdef HTTP2
     char     http2_settings[HTTP2_SETTINGS_LEN+1];
+    int32_t  http2_wnd_size;
+    int32_t  http2_max_frame_size;
     int32_t  http2_last_stream_id;
 #endif  /* HTTP2 */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */

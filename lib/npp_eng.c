@@ -209,6 +209,9 @@ static char         *M_async_shm=NULL;
 /* prototypes */
 
 static bool housekeeping(void);
+#ifdef HTTP2
+static void http2_parse_frame(int ci, int bytes);
+#endif  /* HTTP2 */
 static void set_state(int ci, int bytes);
 static void set_state_sec(int ci, int bytes);
 static void read_conf(void);
@@ -607,8 +610,12 @@ int main(int argc, char **argv)
                                     if ( bytes > 1 )
                                         conn[i].in[bytes] = EOS;
                                 }
-
-                                set_state_sec(i, bytes);
+#ifdef HTTP2
+                                if ( conn[i].http_ver[0] == '2' )
+                                    http2_parse_frame(i, bytes);
+                                else
+#endif  /* HTTP2 */
+                                    set_state_sec(i, bytes);
                             }
                             else    /* POST */
                             {
@@ -621,7 +628,12 @@ int main(int argc, char **argv)
                                 if ( bytes > 0 )
                                     conn[i].was_read += bytes;
 
-                                set_state_sec(i, bytes);
+#ifdef HTTP2
+                                if ( conn[i].http_ver[0] == '2' )
+                                    http2_parse_frame(i, bytes);
+                                else
+#endif  /* HTTP2 */
+                                    set_state_sec(i, bytes);
                             }
                         }
                         else        /* HTTP */
@@ -638,8 +650,13 @@ int main(int argc, char **argv)
                                 if ( bytes > 0 )
                                     conn[i].in[bytes] = EOS;
 
-                                set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
-                                                        /*              CONN_STATE_READY_FOR_PARSE */
+#ifdef HTTP2
+                                if ( conn[i].http_ver[0] == '2' )
+                                    http2_parse_frame(i, bytes);
+                                else
+#endif  /* HTTP2 */
+                                    set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
+                                                            /*              CONN_STATE_READY_FOR_PARSE */
                             }
                             else if ( conn[i].conn_state == CONN_STATE_READING_DATA )   /* POST */
                             {
@@ -652,8 +669,13 @@ int main(int argc, char **argv)
                                 if ( bytes > 0 )
                                     conn[i].was_read += bytes;
 
-                                set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
-                                                        /*              CONN_STATE_READY_FOR_PROCESS */
+#ifdef HTTP2
+                                if ( conn[i].http_ver[0] == '2' )
+                                    http2_parse_frame(i, bytes);
+                                else
+#endif  /* HTTP2 */
+                                    set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
+                                                            /*              CONN_STATE_READY_FOR_PROCESS */
                             }
                         }
 
@@ -1094,13 +1116,75 @@ static bool housekeeping()
 }
 
 
+#ifdef HTTP2
+/* --------------------------------------------------------------------------
+   Parse HTTP/2 incoming frame
+-------------------------------------------------------------------------- */
+static char *http2_get_frame_type(unsigned char type)
+{
+static char desc[64];
+
+    if ( type == HTTP2_FRAME_TYPE_DATA )
+        strcpy(desc, "HTTP2_FRAME_TYPE_DATA");
+    else if ( type == HTTP2_FRAME_TYPE_HEADERS )
+        strcpy(desc, "HTTP2_FRAME_TYPE_HEADERS");
+    else if ( type == HTTP2_FRAME_TYPE_PRIORITY )
+        strcpy(desc, "HTTP2_FRAME_TYPE_PRIORITY");
+    else if ( type == HTTP2_FRAME_TYPE_RST_STREAM )
+        strcpy(desc, "HTTP2_FRAME_TYPE_RST_STREAM");
+    else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
+        strcpy(desc, "HTTP2_FRAME_TYPE_SETTINGS");
+    else if ( type == HTTP2_FRAME_TYPE_PUSH_PROMISE )
+        strcpy(desc, "HTTP2_FRAME_TYPE_PUSH_PROMISE");
+    else if ( type == HTTP2_FRAME_TYPE_PING )
+        strcpy(desc, "HTTP2_FRAME_TYPE_PING");
+    else if ( type == HTTP2_FRAME_TYPE_GOAWAY )
+        strcpy(desc, "HTTP2_FRAME_TYPE_GOAWAY");
+    else if ( type == HTTP2_FRAME_TYPE_WINDOW_UPDATE )
+        strcpy(desc, "HTTP2_FRAME_TYPE_WINDOW_UPDATE");
+    else if ( type == HTTP2_FRAME_TYPE_CONTINUATION )
+        strcpy(desc, "HTTP2_FRAME_TYPE_CONTINUATION");
+    else
+        strcpy(desc, "Unknown frame type");
+
+    return desc;
+}
+
+
+/* --------------------------------------------------------------------------
+   Parse HTTP/2 incoming frame
+-------------------------------------------------------------------------- */
+static void http2_parse_frame(int ci, int bytes)
+{
+#ifdef DUMP
+    DBG("http2_parse_frame ci=%d, bytes=%d", ci, bytes);
+#endif
+
+    http2_frame_hdr_t hdr;
+
+    memcpy(&hdr, &conn[ci].in, sizeof(hdr));
+
+    int length=0;
+
+    memcpy((char*)&length, &hdr.length, 3);
+
+#ifdef DUMP
+    DBG("frame length = %d", length);
+    DBG("frame type = %s", http2_get_frame_type(hdr.type));
+    DBG("frame flags = 0x%x", hdr.flags);
+    DBG("frame stream_id = %d", hdr.stream_id);
+#endif
+}
+#endif  /* HTTP2 */
+
+
 /* --------------------------------------------------------------------------
    Set new connection state after read or write
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes)
 {
 #ifdef DUMP
-        DBG("set_state ci=%d, bytes=%d", ci, bytes);
+    DBG("set_state ci=%d, bytes=%d", ci, bytes);
 #endif
     if ( bytes <= 0 )
     {
@@ -3221,6 +3305,8 @@ static void process_req(int ci)
     /* ------------------------------------------------------------------------ */
     /* authorization check / log in from cookies ------------------------------ */
 
+    bool fresh_session=FALSE;
+
 #ifdef USERS
 
 #ifdef ALLOW_BEARER_AUTH
@@ -3238,7 +3324,7 @@ static void process_req(int ci)
             conn[ci].cookie_in_l[SESID_LEN] = EOS;
         }
     }
-#endif
+#endif  /* ALLOW_BEARER_AUTH */
 
     if ( conn[ci].cookie_in_l[0] )  /* logged in sesid cookie present */
     {
@@ -3283,13 +3369,14 @@ static void process_req(int ci)
     }
 
     if ( conn[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && !conn[ci].head_only && !LOGGED )    /* anonymous user session required */
-#else
+#else   /* USERS NOT defined */
     if ( conn[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && !conn[ci].head_only )
 #endif  /* USERS */
     {
         if ( !conn[ci].cookie_in_a[0] || !a_usession_ok(ci) )       /* valid anonymous sesid cookie not present */
         {
             ret = eng_uses_start(ci, NULL);
+            fresh_session = TRUE;
         }
     }
 
@@ -3307,8 +3394,9 @@ static void process_req(int ci)
                     npp_set_tz(ci);
             }
             else
-#endif
-            npp_app_main(ci);         /* main application called here */
+#endif  /* USES_SET_TZ */
+
+                npp_app_main(ci);         /* main application called here */
         }
     }
 
@@ -3339,11 +3427,15 @@ static void process_req(int ci)
 
     if ( ret==ERR_REDIRECTION || conn[ci].status==400 || conn[ci].status==401 || conn[ci].status==403 || conn[ci].status==404 || conn[ci].status==500 || conn[ci].status==503 )
     {
+        if ( fresh_session )    /* prevent sessions' exhaustion by vulnerability testing bots */
+        {
 #ifdef USERS
-//        if ( conn[ci].usi && !LOGGED ) close_uses(conn[ci].usi, ci);
+            if ( !LOGGED ) close_uses(conn[ci].usi, ci);
 #else
-//        if ( conn[ci].usi ) close_uses(conn[ci].usi, ci);
+            close_uses(conn[ci].usi, ci);
 #endif
+        }
+
         if ( !conn[ci].keep_content )   /* reset out buffer pointer as it could have contained something already */
         {
             conn[ci].p_content = conn[ci].out_data + OUT_HEADER_BUFSIZE;
@@ -3552,6 +3644,9 @@ static void gen_response_header(int ci)
         DBG("Responding with 101");
 #endif
         PRINT_HTTP2_UPGRADE_CLEAR;
+
+        conn[ci].http_ver[0] = '2';
+        conn[ci].http_ver[1] = EOS;
     }
     else    /* normal response */
     {
@@ -4363,7 +4458,7 @@ static int parse_req(int ci, int len)
                 if ( j == 0 )
                     WAR("Value of %s is empty!", label);
                 else
-                    if ( (ret=set_http_req_val(ci, label, value+1)) != 200 ) return ret;
+                    if ( (ret=set_http_req_val(ci, label, value+1)) > 200 ) return ret;
             }
             now_label = TRUE;
             j = 0;
@@ -4397,7 +4492,7 @@ static int parse_req(int ci, int len)
 #ifdef DUMP
                 DBG("value: [%s]", value);
 #endif
-                if ( (ret=set_http_req_val(ci, label, value+1)) != 200 ) return ret;
+                if ( (ret=set_http_req_val(ci, label, value+1)) > 200 ) return ret;
                 now_value = FALSE;
             }
         }
@@ -5146,12 +5241,16 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         if ( strcmp(value, "h2c") == 0 )
         {
             INF("Client wants to switch to HTTP/2 (cleartext)");
-            conn[ci].status = 101;
+            return 101;     /* Switching Protocols */
         }
     }
     else if ( 0==strcmp(ulabel, "HTTP2-SETTINGS") )
     {
+#ifdef DUMP
+        DBG("HTTP2-Settings received");
+#endif
         strcpy(conn[ci].http2_settings, value);
+        return 101;     /* Switching Protocols */
     }
 #endif  /* HTTP2 */
     else if ( 0==strcmp(ulabel, "EXPECT") )
