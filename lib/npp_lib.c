@@ -43,6 +43,7 @@
 
 /* globals */
 
+bool        G_endianness=ENDIANNESS_LITTLE;
 int         G_logLevel=3;               /* log level -- 'info' by default */
 int         G_logToStdout=0;            /* log to stdout */
 int         G_logCombined=0;            /* standard log format */
@@ -7699,14 +7700,12 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
 /* --------------------------------------------------------------------------
    Check system's endianness
 -------------------------------------------------------------------------- */
-static void get_byteorder32()
+static bool endianness32()
 {
     union {
         intptr_t p;
         char c[4];
     } test;
-
-    DBG("Checking 32-bit endianness...");
 
     memset(&test, 0, sizeof(test));
 
@@ -7714,33 +7713,25 @@ static void get_byteorder32()
 
     if ( test.c[3] && !test.c[2] && !test.c[1] && !test.c[0] )
     {
-        INF("This is 32-bit Big Endian");
-        return;
+        INF("32-bit Big Endian");
+        return ENDIANNESS_BIG;
     }
 
-    if ( !test.c[3] && !test.c[2] && !test.c[1] && test.c[0] )
-    {
-        INF("This is 32-bit Little Endian");
-        return;
-    }
+    INF("32-bit Little Endian");
 
-    DBG("Unknown Endianness!");
+    return ENDIANNESS_LITTLE;
 }
 
 
 /* --------------------------------------------------------------------------
    Check system's endianness
 -------------------------------------------------------------------------- */
-static void get_byteorder64()
+static bool endianness64()
 {
     union {
         intptr_t p;
         char c[8];
     } test;
-
-    DBG("Checking 64-bit endianness...");
-
-    INF("sizeof(long) = %d", sizeof(long));
 
     memset(&test, 0, sizeof(test));
 
@@ -7748,17 +7739,13 @@ static void get_byteorder64()
 
     if ( test.c[7] && !test.c[3] && !test.c[2] && !test.c[1] && !test.c[0] )
     {
-        INF("This is 64-bit Big Endian");
-        return;
+        INF("64-bit Big Endian");
+        return ENDIANNESS_BIG;
     }
 
-    if ( !test.c[7] && !test.c[3] && !test.c[2] && !test.c[1] && test.c[0] )
-    {
-        INF("This is 64-bit Little Endian");
-        return;
-    }
+    INF("64-bit Little Endian");
 
-    DBG("Unknown Endianness!");
+    return ENDIANNESS_LITTLE;
 }
 
 
@@ -7768,9 +7755,9 @@ static void get_byteorder64()
 void get_byteorder()
 {
     if ( sizeof(intptr_t) == 4 )
-        get_byteorder32();
+        G_endianness = endianness32();
     else if ( sizeof(intptr_t) == 8 )
-        get_byteorder64();
+        G_endianness = endianness64();
 }
 
 

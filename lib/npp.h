@@ -424,6 +424,15 @@ typedef char str256k[1024*256];
 
 #define HTTP2_CLIENT_PREFACE            "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
+/* The server connection preface consists of a potentially empty
+   SETTINGS frame that MUST be the first frame the server
+   sends in the HTTP/2 connection. */
+
+/* The SETTINGS frames received from a peer as part of the connection
+   preface MUST be acknowledged after sending the
+   connection preface. */
+
+
 #define HTTP2_FRAME_TYPE_DATA           0x0
 #define HTTP2_FRAME_TYPE_HEADERS        0x1
 #define HTTP2_FRAME_TYPE_PRIORITY       0x2
@@ -463,6 +472,7 @@ typedef char str256k[1024*256];
 #define HTTP2_INADEQUATE_SECURITY       0xC     /* Negotiated TLS parameters not acceptable */
 #define HTTP2_HTTP_1_1_REQUIRED         0xD     /* Use HTTP/1.1 for the request */
 
+#define HTTP2_DEFAULT_FRAME_SIZE        16384
 
 
 #define OUT_HEADER_BUFSIZE              4096            /* response header buffer length */
@@ -580,6 +590,13 @@ typedef char str256k[1024*256];
 #define CONN_STATE_READY_TO_SEND_HEADER 'H'
 #define CONN_STATE_READY_TO_SEND_BODY   'B'
 #define CONN_STATE_SENDING_BODY         'S'
+
+/* HTTP/2 */
+
+#define CONN_STATE_READY_TO_SEND_SETTINGS       '2'
+#define CONN_STATE_SETTINGS_SENT                's'
+#define CONN_STATE_READY_FOR_CLIENT_PREFACE     'C'
+
 
 #ifdef __linux__
 #define MONOTONIC_CLOCK_NAME            CLOCK_MONOTONIC_RAW
@@ -1178,10 +1195,14 @@ typedef struct {
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
     char     http_ver[4];                    /* HTTP request version */
 #ifdef HTTP2
-    char     http2_settings[HTTP2_SETTINGS_LEN+1];
+    bool     http2_switching_in_progress;
+//    char     http2_settings[HTTP2_SETTINGS_LEN+1];
     int32_t  http2_wnd_size;
     int32_t  http2_max_frame_size;
     int32_t  http2_last_stream_id;
+    /* outgoing frame */
+    char     *http2_frame;
+    unsigned http2_frame_len;
 #endif  /* HTTP2 */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
     char     ua_type;
@@ -1355,6 +1376,7 @@ extern "C" {
 
 /* read from the config file */
 
+extern bool         G_endianness;
 extern int          G_logLevel;
 extern int          G_logToStdout;
 extern int          G_logCombined;

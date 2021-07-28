@@ -34,6 +34,13 @@
 #define NPP_LIB_H
 
 
+#define ENDIANNESS_LITTLE               (char)0
+#define ENDIANNESS_BIG                  (char)1
+#define ENDIANNESS_ERROR                (char)2
+
+#define bswap32(x)                      ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24))
+
+
 /* logs */
 
 #define LOG_ALWAYS                      0               /* print always */
