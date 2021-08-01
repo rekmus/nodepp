@@ -342,33 +342,46 @@ typedef char str256k[1024*256];
 
 /* HTTP header -- resets respbuf! */
 #define PRINT_HTTP_STATUS(val)          (sprintf(G_tmp, "HTTP/1.1 %d %s\r\n", val, get_http_descr(val)), HOUT(G_tmp))
+#define PRINT_HTTP2_STATUS(val)         (sprintf(G_tmp, ":status = %d\r\n", val), HOUT(G_tmp))
 
 /* date */
 #define PRINT_HTTP_DATE                 (sprintf(G_tmp, "Date: %s\r\n", M_resp_date), HOUT(G_tmp))
+#define PRINT_HTTP2_DATE                (sprintf(G_tmp, "date = %s\r\n", M_resp_date), HOUT(G_tmp))
 
 /* cache control */
 #define PRINT_HTTP_CACHE_PUBLIC         HOUT("Cache-Control: public, max-age=31536000\r\n")
+#define PRINT_HTTP2_CACHE_PUBLIC        HOUT("cache-control = public, max-age=31536000\r\n")
 #define PRINT_HTTP_NO_CACHE             HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n")
+#define PRINT_HTTP2_NO_CACHE            HOUT("cache-control = private, must-revalidate, no-store, no-cache, max-age=0\r\n")
 #define PRINT_HTTP_EXPIRES_STATICS      (sprintf(G_tmp, "Expires: %s\r\n", M_expires_stat), HOUT(G_tmp))
+#define PRINT_HTTP2_EXPIRES_STATICS     (sprintf(G_tmp, "expires = %s\r\n", M_expires_stat), HOUT(G_tmp))
 #define PRINT_HTTP_EXPIRES_GENERATED    (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
+#define PRINT_HTTP2_EXPIRES_GENERATED   (sprintf(G_tmp, "expires = %s\r\n", M_expires_gen), HOUT(G_tmp))
 #define PRINT_HTTP_LAST_MODIFIED(str)   (sprintf(G_tmp, "Last-Modified: %s\r\n", str), HOUT(G_tmp))
+#define PRINT_HTTP2_LAST_MODIFIED(str)  (sprintf(G_tmp, "last-modified = %s\r\n", str), HOUT(G_tmp))
 
 /* connection */
 #define PRINT_HTTP_CONNECTION(ci)       (sprintf(G_tmp, "Connection: %s\r\n", conn[ci].keep_alive?"keep-alive":"close"), HOUT(G_tmp))
 
 /* vary */
 #define PRINT_HTTP_VARY_DYN             HOUT("Vary: Accept-Encoding, User-Agent\r\n")
+#define PRINT_HTTP2_VARY_DYN            HOUT("vary = accept-encoding, user-agent\r\n")
 #define PRINT_HTTP_VARY_STAT            HOUT("Vary: Accept-Encoding\r\n")
+#define PRINT_HTTP2_VARY_STAT           HOUT("vary = accept-encoding\r\n")
 #define PRINT_HTTP_VARY_UIR             HOUT("Vary: Upgrade-Insecure-Requests\r\n")
+#define PRINT_HTTP2_VARY_UIR            HOUT("vary = upgrade-insecure-requests\r\n")
 
 /* content language */
 #define PRINT_HTTP_LANGUAGE             HOUT("Content-Language: en-us\r\n")
+#define PRINT_HTTP2_LANGUAGE            HOUT("content-language = en-us\r\n")
 
 /* content length */
 #define PRINT_HTTP_CONTENT_LEN(len)     (sprintf(G_tmp, "Content-Length: %u\r\n", len), HOUT(G_tmp))
+#define PRINT_HTTP2_CONTENT_LEN(len)    (sprintf(G_tmp, "content-length = %u\r\n", len), HOUT(G_tmp))
 
 /* content encoding */
 #define PRINT_HTTP_CONTENT_ENCODING_DEFLATE HOUT("Content-Encoding: deflate\r\n")
+#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE HOUT("content-encoding = deflate\r\n")
 
 /* Security ------------------------------------------------------------------ */
 
@@ -377,9 +390,11 @@ typedef char str256k[1024*256];
 #define HSTS_MAX_AGE                    31536000    /* a year */
 #endif
 #ifdef HSTS_INCLUDE_SUBDOMAINS
-#define PRINT_HTTP_HSTS                 (sprintf(G_tmp, "Strict-Transport-Security: max-age=%d; includeSubDomains\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
+#define PRINT_HTTP_HSTS                 (sprintf(G_tmp, "Strict-Transport-Security: max-age=%d; includesubdomains\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
+#define PRINT_HTTP2_HSTS                (sprintf(G_tmp, "strict-transport-security = max-age=%d; includesubdomains\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
 #else
 #define PRINT_HTTP_HSTS                 (sprintf(G_tmp, "Strict-Transport-Security: max-age=%d\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
+#define PRINT_HTTP2_HSTS                (sprintf(G_tmp, "strict-transport-security = max-age=%d\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
 #endif
 
 #ifdef HTTPS
@@ -392,25 +407,28 @@ typedef char str256k[1024*256];
 
 /* cookie */
 #ifdef HSTS_ON
-#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; %sHttpOnly\r\n", conn[ci].cookie_out_a, G_test?"":"Secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; %sHttpOnly\r\n", conn[ci].cookie_out_l, G_test?"":"Secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: as=%s; Expires=%s; %sHttpOnly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp, G_test?"":"Secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: ls=%s; Expires=%s; %sHttpOnly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp, G_test?"":"Secure; "), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "set-cookie: as=%s; %shttponly\r\n", conn[ci].cookie_out_a, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "set-cookie: ls=%s; %shttponly\r\n", conn[ci].cookie_out_l, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "set-cookie: as=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "set-cookie: ls=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp, G_test?"":"secure; "), HOUT(G_tmp))
 #else
-#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; HttpOnly\r\n", conn[ci].cookie_out_a), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; HttpOnly\r\n", conn[ci].cookie_out_l), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: as=%s; Expires=%s; HttpOnly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: ls=%s; Expires=%s; HttpOnly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "set-cookie: as=%s; httponly\r\n", conn[ci].cookie_out_a), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "set-cookie: ls=%s; httponly\r\n", conn[ci].cookie_out_l), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "set-cookie: as=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp), HOUT(G_tmp))
+#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "set-cookie: ls=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp), HOUT(G_tmp))
 #endif
 
 /* framing */
 #define PRINT_HTTP_SAMEORIGIN           HOUT("X-Frame-Options: SAMEORIGIN\r\n")
+#define PRINT_HTTP2_SAMEORIGIN          HOUT("x-frame-options = SAMEORIGIN\r\n")
 
 /* content type guessing */
 #define PRINT_HTTP_NOSNIFF              HOUT("X-Content-Type-Options: nosniff\r\n")
+#define PRINT_HTTP2_NOSNIFF             HOUT("x-content-type-options = nosniff\r\n")
 
 /* identity */
 #define PRINT_HTTP_SERVER               HOUT("Server: Node++\r\n")
+#define PRINT_HTTP2_SERVER              HOUT("server = Node++\r\n")
 
 /* HTTP2 */
 #define PRINT_HTTP2_UPGRADE_CLEAR       HOUT("Connection: Upgrade\r\nUpgrade: h2c\r\n")
@@ -432,6 +450,7 @@ typedef char str256k[1024*256];
    preface MUST be acknowledged after sending the
    connection preface. */
 
+#define HTTP2_FRAME_HDR_LEN             9
 
 #define HTTP2_FRAME_TYPE_DATA           0x0
 #define HTTP2_FRAME_TYPE_HEADERS        0x1
@@ -1102,6 +1121,45 @@ typedef struct {
 } async_res_data_t;
 
 
+/* HTTP/2 frames */
+
+typedef struct {
+    unsigned char length[3];
+    unsigned char type;
+    unsigned char flags;
+    int32_t       stream_id;
+} http2_frame_hdr_t;
+
+
+typedef struct {
+    char    pad_len;
+    int32_t stream_dep;
+    uint8_t weight;
+} http2_HEADERS_pld_t;
+
+
+typedef struct {
+    uint16_t id;
+    uint32_t value;
+} http2_SETTINGS_pld_t;
+
+
+typedef struct {
+    char    pad_len;
+    int32_t stream_id;
+} http2_PUSH_PROMISE_pld_t;
+
+
+typedef struct {
+    int32_t last_stream_id;
+    int32_t error_code;
+} http2_GOAWAY_pld_t;
+
+
+typedef struct {
+    int32_t wnd_size_inc;
+} http2_WINDOW_SIZE_pld_t;
+
 
 /* connection */
 
@@ -1174,7 +1232,7 @@ typedef struct {
     bool     upgrade2https;                  /* Upgrade-Insecure-Requests = 1 */
     /* parsed HTTP request starts here */
     bool     head_only;                      /* request method = HEAD */
-    bool     post;                           /* request method = POST */
+    bool     post;                           /* request method != GET (can contain payload) */
     char     uri[MAX_URI_LEN+1];             /* requested URI string */
     char     resource[MAX_RESOURCE_LEN+1];   /* from URI (REQ0) */
 #if RESOURCE_LEVELS > 1
@@ -1195,14 +1253,17 @@ typedef struct {
     char     id[MAX_RESOURCE_LEN+1];         /* from URI -- last part */
     char     http_ver[4];                    /* HTTP request version */
 #ifdef HTTP2
-    bool     http2_switching_in_progress;
-//    char     http2_settings[HTTP2_SETTINGS_LEN+1];
+    bool     http2_upgrade_in_progress;
+    /* settings */
     int32_t  http2_wnd_size;
     int32_t  http2_max_frame_size;
     int32_t  http2_last_stream_id;
     /* outgoing frame */
-    char     *http2_frame;
-    unsigned http2_frame_len;
+//    char     http2_frame_hdr[sizeof(http2_frame_hdr_t)];
+//    char     *http2_frame_data;
+    char     *http2_frame_start;
+//    int32_t  http2_frame_len;
+    unsigned http2_bytes_to_send;
 #endif  /* HTTP2 */
     char     uagent[MAX_VALUE_LEN+1];        /* user agent string */
     char     ua_type;
@@ -1293,46 +1354,6 @@ typedef struct {
     time_t   modified;
     char     source;
 } stat_res_t;
-
-
-/* HTTP/2 frames */
-
-typedef struct {
-    unsigned char length[3];
-    unsigned char type;
-    unsigned char flags;
-    int32_t       stream_id;
-} http2_frame_hdr_t;
-
-
-typedef struct {
-    char    pad_len;
-    int32_t stream_dep;
-    uint8_t weight;
-} http2_HEADERS_pld_t;
-
-
-typedef struct {
-    uint16_t id;
-    uint32_t value;
-} http2_SETTINGS_pld_t;
-
-
-typedef struct {
-    char    pad_len;
-    int32_t stream_id;
-} http2_PUSH_PROMISE_pld_t;
-
-
-typedef struct {
-    int32_t last_stream_id;
-    int32_t error_code;
-} http2_GOAWAY_pld_t;
-
-
-typedef struct {
-    int32_t wnd_size_inc;
-} http2_WINDOW_SIZE_pld_t;
 
 
 /* admin info */

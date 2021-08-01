@@ -36,7 +36,6 @@
 
 #define ENDIANNESS_LITTLE               (char)0
 #define ENDIANNESS_BIG                  (char)1
-#define ENDIANNESS_ERROR                (char)2
 
 #define bswap32(x)                      ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24))
 
@@ -54,6 +53,10 @@
 #define WAR(str, ...)                   log_write(LOG_WAR, str, ##__VA_ARGS__)
 #define INF(str, ...)                   log_write(LOG_INF, str, ##__VA_ARGS__)
 #define DBG(str, ...)                   log_write(LOG_DBG, str, ##__VA_ARGS__)
+
+#ifdef DUMP
+#define DDBG                            DBG
+#endif
 
 #define ALWAYS_T(str, ...)              log_write_time(LOG_ALWAYS, str, ##__VA_ARGS__)
 #define ERR_T(str, ...)                 log_write_time(LOG_ERR, str, ##__VA_ARGS__)

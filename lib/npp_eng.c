@@ -756,16 +756,16 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef HTTP2
-                                if ( conn[i].http2_switching_in_progress )    /* switching protocol in progress; send only 101 header, follow with settings frame */
+                                if ( conn[i].http2_upgrade_in_progress )    /* switching protocol in progress; send only 101 header, follow with settings frame */
                                 {
                                     bytes = send(conn[i].fd, conn[i].out_start, conn[i].out_hlen, 0);
 
                                     http2_add_frame(i, HTTP2_FRAME_TYPE_SETTINGS);
 #ifdef DUMP
                                     DBG("ci=%d, Sending SETTINGS frame", i);
-                                    DBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].http2_frame_len, conn[i].fd, i);
+                                    DBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].http2_bytes_to_send, conn[i].fd, i);
 #endif  /* DUMP */
-                                    bytes = send(conn[i].fd, conn[i].http2_frame, conn[i].http2_frame_len, 0);
+                                    bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
 #ifdef DUMP
                                     DBG("ci=%d, changing state to CONN_STATE_READY_FOR_CLIENT_PREFACE", i);
 #endif
@@ -776,7 +776,8 @@ int main(int argc, char **argv)
                                     if ( conn[i].http_ver[0] == '2' )
                                     {
                                         http2_add_frame(i, HTTP2_FRAME_TYPE_HEADERS);
-                                        bytes = send(conn[i].fd, conn[i].http2_frame, conn[i].http2_frame_len, 0);
+
+                                        bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
                                     }
                                     else    /* HTTP/1 */
                                     {
@@ -812,7 +813,8 @@ int main(int argc, char **argv)
                                 if ( conn[i].http_ver[0] == '2' )
                                 {
                                     http2_add_frame(i, HTTP2_FRAME_TYPE_DATA);
-                                    bytes = send(conn[i].fd, conn[i].http2_frame, conn[i].http2_frame_len, 0);
+
+                                    bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
                                 }
                                 else
 #endif  /* HTTP2 */
@@ -1209,10 +1211,16 @@ static void http2_check_client_preface(int ci)
 
         conn[ci].status = 200;
 
+        conn[ci].http2_upgrade_in_progress = FALSE;
+
+        /* generate response header again */
+
+        gen_response_header(ci);
+
 #ifdef DUMP
-        DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_HEADER", ci);
+//        DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_HEADER", ci);
 #endif
-        conn[ci].conn_state = CONN_STATE_READY_TO_SEND_HEADER;
+//        conn[ci].conn_state = CONN_STATE_READY_TO_SEND_HEADER;
     }
     else
     {
@@ -1220,8 +1228,6 @@ static void http2_check_client_preface(int ci)
         DBG("End of processing, close_conn\n");
         close_conn(ci);
     }
-
-    conn[ci].http2_switching_in_progress = FALSE;
 }
 
 
@@ -1311,26 +1317,103 @@ static void http2_add_frame(int ci, unsigned char type)
     DBG("http2_add_frame ci=%d, type [%s]", ci, http2_get_frame_type(type));
 #endif
 
+    /* frame data */
+    /* we're trying to avoid unnecessary copying */
+    /* so we don't move the actual data, only headers */
+
+    /* ------------------------------------------------ */
+    /* calculate frame payload length */
+
+    int32_t frame_pld_len;
+
+    if ( type == HTTP2_FRAME_TYPE_DATA )
+    {
+        frame_pld_len = conn[ci].out_len - conn[ci].out_hlen;
+    }
+    else if ( type == HTTP2_FRAME_TYPE_HEADERS )
+    {
+        frame_pld_len = conn[ci].out_hlen;
+        frame_pld_len += sizeof(http2_HEADERS_pld_t);
+    }
+    else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
+    {
+        frame_pld_len = 0;
+    }
+
+    DDBG("frame_pld_len = %d", frame_pld_len);
+
+    /* ------------------------------------------------ */
+    /* build frame header */
+
     http2_frame_hdr_t hdr={0};
 
-    int32_t length=0;
+    /* length */
 
-    memcpy((char*)&hdr.length, (char*)&length, 3);
+    if ( G_endianness == ENDIANNESS_LITTLE )
+    {
+        int32_t tmp = bswap32(frame_pld_len);
+        tmp << 8;
+        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+    }
+    else    /* Big Endian */
+    {
+        int32_t tmp = frame_pld_len;
+        tmp << 8;
+        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+    }
+
+    /* type */
 
     hdr.type = type;
+
+    /* stream id */
 
     if ( type != HTTP2_FRAME_TYPE_SETTINGS )
         hdr.stream_id = conn[ci].http2_last_stream_id;
 
     /* ------------------------------------------------ */
+    /* copy payload structure before the frame data */
 
-    memcpy(conn[ci].http2_frame, (char*)&hdr, sizeof(hdr));
-    conn[ci].http2_frame_len = sizeof(hdr);
+    /* beware! */
+//    DDBG("        sizeof(hdr) = %d", sizeof(hdr));   /* 3 extra bytes of padding! */
+//    DDBG("HTTP2_FRAME_HDR_LEN = %d", HTTP2_FRAME_HDR_LEN);
+
+    if ( type == HTTP2_FRAME_TYPE_DATA )
+    {
+        conn[ci].http2_frame_start = conn[ci].out_data - HTTP2_FRAME_HDR_LEN;
+
+        hdr.flags |= HTTP2_FRAME_FLAG_END_STREAM;
+    }
+    else if ( type == HTTP2_FRAME_TYPE_HEADERS )
+    {
+        conn[ci].http2_frame_start = conn[ci].out_start - HTTP2_FRAME_HDR_LEN - sizeof(http2_HEADERS_pld_t);
+
+        http2_HEADERS_pld_t HEADERS_pld={0};
+
+//        HEADERS_pld.weight = 1;
+
+        memcpy(conn[ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, sizeof(http2_HEADERS_pld_t));
+
+        hdr.flags |= HTTP2_FRAME_FLAG_END_HEADERS;
+    }
+    else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
+    {
+        conn[ci].http2_frame_start = conn[ci].out_data - HTTP2_FRAME_HDR_LEN;
+    }
+
+    conn[ci].http2_bytes_to_send = HTTP2_FRAME_HDR_LEN + frame_pld_len;
+
+    DDBG("http2_bytes_to_send = %u", conn[ci].http2_bytes_to_send);
+
+    /* ------------------------------------------------ */
+    /* copy frame header before the frame data */
+
+    memcpy(conn[ci].http2_frame_start, (char*)&hdr, HTTP2_FRAME_HDR_LEN);
 
     /* ------------------------------------------------ */
 
 #ifdef DUMP
-    DBG("OUT frame length = %d", length);
+    DBG("OUT frame pld length = %d", frame_pld_len);
     DBG("OUT frame type = %s", http2_get_frame_type(hdr.type));
     DBG("OUT frame flags = 0x%02x", hdr.flags);
     DBG("OUT frame stream_id = %d", hdr.stream_id);
@@ -1395,7 +1478,11 @@ static void set_state(int ci, int bytes)
         {
             DBG("clen = 0");
             log_request(ci);
+#ifdef HTTP2
+            if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
+#else
             if ( conn[ci].keep_alive )
+#endif
             {
                 DBG("End of processing, reset_conn\n");
                 reset_conn(ci, CONN_STATE_CONNECTED);
@@ -1423,8 +1510,11 @@ static void set_state(int ci, int bytes)
         else    /* assuming the whole body has been sent at once */
         {
             log_request(ci);
-
+#ifdef HTTP2
+            if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
+#else
             if ( conn[ci].keep_alive )
+#endif
             {
                 DBG("End of processing, reset_conn\n");
                 reset_conn(ci, CONN_STATE_CONNECTED);
@@ -1447,8 +1537,11 @@ static void set_state(int ci, int bytes)
         else    /* body sent */
         {
             log_request(ci);
-
+#ifdef HTTP2
+            if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
+#else
             if ( conn[ci].keep_alive )
+#endif
             {
                 DBG("End of processing, reset_conn\n");
                 reset_conn(ci, CONN_STATE_CONNECTED);
@@ -2134,11 +2227,11 @@ static bool init(int argc, char **argv)
         conn[i].req = 0;
 
 #ifdef HTTP2
-        if ( !(conn[i].http2_frame = (char*)malloc(HTTP2_DEFAULT_FRAME_SIZE)) )
+/*        if ( !(conn[i].http2_frame = (char*)malloc(HTTP2_DEFAULT_FRAME_SIZE)) )
         {
             ERR("malloc for conn[%d].http2_frame failed", i);
             return FALSE;
-        }
+        } */
 #endif  /* HTTP2 */
     }
 
@@ -3807,7 +3900,7 @@ static void gen_response_header(int ci)
 
 #ifdef HTTP2
 
-    if ( conn[ci].http2_switching_in_progress && conn[ci].status == 200 )   /* upgrade to HTTP/2 cleartext requested (rare) */
+    if ( conn[ci].http2_upgrade_in_progress && conn[ci].status == 200 )   /* upgrade to HTTP/2 cleartext requested (rare) */
     {
 #ifdef DUMP
         DBG("Responding with 101");
@@ -3818,269 +3911,387 @@ static void gen_response_header(int ci)
     }
     else    /* normal response */
     {
-        conn[ci].http2_switching_in_progress = FALSE;
+        conn[ci].http2_upgrade_in_progress = FALSE;
+
+        if ( conn[ci].http_ver[0] == '2' )
+            PRINT_HTTP2_STATUS(conn[ci].status);
+        else
 
 #endif  /* HTTP2 */
 
-    /* Status */
+            PRINT_HTTP_STATUS(conn[ci].status);
 
-    PRINT_HTTP_STATUS(conn[ci].status);
+        /* Date */
 
-    /* Date */
+#ifdef HTTP2
+        if ( conn[ci].http_ver[0] != '2' )
+#endif  /* HTTP2 */
+            PRINT_HTTP_DATE;
 
-    PRINT_HTTP_DATE;
-
-    if ( conn[ci].status == 301 || conn[ci].status == 303 )     /* redirection */
-    {
+        if ( conn[ci].status == 301 || conn[ci].status == 303 )     /* redirection */
+        {
 #ifdef DUMP
-        DBG("Redirecting");
+            DBG("Redirecting");
 #endif
 #ifdef HTTPS
-        if ( conn[ci].upgrade2https )   /* Upgrade-Insecure-Requests */
-            PRINT_HTTP_VARY_UIR;
-#endif
-        if ( conn[ci].location[0] )
-        {
-            sprintf(G_tmp, "Location: %s\r\n", conn[ci].location);
-            HOUT(G_tmp);
-        }
+            if ( conn[ci].upgrade2https )   /* Upgrade-Insecure-Requests */
+            {
+#ifdef HTTP2
+                if ( conn[ci].http_ver[0] == '2' )
+                    PRINT_HTTP2_VARY_UIR;
+                else
+#endif  /* HTTP2 */
+                    PRINT_HTTP_VARY_UIR;
+            }
+#endif  /* HTTPS */
 
-        conn[ci].clen = 0;
-    }
-    else if ( conn[ci].status == 304 )   /* not modified since */
-    {
+            if ( conn[ci].location[0] )    /* redirection */
+            {
+#ifdef HTTP2
+                if ( conn[ci].http_ver[0] == '2' )
+                    sprintf(G_tmp, "location = %s\r\n", conn[ci].location);
+                else
+#endif  /* HTTP2 */
+                    sprintf(G_tmp, "Location: %s\r\n", conn[ci].location);
+
+                HOUT(G_tmp);
+            }
+
+            conn[ci].clen = 0;
+        }
+        else if ( conn[ci].status == 304 )   /* not modified since */
+        {
 #ifdef DUMP
-        DBG("Not Modified");
+            DBG("Not Modified");
 #endif
-        /*
-           Since the goal of a 304 response is to minimize information transfer
-           when the recipient already has one or more cached representations,
-           a sender SHOULD NOT generate representation metadata other than
-           the above listed fields unless said metadata exists for the purpose
-           of guiding cache updates (e.g., Last-Modified might be useful if
-           the response does not have an ETag field).
-        */
+            /*
+               Since the goal of a 304 response is to minimize information transfer
+               when the recipient already has one or more cached representations,
+               a sender SHOULD NOT generate representation metadata other than
+               the above listed fields unless said metadata exists for the purpose
+               of guiding cache updates (e.g., Last-Modified might be useful if
+               the response does not have an ETag field).
+            */
 
-        if ( conn[ci].static_res == NOT_STATIC )    /* generated */
-        {
-            if ( conn[ci].modified )
-                PRINT_HTTP_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
-            else
-                PRINT_HTTP_LAST_MODIFIED(G_last_modified);
-
-            if ( EXPIRES_GENERATED > 0 )
-                PRINT_HTTP_EXPIRES_GENERATED;
-        }
-        else    /* static resource */
-        {
-            PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
-
-            if ( EXPIRES_STATICS > 0 )
-                PRINT_HTTP_EXPIRES_STATICS;
-        }
-
-        conn[ci].clen = 0;
-    }
-    else    /* normal response with content: 2xx, 4xx, 5xx */
-    {
-#ifdef DUMP
-        DBG("Normal response");
-#endif
-        if ( conn[ci].dont_cache )   /* dynamic content */
-        {
-            PRINT_HTTP_VARY_DYN;
-            PRINT_HTTP_NO_CACHE;
-        }
-        else    /* static content */
-        {
-            PRINT_HTTP_VARY_STAT;
-
-            if ( conn[ci].static_res == NOT_STATIC )   /* generated -- moderate caching */
+            if ( conn[ci].static_res == NOT_STATIC )    /* generated */
             {
                 if ( conn[ci].modified )
-                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
+                {
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
+                }
                 else
-                    PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                {
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                }
 
                 if ( EXPIRES_GENERATED > 0 )
-                    PRINT_HTTP_EXPIRES_GENERATED;
+                {
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_EXPIRES_GENERATED;
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_EXPIRES_GENERATED;
+                }
             }
-            else    /* static resource -- aggressive caching */
+            else    /* static resource */
             {
-                PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
+#ifdef HTTP2
+                if ( conn[ci].http_ver[0] == '2' )
+                    PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
+                else
+#endif  /* HTTP2 */
+                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
 
                 if ( EXPIRES_STATICS > 0 )
-                    PRINT_HTTP_EXPIRES_STATICS;
+                {
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_EXPIRES_STATICS;
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_EXPIRES_STATICS;
+                }
             }
+
+            conn[ci].clen = 0;
         }
-
-        /* content length and type */
-
-        if ( conn[ci].static_res == NOT_STATIC )
+        else    /* normal response with content: 2xx, 4xx, 5xx */
         {
-            conn[ci].clen = conn[ci].p_content - conn[ci].out_data - OUT_HEADER_BUFSIZE;
-        }
-        else    /* static resource */
-        {
-            conn[ci].clen = M_stat[conn[ci].static_res].len;
-            conn[ci].ctype = M_stat[conn[ci].static_res].type;
-        }
+#ifdef DUMP
+            DBG("Normal response");
+#endif
+            if ( conn[ci].dont_cache )   /* dynamic content */
+            {
+#ifdef HTTP2
+                if ( conn[ci].http_ver[0] == '2' )
+                {
+                    PRINT_HTTP2_VARY_DYN;
+                    PRINT_HTTP2_NO_CACHE;
+                }
+                else
+#endif  /* HTTP2 */
+                {
+                    PRINT_HTTP_VARY_DYN;
+                    PRINT_HTTP_NO_CACHE;
+                }
+            }
+            else    /* static content */
+            {
+#ifdef HTTP2
+                if ( conn[ci].http_ver[0] == '2' )
+                    PRINT_HTTP2_VARY_STAT;
+                else
+#endif  /* HTTP2 */
+                    PRINT_HTTP_VARY_STAT;
 
-        /* compress? ------------------------------------------------------------------ */
+                if ( conn[ci].static_res == NOT_STATIC )   /* generated -- moderate caching */
+                {
+                    if ( conn[ci].modified )
+                    {
+#ifdef HTTP2
+                        if ( conn[ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
+                        else
+#endif  /* HTTP2 */
+                            PRINT_HTTP_LAST_MODIFIED(time_epoch2http(conn[ci].modified));
+                    }
+                    else
+                    {
+#ifdef HTTP2
+                        if ( conn[ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                        else
+#endif  /* HTTP2 */
+                            PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                    }
+
+                    if ( EXPIRES_GENERATED > 0 )
+                    {
+#ifdef HTTP2
+                        if ( conn[ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_EXPIRES_GENERATED;
+                        else
+#endif  /* HTTP2 */
+                            PRINT_HTTP_EXPIRES_GENERATED;
+                    }
+                }
+                else    /* static resource -- aggressive caching */
+                {
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[conn[ci].static_res].modified));
+
+                    if ( EXPIRES_STATICS > 0 )
+                    {
+#ifdef HTTP2
+                        if ( conn[ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_EXPIRES_STATICS;
+                        else
+#endif  /* HTTP2 */
+                            PRINT_HTTP_EXPIRES_STATICS;
+                    }
+                }
+            }
+
+            /* content length and type */
+
+            if ( conn[ci].static_res == NOT_STATIC )
+            {
+                conn[ci].clen = conn[ci].p_content - conn[ci].out_data - OUT_HEADER_BUFSIZE;
+            }
+            else    /* static resource */
+            {
+                conn[ci].clen = M_stat[conn[ci].static_res].len;
+                conn[ci].ctype = M_stat[conn[ci].static_res].type;
+            }
+
+            /* compress? ------------------------------------------------------------------ */
 
 #ifndef _WIN32  /* in Windows it's just too much headache */
 
-        if ( SHOULD_BE_COMPRESSED(conn[ci].clen, conn[ci].ctype) && conn[ci].accept_deflate && !UA_IE )
-        {
-            if ( conn[ci].static_res==NOT_STATIC )
+            if ( SHOULD_BE_COMPRESSED(conn[ci].clen, conn[ci].ctype) && conn[ci].accept_deflate && !UA_IE )
             {
-                DBG("Compressing content");
-
-                int ret;
-static          z_stream strm;
-static          bool first=TRUE;
-
-                if ( first )
+                if ( conn[ci].static_res==NOT_STATIC )
                 {
-                    strm.zalloc = Z_NULL;
-                    strm.zfree = Z_NULL;
-                    strm.opaque = Z_NULL;
+                    DBG("Compressing content");
 
-                    ret = deflateInit(&strm, COMPRESS_LEVEL);
+                    int ret;
+static              z_stream strm;
+static              bool first=TRUE;
 
-                    if ( ret != Z_OK )
+                    if ( first )
                     {
-                        ERR("deflateInit failed, ret = %d", ret);
-                        return;
+                        strm.zalloc = Z_NULL;
+                        strm.zfree = Z_NULL;
+                        strm.opaque = Z_NULL;
+
+                        ret = deflateInit(&strm, COMPRESS_LEVEL);
+
+                        if ( ret != Z_OK )
+                        {
+                            ERR("deflateInit failed, ret = %d", ret);
+                            return;
+                        }
+
+                        first = FALSE;
                     }
 
-                    first = FALSE;
+                    unsigned max = conn[ci].clen;
+
+                    ret = deflate_inplace(&strm, (unsigned char*)conn[ci].out_data+OUT_HEADER_BUFSIZE, conn[ci].clen, &max);
+
+                    if ( ret == Z_OK )
+                    {
+                        DBG("Compression success, old len=%u, new len=%u", conn[ci].clen, max);
+                        conn[ci].clen = max;
+#ifdef HTTP2
+                        if ( conn[ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_CONTENT_ENCODING_DEFLATE;
+                        else
+#endif  /* HTTP2 */
+                            PRINT_HTTP_CONTENT_ENCODING_DEFLATE;
+#ifdef DUMP
+                        compressed = TRUE;
+#endif
+                    }
+                    else
+                    {
+                        ERR("deflate_inplace failed, ret = %d", ret);
+                    }
                 }
-
-                unsigned max = conn[ci].clen;
-
-                ret = deflate_inplace(&strm, (unsigned char*)conn[ci].out_data+OUT_HEADER_BUFSIZE, conn[ci].clen, &max);
-
-                if ( ret == Z_OK )
+                else if ( M_stat[conn[ci].static_res].len_deflated )   /* compressed static resource is available */
                 {
-                    DBG("Compression success, old len=%u, new len=%u", conn[ci].clen, max);
-                    conn[ci].clen = max;
-                    PRINT_HTTP_CONTENT_ENCODING_DEFLATE;
+                    conn[ci].out_data = M_stat[conn[ci].static_res].data_deflated;
+                    conn[ci].clen = M_stat[conn[ci].static_res].len_deflated;
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_CONTENT_ENCODING_DEFLATE;
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_CONTENT_ENCODING_DEFLATE;
 #ifdef DUMP
                     compressed = TRUE;
 #endif
                 }
-                else
-                {
-                    ERR("deflate_inplace failed, ret = %d", ret);
-                }
             }
-            else if ( M_stat[conn[ci].static_res].len_deflated )   /* compressed static resource is available */
-            {
-                conn[ci].out_data = M_stat[conn[ci].static_res].data_deflated;
-                conn[ci].clen = M_stat[conn[ci].static_res].len_deflated;
-                PRINT_HTTP_CONTENT_ENCODING_DEFLATE;
-#ifdef DUMP
-                compressed = TRUE;
-#endif
-            }
-        }
 #endif  /* _WIN32 */
 
-        /* ---------------------------------------------------------------------------- */
-    }
+            /* ---------------------------------------------------------------------------- */
+        }
 
-    /* Content-Type */
+        /* Content-Type */
 
-    if ( conn[ci].clen == 0 )   /* don't set for these */
-    {                   /* this covers 301, 303 and 304 */
-    }
-    else if ( conn[ci].ctypestr[0] )    /* custom */
-    {
-        sprintf(G_tmp, "Content-Type: %s\r\n", conn[ci].ctypestr);
-        HOUT(G_tmp);
-    }
-    else if ( conn[ci].ctype != CONTENT_TYPE_UNSET )
-    {
-        print_content_type(ci, conn[ci].ctype);
-    }
+        if ( conn[ci].clen == 0 )   /* don't set for these */
+        {                   /* this covers 301, 303 and 304 */
+        }
+        else if ( conn[ci].ctypestr[0] )    /* custom */
+        {
+            sprintf(G_tmp, "Content-Type: %s\r\n", conn[ci].ctypestr);
+            HOUT(G_tmp);
+        }
+        else if ( conn[ci].ctype != CONTENT_TYPE_UNSET )
+        {
+            print_content_type(ci, conn[ci].ctype);
+        }
 
-    if ( conn[ci].cdisp[0] )
-    {
-        sprintf(G_tmp, "Content-Disposition: %s\r\n", conn[ci].cdisp);
-        HOUT(G_tmp);
-    }
+        if ( conn[ci].cdisp[0] )
+        {
+            sprintf(G_tmp, "Content-Disposition: %s\r\n", conn[ci].cdisp);
+            HOUT(G_tmp);
+        }
 
-    /* Content-Length */
+        /* Content-Length */
 
-    PRINT_HTTP_CONTENT_LEN(conn[ci].clen);
+#ifdef HTTP2
+        if ( conn[ci].http_ver[0] == '2' )
+            PRINT_HTTP2_CONTENT_LEN(conn[ci].clen);
+        else
+#endif  /* HTTP2 */
+            PRINT_HTTP_CONTENT_LEN(conn[ci].clen);
 
-    /* Security */
+        /* Security */
 
-    if ( conn[ci].clen > 0 )
-    {
+        if ( conn[ci].clen > 0 )
+        {
 #ifndef NO_SAMEORIGIN
-        PRINT_HTTP_SAMEORIGIN;
+            PRINT_HTTP_SAMEORIGIN;
 #endif
 
 #ifndef NO_NOSNIFF
-        PRINT_HTTP_NOSNIFF;
+            PRINT_HTTP_NOSNIFF;
 #endif
-    }
-
-    /* Connection */
-
-    PRINT_HTTP_CONNECTION(ci);
-
-    /* Cookie */
-
-    if ( conn[ci].static_res == NOT_STATIC && (conn[ci].status == 200 || conn[ci].status == 303) && !conn[ci].head_only )
-    {
-        if ( conn[ci].cookie_out_l[0] )         /* logged in cookie has been produced */
-        {
-            if ( conn[ci].cookie_out_l_exp[0] )
-            {
-                PRINT_HTTP_COOKIE_L_EXP(ci);    /* with expiration date */
-            }
-            else
-            {
-                PRINT_HTTP_COOKIE_L(ci);
-            }
         }
 
-        if ( conn[ci].cookie_out_a[0] )         /* anonymous cookie has been produced */
+        /* Connection */
+
+#ifdef HTTP2
+        if ( conn[ci].http_ver[0] != '2' )
+#endif  /* HTTP2 */
+            PRINT_HTTP_CONNECTION(ci);
+
+        /* Cookie */
+
+        if ( conn[ci].static_res == NOT_STATIC && (conn[ci].status == 200 || conn[ci].status == 303) && !conn[ci].head_only )
         {
-            if ( conn[ci].cookie_out_a_exp[0] )
+            if ( conn[ci].cookie_out_l[0] )         /* logged in cookie has been produced */
             {
-                PRINT_HTTP_COOKIE_A_EXP(ci);    /* with expiration date */
+                if ( conn[ci].cookie_out_l_exp[0] )
+                {
+                    PRINT_HTTP_COOKIE_L_EXP(ci);    /* with expiration date */
+                }
+                else
+                {
+                    PRINT_HTTP_COOKIE_L(ci);
+                }
             }
-            else
+
+            if ( conn[ci].cookie_out_a[0] )         /* anonymous cookie has been produced */
             {
-                PRINT_HTTP_COOKIE_A(ci);
+                if ( conn[ci].cookie_out_a_exp[0] )
+                {
+                    PRINT_HTTP_COOKIE_A_EXP(ci);    /* with expiration date */
+                }
+                else
+                {
+                    PRINT_HTTP_COOKIE_A(ci);
+                }
             }
         }
-    }
 
 #ifdef HTTPS
 #ifndef NO_HSTS
-    if ( conn[ci].secure )
-        PRINT_HTTP_HSTS;
+        if ( conn[ci].secure )
+            PRINT_HTTP_HSTS;
 #endif
 #endif  /* HTTPS */
 
 #ifndef NO_IDENTITY
-    PRINT_HTTP_SERVER;
+        PRINT_HTTP_SERVER;
 #endif
 
-    /* ------------------------------------------------------------- */
-    /* custom headers */
+        /* ------------------------------------------------------------- */
+        /* custom headers */
 
-    if ( conn[ci].cust_headers[0] )
-    {
-        HOUT(conn[ci].cust_headers);
-    }
+        if ( conn[ci].cust_headers[0] )
+        {
+            HOUT(conn[ci].cust_headers);
+        }
 
-    /* ------------------------------------------------------------- */
+        /* ------------------------------------------------------------- */
 
 #ifdef HTTP2
     }
@@ -4181,7 +4392,13 @@ static void print_content_type(int ci, char type)
     else
         strcpy(http_type, "text/plain");
 
-    sprintf(G_tmp, "Content-Type: %s\r\n", http_type);
+#ifdef HTTP2
+    if ( conn[ci].http_ver[0] == '2' )
+        sprintf(G_tmp, "content-type = %s\r\n", http_type);
+    else
+#endif  /* HTTP2 */
+        sprintf(G_tmp, "Content-Type: %s\r\n", http_type);
+
     HOUT(G_tmp);
 }
 
@@ -4376,7 +4593,7 @@ static void reset_conn(int ci, char new_state)
         conn[ci].usi = 0;
 
 #ifdef HTTP2
-        conn[ci].http2_switching_in_progress = FALSE;
+        conn[ci].http2_upgrade_in_progress = FALSE;
 #endif  /* HTTP2 */
     }
 
@@ -5420,7 +5637,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         if ( strcmp(value, "h2c") == 0 )
         {
             INF("Client wants to switch to HTTP/2 (cleartext)");
-            conn[ci].http2_switching_in_progress = TRUE;
+            conn[ci].http2_upgrade_in_progress = TRUE;
 //            return 101;     /* Switching Protocols */
         }
     }
