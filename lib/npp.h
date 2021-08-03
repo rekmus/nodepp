@@ -314,6 +314,7 @@ typedef char str256k[1024*256];
 #else   /* NPP_APP */
 
     #define HOUT(str)                   (conn[ci].p_header = stpcpy(conn[ci].p_header, str))
+    #define HOUT_BIN(data, len)         (memcpy(conn[ci].p_header, data, len), conn[ci].p_header += len)
 
     #ifdef OUTFAST
         #define OUTSS(str)                  (conn[ci].p_content = stpcpy(conn[ci].p_content, str))
@@ -342,46 +343,46 @@ typedef char str256k[1024*256];
 
 /* HTTP header -- resets respbuf! */
 #define PRINT_HTTP_STATUS(val)          (sprintf(G_tmp, "HTTP/1.1 %d %s\r\n", val, get_http_descr(val)), HOUT(G_tmp))
-#define PRINT_HTTP2_STATUS(val)         (sprintf(G_tmp, ":status = %d\r\n", val), HOUT(G_tmp))
+#define PRINT_HTTP2_STATUS(val)         http2_hdr_status(ci, val)
 
 /* date */
 #define PRINT_HTTP_DATE                 (sprintf(G_tmp, "Date: %s\r\n", M_resp_date), HOUT(G_tmp))
-#define PRINT_HTTP2_DATE                (sprintf(G_tmp, "date = %s\r\n", M_resp_date), HOUT(G_tmp))
+#define PRINT_HTTP2_DATE                http2_hdr_date(ci, M_resp_date)
 
 /* cache control */
 #define PRINT_HTTP_CACHE_PUBLIC         HOUT("Cache-Control: public, max-age=31536000\r\n")
-#define PRINT_HTTP2_CACHE_PUBLIC        HOUT("cache-control = public, max-age=31536000\r\n")
+#define PRINT_HTTP2_CACHE_PUBLIC
 #define PRINT_HTTP_NO_CACHE             HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n")
-#define PRINT_HTTP2_NO_CACHE            HOUT("cache-control = private, must-revalidate, no-store, no-cache, max-age=0\r\n")
+#define PRINT_HTTP2_NO_CACHE
 #define PRINT_HTTP_EXPIRES_STATICS      (sprintf(G_tmp, "Expires: %s\r\n", M_expires_stat), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_STATICS     (sprintf(G_tmp, "expires = %s\r\n", M_expires_stat), HOUT(G_tmp))
+#define PRINT_HTTP2_EXPIRES_STATICS
 #define PRINT_HTTP_EXPIRES_GENERATED    (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_GENERATED   (sprintf(G_tmp, "expires = %s\r\n", M_expires_gen), HOUT(G_tmp))
+#define PRINT_HTTP2_EXPIRES_GENERATED
 #define PRINT_HTTP_LAST_MODIFIED(str)   (sprintf(G_tmp, "Last-Modified: %s\r\n", str), HOUT(G_tmp))
-#define PRINT_HTTP2_LAST_MODIFIED(str)  (sprintf(G_tmp, "last-modified = %s\r\n", str), HOUT(G_tmp))
+#define PRINT_HTTP2_LAST_MODIFIED(str)
 
 /* connection */
 #define PRINT_HTTP_CONNECTION(ci)       (sprintf(G_tmp, "Connection: %s\r\n", conn[ci].keep_alive?"keep-alive":"close"), HOUT(G_tmp))
 
 /* vary */
 #define PRINT_HTTP_VARY_DYN             HOUT("Vary: Accept-Encoding, User-Agent\r\n")
-#define PRINT_HTTP2_VARY_DYN            HOUT("vary = accept-encoding, user-agent\r\n")
+#define PRINT_HTTP2_VARY_DYN
 #define PRINT_HTTP_VARY_STAT            HOUT("Vary: Accept-Encoding\r\n")
-#define PRINT_HTTP2_VARY_STAT           HOUT("vary = accept-encoding\r\n")
+#define PRINT_HTTP2_VARY_STAT
 #define PRINT_HTTP_VARY_UIR             HOUT("Vary: Upgrade-Insecure-Requests\r\n")
-#define PRINT_HTTP2_VARY_UIR            HOUT("vary = upgrade-insecure-requests\r\n")
+#define PRINT_HTTP2_VARY_UIR
 
 /* content language */
 #define PRINT_HTTP_LANGUAGE             HOUT("Content-Language: en-us\r\n")
-#define PRINT_HTTP2_LANGUAGE            HOUT("content-language = en-us\r\n")
+#define PRINT_HTTP2_LANGUAGE
 
 /* content length */
 #define PRINT_HTTP_CONTENT_LEN(len)     (sprintf(G_tmp, "Content-Length: %u\r\n", len), HOUT(G_tmp))
-#define PRINT_HTTP2_CONTENT_LEN(len)    (sprintf(G_tmp, "content-length = %u\r\n", len), HOUT(G_tmp))
+#define PRINT_HTTP2_CONTENT_LEN(len)
 
 /* content encoding */
 #define PRINT_HTTP_CONTENT_ENCODING_DEFLATE HOUT("Content-Encoding: deflate\r\n")
-#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE HOUT("content-encoding = deflate\r\n")
+#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE
 
 /* Security ------------------------------------------------------------------ */
 
@@ -391,10 +392,10 @@ typedef char str256k[1024*256];
 #endif
 #ifdef HSTS_INCLUDE_SUBDOMAINS
 #define PRINT_HTTP_HSTS                 (sprintf(G_tmp, "Strict-Transport-Security: max-age=%d; includesubdomains\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
-#define PRINT_HTTP2_HSTS                (sprintf(G_tmp, "strict-transport-security = max-age=%d; includesubdomains\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
+#define PRINT_HTTP2_HSTS
 #else
 #define PRINT_HTTP_HSTS                 (sprintf(G_tmp, "Strict-Transport-Security: max-age=%d\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
-#define PRINT_HTTP2_HSTS                (sprintf(G_tmp, "strict-transport-security = max-age=%d\r\n", HSTS_MAX_AGE), HOUT(G_tmp))
+#define PRINT_HTTP2_HSTS
 #endif
 
 #ifdef HTTPS
@@ -420,15 +421,15 @@ typedef char str256k[1024*256];
 
 /* framing */
 #define PRINT_HTTP_SAMEORIGIN           HOUT("X-Frame-Options: SAMEORIGIN\r\n")
-#define PRINT_HTTP2_SAMEORIGIN          HOUT("x-frame-options = SAMEORIGIN\r\n")
+#define PRINT_HTTP2_SAMEORIGIN
 
 /* content type guessing */
 #define PRINT_HTTP_NOSNIFF              HOUT("X-Content-Type-Options: nosniff\r\n")
-#define PRINT_HTTP2_NOSNIFF             HOUT("x-content-type-options = nosniff\r\n")
+#define PRINT_HTTP2_NOSNIFF
 
 /* identity */
 #define PRINT_HTTP_SERVER               HOUT("Server: Node++\r\n")
-#define PRINT_HTTP2_SERVER              HOUT("server = Node++\r\n")
+#define PRINT_HTTP2_SERVER
 
 /* HTTP2 */
 #define PRINT_HTTP2_UPGRADE_CLEAR       HOUT("Connection: Upgrade\r\nUpgrade: h2c\r\n")
@@ -490,6 +491,69 @@ typedef char str256k[1024*256];
 #define HTTP2_ENHANCE_YOUR_CALM         0xB     /* Processing capacity exceeded */
 #define HTTP2_INADEQUATE_SECURITY       0xC     /* Negotiated TLS parameters not acceptable */
 #define HTTP2_HTTP_1_1_REQUIRED         0xD     /* Use HTTP/1.1 for the request */
+
+#define HTTP2_HDR_AUTHORITY             1
+#define HTTP2_HDR_METHOD_GET            2
+#define HTTP2_HDR_METHOD_POST           3
+#define HTTP2_HDR_PATH_LANDING          4
+#define HTTP2_HDR_PATH_INDEX            5
+#define HTTP2_HDR_SCHEME_HTTP           6
+#define HTTP2_HDR_SCHEME_HTTPS          7
+#define HTTP2_HDR_STATUS_200            8
+#define HTTP2_HDR_STATUS_204            9
+#define HTTP2_HDR_STATUS_206            10
+#define HTTP2_HDR_STATUS_304            11
+#define HTTP2_HDR_STATUS_400            12
+#define HTTP2_HDR_STATUS_404            13
+#define HTTP2_HDR_STATUS_500            14
+#define HTTP2_HDR_ACCEPT_CHARSET        15
+#define HTTP2_HDR_ACCEPT_ENCODING       16
+#define HTTP2_HDR_ACCEPT_LANGUAGE       17
+#define HTTP2_HDR_ACCEPT_RANGES         18
+#define HTTP2_HDR_ACCEPT                19
+#define HTTP2_HDR_AC_ALLOW_ORIGIN       20
+#define HTTP2_HDR_AGE                   21
+#define HTTP2_HDR_ALLOW                 22
+#define HTTP2_HDR_AUTHORIZATION         23
+#define HTTP2_HDR_CACHE_CONTROL         24
+#define HTTP2_HDR_CONTENT_DISPOSITION   25
+#define HTTP2_HDR_CONTENT_ENCODING      26
+#define HTTP2_HDR_CONTENT_LANGUAGE      27
+#define HTTP2_HDR_CONTENT_LENGTH        28
+#define HTTP2_HDR_CONTENT_LOCATION      29
+#define HTTP2_HDR_CONTENT_RANGE         30
+#define HTTP2_HDR_CONTENT_TYPE          31
+#define HTTP2_HDR_COOKIE                32
+#define HTTP2_HDR_DATE                  33
+#define HTTP2_HDR_ETAG                  34
+#define HTTP2_HDR_EXPECT                35
+#define HTTP2_HDR_EXPIRES               36
+#define HTTP2_HDR_FROM                  37
+#define HTTP2_HDR_HOST                  38
+#define HTTP2_HDR_IF_MATCH              39
+#define HTTP2_HDR_IF_MODIFIED_SINCE     40
+#define HTTP2_HDR_IF_NONE_MATCH         41
+#define HTTP2_HDR_IF_RANGE              42
+#define HTTP2_HDR_IF_UNMODIFIED_SINCE   43
+#define HTTP2_HDR_LAST_MODIFIED         44
+#define HTTP2_HDR_LINK                  45
+#define HTTP2_HDR_LOCATION              46
+#define HTTP2_HDR_MAX_FORWARDS          47
+#define HTTP2_HDR_PROXY_AUTHENTICATE    48
+#define HTTP2_HDR_PROXY_AUTHORIZATION   49
+#define HTTP2_HDR_RANGE                 50
+#define HTTP2_HDR_REFERER               51
+#define HTTP2_HDR_REFRESH               52
+#define HTTP2_HDR_RETRY_AFTER           53
+#define HTTP2_HDR_SERVER                54
+#define HTTP2_HDR_SET_COOKIE            55
+#define HTTP2_HDR_STRICT_TRANSPORT_SECURITY 56
+#define HTTP2_HDR_TRANSFER_ENCODING     57
+#define HTTP2_HDR_USER_AGENT            58
+#define HTTP2_HDR_VARY                  59
+#define HTTP2_HDR_VIA                   60
+#define HTTP2_HDR_WWW_AUTHENTICATE      61
+
 
 #define HTTP2_DEFAULT_FRAME_SIZE        16384
 

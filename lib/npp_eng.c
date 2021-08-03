@@ -1419,6 +1419,33 @@ static void http2_add_frame(int ci, unsigned char type)
     DBG("OUT frame stream_id = %d", hdr.stream_id);
 #endif
 }
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_status(int ci, int status)
+{
+    if ( status == 200 )
+        *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_200);
+    else if ( status == 400 )
+        *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_400);
+    else if ( status == 404 )
+        *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_404);
+    else if ( status == 500 )
+        *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_500);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_date(int ci, const char *val)
+{
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_DATE);
+    *conn[ci].p_header++ = strlen(val);
+    HOUT(val);
+}
 #endif  /* HTTP2 */
 
 
