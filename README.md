@@ -8,7 +8,7 @@ There are a couple of breaches that I think need to be introduced in order to en
 1. There will be different default hashing algorithm for passwords. (DONE in v0.0.1)
 1. HTTP/2 (in progress).
 1. epoll will finally be implemented.
-1. USERS will be based on the [ORM](https://silgy.org/mysqldaogen) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
+1. USERS will be based on the [ORM](https://nodepp.org/mysqldaogen) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
 1. npp_lib (formerly silgy_lib) will probably get split into smaller parts.
 1. Popular packaging support.
 1. OUT and similar macros will take std::strings as arguments (with C-style strings still supported).

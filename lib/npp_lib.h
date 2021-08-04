@@ -56,6 +56,8 @@
 
 #ifdef DUMP
 #define DDBG                            DBG
+#else
+#define DDBG
 #endif
 
 #define ALWAYS_T(str, ...)              log_write_time(LOG_ALWAYS, str, ##__VA_ARGS__)
