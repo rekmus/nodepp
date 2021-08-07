@@ -455,7 +455,7 @@ typedef json_t JSON;
 
 
 #define JSON_RESET(json)                    lib_json_reset(json)
-#define JSON_COUNT(json)                    json.cnt
+#define JSON_COUNT(json)                    lib_json_count(json)
 
 #define JSON_LOG_DBG(json, name)            lib_json_log_dbg(json, name)
 #define JSON_LOG_INF(json, name)            lib_json_log_inf(json, name)
@@ -569,6 +569,7 @@ extern "C" {
     void init_random_numbers(void);
     void npp_random(char *dest, int len);
     void msleep(int msec);
+    int  lib_json_count(JSON *json);
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
     char *lib_json_to_string_pretty(JSON *json);

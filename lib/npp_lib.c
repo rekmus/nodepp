@@ -6496,6 +6496,18 @@ static void json_auto_init(JSON *json)
 
 
 /* --------------------------------------------------------------------------
+   Return JSON object elements
+-------------------------------------------------------------------------- */
+int lib_json_count(JSON *json)
+{
+#ifdef DUMP
+    DBG("lib_json_count");
+#endif
+    return json->cnt;
+}
+
+
+/* --------------------------------------------------------------------------
    Reset JSON object
 -------------------------------------------------------------------------- */
 void lib_json_reset(JSON *json)
@@ -7288,7 +7300,7 @@ bool lib_json_add(JSON *json, const char *name, const char *str_value, int int_v
 
 
 /* --------------------------------------------------------------------------
-   Insert value into JSON buffer
+   Insert or update value (address) in JSON buffer
 -------------------------------------------------------------------------- */
 bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_array, int i)
 {

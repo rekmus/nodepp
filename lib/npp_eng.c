@@ -728,10 +728,6 @@ int main(int argc, char **argv)
                                 DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", conn[i].out_hlen, conn[i].fd, i);
 #endif  /* DUMP */
                                 bytes = SSL_write(conn[i].ssl, conn[i].out_start, conn[i].out_len);
-#ifdef DUMP
-                                DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_BODY", i);
-#endif
-                                conn[i].conn_state = CONN_STATE_READY_TO_SEND_BODY;
 
                                 set_state_sec(i, bytes);
                             }
@@ -751,10 +747,7 @@ int main(int argc, char **argv)
                         {
                             if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_HEADER )
                             {
-#ifdef DUMP
-                                DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_HEADER", i);
-#endif
-
+                                DDBG("ci=%d, state == CONN_STATE_READY_TO_SEND_HEADER", i);
 #ifdef HTTP2
                                 if ( conn[i].http2_upgrade_in_progress )    /* switching protocol in progress; send only 101 header, follow with settings frame */
                                 {
@@ -766,9 +759,9 @@ int main(int argc, char **argv)
                                     DBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].http2_bytes_to_send, conn[i].fd, i);
 #endif  /* DUMP */
                                     bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
-#ifdef DUMP
-                                    DBG("ci=%d, changing state to CONN_STATE_READY_FOR_CLIENT_PREFACE", i);
-#endif
+
+                                    DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_CLIENT_PREFACE", i);
+
                                     conn[i].conn_state = CONN_STATE_READY_FOR_CLIENT_PREFACE;
                                 }
                                 else    /* header to send */
@@ -782,20 +775,12 @@ int main(int argc, char **argv)
                                     else    /* HTTP/1 */
                                     {
 #endif  /* HTTP2 */
+                                        DDBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].out_len, conn[i].fd, i);
 
-#ifdef DUMP
-                                        DBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].out_len, conn[i].fd, i);
-#endif
                                         bytes = send(conn[i].fd, conn[i].out_start, conn[i].out_len, 0);
 #ifdef HTTP2
                                     }
 #endif
-
-#ifdef DUMP
-                                    DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_BODY", i);
-#endif
-                                    conn[i].conn_state = CONN_STATE_READY_TO_SEND_BODY;
-
                                     set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
                                                             /*              CONN_STATE_READY_TO_SEND_BODY */
 #ifdef HTTP2
@@ -804,11 +789,7 @@ int main(int argc, char **argv)
                             }
                             else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_BODY || conn[i].conn_state == CONN_STATE_SENDING_BODY)
                             {
-#ifdef DUMP
-                                DBG("ci=%d, state == %s", i, conn[i].conn_state==CONN_STATE_READY_TO_SEND_BODY?"CONN_STATE_READY_TO_SEND_BODY":"CONN_STATE_SENDING_BODY");
-                                DBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].out_len-conn[i].data_sent, conn[i].fd, i);
-#endif  /* DUMP */
-
+                                DDBG("ci=%d, state == %s", i, conn[i].conn_state==CONN_STATE_READY_TO_SEND_BODY?"CONN_STATE_READY_TO_SEND_BODY":"CONN_STATE_SENDING_BODY");
 #ifdef HTTP2
                                 if ( conn[i].http_ver[0] == '2' )
                                 {
@@ -817,9 +798,14 @@ int main(int argc, char **argv)
                                     bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
                                 }
                                 else
+                                {
 #endif  /* HTTP2 */
-                                    bytes = send(conn[i].fd, conn[i].out_start+conn[i].data_sent, conn[i].out_len-conn[i].data_sent, 0);
+                                    DDBG("Trying to write %u bytes to fd=%d (ci=%d)", conn[i].out_len-conn[i].data_sent, conn[i].fd, i);
 
+                                    bytes = send(conn[i].fd, conn[i].out_start+conn[i].data_sent, conn[i].out_len-conn[i].data_sent, 0);
+#ifdef HTTP2
+                                }
+#endif
                                 set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer or !keep_alive) */
                                                         /*              CONN_STATE_SENDING_BODY (if data_sent < clen) */
                                                         /*              CONN_STATE_CONNECTED */
@@ -1266,24 +1252,45 @@ static char desc[64];
 
 
 /* --------------------------------------------------------------------------
+   Convert NBO 24-bit integer to machine int
+-------------------------------------------------------------------------- */
+int http2_24nbo_2_machine(const char *nbo_number)
+{
+    int number;
+
+    memcpy((char*)&number, nbo_number, 3);
+    number >> 8;
+
+    if ( G_endianness == ENDIANNESS_LITTLE )
+    {
+        int32_t tmp = number;
+        number = bswap32(tmp);
+    }
+
+    DDBG("http2_24nbo_2_machine result = %d", number);
+
+    return number;
+}
+
+
+/* --------------------------------------------------------------------------
    Parse HTTP/2 incoming frame
    bytes has to be > 0
 -------------------------------------------------------------------------- */
 static void http2_parse_frame(int ci, int bytes)
 {
-#ifdef DUMP
-    DBG("http2_parse_frame ci=%d, bytes=%d", ci, bytes);
-#endif
+    DDBG("http2_parse_frame ci=%d, bytes=%d", ci, bytes);
 
-    http2_frame_hdr_t hdr;
+//    http2_frame_hdr_t hdr;
+    char hdr[HTTP2_FRAME_HDR_LEN]={0};
 
-    memcpy((char*)&hdr, &conn[ci].in, sizeof(hdr));
+    memcpy(&hdr, &conn[ci].in, HTTP2_FRAME_HDR_LEN);
 
     int32_t length=0;
 
     /* we're in the network byte order ------------- */
 
-    memcpy((char*)&length, (char*)&hdr.length, 3);
+    memcpy((char*)&length, (char*)&hdr, 3);
     length >> 8;
 
     /* --------------------------------------------- */
@@ -1292,18 +1299,18 @@ static void http2_parse_frame(int ci, int bytes)
     {
         int32_t tmp = length;
         length = bswap32(tmp);
-        conn[ci].http2_last_stream_id = bswap32(hdr.stream_id);
+        conn[ci].http2_last_stream_id = bswap32((int32_t)*(hdr+5));
     }
     else    /* Big Endian */
     {
-        conn[ci].http2_last_stream_id = hdr.stream_id;
+        conn[ci].http2_last_stream_id = (int32_t)*(hdr+5);
     }
 
 #ifdef DUMP
     DBG("IN frame length = %d", length);
-    DBG("IN frame type = %s", http2_get_frame_type(hdr.type));
-    DBG("IN frame flags = 0x%02x", hdr.flags);
-    DBG("IN frame stream_id = %d", hdr.stream_id);
+    DBG("IN frame type = %s", http2_get_frame_type(hdr[3]));
+    DBG("IN frame flags = 0x%02x", hdr[4]);
+    DBG("IN frame stream_id = %d", conn[ci].http2_last_stream_id);
 #endif
 }
 
@@ -1313,9 +1320,7 @@ static void http2_parse_frame(int ci, int bytes)
 -------------------------------------------------------------------------- */
 static void http2_add_frame(int ci, unsigned char type)
 {
-#ifdef DUMP
-    DBG("http2_add_frame ci=%d, type [%s]", ci, http2_get_frame_type(type));
-#endif
+    DDBG("http2_add_frame ci=%d, type [%s]", ci, http2_get_frame_type(type));
 
     /* frame data */
     /* we're trying to avoid unnecessary copying */
@@ -1345,7 +1350,8 @@ static void http2_add_frame(int ci, unsigned char type)
     /* ------------------------------------------------ */
     /* build frame header */
 
-    http2_frame_hdr_t hdr={0};
+//    http2_frame_hdr_t hdr={0};
+    char hdr[HTTP2_FRAME_HDR_LEN]={0};
 
     /* length */
 
@@ -1353,23 +1359,38 @@ static void http2_add_frame(int ci, unsigned char type)
     {
         int32_t tmp = bswap32(frame_pld_len);
         tmp << 8;
-        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+//        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+        memcpy(&hdr, (char*)&tmp, 3);
     }
     else    /* Big Endian */
     {
         int32_t tmp = frame_pld_len;
         tmp << 8;
-        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+//        memcpy((char*)&hdr.length, (char*)&tmp, 3);
+        memcpy(&hdr, (char*)&tmp, 3);
     }
+
+#ifdef DUMP
+    int test_len = http2_24nbo_2_machine((char*)&hdr);
+#endif
 
     /* type */
 
-    hdr.type = type;
+//    hdr.type = type;
+    hdr[3] = type;
 
     /* stream id */
 
     if ( type != HTTP2_FRAME_TYPE_SETTINGS )
-        hdr.stream_id = conn[ci].http2_last_stream_id;
+    {
+        if ( G_endianness == ENDIANNESS_LITTLE )
+        {
+            int32_t tmp = bswap32(conn[ci].http2_last_stream_id);
+            memcpy(hdr+5, &tmp, 4);
+        }
+        else    /* Big Endian */
+            memcpy(hdr+5, &conn[ci].http2_last_stream_id, 4);
+    }
 
     /* ------------------------------------------------ */
     /* copy payload structure before the frame data */
@@ -1382,7 +1403,8 @@ static void http2_add_frame(int ci, unsigned char type)
     {
         conn[ci].http2_frame_start = conn[ci].out_data - HTTP2_FRAME_HDR_LEN;
 
-        hdr.flags |= HTTP2_FRAME_FLAG_END_STREAM;
+//        hdr.flags |= HTTP2_FRAME_FLAG_END_STREAM;
+        hdr[4] |= HTTP2_FRAME_FLAG_END_STREAM;
     }
     else if ( type == HTTP2_FRAME_TYPE_HEADERS )
     {
@@ -1394,7 +1416,8 @@ static void http2_add_frame(int ci, unsigned char type)
 
         memcpy(conn[ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, sizeof(http2_HEADERS_pld_t));
 
-        hdr.flags |= HTTP2_FRAME_FLAG_END_HEADERS;
+//        hdr.flags |= HTTP2_FRAME_FLAG_END_HEADERS;
+        hdr[4] |= HTTP2_FRAME_FLAG_END_HEADERS;
     }
     else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
     {
@@ -1414,10 +1437,74 @@ static void http2_add_frame(int ci, unsigned char type)
 
 #ifdef DUMP
     DBG("OUT frame pld length = %d", frame_pld_len);
-    DBG("OUT frame type = %s", http2_get_frame_type(hdr.type));
-    DBG("OUT frame flags = 0x%02x", hdr.flags);
-    DBG("OUT frame stream_id = %d", hdr.stream_id);
+    DBG("OUT frame type = %s", http2_get_frame_type(type));
+    DBG("OUT frame flags = 0x%02x", hdr[4]);
+    DBG("OUT frame stream_id = %d", conn[ci].http2_last_stream_id);
 #endif
+}
+
+
+static int http2_single_octet(unsigned val)
+{
+    return val < (1 << HTTP2_INT_PREFIX_BITS) - 1;
+}
+
+
+/* --------------------------------------------------------------------------
+   Encode an integer for HTTP/2
+   Return number of bytes encoded value took
+-------------------------------------------------------------------------- */
+static int http2_encode_int(char *enc_val, int val)
+{
+/*    char buf[HTTP2_MAX_ENC_INT_LEN];
+    char *p = buf + HTTP2_MAX_ENC_INT_LEN;
+
+    do
+    {
+        *--p = '0' + val % 10;
+    } while ((val /= 10) != 0);
+
+    int len = buf + sizeof(buf) - p;
+
+    DDBG("http2_encode_int: val = %u, len = %d", val, len);
+
+    *enc_val++ = 0x0f;
+    *enc_val++ = 0x0d;
+    *enc_val++ = (uint8_t)len;
+
+    memcpy(enc_val, p, len); */
+
+
+
+    DDBG("http2_encode_int: val = %d", val);
+
+
+
+    int len=1;
+
+    if ( http2_single_octet(val) )
+    {
+        *enc_val++ |= val;
+//        len = 1;
+    }
+    else
+    {
+        val -= (1 << 3) - 1;
+        *enc_val++ |= (1 << 3) - 1;
+
+        for ( ; val>=128; val>>=7 )
+        {
+            *enc_val++ = 0x80 | val;
+            ++len;
+        }
+
+        *enc_val++ = val;
+//        ++len;
+    }
+
+    DDBG("http2_encode_int: len = %d", len);
+
+    return len;
 }
 
 
@@ -1426,6 +1513,8 @@ static void http2_add_frame(int ci, unsigned char type)
 -------------------------------------------------------------------------- */
 static void http2_hdr_status(int ci, int status)
 {
+    DDBG("http2_hdr_status");
+
     if ( status == 200 )
         *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_200);
     else if ( status == 400 )
@@ -1440,11 +1529,66 @@ static void http2_hdr_status(int ci, int status)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_date(int ci, const char *val)
+static void http2_hdr_date(int ci)
 {
+    DDBG("http2_hdr_date");
+
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_DATE);
-    *conn[ci].p_header++ = strlen(val);
+    *conn[ci].p_header++ = (char)strlen(M_resp_date);
+    HOUT(M_resp_date);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_location(int ci)
+{
+    DDBG("http2_hdr_location");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_LOCATION);
+    *conn[ci].p_header++ = (char)strlen(conn[ci].location);
+    HOUT(conn[ci].location);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_content_type(int ci, const char *val)
+{
+    DDBG("http2_hdr_content_type");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_TYPE);
+    *conn[ci].p_header++ = (char)strlen(val);
     HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_content_disp(int ci, const char *val)
+{
+    DDBG("http2_hdr_content_disp");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_DISPOSITION);
+    *conn[ci].p_header++ = (char)strlen(val);
+    HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_content_len(int ci, unsigned val)
+{
+    DDBG("http2_hdr_content_len, val = %u", val);
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LENGTH);
+    char enc_val[HTTP2_MAX_ENC_INT_LEN];
+    int bytes = http2_encode_int(enc_val, val);
+    HOUT_BIN(enc_val, bytes);
 }
 #endif  /* HTTP2 */
 
@@ -1527,7 +1671,12 @@ static void set_state(int ci, int bytes)
 #ifdef DUMP
         DBG("ci=%d, out_len = %u", ci, conn[ci].out_len);
 #endif
+
+#ifdef HTTP2
+        if ( bytes < conn[ci].out_len && conn[ci].http_ver[0] != '2' )
+#else
         if ( bytes < conn[ci].out_len )
+#endif  /* HTTP2 */
         {
 #ifdef DUMP
             DBG("ci=%d, changing state to CONN_STATE_SENDING_BODY", ci);
@@ -3951,7 +4100,9 @@ static void gen_response_header(int ci)
         /* Date */
 
 #ifdef HTTP2
-        if ( conn[ci].http_ver[0] != '2' )
+        if ( conn[ci].http_ver[0] == '2' )
+            PRINT_HTTP2_DATE;
+        else
 #endif  /* HTTP2 */
             PRINT_HTTP_DATE;
 
@@ -3961,7 +4112,7 @@ static void gen_response_header(int ci)
             DBG("Redirecting");
 #endif
 #ifdef HTTPS
-            if ( conn[ci].upgrade2https )   /* Upgrade-Insecure-Requests */
+            if ( conn[ci].upgrade2https )    /* Upgrade-Insecure-Requests */
             {
 #ifdef HTTP2
                 if ( conn[ci].http_ver[0] == '2' )
@@ -3976,12 +4127,10 @@ static void gen_response_header(int ci)
             {
 #ifdef HTTP2
                 if ( conn[ci].http_ver[0] == '2' )
-                    sprintf(G_tmp, "location = %s\r\n", conn[ci].location);
+                    PRINT_HTTP2_LOCATION;
                 else
 #endif  /* HTTP2 */
-                    sprintf(G_tmp, "Location: %s\r\n", conn[ci].location);
-
-                HOUT(G_tmp);
+                    PRINT_HTTP_LOCATION;
             }
 
             conn[ci].clen = 0;
@@ -4227,18 +4376,28 @@ static              bool first=TRUE;
         }
         else if ( conn[ci].ctypestr[0] )    /* custom */
         {
-            sprintf(G_tmp, "Content-Type: %s\r\n", conn[ci].ctypestr);
-            HOUT(G_tmp);
+#ifdef HTTP2
+            if ( conn[ci].http_ver[0] == '2' )
+                PRINT_HTTP2_CONTENT_TYPE(conn[ci].ctypestr);
+            else
+#endif
+                PRINT_HTTP_CONTENT_TYPE(conn[ci].ctypestr);
         }
         else if ( conn[ci].ctype != CONTENT_TYPE_UNSET )
         {
             print_content_type(ci, conn[ci].ctype);
         }
 
+        /* Content-Disposition */
+
         if ( conn[ci].cdisp[0] )
         {
-            sprintf(G_tmp, "Content-Disposition: %s\r\n", conn[ci].cdisp);
-            HOUT(G_tmp);
+#ifdef HTTP2
+            if ( conn[ci].http_ver[0] == '2' )
+                PRINT_HTTP2_CONTENT_DISP(conn[ci].cdisp);
+            else
+#endif
+                PRINT_HTTP_CONTENT_DISP(conn[ci].cdisp);
         }
 
         /* Content-Length */
@@ -4268,7 +4427,7 @@ static              bool first=TRUE;
 #ifdef HTTP2
         if ( conn[ci].http_ver[0] != '2' )
 #endif  /* HTTP2 */
-            PRINT_HTTP_CONNECTION(ci);
+            PRINT_HTTP_CONNECTION;
 
         /* Cookie */
 
@@ -4345,10 +4504,13 @@ static              bool first=TRUE;
     M_pollfds[conn[ci].pi].events = POLLOUT;
 #endif
 
+#ifdef HTTP2
+    if ( conn[ci].http_ver[0] != '2' )
+#endif
 #if OUT_HEADER_BUFSIZE-1 <= MAX_LOG_STR_LEN
-    DBG("\nResponse header:\n\n[%s]\n", out_header);
+        DBG("\nResponse header:\n\n[%s]\n", out_header);
 #else
-    log_long(out_header, conn[ci].out_hlen, "\nResponse header");
+        log_long(out_header, conn[ci].out_hlen, "\nResponse header");
 #endif  /* OUT_HEADER_BUFSIZE-1 <= MAX_LOG_STR_LEN */
 
     /* ----------------------------------------------------------------- */
@@ -4421,12 +4583,10 @@ static void print_content_type(int ci, char type)
 
 #ifdef HTTP2
     if ( conn[ci].http_ver[0] == '2' )
-        sprintf(G_tmp, "content-type = %s\r\n", http_type);
+        PRINT_HTTP2_CONTENT_TYPE(http_type);
     else
 #endif  /* HTTP2 */
-        sprintf(G_tmp, "Content-Type: %s\r\n", http_type);
-
-    HOUT(G_tmp);
+        PRINT_HTTP_CONTENT_TYPE(http_type);
 }
 
 

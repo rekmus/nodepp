@@ -347,7 +347,19 @@ typedef char str256k[1024*256];
 
 /* date */
 #define PRINT_HTTP_DATE                 (sprintf(G_tmp, "Date: %s\r\n", M_resp_date), HOUT(G_tmp))
-#define PRINT_HTTP2_DATE                http2_hdr_date(ci, M_resp_date)
+#define PRINT_HTTP2_DATE                http2_hdr_date(ci)
+
+/* redirection */
+#define PRINT_HTTP_LOCATION             (sprintf(G_tmp, "Location: %s\r\n", conn[ci].location), HOUT(G_tmp))
+#define PRINT_HTTP2_LOCATION            http2_hdr_location(ci)
+
+/* content type */
+#define PRINT_HTTP_CONTENT_TYPE(val)    (sprintf(G_tmp, "Content-Type: %s\r\n", val), HOUT(G_tmp))
+#define PRINT_HTTP2_CONTENT_TYPE(val)   http2_hdr_content_type(ci, val)
+
+/* content disposition */
+#define PRINT_HTTP_CONTENT_DISP(val)    (sprintf(G_tmp, "Content-Disposition: %s\r\n", val), HOUT(G_tmp))
+#define PRINT_HTTP2_CONTENT_DISP(val)   http2_hdr_content_disp(ci, val)
 
 /* cache control */
 #define PRINT_HTTP_CACHE_PUBLIC         HOUT("Cache-Control: public, max-age=31536000\r\n")
@@ -362,7 +374,7 @@ typedef char str256k[1024*256];
 #define PRINT_HTTP2_LAST_MODIFIED(str)
 
 /* connection */
-#define PRINT_HTTP_CONNECTION(ci)       (sprintf(G_tmp, "Connection: %s\r\n", conn[ci].keep_alive?"keep-alive":"close"), HOUT(G_tmp))
+#define PRINT_HTTP_CONNECTION           (sprintf(G_tmp, "Connection: %s\r\n", conn[ci].keep_alive?"keep-alive":"close"), HOUT(G_tmp))
 
 /* vary */
 #define PRINT_HTTP_VARY_DYN             HOUT("Vary: Accept-Encoding, User-Agent\r\n")
@@ -378,7 +390,7 @@ typedef char str256k[1024*256];
 
 /* content length */
 #define PRINT_HTTP_CONTENT_LEN(len)     (sprintf(G_tmp, "Content-Length: %u\r\n", len), HOUT(G_tmp))
-#define PRINT_HTTP2_CONTENT_LEN(len)
+#define PRINT_HTTP2_CONTENT_LEN(len)    http2_hdr_content_len(ci, len)
 
 /* content encoding */
 #define PRINT_HTTP_CONTENT_ENCODING_DEFLATE HOUT("Content-Encoding: deflate\r\n")
@@ -450,6 +462,9 @@ typedef char str256k[1024*256];
 /* The SETTINGS frames received from a peer as part of the connection
    preface MUST be acknowledged after sending the
    connection preface. */
+
+#define HTTP2_MAX_ENC_INT_LEN           8
+#define HTTP2_INT_PREFIX_BITS           5
 
 #define HTTP2_FRAME_HDR_LEN             9
 
