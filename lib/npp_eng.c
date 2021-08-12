@@ -1588,7 +1588,138 @@ static void http2_hdr_content_len(int ci, unsigned val)
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LENGTH);
     char enc_val[HTTP2_MAX_ENC_INT_LEN];
     int bytes = http2_encode_int(enc_val, val);
+//    int enc_val_int = htonl(val);
     HOUT_BIN(enc_val, bytes);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_cache_ctrl_public(int ci)
+{
+    DDBG("http2_hdr_cache_ctrl_public");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
+    *conn[ci].p_header++ = (char)41;
+    HOUT("Cache-Control: public, max-age=31536000\r\n");
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_cache_ctrl_private(int ci)
+{
+    DDBG("http2_hdr_cache_ctrl_private");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
+    *conn[ci].p_header++ = (char)72;
+    HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n");
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_expires_statics(int ci)
+{
+    DDBG("http2_hdr_expires_statics");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
+    *conn[ci].p_header++ = (char)strlen(M_expires_stat);
+    HOUT(M_expires_stat);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_expires_gen(int ci)
+{
+    DDBG("http2_hdr_expires_gen");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
+    *conn[ci].p_header++ = (char)strlen(M_expires_gen);
+    HOUT(M_expires_gen);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_last_modified(int ci, const char *val)
+{
+    DDBG("http2_hdr_last_modified");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_LAST_MODIFIED);
+    *conn[ci].p_header++ = (char)strlen(val);
+    HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_vary(int ci, const char *val)
+{
+    DDBG("http2_hdr_vary");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_VARY);
+    *conn[ci].p_header++ = (char)strlen(val);
+    HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_content_lang(int ci, const char *val)
+{
+    DDBG("http2_hdr_content_lang");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LANGUAGE);
+    *conn[ci].p_header++ = (char)strlen(val);
+    HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_content_enc_deflate(int ci)
+{
+    DDBG("http2_hdr_content_enc_deflate");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_ENCODING);
+    *conn[ci].p_header++ = (char)7;
+    HOUT("deflate");
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_set_cookie(int ci, const char *val)
+{
+    DDBG("http2_hdr_set_cookie");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_SET_COOKIE);
+    *conn[ci].p_header++ = (char)strlen(val);
+    HOUT(val);
+}
+
+
+/* --------------------------------------------------------------------------
+   Add HTTP/2 header
+-------------------------------------------------------------------------- */
+static void http2_hdr_server(int ci)
+{
+    DDBG("http2_hdr_server");
+
+    *conn[ci].p_header++ = (0x80 | HTTP2_HDR_SERVER);
+    *conn[ci].p_header++ = (char)6;
+    HOUT("Node++");
 }
 #endif  /* HTTP2 */
 
@@ -4414,12 +4545,22 @@ static              bool first=TRUE;
         if ( conn[ci].clen > 0 )
         {
 #ifndef NO_SAMEORIGIN
-            PRINT_HTTP_SAMEORIGIN;
-#endif
+#ifdef HTTP2
+            if ( conn[ci].http_ver[0] == '2' )
+                PRINT_HTTP2_SAMEORIGIN;
+            else
+#endif  /* HTTP2 */
+                PRINT_HTTP_SAMEORIGIN;
+#endif  /* NO_SAMEORIGIN */
 
 #ifndef NO_NOSNIFF
-            PRINT_HTTP_NOSNIFF;
-#endif
+#ifdef HTTP2
+            if ( conn[ci].http_ver[0] == '2' )
+                PRINT_HTTP2_NOSNIFF;
+            else
+#endif  /* HTTP2 */
+                PRINT_HTTP_NOSNIFF;
+#endif  /* NO_NOSNIFF */
         }
 
         /* Connection */
@@ -4437,11 +4578,21 @@ static              bool first=TRUE;
             {
                 if ( conn[ci].cookie_out_l_exp[0] )
                 {
-                    PRINT_HTTP_COOKIE_L_EXP(ci);    /* with expiration date */
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_L_EXP(ci);    /* with expiration date */
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_COOKIE_L_EXP(ci);
                 }
                 else
                 {
-                    PRINT_HTTP_COOKIE_L(ci);
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_L(ci);
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_COOKIE_L(ci);
                 }
             }
 
@@ -4449,11 +4600,21 @@ static              bool first=TRUE;
             {
                 if ( conn[ci].cookie_out_a_exp[0] )
                 {
-                    PRINT_HTTP_COOKIE_A_EXP(ci);    /* with expiration date */
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_A_EXP(ci);    /* with expiration date */
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_COOKIE_A_EXP(ci);
                 }
                 else
                 {
-                    PRINT_HTTP_COOKIE_A(ci);
+#ifdef HTTP2
+                    if ( conn[ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_A(ci);
+                    else
+#endif  /* HTTP2 */
+                        PRINT_HTTP_COOKIE_A(ci);
                 }
             }
         }
@@ -4466,8 +4627,13 @@ static              bool first=TRUE;
 #endif  /* HTTPS */
 
 #ifndef NO_IDENTITY
-        PRINT_HTTP_SERVER;
-#endif
+#ifdef HTTP2
+        if ( conn[ci].http_ver[0] == '2' )
+            PRINT_HTTP2_SERVER;
+        else
+#endif  /* HTTP2 */
+            PRINT_HTTP_SERVER;
+#endif  /* NO_IDENTITY */
 
         /* ------------------------------------------------------------- */
         /* custom headers */
@@ -4483,7 +4649,10 @@ static              bool first=TRUE;
     }
 #endif
 
-    PRINT_HTTP_END_OF_HEADER;
+#ifdef HTTP2
+    if ( conn[ci].http_ver[0] != '2' )
+#endif
+        PRINT_HTTP_END_OF_HEADER;
 
     /* header length */
 
@@ -5531,6 +5700,85 @@ static int parse_req(int ci, int len)
 }
 
 
+static const uint8_t base64url_dec_table[128] =
+{
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3E, 0xFF, 0xFF,
+    0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+    0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F,
+    0xFF, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
+    0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+};
+  
+  
+/* --------------------------------------------------------------------------
+   Decode base64url encoded string
+   Return binary length
+-------------------------------------------------------------------------- */
+static int base64url_decode(unsigned char *dst, const char *src)
+{
+    uint32_t value=0;
+    char c;
+    int i;
+    int n=0;
+    unsigned char *p=dst;
+ 
+    for ( i=0; src[i]; ++i )
+    {
+        c = src[i];
+
+        if ( c < 128 && base64url_dec_table[c] < 64 )
+        {
+            value = (value << 6) | base64url_dec_table[c];
+
+            if ( (i%4) == 3 )
+            {
+                if (p != NULL)
+                {
+                    p[n] = (value >> 16) & 0xFF;
+                    p[n+1] = (value >> 8) & 0xFF;
+                    p[n+2] = value & 0xFF;
+                }
+
+                n += 3;
+                value = 0;
+            }
+        }
+        else
+        {
+            WAR("Invalid base64url character");
+            return 0;
+        }
+    }
+  
+    /* treat the last block */
+
+    int len = strlen(src);
+
+    if ( (len % 4) == 2 )
+    {
+        if ( p != NULL )
+            p[n] = (value >> 4) & 0xFF;
+
+        ++n;
+    }
+    else if ( (len % 4) == 3 )
+    {
+        if ( p != NULL )
+        {
+            p[n] = (value >> 10) & 0xFF;
+            p[n+1] = (value >> 2) & 0xFF;
+        }
+
+        n += 2;
+    }
+
+    return n;
+}
+
+
 /* --------------------------------------------------------------------------
    Set request properties read from HTTP request header
    Caller is responsible for ensuring value length > 0
@@ -5543,7 +5791,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     char *p;
     int  i;
 #ifdef HTTP2
-    char http2_settings[HTTP2_SETTINGS_LEN+1];
+    unsigned char http2_settings[4096];
 #endif  /* HTTP2 */
 
     /* only for low-level tests ------------------------------------- */
@@ -5830,13 +6078,48 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "HTTP2-SETTINGS") )
     {
-#ifdef DUMP
-        DBG("HTTP2-Settings received");
-#endif
-//        strcpy(conn[ci].http2_settings, value);
-//        return 101;     /* Switching Protocols */
+        DDBG("HTTP2-Settings received [%s]", value);
 
-        // TODO: parse settings here!
+        int rem = base64url_decode(http2_settings, value);
+        DDBG("rem = %d", rem);
+
+        http2_SETTINGS_pld_t s;
+        unsigned char *p=http2_settings;
+        int read = 0;
+
+        while ( rem >= HTTP2_SETTINGS_PAIR_LEN )
+        {
+            memcpy((char*)&s, p+read, HTTP2_SETTINGS_PAIR_LEN);
+            read += HTTP2_SETTINGS_PAIR_LEN;
+            rem -= HTTP2_SETTINGS_PAIR_LEN;
+
+            /* convert from network byte order to machine */
+
+            s.id = ntohs(s.id);
+            s.value = ntohl(s.value);
+
+            if ( s.id == HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS )
+            {
+                DBG("http2_max_streams = %u", s.value);
+                conn[ci].http2_max_streams = s.value;
+            }
+            else if ( s.id == HTTP2_SETTINGS_INITIAL_WINDOW_SIZE )
+            {
+                DBG("http2_wnd_size = %u", s.value);
+                conn[ci].http2_wnd_size = s.value;
+            }
+            else if ( s.id == HTTP2_SETTINGS_MAX_FRAME_SIZE )
+            {
+                DBG("http2_max_frame_size = %u", s.value);
+                conn[ci].http2_max_frame_size = s.value;
+            }
+            else
+            {
+                DBG("HTTP/2 settings that we ignore:");
+                DBG("id = %hd", s.id);
+                DBG("value = %u", s.value);
+            }
+        }
     }
 #endif  /* HTTP2 */
     else if ( 0==strcmp(ulabel, "EXPECT") )

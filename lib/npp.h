@@ -363,30 +363,36 @@ typedef char str256k[1024*256];
 
 /* cache control */
 #define PRINT_HTTP_CACHE_PUBLIC         HOUT("Cache-Control: public, max-age=31536000\r\n")
-#define PRINT_HTTP2_CACHE_PUBLIC
+#define PRINT_HTTP2_CACHE_PUBLIC        http2_hdr_cache_ctrl_public(ci)
+
 #define PRINT_HTTP_NO_CACHE             HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n")
-#define PRINT_HTTP2_NO_CACHE
+#define PRINT_HTTP2_NO_CACHE            http2_hdr_cache_ctrl_private(ci)
+
 #define PRINT_HTTP_EXPIRES_STATICS      (sprintf(G_tmp, "Expires: %s\r\n", M_expires_stat), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_STATICS
+#define PRINT_HTTP2_EXPIRES_STATICS     http2_hdr_expires_statics(ci)
+
 #define PRINT_HTTP_EXPIRES_GENERATED    (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_GENERATED
-#define PRINT_HTTP_LAST_MODIFIED(str)   (sprintf(G_tmp, "Last-Modified: %s\r\n", str), HOUT(G_tmp))
-#define PRINT_HTTP2_LAST_MODIFIED(str)
+#define PRINT_HTTP2_EXPIRES_GENERATED   http2_hdr_expires_gen(ci)
+
+#define PRINT_HTTP_LAST_MODIFIED(val)   (sprintf(G_tmp, "Last-Modified: %s\r\n", val), HOUT(G_tmp))
+#define PRINT_HTTP2_LAST_MODIFIED(val)  http2_hdr_last_modified(ci, val)
 
 /* connection */
 #define PRINT_HTTP_CONNECTION           (sprintf(G_tmp, "Connection: %s\r\n", conn[ci].keep_alive?"keep-alive":"close"), HOUT(G_tmp))
 
 /* vary */
 #define PRINT_HTTP_VARY_DYN             HOUT("Vary: Accept-Encoding, User-Agent\r\n")
-#define PRINT_HTTP2_VARY_DYN
+#define PRINT_HTTP2_VARY_DYN            http2_hdr_vary(ci, "Accept-Encoding, User-Agent")
+
 #define PRINT_HTTP_VARY_STAT            HOUT("Vary: Accept-Encoding\r\n")
-#define PRINT_HTTP2_VARY_STAT
+#define PRINT_HTTP2_VARY_STAT           http2_hdr_vary(ci, "Accept-Encoding")
+
 #define PRINT_HTTP_VARY_UIR             HOUT("Vary: Upgrade-Insecure-Requests\r\n")
-#define PRINT_HTTP2_VARY_UIR
+#define PRINT_HTTP2_VARY_UIR            http2_hdr_vary(ci, "Upgrade-Insecure-Requests")
 
 /* content language */
-#define PRINT_HTTP_LANGUAGE             HOUT("Content-Language: en-us\r\n")
-#define PRINT_HTTP2_LANGUAGE
+#define PRINT_HTTP_LANGUAGE(val)        (sprintf(G_tmp, "Content-Language: %s\r\n", val), HOUT(G_tmp))
+#define PRINT_HTTP2_LANGUAGE(val)       http2_hdr_content_lang(ci, val)
 
 /* content length */
 #define PRINT_HTTP_CONTENT_LEN(len)     (sprintf(G_tmp, "Content-Length: %u\r\n", len), HOUT(G_tmp))
@@ -394,11 +400,12 @@ typedef char str256k[1024*256];
 
 /* content encoding */
 #define PRINT_HTTP_CONTENT_ENCODING_DEFLATE HOUT("Content-Encoding: deflate\r\n")
-#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE
+#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE http2_hdr_content_enc_deflate(ci)
 
 /* Security ------------------------------------------------------------------ */
 
 /* HSTS */
+
 #ifndef HSTS_MAX_AGE
 #define HSTS_MAX_AGE                    31536000    /* a year */
 #endif
@@ -419,29 +426,48 @@ typedef char str256k[1024*256];
 #endif
 
 /* cookie */
+
 #ifdef HSTS_ON
-#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "set-cookie: as=%s; %shttponly\r\n", conn[ci].cookie_out_a, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "set-cookie: ls=%s; %shttponly\r\n", conn[ci].cookie_out_l, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "set-cookie: as=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "set-cookie: ls=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp, G_test?"":"secure; "), HOUT(G_tmp))
-#else
-#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "set-cookie: as=%s; httponly\r\n", conn[ci].cookie_out_a), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "set-cookie: ls=%s; httponly\r\n", conn[ci].cookie_out_l), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "set-cookie: as=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp), HOUT(G_tmp))
-#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "set-cookie: ls=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp), HOUT(G_tmp))
-#endif
+
+#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; %shttponly\r\n", conn[ci].cookie_out_a, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A(ci)        (sprintf(G_tmp, "as=%s; %shttponly", conn[ci].cookie_out_a, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; %shttponly\r\n", conn[ci].cookie_out_l, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L(ci)        (sprintf(G_tmp, "ls=%s; %shttponly", conn[ci].cookie_out_l, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A_EXP(ci)    (sprintf(G_tmp, "as=%s; expires=%s; %shttponly", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; %shttponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L_EXP(ci)    (sprintf(G_tmp, "ls=%s; expires=%s; %shttponly", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+
+#else   /* HSTS is off */
+
+#define PRINT_HTTP_COOKIE_A(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; httponly\r\n", conn[ci].cookie_out_a), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A(ci)        (sprintf(G_tmp, "as=%s; httponly", conn[ci].cookie_out_a), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_L(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; httponly\r\n", conn[ci].cookie_out_l), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L(ci)        (sprintf(G_tmp, "ls=%s; httponly", conn[ci].cookie_out_l), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_A_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A_EXP(ci)    (sprintf(G_tmp, "as=%s; expires=%s; httponly", conn[ci].cookie_out_a, conn[ci].cookie_out_a_exp), http2_hdr_set_cookie(ci, G_tmp))
+
+#define PRINT_HTTP_COOKIE_L_EXP(ci)     (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; httponly\r\n", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L_EXP(ci)    (sprintf(G_tmp, "ls=%s; expires=%s; httponly", conn[ci].cookie_out_l, conn[ci].cookie_out_l_exp), http2_hdr_set_cookie(ci, G_tmp))
+
+#endif  /* HSTS_ON */
 
 /* framing */
 #define PRINT_HTTP_SAMEORIGIN           HOUT("X-Frame-Options: SAMEORIGIN\r\n")
-#define PRINT_HTTP2_SAMEORIGIN
+#define PRINT_HTTP2_SAMEORIGIN          //http2_hdr_sameorigin(ci)
 
 /* content type guessing */
 #define PRINT_HTTP_NOSNIFF              HOUT("X-Content-Type-Options: nosniff\r\n")
-#define PRINT_HTTP2_NOSNIFF
+#define PRINT_HTTP2_NOSNIFF             //http2_hdr_nosniff(ci)
 
 /* identity */
 #define PRINT_HTTP_SERVER               HOUT("Server: Node++\r\n")
-#define PRINT_HTTP2_SERVER
+#define PRINT_HTTP2_SERVER              http2_hdr_server(ci)
 
 /* HTTP2 */
 #define PRINT_HTTP2_UPGRADE_CLEAR       HOUT("Connection: Upgrade\r\nUpgrade: h2c\r\n")
@@ -468,22 +494,22 @@ typedef char str256k[1024*256];
 
 #define HTTP2_FRAME_HDR_LEN             9
 
-#define HTTP2_FRAME_TYPE_DATA           0x0
-#define HTTP2_FRAME_TYPE_HEADERS        0x1
-#define HTTP2_FRAME_TYPE_PRIORITY       0x2
-#define HTTP2_FRAME_TYPE_RST_STREAM     0x3
-#define HTTP2_FRAME_TYPE_SETTINGS       0x4     /* SETTINGS frames always apply to a connection, never a single stream. */
-#define HTTP2_FRAME_TYPE_PUSH_PROMISE   0x5
-#define HTTP2_FRAME_TYPE_PING           0x6
-#define HTTP2_FRAME_TYPE_GOAWAY         0x7
-#define HTTP2_FRAME_TYPE_WINDOW_UPDATE  0x8
-#define HTTP2_FRAME_TYPE_CONTINUATION   0x9
+#define HTTP2_FRAME_TYPE_DATA           (char)0x0
+#define HTTP2_FRAME_TYPE_HEADERS        (char)0x1
+#define HTTP2_FRAME_TYPE_PRIORITY       (char)0x2
+#define HTTP2_FRAME_TYPE_RST_STREAM     (char)0x3
+#define HTTP2_FRAME_TYPE_SETTINGS       (char)0x4     /* SETTINGS frames always apply to a connection, never a single stream. */
+#define HTTP2_FRAME_TYPE_PUSH_PROMISE   (char)0x5
+#define HTTP2_FRAME_TYPE_PING           (char)0x6
+#define HTTP2_FRAME_TYPE_GOAWAY         (char)0x7
+#define HTTP2_FRAME_TYPE_WINDOW_UPDATE  (char)0x8
+#define HTTP2_FRAME_TYPE_CONTINUATION   (char)0x9
 
-#define HTTP2_FRAME_FLAG_ACK            0x1     /* for SETTINGS & PING frames */
-#define HTTP2_FRAME_FLAG_END_STREAM     0x1
-#define HTTP2_FRAME_FLAG_END_HEADERS    0x4
-#define HTTP2_FRAME_FLAG_PADDED         0x8
-#define HTTP2_FRAME_FLAG_PRIORITY       0x20
+#define HTTP2_FRAME_FLAG_ACK            (char)0x1     /* for SETTINGS & PING frames */
+#define HTTP2_FRAME_FLAG_END_STREAM     (char)0x1
+#define HTTP2_FRAME_FLAG_END_HEADERS    (char)0x4
+#define HTTP2_FRAME_FLAG_PADDED         (char)0x8
+#define HTTP2_FRAME_FLAG_PRIORITY       (char)0x20
 
 #define HTTP2_SETTINGS_HEADER_TABLE_SIZE        0x1     /* default: 4,096 */
 #define HTTP2_SETTINGS_ENABLE_PUSH              0x2     /* default: 1 */
@@ -1222,6 +1248,8 @@ typedef struct {
     uint32_t value;
 } http2_SETTINGS_pld_t;
 
+#define HTTP2_SETTINGS_PAIR_LEN 6
+
 
 typedef struct {
     char    pad_len;
@@ -1334,8 +1362,9 @@ typedef struct {
 #ifdef HTTP2
     bool     http2_upgrade_in_progress;
     /* settings */
-    int32_t  http2_wnd_size;
-    int32_t  http2_max_frame_size;
+    uint32_t http2_max_streams;
+    uint32_t http2_wnd_size;
+    uint32_t http2_max_frame_size;
     int32_t  http2_last_stream_id;
     /* outgoing frame */
 //    char     http2_frame_hdr[sizeof(http2_frame_hdr_t)];
