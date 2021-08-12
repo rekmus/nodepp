@@ -16,6 +16,9 @@
 #define APP_VERSION                     "1.0"
 
 
+#define HTTP2
+#define DUMP
+
 
 /* app user session */
 

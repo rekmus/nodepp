@@ -1601,8 +1601,8 @@ static void http2_hdr_cache_ctrl_public(int ci)
     DDBG("http2_hdr_cache_ctrl_public");
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
-    *conn[ci].p_header++ = (char)41;
-    HOUT("Cache-Control: public, max-age=31536000\r\n");
+    *conn[ci].p_header++ = (char)24;
+    HOUT("public, max-age=31536000");
 }
 
 
@@ -1614,8 +1614,8 @@ static void http2_hdr_cache_ctrl_private(int ci)
     DDBG("http2_hdr_cache_ctrl_private");
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
-    *conn[ci].p_header++ = (char)72;
-    HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n");
+    *conn[ci].p_header++ = (char)55;
+    HOUT("private, must-revalidate, no-store, no-cache, max-age=0");
 }
 
 
