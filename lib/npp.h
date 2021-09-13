@@ -58,6 +58,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>   /* struct timeval */
 #include <fcntl.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -1242,6 +1243,8 @@ typedef struct {
     uint8_t weight;
 } http2_HEADERS_pld_t;
 
+#define HTTP2_HEADERS_PLD_LEN 6
+
 
 typedef struct {
     uint16_t id;
@@ -1368,7 +1371,7 @@ typedef struct {
     int32_t  http2_last_stream_id;
     /* outgoing frame */
 //    char     http2_frame_hdr[sizeof(http2_frame_hdr_t)];
-//    char     *http2_frame_data;
+//    char     http2_settings_data[16];
     char     *http2_frame_start;
 //    int32_t  http2_frame_len;
     unsigned http2_bytes_to_send;

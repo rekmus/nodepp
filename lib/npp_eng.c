@@ -1198,6 +1198,7 @@ static void http2_check_client_preface(int ci)
         conn[ci].status = 200;
 
         conn[ci].http2_upgrade_in_progress = FALSE;
+//        conn[ci].http2_last_stream_id = 1;
 
         /* generate response header again */
 
@@ -1338,11 +1339,24 @@ static void http2_add_frame(int ci, unsigned char type)
     else if ( type == HTTP2_FRAME_TYPE_HEADERS )
     {
         frame_pld_len = conn[ci].out_hlen;
-        frame_pld_len += sizeof(http2_HEADERS_pld_t);
+        frame_pld_len += HTTP2_HEADERS_PLD_LEN;
     }
     else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
     {
         frame_pld_len = 0;
+
+        /* non-empty settings frame test ---------- */
+
+/*        http2_SETTINGS_pld_t s={0};
+
+        s.id = HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
+        s.value = 100;
+
+        memcpy(conn[ci].out_data, &s, HTTP2_SETTINGS_PAIR_LEN);
+
+        frame_pld_len = HTTP2_SETTINGS_PAIR_LEN; */
+
+        /* ---------------------------------------- */
     }
 
     DDBG("frame_pld_len = %d", frame_pld_len);
@@ -1383,17 +1397,20 @@ static void http2_add_frame(int ci, unsigned char type)
 
     if ( type != HTTP2_FRAME_TYPE_SETTINGS )
     {
-        if ( G_endianness == ENDIANNESS_LITTLE )
+/*        if ( G_endianness == ENDIANNESS_LITTLE )
         {
             int32_t tmp = bswap32(conn[ci].http2_last_stream_id);
             memcpy(hdr+5, &tmp, 4);
         }
-        else    /* Big Endian */
-            memcpy(hdr+5, &conn[ci].http2_last_stream_id, 4);
+        else     Big Endian */
+//            memcpy(hdr+5, &conn[ci].http2_last_stream_id, 4);
+
+        int32_t tmp = htonl(conn[ci].http2_last_stream_id);
+        memcpy(hdr+5, &tmp, 4);
     }
 
     /* ------------------------------------------------ */
-    /* copy payload structure before the frame data */
+    /* set frame starting point */
 
     /* beware! */
 //    DDBG("        sizeof(hdr) = %d", sizeof(hdr));   /* 3 extra bytes of padding! */
@@ -1408,19 +1425,21 @@ static void http2_add_frame(int ci, unsigned char type)
     }
     else if ( type == HTTP2_FRAME_TYPE_HEADERS )
     {
-        conn[ci].http2_frame_start = conn[ci].out_start - HTTP2_FRAME_HDR_LEN - sizeof(http2_HEADERS_pld_t);
+        conn[ci].http2_frame_start = conn[ci].out_start - HTTP2_FRAME_HDR_LEN - HTTP2_HEADERS_PLD_LEN;
 
         http2_HEADERS_pld_t HEADERS_pld={0};
 
 //        HEADERS_pld.weight = 1;
 
-        memcpy(conn[ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, sizeof(http2_HEADERS_pld_t));
+        memcpy(conn[ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, HTTP2_HEADERS_PLD_LEN);
 
 //        hdr.flags |= HTTP2_FRAME_FLAG_END_HEADERS;
         hdr[4] |= HTTP2_FRAME_FLAG_END_HEADERS;
     }
     else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
     {
+//        hdr[4] |= HTTP2_FRAME_FLAG_ACK;   // temp!
+
         conn[ci].http2_frame_start = conn[ci].out_data - HTTP2_FRAME_HDR_LEN;
     }
 
@@ -1439,7 +1458,11 @@ static void http2_add_frame(int ci, unsigned char type)
     DBG("OUT frame pld length = %d", frame_pld_len);
     DBG("OUT frame type = %s", http2_get_frame_type(type));
     DBG("OUT frame flags = 0x%02x", hdr[4]);
-    DBG("OUT frame stream_id = %d", conn[ci].http2_last_stream_id);
+
+    if ( type != HTTP2_FRAME_TYPE_SETTINGS )
+        DBG("OUT frame stream_id = %d", conn[ci].http2_last_stream_id);
+    else
+        DBG("OUT frame stream_id = 0");
 #endif
 }
 
@@ -1476,7 +1499,7 @@ static int http2_encode_int(char *enc_val, int val)
 
 
 
-    DDBG("http2_encode_int: val = %d", val);
+//    DDBG("http2_encode_int: val = %d", val);
 
 
 
@@ -1485,7 +1508,6 @@ static int http2_encode_int(char *enc_val, int val)
     if ( http2_single_octet(val) )
     {
         *enc_val++ |= val;
-//        len = 1;
     }
     else
     {
@@ -1499,10 +1521,9 @@ static int http2_encode_int(char *enc_val, int val)
         }
 
         *enc_val++ = val;
-//        ++len;
     }
 
-    DDBG("http2_encode_int: len = %d", len);
+//    DDBG("http2_encode_int: len = %d", len);
 
     return len;
 }
@@ -1514,6 +1535,8 @@ static int http2_encode_int(char *enc_val, int val)
 static void http2_hdr_status(int ci, int status)
 {
     DDBG("http2_hdr_status");
+
+    conn[ci].p_header += HTTP2_HEADERS_PLD_LEN;
 
     if ( status == 200 )
         *conn[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_200);
@@ -1586,10 +1609,13 @@ static void http2_hdr_content_len(int ci, unsigned val)
     DDBG("http2_hdr_content_len, val = %u", val);
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LENGTH);
-    char enc_val[HTTP2_MAX_ENC_INT_LEN];
-    int bytes = http2_encode_int(enc_val, val);
-//    int enc_val_int = htonl(val);
-    HOUT_BIN(enc_val, bytes);
+
+//    char enc_val[HTTP2_MAX_ENC_INT_LEN];
+//    int bytes = http2_encode_int(enc_val, val);
+//    HOUT_BIN(enc_val, bytes);
+
+    int32_t enc_val_int = htonl(val);
+    HOUT_BIN(&enc_val_int, 4);
 }
 
 
@@ -1637,11 +1663,11 @@ static void http2_hdr_expires_statics(int ci)
 -------------------------------------------------------------------------- */
 static void http2_hdr_expires_gen(int ci)
 {
-    DDBG("http2_hdr_expires_gen");
+/*    DDBG("http2_hdr_expires_gen");
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
     *conn[ci].p_header++ = (char)strlen(M_expires_gen);
-    HOUT(M_expires_gen);
+    HOUT(M_expires_gen); */
 }
 
 
@@ -1663,11 +1689,11 @@ static void http2_hdr_last_modified(int ci, const char *val)
 -------------------------------------------------------------------------- */
 static void http2_hdr_vary(int ci, const char *val)
 {
-    DDBG("http2_hdr_vary");
+/*    DDBG("http2_hdr_vary");
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_VARY);
     *conn[ci].p_header++ = (char)strlen(val);
-    HOUT(val);
+    HOUT(val); */
 }
 
 
@@ -1715,11 +1741,11 @@ static void http2_hdr_set_cookie(int ci, const char *val)
 -------------------------------------------------------------------------- */
 static void http2_hdr_server(int ci)
 {
-    DDBG("http2_hdr_server");
+/*    DDBG("http2_hdr_server");
 
     *conn[ci].p_header++ = (0x80 | HTTP2_HDR_SERVER);
     *conn[ci].p_header++ = (char)6;
-    HOUT("Node++");
+    HOUT("Node++"); */
 }
 #endif  /* HTTP2 */
 
@@ -4950,6 +4976,7 @@ static void reset_conn(int ci, char new_state)
 
 #ifdef HTTP2
         conn[ci].http2_upgrade_in_progress = FALSE;
+        conn[ci].http2_last_stream_id = 1;
 #endif  /* HTTP2 */
     }
 
