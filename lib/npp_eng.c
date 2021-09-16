@@ -599,9 +599,8 @@ int main(int argc, char **argv)
                         {
                             if ( conn[i].conn_state != CONN_STATE_READING_DATA )
                             {
-#ifdef DUMP
-                                DBG("Trying SSL_read from fd=%d (ci=%d)", conn[i].fd, i);
-#endif
+                                DDBG("Trying SSL_read from fd=%d (ci=%d)", conn[i].fd, i);
+
                                 bytes = SSL_read(conn[i].ssl, conn[i].in, IN_BUFSIZE-1);
 
                                 if ( bytes > 1 )
@@ -721,33 +720,33 @@ int main(int argc, char **argv)
 #ifdef HTTPS
                         if ( conn[i].secure )   /* HTTPS */
                         {
-                            if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_HEADER )
+                            if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
                             {
 #ifdef DUMP
-                                DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_HEADER", i);
-                                DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", conn[i].out_hlen, conn[i].fd, i);
-#endif  /* DUMP */
-                                bytes = SSL_write(conn[i].ssl, conn[i].out_start, conn[i].out_len);
-
-                                set_state_sec(i, bytes);
-                            }
-                            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_BODY || conn[i].conn_state == CONN_STATE_SENDING_BODY)
-                            {
-#ifdef DUMP
-                                DBG("ci=%d, state == %s", i, conn[i].conn_state==CONN_STATE_READY_TO_SEND_BODY?"CONN_STATE_READY_TO_SEND_BODY":"CONN_STATE_SENDING_BODY");
+                                DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", i);
                                 DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", conn[i].out_len, conn[i].fd, i);
 #endif  /* DUMP */
                                 bytes = SSL_write(conn[i].ssl, conn[i].out_start, conn[i].out_len);
 
                                 set_state_sec(i, bytes);
                             }
+                            else if ( conn[i].conn_state == CONN_STATE_SENDING_CONTENT)
+                            {
+#ifdef DUMP
+                                DBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", i);
+                                DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", conn[i].out_len-conn[i].data_sent, conn[i].fd, i);
+#endif  /* DUMP */
+                                bytes = SSL_write(conn[i].ssl, conn[i].out_start, conn[i].out_len);
+
+                                set_state_sec(i, bytes);
+                            }
                         }
-                        else    /* HTTP */
+                        else    /* plain HTTP */
 #endif  /* HTTPS */
                         {
-                            if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_HEADER )
+                            if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
                             {
-                                DDBG("ci=%d, state == CONN_STATE_READY_TO_SEND_HEADER", i);
+                                DDBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", i);
 #ifdef HTTP2
                                 if ( conn[i].http2_upgrade_in_progress )    /* switching protocol in progress; send only 101 header, follow with settings frame */
                                 {
@@ -761,7 +760,6 @@ int main(int argc, char **argv)
                                     bytes = send(conn[i].fd, conn[i].http2_frame_start, conn[i].http2_bytes_to_send, 0);
 
                                     DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_CLIENT_PREFACE", i);
-
                                     conn[i].conn_state = CONN_STATE_READY_FOR_CLIENT_PREFACE;
                                 }
                                 else    /* header to send */
@@ -782,14 +780,13 @@ int main(int argc, char **argv)
                                     }
 #endif
                                     set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer) */
-                                                            /*              CONN_STATE_READY_TO_SEND_BODY */
 #ifdef HTTP2
                                 }
 #endif  /* HTTP2 */
                             }
-                            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_BODY || conn[i].conn_state == CONN_STATE_SENDING_BODY)
+                            else if ( conn[i].conn_state == CONN_STATE_SENDING_CONTENT )
                             {
-                                DDBG("ci=%d, state == %s", i, conn[i].conn_state==CONN_STATE_READY_TO_SEND_BODY?"CONN_STATE_READY_TO_SEND_BODY":"CONN_STATE_SENDING_BODY");
+                                DDBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", i);
 #ifdef HTTP2
                                 if ( conn[i].http_ver[0] == '2' )
                                 {
@@ -807,7 +804,7 @@ int main(int argc, char **argv)
                                 }
 #endif
                                 set_state(i, bytes);    /* possibly:    CONN_STATE_DISCONNECTED (if error or closed by peer or !keep_alive) */
-                                                        /*              CONN_STATE_SENDING_BODY (if data_sent < clen) */
+                                                        /*              CONN_STATE_SENDING_CONTENT (if data_sent < clen) */
                                                         /*              CONN_STATE_CONNECTED */
                             }
                         }
@@ -833,9 +830,7 @@ int main(int argc, char **argv)
 
                         if ( conn[i].conn_state != CONN_STATE_READING_DATA )
                         {
-#ifdef DUMP
-                            DBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", i);
-#endif
+                            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", i);
                             conn[i].conn_state = CONN_STATE_READY_FOR_PROCESS;
                         }
                     }
@@ -866,7 +861,10 @@ int main(int argc, char **argv)
                             else
                                 ++G_cnts_today.visits_dsk;
                         }
-
+#ifdef DUMP
+                        if ( conn[i].static_res != NOT_STATIC )
+                            DBG("ci=%d, static resource", i);
+#endif
                         if ( !conn[i].location[0] && conn[i].static_res == NOT_STATIC )   /* process request */
                             process_req(i);
 #ifdef ASYNC
@@ -1203,11 +1201,6 @@ static void http2_check_client_preface(int ci)
         /* generate response header again */
 
         gen_response_header(ci);
-
-#ifdef DUMP
-//        DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_HEADER", ci);
-#endif
-//        conn[ci].conn_state = CONN_STATE_READY_TO_SEND_HEADER;
     }
     else
     {
@@ -1769,9 +1762,7 @@ static void set_state(int ci, int bytes)
 
     if ( conn[ci].conn_state == CONN_STATE_CONNECTED )  /* assume the whole header has been read */
     {
-#ifdef DUMP
-        DBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-#endif
+        DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
         conn[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
     else if ( conn[ci].conn_state == CONN_STATE_READING_DATA )  /* it could have been received only partially */
@@ -1787,24 +1778,19 @@ static void set_state(int ci, int bytes)
             DBG("POST data received");
 
             /* ready for processing */
-#ifdef DUMP
-            DBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
-#endif
+
+            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
             conn[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
         }
     }
-    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_HEADER )  /* assume the whole header has been sent successfuly */
+    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
     {
-        if ( conn[ci].clen > 0 )
-        {
-#ifdef DUMP
-            DBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_BODY", ci);
-#endif
-            conn[ci].conn_state = CONN_STATE_READY_TO_SEND_BODY;
-        }
-        else    /* no body to send */
+        if ( conn[ci].clen == 0 )   /* no content to send */
         {
             DBG("clen = 0");
+
+            /* assume the whole header has been sent */
+
             log_request(ci);
 #ifdef HTTP2
             if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
@@ -1821,45 +1807,42 @@ static void set_state(int ci, int bytes)
                 close_conn(ci);
             }
         }
-    }
-    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_BODY )    /* it could have been sent only partially */
-    {
-        conn[ci].data_sent += bytes;
-#ifdef DUMP
-        DBG("ci=%d, out_len = %u", ci, conn[ci].out_len);
-#endif
+        else    /* there was a content to send */
+        {
+            conn[ci].data_sent += bytes;
+
+            DDBG("ci=%d, data_sent = %u", ci, conn[ci].data_sent);
 
 #ifdef HTTP2
-        if ( bytes < conn[ci].out_len && conn[ci].http_ver[0] != '2' )
+            if ( bytes < conn[ci].out_len && conn[ci].http_ver[0] != '2' )
 #else
-        if ( bytes < conn[ci].out_len )
+            if ( bytes < conn[ci].out_len )   /* not all have been sent yet */
 #endif  /* HTTP2 */
-        {
-#ifdef DUMP
-            DBG("ci=%d, changing state to CONN_STATE_SENDING_BODY", ci);
-#endif
-            conn[ci].conn_state = CONN_STATE_SENDING_BODY;
-        }
-        else    /* assuming the whole body has been sent at once */
-        {
-            log_request(ci);
-#ifdef HTTP2
-            if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
-#else
-            if ( conn[ci].keep_alive )
-#endif
             {
-                DBG("End of processing, reset_conn\n");
-                reset_conn(ci, CONN_STATE_CONNECTED);
+                DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
+                conn[ci].conn_state = CONN_STATE_SENDING_CONTENT;
             }
-            else
+            else    /* the whole content has been sent at once */
             {
-                DBG("End of processing, close_conn\n");
-                close_conn(ci);
+                log_request(ci);
+#ifdef HTTP2
+                if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
+#else
+                if ( conn[ci].keep_alive )
+#endif
+                {
+                    DBG("End of processing, reset_conn\n");
+                    reset_conn(ci, CONN_STATE_CONNECTED);
+                }
+                else
+                {
+                    DBG("End of processing, close_conn\n");
+                    close_conn(ci);
+                }
             }
         }
     }
-    else if ( conn[ci].conn_state == CONN_STATE_SENDING_BODY )
+    else if ( conn[ci].conn_state == CONN_STATE_SENDING_CONTENT )
     {
         conn[ci].data_sent += bytes;
 
@@ -1867,7 +1850,7 @@ static void set_state(int ci, int bytes)
         {
             DBG("ci=%d, data_sent=%u, continue sending", ci, conn[ci].data_sent);
         }
-        else    /* body sent */
+        else    /* all sent */
         {
             log_request(ci);
 #ifdef HTTP2
@@ -1931,9 +1914,7 @@ static void set_state_sec(int ci, int bytes)
     /* we have no way of knowing if accept finished before reading actual request */
     if ( conn[ci].conn_state == CONN_STATE_ACCEPTING || conn[ci].conn_state == CONN_STATE_CONNECTED )   /* assume the whole header has been read */
     {
-#ifdef DUMP
-        DBG("Changing state to CONN_STATE_READY_FOR_PARSE");
-#endif
+        DDBG("Changing state to CONN_STATE_READY_FOR_PARSE");
         conn[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
     else if ( conn[ci].conn_state == CONN_STATE_READING_DATA )
@@ -1949,25 +1930,21 @@ static void set_state_sec(int ci, int bytes)
             DBG("POST data received");
 
             /* ready for processing */
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_READY_FOR_PROCESS");
-#endif
+
+            DDBG("Changing state to CONN_STATE_READY_FOR_PROCESS");
             conn[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
         }
     }
-    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_HEADER )
+    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
     {
-        if ( conn[ci].clen > 0 )
-        {
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_READY_TO_SEND_BODY");
-#endif
-            conn[ci].conn_state = CONN_STATE_READY_TO_SEND_BODY;
-        }
-        else    /* no body to send */
+        if ( conn[ci].clen == 0 )   /* no content to send */
         {
             DBG("clen = 0");
+
+            /* assume the whole header has been sent */
+
             log_request(ci);
+
             if ( conn[ci].keep_alive )
             {
                 DBG("End of processing, reset_conn\n");
@@ -1979,8 +1956,42 @@ static void set_state_sec(int ci, int bytes)
                 close_conn(ci);
             }
         }
+        else    /* there was a content to send */
+        {
+            conn[ci].data_sent += bytes;
+
+            DDBG("ci=%d, data_sent = %u", ci, conn[ci].data_sent);
+
+#ifdef HTTP2
+            if ( bytes < conn[ci].out_len && conn[ci].http_ver[0] != '2' )
+#else
+            if ( bytes < conn[ci].out_len )   /* not all have been sent yet */
+#endif  /* HTTP2 */
+            {
+                DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
+                conn[ci].conn_state = CONN_STATE_SENDING_CONTENT;
+            }
+            else    /* the whole content has been sent at once */
+            {
+                log_request(ci);
+#ifdef HTTP2
+                if ( conn[ci].keep_alive || conn[ci].http_ver[0] == '2' )
+#else
+                if ( conn[ci].keep_alive )
+#endif
+                {
+                    DBG("End of processing, reset_conn\n");
+                    reset_conn(ci, CONN_STATE_CONNECTED);
+                }
+                else
+                {
+                    DBG("End of processing, close_conn\n");
+                    close_conn(ci);
+                }
+            }
+        }
     }
-    else if ( conn[ci].conn_state == CONN_STATE_READY_TO_SEND_BODY || conn[ci].conn_state == CONN_STATE_SENDING_BODY )
+    else if ( conn[ci].conn_state == CONN_STATE_SENDING_CONTENT )
     {
         conn[ci].data_sent += bytes;
 
@@ -1997,7 +2008,7 @@ static void set_state_sec(int ci, int bytes)
             close_conn(ci);
         }
     }
-#endif
+#endif  /* HTTPS */
 }
 
 
@@ -2702,9 +2713,8 @@ static void build_fd_sets()
 
             /* writing */
 
-            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_HEADER
-                    || conn[i].conn_state == CONN_STATE_READY_TO_SEND_BODY
-                    || conn[i].conn_state == CONN_STATE_SENDING_BODY
+            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE
+                    || conn[i].conn_state == CONN_STATE_SENDING_CONTENT
 #ifdef ASYNC
                     || conn[i].conn_state == CONN_STATE_WAITING_FOR_ASYNC
 #endif
@@ -2729,15 +2739,14 @@ static void build_fd_sets()
 
             /* writing */
 
-            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_HEADER
+            else if ( conn[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE
 #ifdef HTTP2
 //                    || conn[i].conn_state == CONN_STATE_READY_TO_SEND_SETTINGS
 #endif
-                    || conn[i].conn_state == CONN_STATE_READY_TO_SEND_BODY
 #ifdef ASYNC
                     || conn[i].conn_state == CONN_STATE_WAITING_FOR_ASYNC
 #endif
-                    || conn[i].conn_state == CONN_STATE_SENDING_BODY )
+                    || conn[i].conn_state == CONN_STATE_SENDING_CONTENT )
             {
                 FD_SET(conn[i].fd, &M_writefds);
             }
@@ -2828,10 +2837,10 @@ static void accept_http()
 
             strcpy(conn[i].ip, remote_addr);        /* possibly client IP */
             strcpy(conn[i].pip, remote_addr);       /* possibly proxy IP */
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_CONNECTED");
-#endif
+
+            DDBG("Changing state to CONN_STATE_CONNECTED");
             conn[i].conn_state = CONN_STATE_CONNECTED;
+
             conn[i].last_activity = G_now;
 
 #ifdef FD_MON_POLL  /* add connection to monitored set */
@@ -2995,10 +3004,10 @@ static void accept_https()
 #endif
             strcpy(conn[i].ip, remote_addr);        /* possibly client IP */
             strcpy(conn[i].pip, remote_addr);       /* possibly proxy IP */
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_ACCEPTING");
-#endif
+
+            DDBG("Changing state to CONN_STATE_ACCEPTING");
             conn[i].conn_state = CONN_STATE_ACCEPTING;
+
             conn[i].last_activity = G_now;
             connection = -1;                        /* mark as OK */
             break;
@@ -3889,7 +3898,7 @@ static void process_req(int ci)
 #endif
 
     /* ------------------------------------------------------------------------ */
-    /* make room for a header */
+    /* make room for an outgoing header */
 
     conn[ci].p_content = conn[ci].out_data + OUT_HEADER_BUFSIZE;
 
@@ -3925,7 +3934,13 @@ static void process_req(int ci)
     }
 #endif  /* ALLOW_BEARER_AUTH */
 
-    if ( conn[ci].cookie_in_l[0] )  /* logged in sesid cookie present */
+    /* authenticated requests' checks */
+
+    if ( LOGGED )
+    {
+        DBG("Connection already authenticated");
+    }
+    else if ( conn[ci].cookie_in_l[0] )  /* logged in sesid cookie present */
     {
         ret = libusr_luses_ok(ci);     /* is it valid? */
 
@@ -3935,13 +3950,15 @@ static void process_req(int ci)
             WAR("Invalid ls cookie");
     }
 
+    /* authorization */
+
     if ( LOGGED && conn[ci].required_auth_level > uses[conn[ci].usi].auth_level )
     {
         WAR("Insufficient user authorization level, returning 404");
         ret = ERR_NOT_FOUND;
         RES_DONT_CACHE;
     }
-    else if ( !LOGGED && conn[ci].required_auth_level > AUTH_LEVEL_ANONYMOUS )  /* redirect to login page */
+    else if ( !LOGGED && conn[ci].required_auth_level > AUTH_LEVEL_ANONYMOUS )   /* redirect to login page */
     {
         INF("auth_level > AUTH_LEVEL_ANONYMOUS required, redirecting to login");
 
@@ -3962,16 +3979,21 @@ static void process_req(int ci)
 #endif  /* DONT_PASS_QS_ON_LOGIN_REDIRECTION */
 
     }
-    else    /* login not required for this URI */
+    else
     {
+        DDBG("Request authorized");
         ret = OK;
     }
+
+    /* anonymous session check */
 
     if ( conn[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && !conn[ci].head_only && !LOGGED )    /* anonymous user session required */
 #else   /* USERS NOT defined */
     if ( conn[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && !conn[ci].head_only )
 #endif  /* USERS */
     {
+        DDBG("At least anonymous session is required");
+
         if ( !conn[ci].cookie_in_a[0] || !a_usession_ok(ci) )       /* valid anonymous sesid cookie not present */
         {
             ret = eng_uses_start(ci, NULL);
@@ -4690,10 +4712,8 @@ static              bool first=TRUE;
 
     DBG("Response status: %d", conn[ci].status);
 
-#ifdef DUMP     /* low-level tests */
-    DBG("ci=%d, Changing state to CONN_STATE_READY_TO_SEND_HEADER", ci);
-#endif
-    conn[ci].conn_state = CONN_STATE_READY_TO_SEND_HEADER;
+    DDBG("ci=%d, Changing state to CONN_STATE_READY_TO_SEND_RESPONSE", ci);
+    conn[ci].conn_state = CONN_STATE_READY_TO_SEND_RESPONSE;
 
 #ifdef FD_MON_POLL
     M_pollfds[conn[ci].pi].events = POLLOUT;
@@ -4969,6 +4989,9 @@ static void reset_conn(int ci, char new_state)
     conn[ci].data_sent = 0;
 
     conn[ci].out_data = conn[ci].out_data_alloc;
+
+    /* don't reset session id for the entire connection life */
+    /* this also means that authenticated connection stays this way until closed or logged out */
 
     if ( new_state == CONN_STATE_DISCONNECTED )
     {
@@ -5470,6 +5493,7 @@ static int parse_req(int ci, int len)
         {
             if ( URI(M_auth_levels[i].path) )
             {
+                DDBG("Required authorization level = %d", M_auth_levels[i].level);
                 conn[ci].required_auth_level = M_auth_levels[i].level;
                 break;
             }
@@ -5707,10 +5731,10 @@ static int parse_req(int ci, int len)
         if ( len < conn[ci].clen )      /* the whole content not received yet */
         {                               /* this is the only case when conn_state != received */
             DBG("The whole content not received yet, len=%d", len);
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_READING_DATA");
-#endif
+
+            DDBG("Changing state to CONN_STATE_READING_DATA");
             conn[ci].conn_state = CONN_STATE_READING_DATA;
+
             return ret;
         }
         else    /* the whole content received with the header at once */
@@ -6748,9 +6772,8 @@ void eng_async_req(int ci, const char *service, const char *data, char response,
         if ( found )
         {
             /* set request state */
-#ifdef DUMP
-            DBG("Changing state to CONN_STATE_WAITING_FOR_ASYNC");
-#endif
+
+            DDBG("Changing state to CONN_STATE_WAITING_FOR_ASYNC");
             conn[ci].conn_state = CONN_STATE_WAITING_FOR_ASYNC;
 
 #ifdef FD_MON_POLL

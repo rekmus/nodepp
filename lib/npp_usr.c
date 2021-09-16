@@ -988,7 +988,14 @@ int npp_usr_login(int ci)
 
     if ( !row )     /* no records */
     {
+#ifdef USERSBYEMAIL
+        DBG("No records matching email [%s]", email);
+#else
+        DBG("No records matching login [%s]", login);
+#endif
+
         mysql_free_result(result);
+
         return ERR_INVALID_LOGIN;   /* invalid user and/or password */
     }
 
@@ -1100,6 +1107,8 @@ int npp_usr_login(int ci)
     }
 
     /* now check username/email and password pairs as they should be */
+
+    DBG("Verifying password...");
 
     /* generate hashes using entered password */
 

@@ -705,16 +705,15 @@ typedef char str256k[1024*256];
 
 #define NOT_CONNECTED                   -1
 
-#define CONN_STATE_DISCONNECTED         '0'
-#define CONN_STATE_ACCEPTING            'a'
-#define CONN_STATE_CONNECTED            '1'
-#define CONN_STATE_READY_FOR_PARSE      'p'
-#define CONN_STATE_READY_FOR_PROCESS    'P'
-#define CONN_STATE_READING_DATA         'd'
-#define CONN_STATE_WAITING_FOR_ASYNC    'A'
-#define CONN_STATE_READY_TO_SEND_HEADER 'H'
-#define CONN_STATE_READY_TO_SEND_BODY   'B'
-#define CONN_STATE_SENDING_BODY         'S'
+#define CONN_STATE_DISCONNECTED             '0'
+#define CONN_STATE_ACCEPTING                'a'
+#define CONN_STATE_CONNECTED                '1'
+#define CONN_STATE_READY_FOR_PARSE          'p'
+#define CONN_STATE_READY_FOR_PROCESS        'P'
+#define CONN_STATE_READING_DATA             'd'
+#define CONN_STATE_WAITING_FOR_ASYNC        'A'
+#define CONN_STATE_READY_TO_SEND_RESPONSE   'R'
+#define CONN_STATE_SENDING_CONTENT          'S'
 
 /* HTTP/2 */
 
@@ -1540,7 +1539,7 @@ extern conn_t       conn[MAX_CONNECTIONS+1];    /* HTTP connections & requests -
 extern int          G_open_conn;                /* number of open connections */
 extern int          G_open_conn_hwm;            /* highest number of open connections (high water mark) */
 extern char         G_tmp[TMP_BUFSIZE];         /* temporary string buffer */
-extern usession_t   uses[MAX_SESSIONS+1];       /* engine user sessions -- they start from 1 */
+extern usession_t   uses[MAX_SESSIONS+1];       /* engine user sessions -- they start from 1 (session 0 is never used) */
 extern ausession_t  auses[MAX_SESSIONS+1];      /* app user sessions, using the same index (usi) */
 extern int          G_sessions;                 /* number of active user sessions */
 extern int          G_sessions_hwm;             /* highest number of active user sessions (high water mark) */
