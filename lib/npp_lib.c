@@ -3214,7 +3214,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     amtd(mem_used_mib, (double)mem_used/1024);
     amtd(mem_used_gib, (double)mem_used/1024/1024);
 
-    OUT("<p>HWM: %s kB (%s MiB / %s GiB)</p>", mem_used_kib, mem_used_mib, mem_used_gib);
+    OUT("<p>HWM: %s KiB (%s MiB / %s GiB)</p>", mem_used_kib, mem_used_mib, mem_used_gib);
 
     OUT("<h2>Counters</h2>");
 
@@ -4935,18 +4935,18 @@ struct timespec end;
 void lib_log_memory()
 {
     int         mem_used;
-    char        mem_used_kb[32];
-    char        mem_used_mb[32];
-    char        mem_used_gb[32];
+    char        mem_used_kib[64];
+    char        mem_used_mib[64];
+    char        mem_used_gib[64];
 
     mem_used = lib_get_memory();
 
-    amt(mem_used_kb, mem_used);
-    amtd(mem_used_mb, (double)mem_used/1024);
-    amtd(mem_used_gb, (double)mem_used/1024/1024);
+    amt(mem_used_kib, mem_used);
+    amtd(mem_used_mib, (double)mem_used/1024);
+    amtd(mem_used_gib, (double)mem_used/1024/1024);
 
     ALWAYS_LINE;
-    ALWAYS("Memory: %s kB (%s MB / %s GB)", mem_used_kb, mem_used_mb, mem_used_gb);
+    ALWAYS("Memory: %s KiB (%s MiB / %s GiB)", mem_used_kib, mem_used_mib, mem_used_gib);
     ALWAYS_LINE;
 }
 
@@ -6427,12 +6427,33 @@ static int  since_seed=0;
 
 #ifdef DUMP
     DBG_LINE;
-#endif
-
-#ifdef DUMP
     DBG("npp_random took %.3lf ms", lib_elapsed(&start));
 #endif
 }
+
+
+/* --------------------------------------------------------------------------
+   Notify admin via email
+-------------------------------------------------------------------------- */
+void npp_notify_admin(const char *msg)
+{
+#ifdef APP_CONTACT_EMAIL
+
+    char tag[8];
+
+    npp_random(tag, 7);
+
+    char message[MAX_LOG_STR_LEN+1];
+
+    sprintf(message, "%s %s", msg, tag);
+
+    ALWAYS_T(message);
+
+    npp_email(APP_CONTACT_EMAIL, "Admin Notification", message);
+
+#endif  /* APP_CONTACT_EMAIL */
+}
+
 #endif  /* NPP_CLIENT */
 
 
@@ -8307,6 +8328,21 @@ int date_cmp(const char *str1, const char *str2)
 
     sprintf(full, "%s 00:00:00", str2);
     t2 = db2epoch(full);
+
+    return t1 - t2;
+}
+
+
+/* --------------------------------------------------------------------------
+   Compare datetime
+   Format: YYYY-MM-DD hh:mm:ss
+-------------------------------------------------------------------------- */
+int datetime_cmp(const char *str1, const char *str2)
+{
+    time_t  t1, t2;
+
+    t1 = db2epoch(str1);
+    t2 = db2epoch(str2);
 
     return t1 - t2;
 }

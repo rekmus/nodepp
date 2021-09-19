@@ -568,6 +568,7 @@ extern "C" {
     char *lib_bin2hex(char *dst, const unsigned char *src, int len);
     void init_random_numbers(void);
     void npp_random(char *dest, int len);
+    void npp_notify_admin(const char *msg);
     void msleep(int msec);
     int  lib_json_count(JSON *json);
     void lib_json_reset(JSON *json);
@@ -594,6 +595,7 @@ extern "C" {
     int  npp_minify(char *dest, const char *src);
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
+    int  datetime_cmp(const char *str1, const char *str2);
     bool npp_read_conf(const char *file);
     bool npp_read_param_str(const char *param, char *dest);
     bool npp_read_param_int(const char *param, int *dest);
