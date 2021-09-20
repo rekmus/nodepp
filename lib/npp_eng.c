@@ -3285,8 +3285,8 @@ static bool read_files(const char *host, const char *directory, char source, boo
     bool    minify=FALSE;
     int     i;
     char    resdir[STATIC_PATH_LEN];        /* full path to res */
-    char    ressubdir[STATIC_PATH_LEN];     /* full path to res/subdir */
-    char    namewpath[STATIC_PATH_LEN];     /* full path including file name */
+    char    ressubdir[STATIC_PATH_LEN*2];   /* full path to res/subdir */
+    char    namewpath[STATIC_PATH_LEN*2];   /* full path including file name */
     char    resname[STATIC_PATH_LEN];       /* relative path including file name */
     DIR     *dir;
     struct dirent *dirent;
@@ -3294,7 +3294,6 @@ static bool read_files(const char *host, const char *directory, char source, boo
     char    *data_tmp=NULL;
     char    *data_tmp_min=NULL;
     struct stat fstat;
-    char    mod_time[32];
 
 #ifndef _WIN32
     if ( G_appdir[0] == EOS ) return TRUE;
@@ -3369,7 +3368,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
 #ifdef DUMP
 //            DBG("Checking %s...", M_stat[i].name);
 #endif
-            char fullpath[STATIC_PATH_LEN];
+            char fullpath[STATIC_PATH_LEN*2];
             sprintf(fullpath, "%s/%s", resdir, M_stat[i].name);
 
             if ( !lib_file_exists(fullpath) )
@@ -3750,6 +3749,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
             if ( G_logLevel > LOG_INF )
             {
                 G_ptm = gmtime(&M_stat[i].modified);
+                char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
                 DBG("%s %s\t\t%u bytes", lib_add_spaces(M_stat[i].name, 28), mod_time, M_stat[i].len);
@@ -5947,7 +5947,6 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             DBG("ua_type = UA_TYPE_DSK");
         }
 
-
         if ( !REQ_BOT &&
                 (strstr(uvalue, "BOT")
                 || strstr(uvalue, "SCAN")
@@ -5962,6 +5961,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 || 0==strncmp(uvalue, "NETSYSTEMSRESEARCH", 18)
                 || 0==strncmp(uvalue, "CURL", 4)
                 || 0==strncmp(uvalue, "BUBING", 6)
+                || 0==strncmp(uvalue, "PYTHON-REQUESTS", 15)
                 || 0==strncmp(uvalue, "CLOUD MAPPING", 13)
                 || 0==strcmp(uvalue, "TELESPHOREO")
                 || 0==strcmp(uvalue, "MAGIC BROWSER")) )
@@ -6845,8 +6845,8 @@ void eng_block_ip(const char *value, bool autoblocked)
         return;
     }
 
-    char fname[1024];
-    char command[1024];
+    char fname[STATIC_PATH_LEN];
+    char command[STATIC_PATH_LEN*2];
 
     strcpy(G_blacklist[G_blacklist_cnt++], value);
 
@@ -7134,7 +7134,7 @@ static void clean_up(void);
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    char config[256];
+    char config[512];
 
     /* library init ------------------------------------------------------ */
 

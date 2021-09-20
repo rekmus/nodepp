@@ -1583,7 +1583,7 @@ extern mqd_t        G_queue_res;                /* response queue */
 extern int          G_async_req_data_size;      /* how many bytes are left for data */
 extern int          G_async_res_data_size;      /* how many bytes are left for data */
 
-extern char         G_dt[20];                   /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
+extern char         G_dt[128];                  /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
 extern bool         G_index_present;            /* index.html present in res? */
 
 #ifdef NPP_SVC

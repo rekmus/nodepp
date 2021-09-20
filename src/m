@@ -12,22 +12,28 @@ g++ npp_app.cpp \
 -o ../bin/npp_app
 
 
-echo Making npp_svc...
+if [ $? -eq 0 ]
+then
+    echo Making npp_svc...
 
-g++ npp_svc.cpp \
-../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
--D NPP_SVC \
--I. -I../lib \
--lrt \
--s -O3 \
--o ../bin/npp_svc
+    g++ npp_svc.cpp \
+    ../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
+    -D NPP_SVC \
+    -I. -I../lib \
+    -lrt \
+    -s -O3 \
+    -o ../bin/npp_svc
+fi
 
 
-echo Making npp_watcher...
+if [ $? -eq 0 ]
+then
+    echo Making npp_watcher...
 
-gcc ../lib/npp_watcher.c \
-../lib/npp_lib.c \
--D NPP_WATCHER \
--I. -I../lib \
--s -O3 \
--o ../bin/npp_watcher
+    gcc ../lib/npp_watcher.c \
+    ../lib/npp_lib.c \
+    -D NPP_WATCHER \
+    -I. -I../lib \
+    -s -O3 \
+    -o ../bin/npp_watcher
+fi

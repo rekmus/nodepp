@@ -53,7 +53,7 @@ int         G_test=0;                   /* test run */
 int         G_pid=0;                    /* pid */
 time_t      G_now=0;                    /* current time (GMT) */
 struct tm   *G_ptm={0};                 /* human readable current time */
-char        G_dt[20]="";                /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
+char        G_dt[128]="";               /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
 char        G_tmp[TMP_BUFSIZE];         /* temporary string buffer */
 bool        G_initialized=0;
 char        *G_strm=NULL;
@@ -1296,7 +1296,7 @@ static bool load_strings()
 {
     int     i, len;
     char    bindir[STATIC_PATH_LEN];        /* full path to bin */
-    char    namewpath[STATIC_PATH_LEN];     /* full path including file name */
+    char    namewpath[STATIC_PATH_LEN*2];   /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -1623,15 +1623,14 @@ bool read_snippets(bool first_scan, const char *path)
 {
     int     i;
     char    resdir[STATIC_PATH_LEN];        /* full path to res */
-    char    ressubdir[STATIC_PATH_LEN];     /* full path to res/subdir */
-    char    namewpath[STATIC_PATH_LEN];     /* full path including file name */
+    char    ressubdir[STATIC_PATH_LEN*2];   /* full path to res/subdir */
+    char    namewpath[STATIC_PATH_LEN*2];   /* full path including file name */
     char    resname[STATIC_PATH_LEN];       /* relative path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
     char    *data_tmp=NULL;
     struct stat fstat;
-    char    mod_time[32];
 
 #ifndef _WIN32
     if ( G_appdir[0] == EOS ) return TRUE;
@@ -1704,7 +1703,7 @@ bool read_snippets(bool first_scan, const char *path)
 #ifdef DUMP
 //            DBG("Checking %s...", G_snippets[i].name);
 #endif
-            char fullpath[STATIC_PATH_LEN];
+            char fullpath[STATIC_PATH_LEN*2];
             sprintf(fullpath, "%s/%s", resdir, G_snippets[i].name);
 
             if ( !lib_file_exists(fullpath) )
@@ -1881,6 +1880,7 @@ bool read_snippets(bool first_scan, const char *path)
             if ( G_logLevel > LOG_INF )
             {
                 G_ptm = gmtime(&G_snippets[i].modified);
+                char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
                 DBG("%s %s\t\t%u bytes", lib_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
@@ -5756,7 +5756,7 @@ const char  sep=':';
 ---------------------------------------------------------------------------*/
 char *fmt_date(short year, short month, short day)
 {
-static char date[16];
+static char date[32];
 
     if ( M_df == 1 )
         sprintf(date, "%02d/%02d/%d", month, day, year);
@@ -7872,7 +7872,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
 
 #ifndef _WIN32
     char    sender[512];
-    char    comm[512];
+    char    command[1024];
 
 //#ifndef NPP_SVC   /* web server mode */
 
@@ -7891,9 +7891,9 @@ bool npp_email(const char *to, const char *subject, const char *message)
     sprintf(sender, "%s <%s@%s>", APP_WEBSITE, EMAIL_FROM_USER, APP_DOMAIN);
 //#endif  /* NPP_SVC */
 
-    sprintf(comm, "/usr/lib/sendmail -t -f \"%s\"", sender);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
 
-    FILE *mailpipe = popen(comm, "w");
+    FILE *mailpipe = popen(command, "w");
 
     if ( mailpipe == NULL )
     {
@@ -7991,13 +7991,13 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
 #ifndef _WIN32
     char    sender[512];
-    char    comm[512];
+    char    command[1024];
 
     sprintf(sender, "%s <%s@%s>", APP_WEBSITE, EMAIL_FROM_USER, APP_DOMAIN);
 
-    sprintf(comm, "/usr/lib/sendmail -t -f \"%s\"", sender);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
 
-    FILE *mailpipe = popen(comm, "w");
+    FILE *mailpipe = popen(command, "w");
 
     if ( mailpipe == NULL )
     {
@@ -8668,7 +8668,7 @@ bool log_start(const char *prefix, bool test)
 {
     char    fprefix[64]="";     /* formatted prefix */
     char    fname[512];         /* file name */
-    char    ffname[512];        /* full file name */
+    char    ffname[1024];       /* full file name */
 
     if ( G_logLevel < 1 ) return TRUE;  /* no log */
 
@@ -8690,7 +8690,7 @@ bool log_start(const char *prefix, bool test)
 
         if ( G_appdir[0] )
         {
-            char fffname[512];       /* full file name with path */
+            char fffname[2048];     /* full file name with path */
 
 #ifdef _WIN32
             sprintf(fffname, "%s\\logs\\%s", G_appdir, ffname);
