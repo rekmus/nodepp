@@ -61,3 +61,10 @@ Apart from installing GCC, this might be required:
 sudo apt-get install libz-dev
 sudo apt-get install libssl-dev
 ```
+
+
+## Alpine docker
+
+```
+RUN apk update && apk add build-base zlib-dev openssl-dev
+```
