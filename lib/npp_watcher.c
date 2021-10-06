@@ -79,12 +79,12 @@ static void restart()
     if ( system(M_watcherStartCmd) != EXIT_SUCCESS )
         WAR("Couldn't execute %s", M_watcherStartCmd);
 
-#ifdef APP_ADMIN_EMAIL
-    if ( strlen(APP_ADMIN_EMAIL) )
+#ifdef NPP_ADMIN_EMAIL
+    if ( strlen(NPP_ADMIN_EMAIL) )
     {
         char message[1024];
         strcpy(message, "Node++ Watcher had to restart web server.");
-        npp_email(APP_ADMIN_EMAIL, "Node++ restart", message);
+        npp_email(NPP_ADMIN_EMAIL, "Node++ restart", message);
     }
 #endif
 }
@@ -155,15 +155,19 @@ int main(int argc, char *argv[])
 
     INF_T("Trying to connect...");
 
-    G_RESTTimeout = 60000;   /* 60 seconds */
+    G_callHTTPTimeout = 60000;   /* 60 seconds */
 
     char url[1024];
 
     sprintf(url, "127.0.0.1:%d", G_httpPort);
 
-    REST_HEADER_SET("User-Agent", "Node++ Watcher Bot");
+    CALL_HTTP_HEADER_SET("User-Agent", "Node++ Watcher Bot");
 
-    if ( !CALL_REST_HTTP(NULL, NULL, "GET", url, 0) )
+    if ( CALL_HTTP(NULL, NULL, "GET", url) )
+    {
+        CALL_HTTP_DISCONNECT;
+    }
+    else    /* call unsuccessful */
     {
         npp_update_time_globals();
         ERR_T("Couldn't connect");

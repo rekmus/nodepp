@@ -4,7 +4,7 @@
 echo Making npp_app...
 
 g++ npp_app.cpp \
-../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
+../lib/npp_eng_app.c ../lib/npp_lib.c ../lib/npp_usr.c \
 -D NPP_APP \
 -I. -I../lib \
 -lrt -lz -lcrypto -lssl \
@@ -17,7 +17,7 @@ then
     echo Making npp_svc...
 
     g++ npp_svc.cpp \
-    ../lib/npp_eng.c ../lib/npp_lib.c ../lib/npp_usr.c \
+    ../lib/npp_eng_svc.c ../lib/npp_lib.c ../lib/npp_usr.c \
     -D NPP_SVC \
     -I. -I../lib \
     -lrt \

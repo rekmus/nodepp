@@ -34,7 +34,7 @@
 #include "npp.h"
 
 
-#ifdef USERS
+#ifdef NPP_USERS
 
 
 int G_new_user_id=0;
@@ -58,10 +58,10 @@ int  M_common_cnt=0;
 
 static bool valid_username(const char *login);
 static bool valid_email(const char *email);
-static int  upgrade_uses(int ci, usession_t *us);
+static int  upgrade_uses(int ci, eng_session_data_t *us);
 static int  user_exists(const char *login);
 static int  email_exists(const char *email);
-static int  do_login(int ci, usession_t *us, char status, int visits);
+static int  do_login(int ci, eng_session_data_t *us, char status, int visits);
 static void get_hashes(char *result1, char *result2, const char *login, const char *email, const char *passwd);
 static void doit(char *result1, char *result2, const char *usr, const char *email, const char *src);
 static int  get_max(int ci, const char *table);
@@ -76,7 +76,7 @@ void libusr_init()
     DBG("libusr_init");
 
     npp_add_message(ERR_INVALID_LOGIN,            "EN-US", "Invalid login and/or password");
-    npp_add_message(ERR_USERNAME_TOO_SHORT,       "EN-US", "User name must be at least %d characters long", MIN_USERNAME_LEN);
+    npp_add_message(ERR_USERNAME_TOO_SHORT,       "EN-US", "User name must be at least %d characters long", NPP_MIN_USERNAME_LEN);
     npp_add_message(ERR_USERNAME_CHARS,           "EN-US", "User name may only contain letters, digits, dots, hyphens, underscores or apostrophes");
     npp_add_message(ERR_USERNAME_TAKEN,           "EN-US", "Unfortunately this login has already been taken");
     npp_add_message(ERR_EMAIL_EMPTY,              "EN-US", "Your email address can't be empty");
@@ -84,7 +84,7 @@ void libusr_init()
     npp_add_message(ERR_EMAIL_FORMAT_OR_EMPTY,    "EN-US", "Please enter valid email address or leave this field empty");
     npp_add_message(ERR_EMAIL_TAKEN,              "EN-US", "This email address has already been registered");
     npp_add_message(ERR_INVALID_PASSWORD,         "EN-US", "Please enter your existing password");
-    npp_add_message(ERR_PASSWORD_TOO_SHORT,       "EN-US", "Password must be at least %d characters long", MIN_PASSWORD_LEN);
+    npp_add_message(ERR_PASSWORD_TOO_SHORT,       "EN-US", "Password must be at least %d characters long", NPP_MIN_PASSWORD_LEN);
     npp_add_message(ERR_IN_10_COMMON_PASSWORDS,   "EN-US", "Your password is in 10 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_100_COMMON_PASSWORDS,  "EN-US", "Your password is in 100 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_1000_COMMON_PASSWORDS, "EN-US", "Your password is in 1,000 most common passwords, which makes it too easy to guess");
@@ -97,28 +97,28 @@ void libusr_init()
     npp_add_message(ERR_LINK_EXPIRED,             "EN-US", "It looks like you entered email that doesn't exist in our database or your link has expired");
     npp_add_message(ERR_LINK_TOO_MANY_TRIES,      "EN-US", "It looks like you entered email that doesn't exist in our database or your link has expired");
     npp_add_message(ERR_ROBOT,                    "EN-US", "I'm afraid you are a robot?");
-    npp_add_message(ERR_WEBSITE_FIRST_LETTER,     "EN-US", "The first letter of this website's name should be %c", APP_WEBSITE[0]);
-    npp_add_message(ERR_NOT_ACTIVATED,            "EN-US", "Your account requires activation. Please check your mailbox for a message from %s.", APP_WEBSITE);
+    npp_add_message(ERR_WEBSITE_FIRST_LETTER,     "EN-US", "The first letter of this website's name should be %c", NPP_APP_NAME[0]);
+    npp_add_message(ERR_NOT_ACTIVATED,            "EN-US", "Your account requires activation. Please check your mailbox for a message from %s.", NPP_APP_NAME);
 
     npp_add_message(WAR_NO_EMAIL,                 "EN-US", "You didn't provide your email address. This is fine, however please remember that in case you forget your password, there's no way for us to send you reset link.");
-    npp_add_message(WAR_BEFORE_DELETE,            "EN-US", "You are about to delete your %s's account. All your details and data will be removed from our database. If you are sure you want this, enter your password and click 'Delete my account'.", APP_WEBSITE);
+    npp_add_message(WAR_BEFORE_DELETE,            "EN-US", "You are about to delete your %s's account. All your details and data will be removed from our database. If you are sure you want this, enter your password and click 'Delete my account'.", NPP_APP_NAME);
     npp_add_message(WAR_ULA_FIRST,                "EN-US", "Someone has tried to log in to this account unsuccessfully more than %d times. To protect your account from brute-force attack, this system requires you to wait for at least a minute before trying again.", MAX_ULA_BEFORE_FIRST_SLOW);
     npp_add_message(WAR_ULA_SECOND,               "EN-US", "Someone has tried to log in to this account unsuccessfully more than %d times. To protect your account from brute-force attack, this system requires you to wait for at least an hour before trying again.", MAX_ULA_BEFORE_SECOND_SLOW);
     npp_add_message(WAR_ULA_THIRD,                "EN-US", "Someone has tried to log in to this account unsuccessfully more than %d times. To protect your account from brute-force attack, this system requires you to wait for at least 23 hours before trying again.", MAX_ULA_BEFORE_THIRD_SLOW);
     npp_add_message(WAR_PASSWORD_CHANGE,          "EN-US", "You have to change your password");
 
-    npp_add_message(MSG_WELCOME_NO_ACTIVATION,    "EN-US", "Welcome to %s! You can now log in:", APP_WEBSITE);
-    npp_add_message(MSG_WELCOME_NEED_ACTIVATION,  "EN-US", "Welcome to %s! Your account requires activation. Please check your mailbox for a message from %s.", APP_WEBSITE, APP_WEBSITE);
+    npp_add_message(MSG_WELCOME_NO_ACTIVATION,    "EN-US", "Welcome to %s! You can now log in:", NPP_APP_NAME);
+    npp_add_message(MSG_WELCOME_NEED_ACTIVATION,  "EN-US", "Welcome to %s! Your account requires activation. Please check your mailbox for a message from %s.", NPP_APP_NAME, NPP_APP_NAME);
     npp_add_message(MSG_WELCOME_AFTER_ACTIVATION, "EN-US", "Very well! You can now log in:");
     npp_add_message(MSG_USER_LOGGED_OUT,          "EN-US", "You've been successfully logged out");
     npp_add_message(MSG_CHANGES_SAVED,            "EN-US", "Your changes have been saved");
-    npp_add_message(MSG_REQUEST_SENT,             "EN-US", "Your request has been sent. Please check your mailbox for a message from %s.", APP_WEBSITE);
+    npp_add_message(MSG_REQUEST_SENT,             "EN-US", "Your request has been sent. Please check your mailbox for a message from %s.", NPP_APP_NAME);
     npp_add_message(MSG_PASSWORD_CHANGED,         "EN-US", "Your password has been changed. You can now log in:");
     npp_add_message(MSG_MESSAGE_SENT,             "EN-US", "Your message has been sent");
-    npp_add_message(MSG_PROVIDE_FEEDBACK,         "EN-US", "%s would suit me better if...", APP_WEBSITE);
+    npp_add_message(MSG_PROVIDE_FEEDBACK,         "EN-US", "%s would suit me better if...", NPP_APP_NAME);
     npp_add_message(MSG_FEEDBACK_SENT,            "EN-US", "Thank you for your feedback!");
     npp_add_message(MSG_USER_ALREADY_ACTIVATED,   "EN-US", "Your account has already been activated");
-    npp_add_message(MSG_ACCOUNT_DELETED,          "EN-US", "Your user account has been deleted. Thank you for trying %s!", APP_WEBSITE);
+    npp_add_message(MSG_ACCOUNT_DELETED,          "EN-US", "Your user account has been deleted. Thank you for trying %s!", NPP_APP_NAME);
 
 #ifndef DONT_REFUSE_COMMON_PASSWORDS
     load_common_passwd();
@@ -177,41 +177,39 @@ static bool valid_email(const char *email)
 -------------------------------------------------------------------------- */
 static void set_ls_cookie_expiration(int ci, time_t from)
 {
-    strcpy(conn[ci].cookie_out_l_exp, time_epoch2http(from + 3600*24*USER_KEEP_LOGGED_DAYS));
+    strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(from + 3600*24*NPP_USER_KEEP_LOGGED_DAYS));
 }
 
 
 /* --------------------------------------------------------------------------
    Upgrade anonymous user session to logged in
 -------------------------------------------------------------------------- */
-static int upgrade_uses(int ci, usession_t *us)
+static int upgrade_uses(int ci, eng_session_data_t *us)
 {
     DBG("upgrade_uses");
 
-    DBG("Upgrading anonymous session to logged in, usi=%d, sesid [%s]", conn[ci].usi, US.sesid);
+    DBG("Upgrading anonymous session to authenticated, si=%d, sesid [%s]", G_connections[ci].si, SESSION.sesid);
 
-    US.logged = TRUE;
-    US.uid = us->uid;
-    strcpy(US.login, us->login);
-    strcpy(US.email, us->email);
-    strcpy(US.name, us->name);
-    strcpy(US.phone, us->phone);
-    strcpy(US.lang, us->lang);
-    strcpy(US.about, us->about);
-
-    US.group_id = us->group_id;
-    US.auth_level = us->auth_level;
+    SESSION.user_id = us->user_id;
+    strcpy(SESSION.login, us->login);
+    strcpy(SESSION.email, us->email);
+    strcpy(SESSION.name, us->name);
+    strcpy(SESSION.phone, us->phone);
+    strcpy(SESSION.lang, us->lang);
+    SESSION.auth_level = us->auth_level;
+    strcpy(SESSION.about, us->about);
+    SESSION.group_id = us->group_id;
 
 #ifndef NPP_SVC
     if ( !npp_app_user_login(ci) )
     {
-        libusr_luses_downgrade(conn[ci].usi, ci, FALSE);
+        libusr_luses_downgrade(G_connections[ci].si, ci, FALSE);
         return ERR_INT_SERVER_ERROR;
     }
 #endif
 
-    strcpy(conn[ci].cookie_out_a, "x");                     /* no longer needed */
-    strcpy(conn[ci].cookie_out_a_exp, G_last_modified);     /* to be removed by browser */
+    strcpy(G_connections[ci].cookie_out_a, "x");                     /* no longer needed */
+    strcpy(G_connections[ci].cookie_out_a_exp, G_last_modified);     /* to be removed by browser */
 
     return OK;
 }
@@ -219,8 +217,8 @@ static int upgrade_uses(int ci, usession_t *us)
 
 #ifndef NPP_SVC   /* this is for engine only */
 /* --------------------------------------------------------------------------
-   Verify IP & User-Agent against uid and sesid in uses (logged in users)
-   set user session array index (usi) if all ok
+   Verify IP & User-Agent against user_id and sesid in G_sessions (logged in users)
+   set user session array index (si) if all ok
 -------------------------------------------------------------------------- */
 int libusr_luses_ok(int ci)
 {
@@ -231,50 +229,50 @@ int libusr_luses_ok(int ci)
 
     /* try in hot sessions first */
 
-    if ( conn[ci].usi )   /* existing connection */
+    if ( IS_SESSION )   /* existing connection */
     {
-        if ( uses[conn[ci].usi].sesid[0]
-                && uses[conn[ci].usi].logged
-                && 0==strcmp(conn[ci].cookie_in_l, uses[conn[ci].usi].sesid)
-                && 0==strcmp(conn[ci].uagent, uses[conn[ci].usi].uagent) )
+        if ( G_sessions[G_connections[ci].si].sesid[0]
+                && G_sessions[G_connections[ci].si].auth_level>AUTH_LEVEL_ANONYMOUS
+                && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[G_connections[ci].si].sesid)
+                && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
-            DBG("Logged in session found in cache, usi=%d, sesid [%s] (1)", conn[ci].usi, uses[conn[ci].usi].sesid);
+            DBG("Authenticated session found in cache, si=%d, sesid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sesid);
             return OK;
         }
         else    /* session was closed */
         {
-            conn[ci].usi = 0;
+            G_connections[ci].si = 0;
         }
     }
     else    /* fresh connection */
     {
-        for ( i=1; i<=MAX_SESSIONS; ++i )
+        for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
         {
-            if ( uses[i].sesid[0]
-                    && uses[i].logged
-                    && 0==strcmp(conn[ci].cookie_in_l, uses[i].sesid)
-                    && 0==strcmp(conn[ci].uagent, uses[i].uagent) )
+            if ( G_sessions[i].sesid[0]
+                    && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS
+                    && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[i].sesid)
+                    && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
             {
-                DBG("Logged in session found in cache, usi=%d, sesid [%s] (2)", i, uses[i].sesid);
-                conn[ci].usi = i;
+                DBG("Authenticated session found in cache, si=%d, sesid [%s] (2)", i, G_sessions[i].sesid);
+                G_connections[ci].si = i;
                 return OK;
             }
         }
     }
 
-    DBG("Session [%s] not found in cache", conn[ci].cookie_in_l);
+    DBG("Authenticated session [%s] not found in cache", G_connections[ci].cookie_in_l);
 
     /* not found in memory -- try database */
 
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
-    char sanuagent[DB_UAGENT_LEN+1];
-    sanitize_sql(sanuagent, conn[ci].uagent, DB_UAGENT_LEN);
+    char sanuagent[NPP_DB_UAGENT_LEN+1];
+    sanitize_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
 
-    char sanlscookie[SESID_LEN+1];
-    strcpy(sanlscookie, npp_filter_strict(conn[ci].cookie_in_l));
+    char sanlscookie[NPP_SESSID_LEN+1];
+    strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
 
     sprintf(sql, "SELECT uagent, user_id, created, csrft FROM users_logins WHERE sesid = BINARY '%s'", sanlscookie);
     DBG("sql: %s", sql);
@@ -294,9 +292,9 @@ int libusr_luses_ok(int ci)
     if ( !row )     /* no such session in database */
     {
         mysql_free_result(result);
-        WAR("No logged in session in database [%s]", sanlscookie);
-        strcpy(conn[ci].cookie_out_l, "x");
-        strcpy(conn[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+        WAR("No authenticated session in database [%s]", sanlscookie);
+        strcpy(G_connections[ci].cookie_out_l, "x");
+        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
 
         /* ---------------------------------------------------------------------------------- */
         /* brute force ls cookie attack prevention */
@@ -310,14 +308,14 @@ int libusr_luses_ok(int ci)
 
         for ( i=0; i<failed_cnt_used && i<FAILED_LOGIN_CNT_SIZE; ++i )
         {
-            if ( 0==strcmp(conn[ci].ip, failed_cnt[i].ip) )
+            if ( 0==strcmp(G_connections[ci].ip, failed_cnt[i].ip) )
             {
                 if ( (failed_cnt[i].cnt > 10 && failed_cnt[i].when > G_now-60)      /* 10 failed attempts within a minute or */
                     || (failed_cnt[i].cnt > 100 && failed_cnt[i].when > G_now-3600) /* 100 failed attempts within an hour or */
                     || failed_cnt[i].cnt > 1000 )                                   /* 1000 failed attempts */
                 {
                     WAR("Looks like brute-force cookie attack, blocking IP");
-                    eng_block_ip(conn[ci].ip, TRUE);
+                    npp_eng_block_ip(G_connections[ci].ip, TRUE);
                 }
                 else
                 {
@@ -331,7 +329,7 @@ int libusr_luses_ok(int ci)
 
         if ( !found )   /* add record to failed_cnt array */
         {
-            strcpy(failed_cnt[failed_cnt_next].ip, conn[ci].ip);
+            strcpy(failed_cnt[failed_cnt_next].ip, G_connections[ci].ip);
             failed_cnt[failed_cnt_next].cnt = 1;
             failed_cnt[failed_cnt_next].when = G_now;
             
@@ -357,21 +355,21 @@ int libusr_luses_ok(int ci)
     {
         mysql_free_result(result);
         INF("Different uagent in database for sesid [%s]", sanlscookie);
-        strcpy(conn[ci].cookie_out_l, "x");
-        strcpy(conn[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+        strcpy(G_connections[ci].cookie_out_l, "x");
+        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
         return ERR_SESSION_EXPIRED;
     }
 
     DBG("ci=%d, sesid [%s] uagent OK", ci, sanlscookie);
 
     /* -------------------------------------------------- */
-    /* Verify time. If created more than USER_KEEP_LOGGED_DAYS ago -- refuse */
+    /* Verify time. If created more than NPP_USER_KEEP_LOGGED_DAYS ago -- refuse */
 
     time_t created = db2epoch(row[2]);
 
-    if ( created < G_now - 3600*24*USER_KEEP_LOGGED_DAYS )
+    if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
     {
-        DBG("Removing old logged in session, usi=%d, sesid [%s], created %s from database", conn[ci].usi, sanlscookie, row[2]);
+        DBG("Removing old authenticated session, si=%d, sesid [%s], created %s from database", G_connections[ci].si, sanlscookie, row[2]);
 
         mysql_free_result(result);
 
@@ -386,8 +384,8 @@ int libusr_luses_ok(int ci)
 
         /* tell browser we're logging out */
 
-        strcpy(conn[ci].cookie_out_l, "x");
-        strcpy(conn[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+        strcpy(G_connections[ci].cookie_out_l, "x");
+        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
 
         INF("Session [%s] expired", sanlscookie);
 
@@ -399,11 +397,11 @@ int libusr_luses_ok(int ci)
     /* -------------------------------------------------- */
     /* cookie has not expired -- log user in */
 
-    usession_t us={0};   /* pass user information (in this case id) over to do_login */
+    eng_session_data_t us={0};   /* pass user information (in this case id) over to do_login */
 
-    us.uid = atoi(row[1]);
+    us.user_id = atoi(row[1]);
 
-    char csrft[CSRFT_LEN+1];
+    char csrft[NPP_CSRFT_LEN+1];
 
     if ( row[3] && row[3][0] )   /* from users_logins */
     {
@@ -418,23 +416,23 @@ int libusr_luses_ok(int ci)
 
     mysql_free_result(result);
 
-    DBG("Logged in session found in database and OK");
+    DBG("Valid authenticated session found in database");
 
     /* -------------------------------------------------- */
     /* start a fresh anonymous session */
 
-    if ( (ret=eng_uses_start(ci, NULL)) != OK )
+    if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
         return ret;
 
     if ( csrft[0] )   /* using previous CSRFT */
-        strcpy(US.csrft, csrft);
+        strcpy(SESSION.csrft, csrft);
 
     /* replace sesid */
 
     if ( csrft[0] )
-        sprintf(sql, "UPDATE users_logins SET sesid='%s', last_used='%s' WHERE sesid = BINARY '%s'", US.sesid, DT_NOW, sanlscookie);
+        sprintf(sql, "UPDATE users_logins SET sesid='%s', last_used='%s' WHERE sesid = BINARY '%s'", SESSION.sesid, DT_NOW_GMT, sanlscookie);
     else
-        sprintf(sql, "UPDATE users_logins SET sesid='%s', csrft='%s', last_used='%s' WHERE sesid = BINARY '%s'", US.sesid, US.csrft, DT_NOW, sanlscookie);
+        sprintf(sql, "UPDATE users_logins SET sesid='%s', csrft='%s', last_used='%s' WHERE sesid = BINARY '%s'", SESSION.sesid, SESSION.csrft, DT_NOW_GMT, sanlscookie);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -444,11 +442,11 @@ int libusr_luses_ok(int ci)
 
     /* set cookie */
 
-    strcpy(conn[ci].cookie_out_l, US.sesid);
+    strcpy(G_connections[ci].cookie_out_l, SESSION.sesid);
 
     set_ls_cookie_expiration(ci, created);
 
-    /* upgrade uses */
+    /* upgrade G_sessions */
 
     return do_login(ci, &us, 100, 0);
 }
@@ -462,12 +460,12 @@ void libusr_luses_close_timeouted()
     int     i;
     time_t  last_allowed;
 
-    last_allowed = G_now - LUSES_TIMEOUT;
+    last_allowed = G_now - NPP_AUTH_SESSION_TIMEOUT;
 
-    for ( i=1; G_sessions>0 && i<=MAX_SESSIONS; ++i )
+    for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( uses[i].sesid[0] && uses[i].logged && uses[i].last_activity < last_allowed )
-            libusr_luses_downgrade(i, NOT_CONNECTED, FALSE);
+        if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].last_activity < last_allowed )
+            libusr_luses_downgrade(i, NPP_NOT_CONNECTED, FALSE);
     }
 }
 
@@ -478,17 +476,17 @@ void libusr_luses_close_timeouted()
 void libusr_luses_save_csrft()
 {
     int  i;
-    char sql[SQLBUF];
+    char sql[NPP_SQLBUF];
 
     DBG("libusr_luses_save_csrft");
 
-    int sessions = G_sessions;
+    int sessions = G_sessions_cnt;
 
-    for ( i=1; sessions>0 && i<=MAX_SESSIONS; ++i )
+    for ( i=1; sessions>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( uses[i].sesid[0] && uses[i].logged )
+        if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS )
         {
-            sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", uses[i].csrft, uses[i].sesid);
+            sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", G_sessions[i].csrft, G_sessions[i].sesid);
             DBG("sql: %s", sql);
             if ( mysql_query(G_dbconn, sql) )
                 ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
@@ -503,69 +501,68 @@ void libusr_luses_save_csrft()
 /* --------------------------------------------------------------------------
    Downgrade logged in user session to anonymous
 -------------------------------------------------------------------------- */
-void libusr_luses_downgrade(int usi, int ci, bool usr_logout)
+void libusr_luses_downgrade(int si, int ci, bool usr_logout)
 {
-    char sql[SQLBUF];
+    char sql[NPP_SQLBUF];
 
     DBG("libusr_luses_downgrade");
 
-    DBG("Downgrading logged in session to anonymous, usi=%d, sesid [%s]", usi, uses[usi].sesid);
+    DBG("Downgrading authenticated session to anonymous, si=%d, sesid [%s]", si, G_sessions[si].sesid);
 
-    uses[usi].logged = FALSE;
-    uses[usi].uid = 0;
-    uses[usi].login[0] = EOS;
-    uses[usi].email[0] = EOS;
-    uses[usi].name[0] = EOS;
-    uses[usi].phone[0] = EOS;
+    G_sessions[si].user_id = 0;
+    G_sessions[si].login[0] = EOS;
+    G_sessions[si].email[0] = EOS;
+    G_sessions[si].name[0] = EOS;
+    G_sessions[si].phone[0] = EOS;
 
-    if ( ci != NOT_CONNECTED )   /* still connected */
-        strcpy(uses[usi].lang, conn[ci].lang);
+    if ( ci != NPP_NOT_CONNECTED )   /* still connected */
+        strcpy(G_sessions[si].lang, G_connections[ci].lang);
     else
     {
-        uses[usi].lang[0] = EOS;
-        uses[usi].tz_offset = 0;
+        G_sessions[si].lang[0] = EOS;
+        G_sessions[si].tz_offset = 0;
     }
 
-    uses[usi].about[0] = EOS;
-    uses[usi].group_id = 0;
-    uses[usi].auth_level = AUTH_LEVEL_ANONYMOUS;
+    G_sessions[si].auth_level = AUTH_LEVEL_ANONYMOUS;
+    G_sessions[si].about[0] = EOS;
+    G_sessions[si].group_id = 0;
 
 #ifndef NPP_SVC
-    if ( ci != NOT_CONNECTED )   /* still connected */
+    if ( ci != NPP_NOT_CONNECTED )   /* still connected */
     {
         npp_app_user_logout(ci);
     }
     else    /* trick to maintain consistency across npp_app_xxx functions */
     {       /* that use ci for everything -- even to get user session data */
-        conn[CLOSING_SESSION_CI].usi = usi;
+        G_connections[CLOSING_SESSION_CI].si = si;
         npp_app_user_logout(CLOSING_SESSION_CI);
     }
 #endif  /* NPP_SVC */
 
     if ( usr_logout )   /* explicit user logout */
     {
-        sprintf(sql, "DELETE FROM users_logins WHERE sesid = BINARY '%s'", uses[usi].sesid);
+        sprintf(sql, "DELETE FROM users_logins WHERE sesid = BINARY '%s'", G_sessions[si].sesid);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
             ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
 
-        if ( ci != NOT_CONNECTED )   /* still connected */
+        if ( ci != NPP_NOT_CONNECTED )   /* still connected */
         {
-            strcpy(conn[ci].cookie_out_l, "x");
-            strcpy(conn[ci].cookie_out_l_exp, G_last_modified);     /* in the past => to be removed by browser straight away */
+            strcpy(G_connections[ci].cookie_out_l, "x");
+            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* in the past => to be removed by browser straight away */
 
-            strcpy(conn[ci].cookie_out_a, uses[usi].sesid);
+            strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sesid);
         }
     }
     else    /* timeout */
     {
-        sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", uses[usi].csrft, uses[usi].sesid);
+        sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", G_sessions[si].csrft, G_sessions[si].sesid);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
             ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
     }
-#ifndef DONT_RESET_AUS_ON_LOGOUT
-    memset(&auses[usi], 0, sizeof(ausession_t));
+#ifndef NPP_KEEP_SESSION_DATA_ON_LOGOUT
+    memset(&G_app_session_data[si], 0, sizeof(app_session_data_t));
 #endif
 }
 
@@ -575,7 +572,7 @@ void libusr_luses_downgrade(int usi, int ci, bool usr_logout)
 -------------------------------------------------------------------------- */
 static int user_exists(const char *login)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     unsigned    records;
 
@@ -584,7 +581,7 @@ static int user_exists(const char *login)
 //  if ( 0==strcmp(sanlogin, "ADMIN") )
 //      return ERR_USERNAME_TAKEN;
 
-    sprintf(sql, "SELECT id FROM users WHERE login_u='%s'", upper(login));
+    sprintf(sql, "SELECT id FROM users WHERE login_u='%s'", npp_upper(login));
 
     DBG("sql: %s", sql);
 
@@ -614,13 +611,13 @@ static int user_exists(const char *login)
 -------------------------------------------------------------------------- */
 static int email_exists(const char *email)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     unsigned    records;
 
     DBG("email_exists, email [%s]", email);
 
-    sprintf(sql, "SELECT id FROM users WHERE email_u='%s'", upper(email));
+    sprintf(sql, "SELECT id FROM users WHERE email_u='%s'", npp_upper(email));
 
     DBG("sql: %s", sql);
 
@@ -648,19 +645,19 @@ static int email_exists(const char *email)
 /* --------------------------------------------------------------------------
    Log user in -- called either by l_usession_ok or npp_usr_login
    Authentication has already been done prior to calling this.
-   Connection (conn[ci]) has to have an anonymous session.
+   Connection (G_connections[ci]) has to have an anonymous session.
    us serves here to pass user information
 -------------------------------------------------------------------------- */
-static int do_login(int ci, usession_t *us, char status, int visits)
+static int do_login(int ci, eng_session_data_t *us, char status, int visits)
 {
     int         ret;
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
     DBG("do_login");
 
-    UID = us->uid;
+    UID = us->user_id;
 
     if ( status == 100 )    /* login from cookie -- we only have a user id from users_logins */
     {
@@ -679,18 +676,18 @@ static int do_login(int ci, usession_t *us, char status, int visits)
         if ( !row )    /* this should never happen */
         {
             mysql_free_result(result);
-            ERR("Cookie sesid [%s] does not match user id=%d", US.sesid, UID);
+            ERR("Cookie sesid [%s] does not match user id=%d", SESSION.sesid, UID);
             return ERR_INVALID_LOGIN;   /* invalid user and/or password */
         }
 
-        strcpy(US.login, row[0]?row[0]:"");
-        strcpy(US.email, row[1]?row[1]:"");
-        strcpy(US.name, row[2]?row[2]:"");
-        strcpy(US.phone, row[3]?row[3]:"");
-        strcpy(US.lang, row[4]?row[4]:"");
-        strcpy(US.about, row[5]?row[5]:"");
-        US.group_id = row[6]?atoi(row[6]):0;
-        US.auth_level = row[7]?atoi(row[7]):DEF_USER_AUTH_LEVEL;
+        strcpy(SESSION.login, row[0]?row[0]:"");
+        strcpy(SESSION.email, row[1]?row[1]:"");
+        strcpy(SESSION.name, row[2]?row[2]:"");
+        strcpy(SESSION.phone, row[3]?row[3]:"");
+        strcpy(SESSION.lang, row[4]?row[4]:"");
+        strcpy(SESSION.about, row[5]?row[5]:"");
+        SESSION.group_id = row[6]?atoi(row[6]):0;
+        SESSION.auth_level = row[7]?atoi(row[7]):DEF_USER_AUTH_LEVEL;
 
         /* non-session data */
 
@@ -701,19 +698,19 @@ static int do_login(int ci, usession_t *us, char status, int visits)
     }
     else    /* called by npp_usr_login -- user data already read from users */
     {
-        strcpy(US.login, us->login);
-        strcpy(US.email, us->email);
-        strcpy(US.name, us->name);
-        strcpy(US.phone, us->phone);
-        strcpy(US.lang, us->lang);
-        strcpy(US.about, us->about);
-        US.group_id = us->group_id;
-        US.auth_level = us->auth_level;
+        strcpy(SESSION.login, us->login);
+        strcpy(SESSION.email, us->email);
+        strcpy(SESSION.name, us->name);
+        strcpy(SESSION.phone, us->phone);
+        strcpy(SESSION.lang, us->lang);
+        strcpy(SESSION.about, us->about);
+        SESSION.group_id = us->group_id;
+        SESSION.auth_level = us->auth_level;
     }
 
-    if ( US.group_id > 0 )    /* auth_level inherited from a group */
+    if ( SESSION.group_id > 0 )    /* auth_level inherited from a group */
     {
-        sprintf(sql, "SELECT name,about,auth_level FROM users_groups WHERE id=%d", US.group_id);
+        sprintf(sql, "SELECT name,about,auth_level FROM users_groups WHERE id=%d", SESSION.group_id);
         DBG("sql: %s", sql);
         mysql_query(G_dbconn, sql);
         result = mysql_store_result(G_dbconn);
@@ -726,21 +723,21 @@ static int do_login(int ci, usession_t *us, char status, int visits)
         row = mysql_fetch_row(result);
 
         if ( row )
-            US.auth_level = row[2]?atoi(row[2]):DEF_USER_AUTH_LEVEL;
+            SESSION.auth_level = row[2]?atoi(row[2]):DEF_USER_AUTH_LEVEL;
         else
-            WAR("group_id=%d not found in users_groups", US.group_id);
+            WAR("group_id=%d not found in users_groups", SESSION.group_id);
 
         mysql_free_result(result);
     }
 
     /* upgrade anonymous session to logged in */
 
-    if ( (ret=upgrade_uses(ci, &US)) != OK )
+    if ( (ret=upgrade_uses(ci, &SESSION)) != OK )
         return ret;
 
     /* update user record */
 
-    sprintf(sql, "UPDATE users SET visits=%d, last_login='%s' WHERE id=%d", visits+1, DT_NOW, UID);
+    sprintf(sql, "UPDATE users SET visits=%d, last_login='%s' WHERE id=%d", visits+1, DT_NOW_GMT, UID);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -748,10 +745,10 @@ static int do_login(int ci, usession_t *us, char status, int visits)
         return ERR_INT_SERVER_ERROR;
     }
 
-#ifdef USERSBYEMAIL
-    INF("User [%s] logged in", US.email);
+#ifdef NPP_USERS_BY_EMAIL
+    INF("User [%s] logged in", SESSION.email);
 #else
-    INF("User [%s] logged in", US.login);
+    INF("User [%s] logged in", SESSION.login);
 #endif
 
     /* password change required? */
@@ -769,34 +766,34 @@ static int do_login(int ci, usession_t *us, char status, int visits)
 /* --------------------------------------------------------------------------
    Send activation email
 -------------------------------------------------------------------------- */
-static int generic_user_activation_email(int ci, int uid, const char *email, const char *linkkey)
+static int generic_user_activation_email(int ci, int user_id, const char *email, const char *linkkey)
 {
     char subject[256];
     char message[4096];
 
     STRM_BEGIN(message);
 
-    STRM("Dear %s,\n\n", npp_usr_name(NULL, NULL, NULL, uid));
-    STRM("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", conn[ci].website);
-#ifdef HTTPS
+    STRM("Dear %s,\n\n", npp_usr_name(NULL, NULL, NULL, user_id));
+    STRM("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", G_connections[ci].app_name);
+#ifdef NPP_HTTPS
     if ( G_test )
-        STRM("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("http://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
     else
-        STRM("https://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("https://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
 #else
-    STRM("http://%s/activate_acc?k=%s\n\n", conn[ci].host, linkkey);
-#endif  /* HTTPS */
-    STRM("Please keep in mind that this link will only be valid for the next %d hours.\n\n", USER_ACTIVATION_HOURS);
+    STRM("http://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
+#endif  /* NPP_HTTPS */
+    STRM("Please keep in mind that this link will only be valid for the next %d hours.\n\n", NPP_USER_ACTIVATION_HOURS);
     STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
-#ifdef APP_CONTACT_EMAIL
-    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+#ifdef NPP_CONTACT_EMAIL
+    STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
     STRM("Kind Regards\n");
-    STRM("%s\n", conn[ci].website);
+    STRM("%s\n", G_connections[ci].app_name);
 
     STRM_END;
 
-    sprintf(subject, "%s Account Activation", conn[ci].website);
+    sprintf(subject, "%s Account Activation", G_connections[ci].app_name);
 
     if ( !npp_email(email, subject, message) )
         return ERR_INT_SERVER_ERROR;
@@ -808,17 +805,17 @@ static int generic_user_activation_email(int ci, int uid, const char *email, con
 /* --------------------------------------------------------------------------
    Send activation link
 -------------------------------------------------------------------------- */
-static int send_activation_link(int ci, int uid, const char *email)
+static int send_activation_link(int ci, int user_id, const char *email)
 {
     int  ret=OK;
-    char linkkey[PASSWD_RESET_KEY_LEN+1];
-    char sql[SQLBUF];
+    char linkkey[NPP_PASSWD_RESET_KEY_LEN+1];
+    char sql[NPP_SQLBUF];
     
     /* generate the key */
 
-    npp_random(linkkey, PASSWD_RESET_KEY_LEN);
+    npp_random(linkkey, NPP_PASSWD_RESET_KEY_LEN);
 
-    sprintf(sql, "INSERT INTO users_activations (linkkey,user_id,created,activated) VALUES ('%s',%d,'%s','%s')", linkkey, uid, DT_NOW, DT_NULL);
+    sprintf(sql, "INSERT INTO users_activations (linkkey,user_id,created,activated) VALUES ('%s',%d,'%s','%s')", linkkey, user_id, DT_NOW_GMT, DT_NULL);
     DBG("sql: %s", sql);
 
     if ( mysql_query(G_dbconn, sql) )
@@ -829,10 +826,10 @@ static int send_activation_link(int ci, int uid, const char *email)
 
     /* send an email */
 
-#ifdef APP_ACTIVATION_EMAIL
-    ret = npp_app_user_activation_email(ci, uid, email, linkkey);
+#ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
+    ret = npp_app_custom_activation_email(ci, user_id, email, linkkey);
 #else
-    ret = generic_user_activation_email(ci, uid, email, linkkey);
+    ret = generic_user_activation_email(ci, user_id, email, linkkey);
 #endif
 
     return ret;
@@ -842,16 +839,16 @@ static int send_activation_link(int ci, int uid, const char *email)
 /* --------------------------------------------------------------------------
    Verify activation key
 -------------------------------------------------------------------------- */
-static int npp_usr_verify_activation_key(int ci, char *linkkey, int *uid)
+static int npp_usr_verify_activation_key(int ci, char *linkkey, int *user_id)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
     QSVAL       esc_linkkey;
 
     DBG("npp_usr_verify_activation_key");
 
-    if ( strlen(linkkey) != PASSWD_RESET_KEY_LEN )
+    if ( strlen(linkkey) != NPP_PASSWD_RESET_KEY_LEN )
         return ERR_LINK_BROKEN;
 
     strcpy(esc_linkkey, npp_sql_esc(linkkey));
@@ -888,9 +885,9 @@ static int npp_usr_verify_activation_key(int ci, char *linkkey, int *uid)
 
     /* validate expiry time */
 
-    if ( db2epoch(row[1]) < G_now-3600*USER_ACTIVATION_HOURS )
+    if ( db2epoch(row[1]) < G_now-3600*NPP_USER_ACTIVATION_HOURS )
     {
-        WAR("Key created more than %d hours ago", USER_ACTIVATION_HOURS);
+        WAR("Key created more than %d hours ago", NPP_USER_ACTIVATION_HOURS);
         mysql_free_result(result);
         return ERR_LINK_MAY_BE_EXPIRED;
     }
@@ -899,11 +896,11 @@ static int npp_usr_verify_activation_key(int ci, char *linkkey, int *uid)
 
     /* get the user id */
 
-    *uid = atoi(row[0]);
+    *user_id = atoi(row[0]);
 
     mysql_free_result(result);
 
-    DBG("Key ok, uid = %d", *uid);
+    DBG("Key ok, user_id = %d", *user_id);
 
     return OK;
 }
@@ -933,22 +930,22 @@ int npp_usr_login(int ci)
     QSVAL       passwd;
     QSVAL       keep;
 
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
-    char        p1[PASSWORD_HASH_BUFLEN], p2[PASSWORD_HASH_BUFLEN];
-    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+    char        p1[NPP_PASSWD_HASH_BUFLEN], p2[NPP_PASSWD_HASH_BUFLEN];
+    char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     char        status;
     int         visits;
     int         ula_cnt;
     char        ula_time[32];
     int         new_ula_cnt;
 
-    usession_t  us={0};    /* pass user information over to do_login */
+    eng_session_data_t   us={0};    /* pass user information over to do_login */
 
     DBG("npp_usr_login");
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
 
     if ( !QS_HTML_ESCAPE("email", email) || !QS_HTML_ESCAPE("passwd", passwd) )
     {
@@ -956,7 +953,7 @@ int npp_usr_login(int ci)
         return ERR_INVALID_REQUEST;
     }
     stp_right(email);
-    sprintf(sql, "SELECT id,login,email,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,visits,ula_cnt,ula_time FROM users WHERE email_u='%s'", upper(email));
+    sprintf(sql, "SELECT id,login,email,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,visits,ula_cnt,ula_time FROM users WHERE email_u='%s'", npp_upper(email));
 
 #else    /* by login */
 
@@ -967,10 +964,10 @@ int npp_usr_login(int ci)
     }
     stp_right(login);
     QSVAL ulogin;
-    strcpy(ulogin, upper(login));
+    strcpy(ulogin, npp_upper(login));
     sprintf(sql, "SELECT id,login,email,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,visits,ula_cnt,ula_time FROM users WHERE login_u='%s' OR email_u='%s'", ulogin, ulogin);
 
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
     DBG("sql: %s", sql);
 
@@ -988,7 +985,7 @@ int npp_usr_login(int ci)
 
     if ( !row )     /* no records */
     {
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
         DBG("No records matching email [%s]", email);
 #else
         DBG("No records matching login [%s]", login);
@@ -1001,7 +998,7 @@ int npp_usr_login(int ci)
 
     /* login/email found */
 
-    us.uid = atoi(row[0]);
+    us.user_id = atoi(row[0]);
     strcpy(us.login, row[1]?row[1]:"");
     strcpy(us.email, row[2]?row[2]:"");
     strcpy(us.name, row[3]?row[3]:"");
@@ -1046,7 +1043,7 @@ int npp_usr_login(int ci)
         {
             WAR("ula_cnt > MAX_ULA_BEFORE_LOCK (%d) => locking user account", MAX_ULA_BEFORE_LOCK);
 
-            sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_LOCKED, us.uid);
+            sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_LOCKED, us.user_id);
             DBG("sql: %s", sql);
             if ( mysql_query(G_dbconn, sql) )
                 ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
@@ -1059,16 +1056,16 @@ int npp_usr_login(int ci)
                 STRM_BEGIN(message);
 
                 STRM("Dear %s,\n\n", npp_usr_name(us.login, us.email, us.name, 0));
-                STRM("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", conn[ci].website, MAX_ULA_BEFORE_LOCK);
-#ifdef APP_CONTACT_EMAIL
-                STRM("Please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+                STRM("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", G_connections[ci].app_name, MAX_ULA_BEFORE_LOCK);
+#ifdef NPP_CONTACT_EMAIL
+                STRM("Please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
                 STRM("Kind Regards\n");
-                STRM("%s\n", conn[ci].website);
+                STRM("%s\n", G_connections[ci].app_name);
 
                 STRM_END;
 
-                sprintf(subject, "%s account locked", conn[ci].website);
+                sprintf(subject, "%s account locked", G_connections[ci].app_name);
 
                 npp_email(us.email, subject, message);
             }
@@ -1120,7 +1117,7 @@ int npp_usr_login(int ci)
     {
         WAR("Invalid password");
         new_ula_cnt = ula_cnt + 1;
-        sprintf(sql, "UPDATE users SET ula_cnt=%d, ula_time='%s' WHERE id=%d", new_ula_cnt, DT_NOW, us.uid);
+        sprintf(sql, "UPDATE users SET ula_cnt=%d, ula_time='%s' WHERE id=%d", new_ula_cnt, DT_NOW_GMT, us.user_id);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
         {
@@ -1147,7 +1144,7 @@ int npp_usr_login(int ci)
     if ( ula_cnt )   /* clear it */
     {
         DBG("Clearing ula_cnt");
-        sprintf(sql, "UPDATE users SET ula_cnt=0 WHERE id=%d", us.uid);
+        sprintf(sql, "UPDATE users SET ula_cnt=0 WHERE id=%d", us.user_id);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
         {
@@ -1158,27 +1155,27 @@ int npp_usr_login(int ci)
 
     /* use anonymous session if present but refresh sesid  */
 
-    if ( conn[ci].usi )
+    if ( IS_SESSION )
     {
-        npp_random(US.sesid, SESID_LEN);
-        DBG("Using current session usi=%d, generated new sesid [%s]", conn[ci].usi, US.sesid);
+        npp_random(SESSION.sesid, NPP_SESSID_LEN);
+        DBG("Using current session si=%d, generated new sesid [%s]", G_connections[ci].si, SESSION.sesid);
     }
     else    /* no session --> start a new one */
     {
         DBG("No session, starting new");
 
-        if ( (ret=eng_uses_start(ci, NULL)) != OK )
+        if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
             return ret;
     }
 
     /* save new session to users_logins and set the cookie */
 
-    DBG("Saving user session [%s] in users_logins...", US.sesid);
+    DBG("Saving user session [%s] in users_logins...", SESSION.sesid);
 
-    char sanuagent[DB_UAGENT_LEN+1];
-    sanitize_sql(sanuagent, conn[ci].uagent, DB_UAGENT_LEN);
+    char sanuagent[NPP_DB_UAGENT_LEN+1];
+    sanitize_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
 
-    sprintf(sql, "INSERT INTO users_logins (sesid,uagent,ip,user_id,csrft,created,last_used) VALUES ('%s','%s','%s',%d,'%s','%s','%s')", US.sesid, sanuagent, conn[ci].ip, us.uid, US.csrft, DT_NOW, DT_NOW);
+    sprintf(sql, "INSERT INTO users_logins (sesid,uagent,ip,user_id,csrft,created,last_used) VALUES ('%s','%s','%s',%d,'%s','%s','%s')", SESSION.sesid, sanuagent, G_connections[ci].ip, us.user_id, SESSION.csrft, DT_NOW_GMT, DT_NOW_GMT);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -1191,7 +1188,7 @@ int npp_usr_login(int ci)
 
     /* set cookie */
 
-    strcpy(conn[ci].cookie_out_l, US.sesid);
+    strcpy(G_connections[ci].cookie_out_l, SESSION.sesid);
 
     /* Keep me logged in -- set cookie expiry date */
 
@@ -1201,7 +1198,7 @@ int npp_usr_login(int ci)
         set_ls_cookie_expiration(ci, G_now);
     }
 
-    /* upgrade uses */
+    /* upgrade G_sessions */
 
     return do_login(ci, &us, status, visits);
 }
@@ -1225,9 +1222,9 @@ static bool load_common_passwd()
     /* open the file */
 
     if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, COMMON_PASSWORDS_FILE);
+        sprintf(fname, "%s/bin/%s", G_appdir, NPP_COMMON_PASSWORDS_FILE);
     else
-        strcpy(fname, COMMON_PASSWORDS_FILE);
+        strcpy(fname, NPP_COMMON_PASSWORDS_FILE);
 
     if ( NULL == (h_file=fopen(fname, "r")) )
     {
@@ -1273,7 +1270,7 @@ static bool load_common_passwd()
 
     /* show the list */
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     DBG("");
     for ( i=0; i<M_common_cnt; ++i )
         DBG("[%s]", M_common[i]);
@@ -1291,7 +1288,7 @@ int npp_usr_password_quality(const char *passwd)
 {
     int len = strlen(passwd);
 
-    if ( len < MIN_PASSWORD_LEN )
+    if ( len < NPP_MIN_PASSWORD_LEN )
         return ERR_PASSWORD_TOO_SHORT;
 
 #ifndef DONT_REFUSE_COMMON_PASSWORDS
@@ -1325,19 +1322,19 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 {
     int     ret=OK;
     QSVAL   tmp;
-    char    login[LOGIN_LEN+1];
-    char    login_u[LOGIN_LEN+1];
-    char    email[EMAIL_LEN+1];
-    char    email_u[EMAIL_LEN+1];
-    char    name[UNAME_LEN+1];
-    char    phone[PHONE_LEN+1];
+    char    login[NPP_LOGIN_LEN+1];
+    char    login_u[NPP_LOGIN_LEN+1];
+    char    email[NPP_EMAIL_LEN+1];
+    char    email_u[NPP_EMAIL_LEN+1];
+    char    name[NPP_UNAME_LEN+1];
+    char    phone[NPP_PHONE_LEN+1];
     QSVAL   lang;
-    char    about[ABOUT_LEN+1];
+    char    about[NPP_ABOUT_LEN+1];
     QSVAL   passwd;
     QSVAL   rpasswd;
     QSVAL   message;
-    char    sql[SQLBUF];
-    char    str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+    char    sql[NPP_SQLBUF];
+    char    str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
 
     DBG("create_account");
 
@@ -1345,39 +1342,39 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     if ( QS_HTML_ESCAPE("login", tmp) )
     {
-        COPY(login, tmp, LOGIN_LEN);
+        COPY(login, tmp, NPP_LOGIN_LEN);
         stp_right(login);
-        if ( current_session && conn[ci].usi ) strcpy(US.login, login);
+        if ( current_session && IS_SESSION ) strcpy(SESSION.login, login);
     }
     else
         login[0] = EOS;
 
     if ( QS_HTML_ESCAPE("email", tmp) )
     {
-        COPY(email, tmp, EMAIL_LEN);
+        COPY(email, tmp, NPP_EMAIL_LEN);
         stp_right(email);
-        if ( current_session && conn[ci].usi ) strcpy(US.email, email);
+        if ( current_session && IS_SESSION ) strcpy(SESSION.email, email);
     }
     else
         email[0] = EOS;
 
     /* basic verification */
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
     if ( !email[0] )    /* email empty */
     {
         ERR("Invalid request (email missing)");
         return ERR_EMAIL_EMPTY;
     }
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
     if ( !login[0] )    /* login empty */
     {
-#ifdef USERSBYEMAIL
-        COPY(login, email, LOGIN_LEN);
-#else   /* USERSBYLOGIN */
+#ifdef NPP_USERS_BY_EMAIL
+        COPY(login, email, NPP_LOGIN_LEN);
+#else   /* NPP_USERS_BY_LOGIN */
         if ( email[0] )
-            COPY(login, email, LOGIN_LEN);
+            COPY(login, email, NPP_LOGIN_LEN);
         else
         {
             ERR("Invalid request (login missing)");
@@ -1388,7 +1385,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* regardless of authentication method */
 
-    if ( G_usersRequireAccountActivation && !email[0] )
+    if ( G_usersRequireActivation && !email[0] )
     {
         ERR("Invalid request (email missing)");
         return ERR_EMAIL_EMPTY;
@@ -1405,39 +1402,39 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     if ( QS_HTML_ESCAPE("name", tmp) )
     {
-        COPY(name, tmp, UNAME_LEN);
+        COPY(name, tmp, NPP_UNAME_LEN);
         stp_right(name);
-        if ( current_session && conn[ci].usi ) strcpy(US.name, name);
+        if ( current_session && IS_SESSION ) strcpy(SESSION.name, name);
     }
     else
         name[0] = EOS;
 
     if ( QS_HTML_ESCAPE("phone", tmp) )
     {
-        COPY(phone, tmp, PHONE_LEN);
+        COPY(phone, tmp, NPP_PHONE_LEN);
         stp_right(phone);
-        if ( current_session && conn[ci].usi ) strcpy(US.phone, phone);
+        if ( current_session && IS_SESSION ) strcpy(SESSION.phone, phone);
     }
     else
         phone[0] = EOS;
 
     if ( QS_HTML_ESCAPE("lang", lang) )
     {
-        lang[LANG_LEN] = EOS;
+        lang[NPP_LANG_LEN] = EOS;
         stp_right(lang);
     }
     else
         lang[0] = EOS;
 
-    if ( !lang[0] ) strcpy(lang, conn[ci].lang);    /* use current request lang if empty */
+    if ( !lang[0] ) strcpy(lang, G_connections[ci].lang);    /* use current request lang if empty */
 
-    if ( current_session && conn[ci].usi ) strcpy(US.lang, lang);
+    if ( current_session && IS_SESSION ) strcpy(SESSION.lang, lang);
 
     if ( QS_HTML_ESCAPE("about", tmp) )
     {
-        COPY(about, tmp, ABOUT_LEN);
+        COPY(about, tmp, NPP_ABOUT_LEN);
         stp_right(about);
-        if ( current_session && conn[ci].usi ) strcpy(US.about, about);
+        if ( current_session && IS_SESSION ) strcpy(SESSION.about, about);
     }
     else
         about[0] = EOS;
@@ -1449,13 +1446,13 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     if ( QS_HTML_ESCAPE("message", message) && message[0] )
         return ERR_ROBOT;
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
         if ( !email[0] )                                /* email empty */
             return ERR_EMAIL_EMPTY;
         else if ( !valid_email(email) )                 /* invalid email format */
             return ERR_EMAIL_FORMAT;
 #else
-        if ( strlen(login) < MIN_USERNAME_LEN )         /* user name too short */
+        if ( strlen(login) < NPP_MIN_USERNAME_LEN )         /* user name too short */
             return ERR_USERNAME_TOO_SHORT;
         else if ( !valid_username(login) )              /* only certain chars are allowed in user name */
             return ERR_USERNAME_CHARS;
@@ -1463,7 +1460,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
             return ret;
         else if ( email[0] && !valid_email(email) )     /* invalid email format */
             return ERR_EMAIL_FORMAT_OR_EMPTY;
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
     if ( email[0] && OK != (ret=email_exists(email)) )  /* email in use */
         return ret;
@@ -1476,10 +1473,10 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     get_hashes(str1, str2, login, email, passwd);
 
-    strcpy(login_u, upper(login));
-    strcpy(email_u, upper(email));
+    strcpy(login_u, npp_upper(login));
+    strcpy(email_u, npp_upper(email));
 
-    sprintf(sql, "INSERT INTO users (id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,auth_level,status,created,visits,ula_cnt) VALUES (0,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,'%s',0,0)", login, login_u, email, email_u, name, phone, str1, str2, lang, about, auth_level, status, DT_NOW);
+    sprintf(sql, "INSERT INTO users (id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,auth_level,status,created,visits,ula_cnt) VALUES (0,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,'%s',0,0)", login, login_u, email, email_u, name, phone, str1, str2, lang, about, auth_level, status, DT_NOW_GMT);
 
     DBG("sql: INSERT INTO users (id,login,email,name,phone,...) VALUES (0,'%s','%s','%s','%s',...)", login, email, name, phone);
 
@@ -1494,16 +1491,16 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     if ( current_session )
         UID = G_new_user_id;
 
-    if ( G_usersRequireAccountActivation )
+    if ( G_usersRequireActivation )
     {
         if ( (ret=send_activation_link(ci, G_new_user_id, email)) != OK )
             return ret;
     }
 
-#ifdef USERSBYEMAIL
-    INF("User [%s] created from %s", email, US.ip);
+#ifdef NPP_USERS_BY_EMAIL
+    INF("User [%s] created from %s", email, SESSION.ip);
 #else
-    INF("User [%s] created from %s", login, US.ip);
+    INF("User [%s] created from %s", login, SESSION.ip);
 #endif
 
     return OK;
@@ -1520,7 +1517,7 @@ int npp_usr_create_account(int ci)
 
     char status;
 
-    if ( G_usersRequireAccountActivation )
+    if ( G_usersRequireActivation )
         status = USER_STATUS_INACTIVE;
     else
         status = USER_STATUS_ACTIVE;
@@ -1540,27 +1537,27 @@ static int new_account_notification(int ci, const char *login, const char *email
     STRM_BEGIN(message);
 
     STRM("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
-    STRM("An account has been created for you at %s.\n\n", conn[ci].website);
+    STRM("An account has been created for you at %s.\n\n", G_connections[ci].app_name);
     STRM("Please visit this address to log in:\n\n");
-#ifdef HTTPS
+#ifdef NPP_HTTPS
     if ( G_test )
-        STRM("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+        STRM("http://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
     else
-        STRM("https://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+        STRM("https://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
 #else
-    STRM("http://%s/%s\n\n", conn[ci].host, APP_LOGIN_URI);
+    STRM("http://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
 #endif
     if ( status == USER_STATUS_PASSWORD_CHANGE )
         STRM("Your password is %s and you will have to change it on your first login.\n\n", passwd[0]?passwd:"empty");
-#ifdef APP_CONTACT_EMAIL
-    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+#ifdef NPP_CONTACT_EMAIL
+    STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
     STRM("Kind Regards\n");
-    STRM("%s\n", conn[ci].website);
+    STRM("%s\n", G_connections[ci].app_name);
 
     STRM_END;
 
-    sprintf(subject, "Welcome to %s", conn[ci].website);
+    sprintf(subject, "Welcome to %s", G_connections[ci].app_name);
 
     if ( !npp_email(email, subject, message) )
         return ERR_INT_SERVER_ERROR;
@@ -1582,7 +1579,6 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
     if ( use_qs )   /* use query string / POST payload */
     {
-//        if ( (ret=create_account(ci, auth_level, USER_STATUS_PASSWORD_CHANGE, FALSE)) != OK )
         if ( (ret=create_account(ci, auth_level, status, FALSE)) != OK )
         {
             ERR("create_account failed");
@@ -1593,21 +1589,21 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
     }
     else    /* use function arguments */
     {
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
         if ( !email || !email[0] )    /* email empty */
         {
             ERR("Invalid request (email missing)");
             return ERR_EMAIL_EMPTY;
         }
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
         if ( !login || !login[0] )    /* login empty */
         {
-#ifdef USERSBYEMAIL
-            COPY(dst_login, email, LOGIN_LEN);
-#else   /* USERSBYLOGIN */
+#ifdef NPP_USERS_BY_EMAIL
+            COPY(dst_login, email, NPP_LOGIN_LEN);
+#else   /* NPP_USERS_BY_LOGIN */
             if ( email[0] )
-                COPY(dst_login, email, LOGIN_LEN);
+                COPY(dst_login, email, NPP_LOGIN_LEN);
             else
             {
                 ERR("Either login or email is required");
@@ -1617,7 +1613,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
         }
         else    /* login supplied */
         {
-            COPY(dst_login, login, LOGIN_LEN);
+            COPY(dst_login, login, NPP_LOGIN_LEN);
         }
 
         /* --------------------------------------------------------------- */
@@ -1625,17 +1621,17 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
         if ( passwd )   /* use the one supplied */
             strcpy(password, passwd);
         else    /* generate */
-            npp_random(password, MIN_PASSWORD_LEN);
+            npp_random(password, NPP_MIN_PASSWORD_LEN);
 
         /* --------------------------------------------------------------- */
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
         if ( !email[0] )                                /* email empty */
             return ERR_EMAIL_EMPTY;
         else if ( !valid_email(email) )                 /* invalid email format */
             return ERR_EMAIL_FORMAT;
-#else   /* USERSBYLOGIN */
-        if ( strlen(dst_login) < MIN_USERNAME_LEN )     /* user name too short */
+#else   /* NPP_USERS_BY_LOGIN */
+        if ( strlen(dst_login) < NPP_MIN_USERNAME_LEN )     /* user name too short */
             return ERR_USERNAME_TOO_SHORT;
         else if ( !valid_username(dst_login) )          /* only certain chars are allowed in user name */
             return ERR_USERNAME_CHARS;
@@ -1643,7 +1639,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
             return ret;
         else if ( email[0] && !valid_email(email) )     /* invalid email format */
             return ERR_EMAIL_FORMAT_OR_EMPTY;
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
         if ( email[0] && OK != (ret=email_exists(email)) )  /* email in use */
             return ret;
@@ -1652,7 +1648,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
         /* --------------------------------------------------------------- */
 
-        char str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+        char str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
 
         get_hashes(str1, str2, dst_login, email, password);
 
@@ -1660,12 +1656,12 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
         QSVAL login_u;
         QSVAL email_u;
-        char sql[SQLBUF];
+        char sql[NPP_SQLBUF];
 
-        strcpy(login_u, upper(dst_login));
-        strcpy(email_u, upper(email));
+        strcpy(login_u, npp_upper(dst_login));
+        strcpy(email_u, npp_upper(email));
 
-        sprintf(sql, "INSERT INTO users (id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,created,visits,ula_cnt) VALUES (0,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d,'%s',0,0)", dst_login, login_u, email, email_u, name?name:"", phone?phone:"", str1, str2, lang?lang:"", about?about:"", group_id, auth_level, status, DT_NOW);
+        sprintf(sql, "INSERT INTO users (id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,created,visits,ula_cnt) VALUES (0,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,%d,'%s',0,0)", dst_login, login_u, email, email_u, name?name:"", phone?phone:"", str1, str2, lang?lang:"", about?about:"", group_id, auth_level, status, DT_NOW_GMT);
 
         DBG("sql: INSERT INTO users (id,login,email,name,phone,...) VALUES (0,'%s','%s','%s','%s',...)", dst_login, email, name?name:"", phone?phone:"");
 
@@ -1679,14 +1675,14 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
         /* --------------------------------------------------------------- */
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
         INF("User [%s] created", email);
 #else
         INF("User [%s] created", dst_login);
 #endif
     }
 
-#ifndef DONT_NOTIFY_NEW_USER
+#ifndef NPP_DONT_NOTIFY_NEW_USER
     QSVAL email_;
     if ( use_qs )
         QS("email", email_);
@@ -1723,10 +1719,10 @@ static char sql[MAX_LONG_URI_VAL_LEN*2];
     if ( QS_HTML_ESCAPE("email", email) )
         stp_right(email);
 
-    sprintf(sanmessage, "From %s\n\n", conn[ci].ip);
+    sprintf(sanmessage, "From %s\n\n", G_connections[ci].ip);
     COPY(sanmessage+strlen(sanmessage), npp_sql_esc(message), MAX_LONG_URI_VAL_LEN);
 
-    sprintf(sql, "INSERT INTO users_messages (user_id,msg_id,email,message,created) VALUES (%d,%d,'%s','%s','%s')", UID, get_max(ci, "messages")+1, email, sanmessage, DT_NOW);
+    sprintf(sql, "INSERT INTO users_messages (user_id,msg_id,email,message,created) VALUES (%d,%d,'%s','%s','%s')", UID, get_max(ci, "messages")+1, email, sanmessage, DT_NOW_GMT);
     DBG("sql: INSERT INTO users_messages (user_id,msg_id,email,...) VALUES (%d,get_max(),'%s',...)", UID, email);
 
     if ( mysql_query(G_dbconn, sql) )
@@ -1737,8 +1733,8 @@ static char sql[MAX_LONG_URI_VAL_LEN*2];
 
     /* email admin */
 
-#ifdef APP_CONTACT_EMAIL
-    npp_email(APP_CONTACT_EMAIL, "New message!", sanmessage);
+#ifdef NPP_CONTACT_EMAIL
+    npp_email(NPP_CONTACT_EMAIL, "New message!", sanmessage);
 #endif
 
     return OK;
@@ -1752,12 +1748,12 @@ int npp_usr_save_account(int ci)
 {
     int         ret=OK;
     QSVAL       tmp;
-    char        login[LOGIN_LEN+1];
-    char        email[EMAIL_LEN+1];
-    char        name[UNAME_LEN+1];
-    char        phone[PHONE_LEN+1];
+    char        login[NPP_LOGIN_LEN+1];
+    char        email[NPP_EMAIL_LEN+1];
+    char        name[NPP_UNAME_LEN+1];
+    char        phone[NPP_PHONE_LEN+1];
     QSVAL       lang;
-    char        about[ABOUT_LEN+1];
+    char        about[NPP_ABOUT_LEN+1];
     QSVAL       passwd;
     QSVAL       rpasswd;
     QSVAL       opasswd;
@@ -1767,8 +1763,8 @@ int npp_usr_save_account(int ci)
     QSVAL       strdelconf;
     QSVAL       save;
     int         plen;
-    char        sql[SQLBUF];
-    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+    char        sql[NPP_SQLBUF];
+    char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -1782,7 +1778,7 @@ int npp_usr_save_account(int ci)
 
     if ( QS_HTML_ESCAPE("login", tmp) )
     {
-        COPY(login, tmp, LOGIN_LEN);
+        COPY(login, tmp, NPP_LOGIN_LEN);
         stp_right(login);
     }
     else
@@ -1790,13 +1786,13 @@ int npp_usr_save_account(int ci)
 
     if ( QS_HTML_ESCAPE("email", tmp) )
     {
-        COPY(email, tmp, EMAIL_LEN);
+        COPY(email, tmp, NPP_EMAIL_LEN);
         stp_right(email);
     }
     else
         email[0] = EOS;
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
     if ( !email[0] )    /* email empty */
     {
         ERR("Invalid request (email missing)");
@@ -1808,7 +1804,7 @@ int npp_usr_save_account(int ci)
         ERR("Invalid request (login missing)");
         return ERR_INVALID_REQUEST;
     }
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
 
     /* optional */
 
@@ -1820,7 +1816,7 @@ int npp_usr_save_account(int ci)
 
     if ( QS_HTML_ESCAPE("name", tmp) )
     {
-        COPY(name, tmp, UNAME_LEN);
+        COPY(name, tmp, NPP_UNAME_LEN);
         stp_right(name);
     }
     else
@@ -1828,7 +1824,7 @@ int npp_usr_save_account(int ci)
 
     if ( QS_HTML_ESCAPE("phone", tmp) )
     {
-        COPY(phone, tmp, PHONE_LEN);
+        COPY(phone, tmp, NPP_PHONE_LEN);
         stp_right(phone);
     }
     else
@@ -1841,31 +1837,31 @@ int npp_usr_save_account(int ci)
 
     if ( QS_HTML_ESCAPE("about", tmp) )
     {
-        COPY(about, tmp, ABOUT_LEN);
+        COPY(about, tmp, NPP_ABOUT_LEN);
         stp_right(about);
     }
     else
         about[0] = EOS;
 
     /* remember form fields */
-    /* US.email contains old email */
+    /* SESSION.email contains old email */
 
-    usession_t us_new;
+    eng_session_data_t us_new;
 
     strcpy(us_new.login, login);
     strcpy(us_new.email, email);
     strcpy(us_new.name, name);
     strcpy(us_new.phone, phone);
 
-    strncpy(us_new.lang, lang, LANG_LEN);
-    us_new.lang[LANG_LEN] = EOS;
+    strncpy(us_new.lang, lang, NPP_LANG_LEN);
+    us_new.lang[NPP_LANG_LEN] = EOS;
     strcpy(us_new.about, about);
 
     /* basic validation */
 
     plen = strlen(passwd);
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
     if ( !email[0] )
         return ERR_EMAIL_EMPTY;
     else if ( !valid_email(email) )
@@ -1873,7 +1869,7 @@ int npp_usr_save_account(int ci)
 #else
     if ( email[0] && !valid_email(email) )
         return ERR_EMAIL_FORMAT_OR_EMPTY;
-#endif  /* USERSBYEMAIL */
+#endif  /* NPP_USERS_BY_EMAIL */
     else if ( plen && (ret=npp_usr_password_quality(passwd)) != OK )
         return ret;
     else if ( plen && 0 != strcmp(passwd, rpasswd) )
@@ -1881,21 +1877,21 @@ int npp_usr_save_account(int ci)
 
     /* if email change, check if the new one has not already been registered */
 
-    strcpy(uemail_old, upper(US.email));
-    strcpy(uemail_new, upper(email));
+    strcpy(uemail_old, npp_upper(SESSION.email));
+    strcpy(uemail_new, npp_upper(email));
 
     if ( uemail_new[0] && strcmp(uemail_old, uemail_new) != 0 && (ret=npp_usr_email_registered(ci)) != OK )
         return ret;
 
     /* verify existing password against login/email/passwd1 */
 
-#ifdef USERSBYEMAIL
+#ifdef NPP_USERS_BY_EMAIL
     doit(str1, str2, email, email, opasswd);
-    sprintf(sql, "SELECT passwd1 FROM users WHERE email_u='%s'", upper(email));
+    sprintf(sql, "SELECT passwd1 FROM users WHERE email_u='%s'", npp_upper(email));
 #else
     doit(str1, str2, login, login, opasswd);
-    sprintf(sql, "SELECT passwd1 FROM users WHERE login_u='%s'", upper(login));
-#endif  /* USERSBYEMAIL */
+    sprintf(sql, "SELECT passwd1 FROM users WHERE login_u='%s'", npp_upper(login));
+#endif  /* NPP_USERS_BY_EMAIL */
     DBG("sql: %s", sql);
 
     mysql_query(G_dbconn, sql);
@@ -1944,7 +1940,7 @@ int npp_usr_save_account(int ci)
                 return ERR_INT_SERVER_ERROR;
             }
 
-            libusr_luses_downgrade(conn[ci].usi, ci, TRUE);   /* log user out */
+            libusr_luses_downgrade(G_connections[ci].si, ci, TRUE);   /* log user out */
 
             return MSG_ACCOUNT_DELETED;
         }
@@ -1954,7 +1950,7 @@ int npp_usr_save_account(int ci)
 
     get_hashes(str1, str2, login, email, plen?passwd:opasswd);
 
-    sprintf(sql, "UPDATE users SET login='%s', email='%s', email_u='%s', name='%s', phone='%s', passwd1='%s', passwd2='%s', lang='%s', about='%s' WHERE id=%d", login, email, upper(email), name, phone, str1, str2, lang, about, UID);
+    sprintf(sql, "UPDATE users SET login='%s', email='%s', email_u='%s', name='%s', phone='%s', passwd1='%s', passwd2='%s', lang='%s', about='%s' WHERE id=%d", login, email, npp_upper(email), name, phone, str1, str2, lang, about, UID);
     DBG("sql: UPDATE users SET login='%s', email='%s', name='%s', phone='%s',... WHERE id=%d", login, email, name, phone, UID);
 
     if ( mysql_query(G_dbconn, sql) )
@@ -1965,12 +1961,12 @@ int npp_usr_save_account(int ci)
 
     DBG("Updating login, email, name, phone & about in user session");
 
-    strcpy(US.login, us_new.login);
-    strcpy(US.email, us_new.email);
-    strcpy(US.name, us_new.name);
-    strcpy(US.phone, us_new.phone);
-    strcpy(US.lang, us_new.lang);
-    strcpy(US.about, us_new.about);
+    strcpy(SESSION.login, us_new.login);
+    strcpy(SESSION.email, us_new.email);
+    strcpy(SESSION.name, us_new.name);
+    strcpy(SESSION.phone, us_new.phone);
+    strcpy(SESSION.lang, us_new.lang);
+    strcpy(SESSION.about, us_new.about);
 
     /* On password change invalidate all existing sessions except of the current one */
 
@@ -1978,7 +1974,7 @@ int npp_usr_save_account(int ci)
     {
         DBG("Password change => invalidating all other session tokens");
 
-        sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d AND sesid != BINARY '%s'", UID, US.sesid);
+        sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d AND sesid != BINARY '%s'", UID, SESSION.sesid);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
         {
@@ -1989,7 +1985,7 @@ int npp_usr_save_account(int ci)
         /* downgrade all currently active sessions belonging to this user */
         /* except of the current one */
 
-        eng_uses_downgrade_by_uid(UID, ci);
+        npp_eng_session_downgrade_by_uid(UID, ci);
     }
 
     return OK;
@@ -2020,7 +2016,7 @@ int npp_usr_email_registered(int ci)
 /* --------------------------------------------------------------------------
    Return the best version of the user name for "Dear ..."
 -------------------------------------------------------------------------- */
-char *npp_usr_name(const char *login, const char *email, const char *name, int uid)
+char *npp_usr_name(const char *login, const char *email, const char *name, int user_id)
 {
 static char dest[128];
 
@@ -2040,13 +2036,13 @@ static char dest[128];
         while ( email[i]!='@' && email[i] && i<100 ) dest[i++] = email[i];
         dest[i] = EOS;
     }
-    else if ( uid )
+    else if ( user_id )
     {
-        char            sql[SQLBUF];
+        char            sql[NPP_SQLBUF];
         MYSQL_RES       *result;
         MYSQL_ROW       row;
 
-        sprintf(sql, "SELECT login, email, name FROM users WHERE id=%d", uid);
+        sprintf(sql, "SELECT login, email, name FROM users WHERE id=%d", user_id);
         DBG("sql: %s", sql);
         mysql_query(G_dbconn, sql);
         result = mysql_store_result(G_dbconn);
@@ -2108,7 +2104,7 @@ int npp_usr_send_passwd_reset_email(int ci)
 {
     QSVAL       email;
     QSVAL       submit;
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2125,7 +2121,7 @@ int npp_usr_send_passwd_reset_email(int ci)
     if ( !valid_email(email) )      /* invalid email format */
         return ERR_EMAIL_FORMAT;
 
-    sprintf(sql, "SELECT id, login, name, status FROM users WHERE email_u='%s'", upper(email));
+    sprintf(sql, "SELECT id, login, name, status FROM users WHERE email_u='%s'", npp_upper(email));
     DBG("sql: %s", sql);
     mysql_query(G_dbconn, sql);
     result = mysql_store_result(G_dbconn);
@@ -2155,11 +2151,11 @@ int npp_usr_send_passwd_reset_email(int ci)
 
     /* -------------------------------------------------------------------------- */
 
-    int uid;
+    int user_id;
     char login[128];
     char name[128];
 
-    uid = atoi(row[0]);
+    user_id = atoi(row[0]);
     strcpy(login, row[1]?row[1]:"");
     strcpy(name, row[2]?row[2]:"");
 
@@ -2168,11 +2164,11 @@ int npp_usr_send_passwd_reset_email(int ci)
     /* -------------------------------------------------------------------------- */
     /* generate a key */
 
-    char linkkey[PASSWD_RESET_KEY_LEN+1];
+    char linkkey[NPP_PASSWD_RESET_KEY_LEN+1];
 
-    npp_random(linkkey, PASSWD_RESET_KEY_LEN);
+    npp_random(linkkey, NPP_PASSWD_RESET_KEY_LEN);
 
-    sprintf(sql, "INSERT INTO users_p_resets (linkkey,user_id,created,tries) VALUES ('%s',%d,'%s',0)", linkkey, uid, DT_NOW);
+    sprintf(sql, "INSERT INTO users_p_resets (linkkey,user_id,created,tries) VALUES ('%s',%d,'%s',0)", linkkey, user_id, DT_NOW_GMT);
     DBG("sql: %s", sql);
 
     if ( mysql_query(G_dbconn, sql) )
@@ -2190,26 +2186,26 @@ int npp_usr_send_passwd_reset_email(int ci)
     STRM_BEGIN(message);
 
     STRM("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
-    STRM("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", conn[ci].website);
-#ifdef HTTPS
+    STRM("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", G_connections[ci].app_name);
+#ifdef NPP_HTTPS
     if ( G_test )
-        STRM("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("http://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
     else
-        STRM("https://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
+        STRM("https://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
 #else
-    STRM("http://%s/preset?k=%s\n\n", conn[ci].host, linkkey);
-#endif  /* HTTPS */
+    STRM("http://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
+#endif  /* NPP_HTTPS */
     STRM("Please keep in mind that this link will only be valid for the next 24 hours.\n\n");
     STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
-#ifdef APP_CONTACT_EMAIL
-    STRM("In case you needed any help, please contact us at %s.\n\n", APP_CONTACT_EMAIL);
+#ifdef NPP_CONTACT_EMAIL
+    STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
     STRM("Kind Regards\n");
-    STRM("%s\n", conn[ci].website);
+    STRM("%s\n", G_connections[ci].app_name);
 
     STRM_END;
 
-    sprintf(subject, "%s Password Reset", conn[ci].website);
+    sprintf(subject, "%s Password Reset", G_connections[ci].app_name);
 
     if ( !npp_email(email, subject, message) )
         return ERR_INT_SERVER_ERROR;
@@ -2225,9 +2221,9 @@ int npp_usr_send_passwd_reset_email(int ci)
 /* --------------------------------------------------------------------------
    Verify the link key for password reset
 -------------------------------------------------------------------------- */
-int npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *uid)
+int npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *user_id)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
     char        esc_linkkey[256];
@@ -2235,7 +2231,7 @@ int npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *uid)
 
     DBG("npp_usr_verify_passwd_reset_key");
 
-    if ( strlen(linkkey) != PASSWD_RESET_KEY_LEN )
+    if ( strlen(linkkey) != NPP_PASSWD_RESET_KEY_LEN )
         return ERR_LINK_BROKEN;
 
     strcpy(esc_linkkey, npp_sql_esc(linkkey));
@@ -2285,11 +2281,11 @@ int npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *uid)
 
     /* get the user id */
 
-    *uid = atoi(row[0]);
+    *user_id = atoi(row[0]);
 
     mysql_free_result(result);
 
-    DBG("Key ok, uid = %d", *uid);
+    DBG("Key ok, user_id = %d", *user_id);
 
     /* update tries counter */
 
@@ -2312,8 +2308,8 @@ int npp_usr_activate(int ci)
 {
     int         ret;
     QSVAL       linkkey;
-    int         uid;
-    char        sql[SQLBUF];
+    int         user_id;
+    char        sql[NPP_SQLBUF];
 
     DBG("npp_usr_activate");
 
@@ -2325,14 +2321,14 @@ int npp_usr_activate(int ci)
 
     /* verify the key */
 
-	if ( (ret=npp_usr_verify_activation_key(ci, linkkey, &uid)) != OK )
+	if ( (ret=npp_usr_verify_activation_key(ci, linkkey, &user_id)) != OK )
 		return ret;
 
     /* everything's OK -- activate user -------------------- */
 
-    UID = uid;
+    UID = user_id;
 
-    sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_ACTIVE, uid);
+    sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_ACTIVE, user_id);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2342,7 +2338,7 @@ int npp_usr_activate(int ci)
 
     /* remove activation link */
 
-    sprintf(sql, "UPDATE users_activations SET activated='%s' WHERE linkkey = BINARY '%s'", DT_NOW, linkkey);
+    sprintf(sql, "UPDATE users_activations SET activated='%s' WHERE linkkey = BINARY '%s'", DT_NOW_GMT, linkkey);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2357,18 +2353,18 @@ int npp_usr_activate(int ci)
 /* --------------------------------------------------------------------------
    Save user's avatar
 -------------------------------------------------------------------------- */
-int npp_usr_save_avatar(int ci, int uid)
+int npp_usr_save_avatar(int ci, int user_id)
 {
     QSVAL   name;
     QSVAL   name_filtered;
     char    *img_raw;                       /* raw image data */
-static char img_esc[MAX_AVATAR_SIZE*2];     /* image data escaped */
-static char sql[MAX_AVATAR_SIZE*2+1024];
+static char img_esc[NPP_MAX_AVATAR_SIZE*2];     /* image data escaped */
+static char sql[NPP_MAX_AVATAR_SIZE*2+1024];
     unsigned len;
 
     DBG("npp_usr_save_avatar");
 
-    img_raw = get_qs_param_multipart(ci, "data", &len, name);
+    img_raw = npp_lib_get_qs_param_multipart(ci, "data", &len, name);
 
     if ( !img_raw || len < 1 )
     {
@@ -2380,7 +2376,7 @@ static char sql[MAX_AVATAR_SIZE*2+1024];
 
     DBG("Image file name [%s], size = %d", name_filtered, len);
 
-    if ( len > MAX_AVATAR_SIZE )
+    if ( len > NPP_MAX_AVATAR_SIZE )
     {
         WAR("This file is too big");
         return ERR_FILE_TOO_BIG;
@@ -2389,9 +2385,9 @@ static char sql[MAX_AVATAR_SIZE*2+1024];
     {
         mysql_real_escape_string(G_dbconn, img_esc, img_raw, len);
 
-        sprintf(sql, "UPDATE users SET avatar_name='%s', avatar_data='%s' WHERE id=%d", name_filtered, img_esc, uid);
+        sprintf(sql, "UPDATE users SET avatar_name='%s', avatar_data='%s' WHERE id=%d", name_filtered, img_esc, user_id);
 
-        DBG("UPDATE users SET avatar_name='%s', avatar_data=<binary> WHERE id=%d", name_filtered, uid);
+        DBG("UPDATE users SET avatar_name='%s', avatar_data=<binary> WHERE id=%d", name_filtered, user_id);
 
         if ( mysql_query(G_dbconn, sql) )
         {
@@ -2407,16 +2403,16 @@ static char sql[MAX_AVATAR_SIZE*2+1024];
 /* --------------------------------------------------------------------------
    Get user's avatar
 -------------------------------------------------------------------------- */
-int npp_usr_get_avatar(int ci, int uid)
+int npp_usr_get_avatar(int ci, int user_id)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
     unsigned long *lengths;
 
     DBG("npp_usr_get_avatar");
 
-    sprintf(sql, "SELECT avatar_name, avatar_data FROM users WHERE id=%d", uid);
+    sprintf(sql, "SELECT avatar_name, avatar_data FROM users WHERE id=%d", user_id);
     DBG("sql: %s", sql);
     mysql_query(G_dbconn, sql);
     result = mysql_store_result(G_dbconn);
@@ -2439,7 +2435,7 @@ int npp_usr_get_avatar(int ci, int uid)
 
     OUT_BIN(row[1], lengths[1]);
 
-    conn[ci].ctype = get_res_type(row[0]);
+    G_connections[ci].ctype = npp_lib_get_res_type(row[0]);
 
     DBG("File: [%s], size = %ul", row[0], lengths[1]);
 
@@ -2461,9 +2457,9 @@ int npp_usr_change_password(int ci)
     QSVAL       passwd;
     QSVAL       rpasswd;
     QSVAL       submit;
-    int         uid;
-    char        sql[SQLBUF];
-    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+    int         user_id;
+    char        sql[NPP_SQLBUF];
+    char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2479,13 +2475,13 @@ int npp_usr_change_password(int ci)
 
     /* verify existing password against login/email/passwd1 */
 
-#ifdef USERSBYEMAIL
-    doit(str1, str2, US.email, US.email, opasswd);
-    sprintf(sql, "SELECT passwd1 FROM users WHERE email_u='%s'", upper(US.email));
+#ifdef NPP_USERS_BY_EMAIL
+    doit(str1, str2, SESSION.email, SESSION.email, opasswd);
+    sprintf(sql, "SELECT passwd1 FROM users WHERE email_u='%s'", npp_upper(SESSION.email));
 #else
-    doit(str1, str2, US.login, US.login, opasswd);
-    sprintf(sql, "SELECT passwd1 FROM users WHERE login_u='%s'", upper(US.login));
-#endif  /* USERSBYEMAIL */
+    doit(str1, str2, SESSION.login, SESSION.login, opasswd);
+    sprintf(sql, "SELECT passwd1 FROM users WHERE login_u='%s'", npp_upper(SESSION.login));
+#endif  /* NPP_USERS_BY_EMAIL */
     DBG("sql: %s", sql);
 
     mysql_query(G_dbconn, sql);
@@ -2533,7 +2529,7 @@ int npp_usr_change_password(int ci)
 
     /* everything's OK -- update password -------------------------------- */
 
-    get_hashes(str1, str2, US.login, US.email, passwd);
+    get_hashes(str1, str2, SESSION.login, SESSION.email, passwd);
 
     DBG("Updating users...");
 
@@ -2560,9 +2556,9 @@ int npp_usr_reset_password(int ci)
     QSVAL       passwd;
     QSVAL       rpasswd;
     QSVAL       submit;
-    int         uid;
-    char        sql[SQLBUF];
-    char        str1[PASSWORD_HASH_BUFLEN], str2[PASSWORD_HASH_BUFLEN];
+    int         user_id;
+    char        sql[NPP_SQLBUF];
+    char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2592,12 +2588,12 @@ int npp_usr_reset_password(int ci)
 
     /* verify the key */
 
-	if ( (ret=npp_usr_verify_passwd_reset_key(ci, linkkey, &uid)) != OK )
+	if ( (ret=npp_usr_verify_passwd_reset_key(ci, linkkey, &user_id)) != OK )
 		return ret;
 
     /* verify that emails match each other */
 
-    sprintf(sql, "SELECT login, email FROM users WHERE id=%d", uid);
+    sprintf(sql, "SELECT login, email FROM users WHERE id=%d", user_id);
     DBG("sql: %s", sql);
     mysql_query(G_dbconn, sql);
     result = mysql_store_result(G_dbconn);
@@ -2630,7 +2626,7 @@ int npp_usr_reset_password(int ci)
 
     DBG("Updating users...");
 
-    sprintf(sql, "UPDATE users SET passwd1='%s', passwd2='%s' WHERE id=%d", str1, str2, uid);
+    sprintf(sql, "UPDATE users SET passwd1='%s', passwd2='%s' WHERE id=%d", str1, str2, user_id);
     DBG("sql: UPDATE users SET passwd1=...");
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2642,7 +2638,7 @@ int npp_usr_reset_password(int ci)
 
     DBG("Invalidating all session tokens...");
 
-    sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d", uid);
+    sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d", user_id);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2652,13 +2648,13 @@ int npp_usr_reset_password(int ci)
 
     /* downgrade all currently active sessions belonging to this user */
 
-    eng_uses_downgrade_by_uid(uid, -1);
+    npp_eng_session_downgrade_by_uid(user_id, -1);
 
     /* remove all password reset keys */
 
     DBG("Deleting from users_p_resets...");
 
-    sprintf(sql, "DELETE FROM users_p_resets WHERE user_id=%d", uid);
+    sprintf(sql, "DELETE FROM users_p_resets WHERE user_id=%d", user_id);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2676,7 +2672,7 @@ int npp_usr_reset_password(int ci)
 void npp_usr_logout(int ci)
 {
     DBG("npp_usr_logout");
-    libusr_luses_downgrade(conn[ci].usi, ci, TRUE);
+    libusr_luses_downgrade(G_connections[ci].si, ci, TRUE);
 }
 
 
@@ -2691,9 +2687,9 @@ static void doit(char *result1, char *result2, const char *login, const char *em
     unsigned char digest[20];
     int i, j=0;
 
-    sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, src);  /* login */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
-    b64_encode(tmp, digest, 20);
+    npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
@@ -2703,9 +2699,9 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     j = 0;
 
-    sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, src);  /* email */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
-    b64_encode(tmp, digest, 20);
+    npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
     {
         if ( isalnum(tmp[i]) )
@@ -2718,15 +2714,15 @@ static void doit(char *result1, char *result2, const char *login, const char *em
     char tmp[4096];
     unsigned char digest[SHA256_DIGEST_LENGTH];
 
-    sprintf(tmp, "%s%s%s%s", STR_001, upper(login), STR_002, src);  /* login */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, src);  /* login */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
-    b64_encode(result1, digest, SHA256_DIGEST_LENGTH);
+    npp_b64_encode(result1, digest, SHA256_DIGEST_LENGTH);
 
     DBG("result1 [%s]", result1);
 
-    sprintf(tmp, "%s%s%s%s", STR_003, upper(email), STR_004, src);  /* email */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, src);  /* email */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
-    b64_encode(result2, digest, SHA256_DIGEST_LENGTH);
+    npp_b64_encode(result2, digest, SHA256_DIGEST_LENGTH);
 
     DBG("result2 [%s]", result2);
 
@@ -2739,8 +2735,8 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 -------------------------------------------------------------------------- */
 static void get_hashes(char *result1, char *result2, const char *login, const char *email, const char *passwd)
 {
-#ifdef USERSBYLOGIN
-    doit(result1, result2, login, email[0]?email:STR_005, passwd);
+#ifdef NPP_USERS_BY_LOGIN
+    doit(result1, result2, login, email[0]?email:NPP_PEPPER_05, passwd);
 #else
     doit(result1, result2, email, email, passwd);
 #endif
@@ -2753,7 +2749,7 @@ static void get_hashes(char *result1, char *result2, const char *login, const ch
 int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
 {
     int  ret;
-    char sql[SQLBUF];
+    char sql[NPP_SQLBUF];
 
     ret = npp_usr_get_str(ci, us_key, NULL);
 
@@ -2796,7 +2792,7 @@ int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
 -------------------------------------------------------------------------- */
 int npp_usr_get_str(int ci, const char *us_key, char *us_val)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
@@ -2863,12 +2859,12 @@ int npp_usr_get_int(int ci, const char *us_key, int *us_val)
 -------------------------------------------------------------------------- */
 static int get_max(int ci, const char *table)
 {
-    char        sql[SQLBUF];
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
     int         max=0;
 
-    /* US.uid = 0 for anonymous session */
+    /* SESSION.user_id = 0 for anonymous session */
 
     if ( 0==strcmp(table, "messages") )
         sprintf(sql, "SELECT MAX(msg_id) FROM users_messages WHERE user_id=%d", UID);
@@ -2894,9 +2890,9 @@ static int get_max(int ci, const char *table)
 
     mysql_free_result(result);
 
-    DBG("get_max for uid=%d  max = %d", UID, max);
+    DBG("get_max for user_id=%d  max = %d", UID, max);
 
     return max;
 }
 
-#endif  /* USERS */
+#endif  /* NPP_USERS */

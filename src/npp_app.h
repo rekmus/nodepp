@@ -10,18 +10,17 @@
 #define NPP_APP_H
 
 
-#define APP_WEBSITE                     "Node++ Hello World"
-#define APP_DOMAIN                      "example.com"
-#define APP_DESCRIPTION                 "Hello World Sample Node++ Web Application"
-#define APP_VERSION                     "1.0"
+#define NPP_APP_NAME                    "Node++ Hello World"
+#define NPP_APP_DOMAIN                  "example.com"
+#define NPP_APP_DESCRIPTION             "Hello World Sample Node++ Web Application"
 
 
 
-/* app user session */
+/* app session data */
 
 typedef struct {
     char dummy;     // replace with your own struct members
-} ausession_t;
+} app_session_data_t;
 
 
 #endif  /* NPP_APP_H */

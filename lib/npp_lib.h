@@ -34,6 +34,10 @@
 #define NPP_LIB_H
 
 
+/* --------------------------------------------------------------------------
+   macros
+-------------------------------------------------------------------------- */
+
 #define ENDIANNESS_LITTLE               (char)0
 #define ENDIANNESS_BIG                  (char)1
 
@@ -42,11 +46,11 @@
 
 /* logs */
 
-#define LOG_ALWAYS                      0               /* print always */
-#define LOG_ERR                         1               /* print errors only */
-#define LOG_WAR                         2               /* print errors and warnings */
-#define LOG_INF                         3               /* print errors and warnings and info */
-#define LOG_DBG                         4               /* for debug mode -- most detailed */
+#define LOG_ALWAYS                      (char)0         /* print always */
+#define LOG_ERR                         (char)1         /* print errors only */
+#define LOG_WAR                         (char)2         /* print errors and warnings */
+#define LOG_INF                         (char)3         /* print errors and warnings and info */
+#define LOG_DBG                         (char)4         /* for debug mode -- most detailed */
 
 #define ALWAYS(str, ...)                log_write(LOG_ALWAYS, str, ##__VA_ARGS__)
 #define ERR(str, ...)                   log_write(LOG_ERR, str, ##__VA_ARGS__)
@@ -54,7 +58,7 @@
 #define INF(str, ...)                   log_write(LOG_INF, str, ##__VA_ARGS__)
 #define DBG(str, ...)                   log_write(LOG_DBG, str, ##__VA_ARGS__)
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
 #define DDBG                            DBG
 #else
 #define DDBG
@@ -92,8 +96,8 @@
 
 /* Query String Value */
 
-typedef char                            QSVAL[QSBUF];
-//typedef struct QSVAL                  { char x[QSBUF]; } QSVAL;
+typedef char                            QSVAL[NPP_QSBUF];
+typedef char                            QSSTR[NPP_QSBUF];
 
 typedef char                            QSVAL1K[1024];
 typedef char                            QSVAL2K[2048];
@@ -102,55 +106,56 @@ typedef char                            QSVAL8K[8192];
 typedef char                            QSVAL16K[16384];
 typedef char                            QSVAL32K[32768];
 typedef char                            QSVAL64K[65536];
+
 typedef char                            QSVAL_TEXT[65536];
 
 
 /* query string values' retrieval */
 
-#define ESC_NONE                        (char)0
-#define ESC_SQL                         (char)1
-#define ESC_HTML                        (char)2
+#define NPP_ESC_NONE                    '0'
+#define NPP_ESC_SQL                     '1'
+#define NPP_ESC_HTML                    '2'
 
-#define QS_DONT_ESCAPE(param, val)      get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_NONE)
-#define QS_SQL_ESCAPE(param, val)       get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_SQL)
-#define QS_HTML_ESCAPE(param, val)      get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_HTML)
+#define QS_DONT_ESCAPE(param, val)      npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
+#define QS_SQL_ESCAPE(param, val)       npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
+#define QS_HTML_ESCAPE(param, val)      npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
 
-#define QS_TEXT_DONT_ESCAPE(param, val) get_qs_param(ci, param, val, 65535, ESC_NONE)
-#define QS_TEXT_SQL_ESCAPE(param, val)  get_qs_param(ci, param, val, 65535, ESC_SQL)
-#define QS_TEXT_HTML_ESCAPE(param, val) get_qs_param(ci, param, val, 65535, ESC_HTML)
+#define QS_TEXT_DONT_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
+#define QS_TEXT_SQL_ESCAPE(param, val)  npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
+#define QS_TEXT_HTML_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
 
 #ifdef QS_DEF_HTML_ESCAPE
-#define QS(param, val)                  get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_HTML)
-#define QS1K(param, val)                get_qs_param(ci, param, val, 1023, ESC_HTML)
-#define QS2K(param, val)                get_qs_param(ci, param, val, 2047, ESC_HTML)
-#define QS4K(param, val)                get_qs_param(ci, param, val, 4095, ESC_HTML)
-#define QS8K(param, val)                get_qs_param(ci, param, val, 8191, ESC_HTML)
-#define QS16K(param, val)               get_qs_param(ci, param, val, 16383, ESC_HTML)
-#define QS32K(param, val)               get_qs_param(ci, param, val, 32767, ESC_HTML)
-#define QS64K(param, val)               get_qs_param(ci, param, val, 65535, ESC_HTML)
-#define QS_TEXT(param, val)             get_qs_param(ci, param, val, 65535, ESC_HTML)
+#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
+#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_HTML)
+#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_HTML)
+#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_HTML)
+#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_HTML)
+#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_HTML)
+#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_HTML)
+#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
 #endif
 #ifdef QS_DEF_SQL_ESCAPE
-#define QS(param, val)                  get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_SQL)
-#define QS1K(param, val)                get_qs_param(ci, param, val, 1023, ESC_SQL)
-#define QS2K(param, val)                get_qs_param(ci, param, val, 2047, ESC_SQL)
-#define QS4K(param, val)                get_qs_param(ci, param, val, 4095, ESC_SQL)
-#define QS8K(param, val)                get_qs_param(ci, param, val, 8191, ESC_SQL)
-#define QS16K(param, val)               get_qs_param(ci, param, val, 16383, ESC_SQL)
-#define QS32K(param, val)               get_qs_param(ci, param, val, 32767, ESC_SQL)
-#define QS64K(param, val)               get_qs_param(ci, param, val, 65535, ESC_SQL)
-#define QS_TEXT(param, val)             get_qs_param(ci, param, val, 65535, ESC_SQL)
+#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
+#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_SQL)
+#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_SQL)
+#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_SQL)
+#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_SQL)
+#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_SQL)
+#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_SQL)
+#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
 #endif
 #ifdef QS_DEF_DONT_ESCAPE
-#define QS(param, val)                  get_qs_param(ci, param, val, MAX_URI_VAL_LEN, ESC_NONE)
-#define QS1K(param, val)                get_qs_param(ci, param, val, 1023, ESC_NONE)
-#define QS2K(param, val)                get_qs_param(ci, param, val, 2047, ESC_NONE)
-#define QS4K(param, val)                get_qs_param(ci, param, val, 4095, ESC_NONE)
-#define QS8K(param, val)                get_qs_param(ci, param, val, 8191, ESC_NONE)
-#define QS16K(param, val)               get_qs_param(ci, param, val, 16383, ESC_NONE)
-#define QS32K(param, val)               get_qs_param(ci, param, val, 32767, ESC_NONE)
-#define QS64K(param, val)               get_qs_param(ci, param, val, 65535, ESC_NONE)
-#define QS_TEXT(param, val)             get_qs_param(ci, param, val, 65535, ESC_NONE)
+#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
+#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_NONE)
+#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_NONE)
+#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_NONE)
+#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_NONE)
+#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_NONE)
+#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_NONE)
+#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
 #endif
 
 #define QSI(param, val)                 lib_qsi(ci, param, val)
@@ -163,110 +168,39 @@ typedef char                            QSVAL_TEXT[65536];
 #define RES_HEADER(key, val)            lib_res_header(ci, key, val)
 
 
-#ifdef APP_EMAIL_FROM_USER
-#define EMAIL_FROM_USER                 APP_EMAIL_FROM_USER
-#else
-#define EMAIL_FROM_USER                 "noreply"
-#endif
+#define NPP_OPER_CONNECT                '0'
+#define NPP_OPER_READ                   '1'
+#define NPP_OPER_WRITE                  '2'
+#define NPP_OPER_SHUTDOWN               '3'
 
 
-#define CONNECT     0
-#define READ        1
-#define WRITE       2
-#define SHUTDOWN    3
+#define NPP_LIB_STR_BUF                 4096
+#define NPP_LIB_STR_CHECK               4092
 
 
-#define MAX_SHM_SEGMENTS                100
+#define NPP_RANDOM_NUMBERS              1024*64
 
 
-/* API authorization system */
-
-#define AUTH_NONE                       0x00
-#define AUTH_CREATE                     0x01
-#define AUTH_READ                       0x02
-#define AUTH_UPDATE                     0x04
-#define AUTH_DELETE                     0x08
-#define AUTH_FULL                       0xFF
-
-#define IS_AUTH_CREATE(flags)           ((flags & AUTH_CREATE) == AUTH_CREATE)
-#define IS_AUTH_READ(flags)             ((flags & AUTH_READ) == AUTH_READ)
-#define IS_AUTH_UPDATE(flags)           ((flags & AUTH_UPDATE) == AUTH_UPDATE)
-#define IS_AUTH_DELETE(flags)           ((flags & AUTH_DELETE) == AUTH_DELETE)
+#define NPP_MAX_SHM_SEGMENTS            100
 
 
-
-/* languages */
-
-#ifndef MAX_LANGUAGES
-#define MAX_LANGUAGES                   250
-#endif
-
-typedef struct {
-    char lang[LANG_LEN+1];
-    int  first_index;
-    int  next_lang_index;
-} lang_t;
-
-
-
-/* messages */
-
-#ifndef MAX_MSG_LEN
-#define MAX_MSG_LEN                     255
-#endif
-
-#ifndef MAX_MESSAGES
-#define MAX_MESSAGES                    1000
-#endif
-
-typedef struct {
-    int  code;
-    char lang[LANG_LEN+1];
-    char message[MAX_MSG_LEN+1];
-} message_t;
-
-
-#define npp_message(code)               lib_get_message(ci, code)
-#define MSG(code)                       lib_get_message(ci, code)
+#define npp_message(code)               npp_get_message(ci, code)
+#define MSG(code)                       npp_get_message(ci, code)
 #define MSG_CAT_GREEN(code)             npp_is_msg_main_cat(code, MSG_CAT_MESSAGE)
 #define MSG_CAT_ORANGE(code)            npp_is_msg_main_cat(code, MSG_CAT_WARNING)
 #define MSG_CAT_RED(code)               npp_is_msg_main_cat(code, MSG_CAT_ERROR)
 
 #define OUT_MSG_DESCRIPTION(code)       lib_send_msg_description(ci, code)
 
-#define OUT_HTML_HEADER                 lib_out_html_header(ci)
-#define OUT_HTML_FOOTER                 lib_out_html_footer(ci)
-#define OUT_SNIPPET(name)               lib_out_snippet(ci, name)
-#define OUT_SNIPPET_MD(name)            lib_out_snippet_md(ci, name)
+#define OUT_HTML_HEADER                 npp_out_html_header(ci)
+#define OUT_HTML_FOOTER                 npp_out_html_footer(ci)
+#define OUT_SNIPPET(name)               npp_out_snippet(ci, name)
+#define OUT_SNIPPET_MD(name)            npp_out_snippet_md(ci, name)
 
 #define GET_COOKIE(key, val)            lib_get_cookie(ci, key, val)
 #define SET_COOKIE(key, val, days)      lib_set_cookie(ci, key, val, days)
 
-
-/* strings */
-
-#ifndef STRINGS_SEP
-#define STRINGS_SEP                     '|'
-#endif
-
-#ifndef STRINGS_LANG
-#define STRINGS_LANG                    "EN-US"
-#endif
-
-#ifndef MAX_STR_LEN
-#define MAX_STR_LEN                     255
-#endif
-
-#ifndef MAX_STRINGS
-#define MAX_STRINGS                     1000
-#endif
-
-typedef struct {
-    char lang[LANG_LEN+1];
-    char string_upper[MAX_STR_LEN+1];
-    char string_in_lang[MAX_STR_LEN+1];
-} string_t;
-
+#define STR(str)                        npp_get_string(ci, str)
 
 
 /* convenient & fast string building */
@@ -286,145 +220,112 @@ typedef struct {
 #define STRM_END                        *G_strm = EOS
 
 
+/* date & number format bits */
+
+/* date (000000XX) */
+
+#define NPP_DATE_DEFAULT                0x00    /* year first, dash separated */
+#define NPP_DATE_US                     0x01    /* month first, slash separated */
+#define NPP_DATE_GB                     0x02    /* day first, slash separated */
+#define NPP_DATE_PL                     0x03    /* day first, dot separated */
+
+/* number */
+
+#define NPP_NUMBER_DS_COMMA             0x00    /* decimal separator (00000X00) */
+#define NPP_NUMBER_DS_DOT               0x04
+
+#define NPP_NUMBER_TS_SPACE             0x00    /* thousand separator (000XX000) */
+#define NPP_NUMBER_TS_COMMA             0x10
+#define NPP_NUMBER_TS_DOT               0x20
+
+
+
+/* format date */
+
+#define DATE(year, month, day)          npp_lib_fmt_date(ci, year, month, day)
 
 /* format amount */
 
-#define AMT(val)                        npp_amt(val)
+#define AMT(val)                        npp_lib_fmt_dec(ci, val)
 
 
 
-/* REST calls */
+/* HTTP & RESTful calls */
 
-#define REST_HEADER_KEY_LEN                         255
-#define REST_HEADER_VAL_LEN                         1023
+#define CALL_HTTP_HEADER_KEY_LEN                    255
+#define CALL_HTTP_HEADER_VAL_LEN                    1023
 
-typedef struct {
-    char    key[REST_HEADER_KEY_LEN+1];
-    char    value[REST_HEADER_VAL_LEN+1];
-} rest_header_t;
+#define CALL_HTTP_MAX_HEADERS                       100
+#define CALL_HTTP_HEADERS_RESET                     npp_call_http_headers_reset()
+#define CALL_HTTP_HEADER_SET(key, val)              npp_call_http_header_set(key, val)
+#define CALL_HTTP_HEADER_UNSET(key)                 npp_call_http_header_unset(key)
 
+#define CALL_HTTP_RES_HEADER_LEN                    4095
+#define CALL_HTTP_ADDRESSES_CACHE_SIZE              100
 
-#define REST_MAX_HEADERS                            100
-#define REST_HEADERS_RESET                          lib_rest_headers_reset()
-#define REST_HEADER_SET(key, val)                   lib_rest_header_set(key, val)
-#define REST_HEADER_UNSET(key)                      lib_rest_header_unset(key)
+#define CALL_HTTP_DEFAULT_TIMEOUT                   10000     /* in ms -- to avoid blocking forever */
 
+#define CALL_HTTP(req, res, method, url)            npp_call_http(req, res, method, url, FALSE, TRUE)
+#define CALL_REST(req, res, method, url)            npp_call_http(req, res, method, url, TRUE, TRUE)
 
-#ifdef JSON_NO_AUTO_AMPERSANDS
-#define CALL_REST_HTTP(req, res, method, url, keep) lib_rest_req(req, res, method, url, FALSE, keep)
-#define CALL_REST_JSON(req, res, method, url, keep) lib_rest_req(req, res, method, url, TRUE, keep)
-#else
-#define CALL_REST_HTTP(req, res, method, url, keep) lib_rest_req((char*)req, (char*)res, method, url, FALSE, keep)
-#define CALL_REST_JSON(req, res, method, url, keep) lib_rest_req(&req, &res, method, url, TRUE, keep)
-#endif
+#ifndef NPP_SILGY_COMPATIBILITY
+#ifndef JSON_NO_AUTO_AMPERSANDS
+#define CALL_REST_HTTP(req, res, method, url, keep) npp_call_http(req, res, method, url, FALSE, keep)
+#define CALL_REST_JSON(req, res, method, url, keep) npp_call_http(req, res, method, url, TRUE, keep)
+#endif  /* JSON_NO_AUTO_AMPERSANDS */
+#endif  /* NPP_SILGY_COMPATIBILITY */
 
-/* aliases -- highest level -- 'keep' always TRUE */
-#define CALL_REST_RAW(req, res, method, url)        CALL_REST_HTTP(req, res, method, url, TRUE)
-#define CALL_HTTP(req, res, method, url)            CALL_REST_HTTP(req, res, method, url, TRUE)
-#define CALL_REST(req, res, method, url)            CALL_REST_JSON(req, res, method, url, TRUE)
+#define CALL_HTTP_DISCONNECT                        npp_call_http_disconnect()
 
-
-#define CALL_REST_DEFAULT_TIMEOUT                   10000     /* in ms -- to avoid blocking forever */
-
-#define REST_RES_HEADER_LEN                         4095
-#define REST_ADDRESSES_CACHE_SIZE                   100
-
-
-#define CALL_HTTP_STATUS                            G_rest_status
+#define CALL_HTTP_STATUS                            G_call_http_status
 #define CALL_REST_STATUS                            CALL_HTTP_STATUS
-#define CALL_HTTP_CONTENT_TYPE                      G_rest_content_type
+#define CALL_HTTP_CONTENT_TYPE                      G_call_http_content_type
 #define CALL_REST_CONTENT_TYPE                      CALL_HTTP_CONTENT_TYPE
-#define CALL_HTTP_STATUS_OK                         (G_rest_status>=200 && G_rest_status<=204)
+#define CALL_HTTP_STATUS_OK                         (G_call_http_status>=200 && G_call_http_status<=204)
 #define CALL_REST_STATUS_OK                         CALL_HTTP_STATUS_OK
 
 
 /* JSON */
 
-#define JSON_INTEGER            0
-#define JSON_UNSIGNED           1
-#define JSON_FLOAT              2
-#define JSON_DOUBLE             3
-#define JSON_STRING             4
-#define JSON_BOOL               5
-#define JSON_RECORD             6
-#define JSON_ARRAY              7
+#define NPP_JSON_INTEGER                    'i'
+#define NPP_JSON_UNSIGNED                   'u'
+#define NPP_JSON_LONG                       'l'
+#define NPP_JSON_FLOAT                      'f'
+#define NPP_JSON_DOUBLE                     'd'
+#define NPP_JSON_STRING                     's'
+#define NPP_JSON_BOOL                       'b'
+#define NPP_JSON_RECORD                     'r'
+#define NPP_JSON_ARRAY                      'a'
 
-#ifndef JSON_KEY_LEN
-#define JSON_KEY_LEN            31
-#endif
-#ifndef JSON_VAL_LEN
-#define JSON_VAL_LEN            255
-#endif
-
-#ifdef APP_JSON_MAX_ELEMS       /* in one JSON struct */
-#define JSON_MAX_ELEMS          APP_JSON_MAX_ELEMS
+#ifdef NPP_MEM_TINY
+#define NPP_JSON_POOL_SIZE                  100     /* for storing sub-JSONs */
 #else
-#define JSON_MAX_ELEMS          10
+#define NPP_JSON_POOL_SIZE                  1000    /* for storing sub-JSONs */
 #endif
 
-#ifdef APP_JSON_MAX_LEVELS
-#define JSON_MAX_LEVELS         APP_JSON_MAX_LEVELS
-#else
-#ifdef MEM_TINY
-#define JSON_MAX_LEVELS         2
-#else
-#define JSON_MAX_LEVELS         4
-#endif
-#endif  /* APP_JSON_MAX_LEVELS */
-
-#ifdef MEM_TINY
-#define JSON_POOL_SIZE          100     /* for storing sub-JSONs */
-#else
-#define JSON_POOL_SIZE          1000    /* for storing sub-JSONs */
-#endif
+#define NPP_JSON_MAX_FLOAT_LEN              8
+#define NPP_JSON_PRETTY_INDENT              "    "
 
 
-/* single JSON element */
-
-typedef struct {
-    char    name[JSON_KEY_LEN+1];
-    char    value[JSON_VAL_LEN+1];
-    char    type;
-} json_elem_t;
-
-/* JSON object */
-
-typedef struct {
-    int         cnt;
-    char        array;
-    json_elem_t rec[JSON_MAX_ELEMS];
-} json_t;
-
-typedef json_t JSON;
-
-
-#define JSON_MAX_FLOAT_LEN                  8
-
-
-#ifdef APP_JSON_BUFSIZE
-#define JSON_BUFSIZE                        APP_JSON_BUFSIZE
-#else
-#define JSON_BUFSIZE                        65568
-#endif
-
+#ifndef NPP_SILGY_COMPATIBILITY
+#ifndef JSON_NO_AUTO_AMPERSANDS
 
 #define JSON_TO_STRING(json)                lib_json_to_string(json)
 #define JSON_TO_STRING_PRETTY(json)         lib_json_to_string_pretty(json)
 #define JSON_FROM_STRING(json, str)         lib_json_from_string(json, str, 0, 0)
 
-
-#define JSON_ADD_STR(json, name, val)       lib_json_add(json, name, val, 0, 0, 0, 0, JSON_STRING, -1)
-#define JSON_ADD_STR_A(json, i, val)        lib_json_add(json, NULL, val, 0, 0, 0, 0, JSON_STRING, i)
-#define JSON_ADD_INT(json, name, val)       lib_json_add(json, name, NULL, val, 0, 0, 0, JSON_INTEGER, -1)
-#define JSON_ADD_INT_A(json, i, val)        lib_json_add(json, NULL, NULL, val, 0, 0, 0, JSON_INTEGER, i)
-#define JSON_ADD_UINT(json, name, val)      lib_json_add(json, name, NULL, 0, val, 0, 0, JSON_UNSIGNED, -1)
-#define JSON_ADD_UINT_A(json, i, val)       lib_json_add(json, NULL, NULL, 0, val, 0, 0, JSON_UNSIGNED, i)
-#define JSON_ADD_FLOAT(json, name, val)     lib_json_add(json, name, NULL, 0, 0, val, 0, JSON_FLOAT, -1)
-#define JSON_ADD_FLOAT_A(json, i, val)      lib_json_add(json, NULL, NULL, 0, 0, val, 0, JSON_FLOAT, i)
-#define JSON_ADD_DOUBLE(json, name, val)    lib_json_add(json, name, NULL, 0, 0, 0, val, JSON_DOUBLE, -1)
-#define JSON_ADD_DOUBLE_A(json, i, val)     lib_json_add(json, NULL, NULL, 0, 0, 0, val, JSON_DOUBLE, i)
-#define JSON_ADD_BOOL(json, name, val)      lib_json_add(json, name, NULL, val, 0, 0, 0, JSON_BOOL, -1)
-#define JSON_ADD_BOOL_A(json, i, val)       lib_json_add(json, NULL, NULL, val, 0, 0, 0, JSON_BOOL, i)
+#define JSON_ADD_STR(json, name, val)       lib_json_add(json, name, val, 0, 0, 0, 0, NPP_JSON_STRING, -1)
+#define JSON_ADD_STR_A(json, i, val)        lib_json_add(json, NULL, val, 0, 0, 0, 0, NPP_JSON_STRING, i)
+#define JSON_ADD_INT(json, name, val)       lib_json_add(json, name, NULL, val, 0, 0, 0, NPP_JSON_INTEGER, -1)
+#define JSON_ADD_INT_A(json, i, val)        lib_json_add(json, NULL, NULL, val, 0, 0, 0, NPP_JSON_INTEGER, i)
+#define JSON_ADD_UINT(json, name, val)      lib_json_add(json, name, NULL, 0, val, 0, 0, NPP_JSON_UNSIGNED, -1)
+#define JSON_ADD_UINT_A(json, i, val)       lib_json_add(json, NULL, NULL, 0, val, 0, 0, NPP_JSON_UNSIGNED, i)
+#define JSON_ADD_FLOAT(json, name, val)     lib_json_add(json, name, NULL, 0, 0, val, 0, NPP_JSON_FLOAT, -1)
+#define JSON_ADD_FLOAT_A(json, i, val)      lib_json_add(json, NULL, NULL, 0, 0, val, 0, NPP_JSON_FLOAT, i)
+#define JSON_ADD_DOUBLE(json, name, val)    lib_json_add(json, name, NULL, 0, 0, 0, val, NPP_JSON_DOUBLE, -1)
+#define JSON_ADD_DOUBLE_A(json, i, val)     lib_json_add(json, NULL, NULL, 0, 0, 0, val, NPP_JSON_DOUBLE, i)
+#define JSON_ADD_BOOL(json, name, val)      lib_json_add(json, name, NULL, val, 0, 0, 0, NPP_JSON_BOOL, -1)
+#define JSON_ADD_BOOL_A(json, i, val)       lib_json_add(json, NULL, NULL, val, 0, 0, 0, NPP_JSON_BOOL, i)
 
 #define JSON_ADD_RECORD(json, name, val)    lib_json_add_record(json, name, val, FALSE, -1)
 #define JSON_ADD_RECORD_A(json, i ,val)     lib_json_add_record(json, NULL, val, FALSE, i)
@@ -460,54 +361,227 @@ typedef json_t JSON;
 #define JSON_LOG_DBG(json, name)            lib_json_log_dbg(json, name)
 #define JSON_LOG_INF(json, name)            lib_json_log_inf(json, name)
 
+#endif  /* JSON_NO_AUTO_AMPERSANDS */
+#endif  /* NPP_SILGY_COMPATIBILITY */
 
 
-#define AI_USERS_ALL                        0       /* all users */
-#define AI_USERS_YAU                        1       /* yearly active */
-#define AI_USERS_MAU                        2       /* monthly active */
-#define AI_USERS_DAU                        3       /* daily active */
+/* Admin Info */
 
+#define AI_USERS_ALL                        'a'     /* all users */
+#define AI_USERS_YAU                        'y'     /* yearly active */
+#define AI_USERS_MAU                        'm'     /* monthly active */
+#define AI_USERS_DAU                        'd'     /* daily active */
+
+
+
+/* APP-configurable */
+
+/* JSON */
+
+#ifndef NPP_JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                    31
+#endif
+
+#ifndef NPP_JSON_STR_LEN
+#define NPP_JSON_STR_LEN                    255
+#endif
+
+#ifndef NPP_JSON_MAX_ELEMS
+#define NPP_JSON_MAX_ELEMS                  10      /* in one JSON struct */
+#endif
+
+#ifndef NPP_JSON_MAX_LEVELS
+#ifdef NPP_MEM_TINY
+#define NPP_JSON_MAX_LEVELS                 2
+#else
+#define NPP_JSON_MAX_LEVELS                 4
+#endif
+#endif  /* NPP_JSON_MAX_LEVELS */
+
+#ifndef NPP_JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                    65568
+#endif
+
+
+#ifndef NPP_EMAIL_FROM_USER
+#define NPP_EMAIL_FROM_USER                 "noreply"
+#endif
+
+/* languages */
+
+#ifndef NPP_MAX_LANGUAGES
+#define NPP_MAX_LANGUAGES                   250
+#endif
+
+/* messages */
+
+#ifndef NPP_MAX_MESSAGE_LEN
+#define NPP_MAX_MESSAGE_LEN                 255
+#endif
+
+#ifndef NPP_MAX_MESSAGES
+#define NPP_MAX_MESSAGES                    1000
+#endif
+
+/* strings */
+
+#ifndef NPP_STRINGS_SEP
+#define NPP_STRINGS_SEP                     '|'
+#endif
+
+#ifndef NPP_STRINGS_LANG
+#define NPP_STRINGS_LANG                    "EN-US"
+#endif
+
+#ifndef NPP_MAX_STRING_LEN
+#define NPP_MAX_STRING_LEN                  255
+#endif
+
+#ifndef NPP_MAX_STRINGS
+#define NPP_MAX_STRINGS                     1000
+#endif
+
+
+
+/* --------------------------------------------------------------------------
+   structures
+-------------------------------------------------------------------------- */
+
+/* languages */
+
+typedef struct {
+    char lang[NPP_LANG_LEN+1];
+    int  first_index;
+    int  next_lang_index;
+} npp_lang_t;
+
+
+/* messages */
+
+typedef struct {
+    int  code;
+    char lang[NPP_LANG_LEN+1];
+    char message[NPP_MAX_MESSAGE_LEN+1];
+} npp_message_t;
+
+
+/* strings */
+
+typedef struct {
+    char lang[NPP_LANG_LEN+1];
+    char string_upper[NPP_MAX_STRING_LEN+1];
+    char string_in_lang[NPP_MAX_STRING_LEN+1];
+} npp_string_t;
+
+
+/* single JSON element */
+
+typedef struct {
+    char    name[NPP_JSON_KEY_LEN+1];
+    char    value[NPP_JSON_STR_LEN+1];
+    char    type;
+} json_elem_t;
+
+/* JSON object */
+
+typedef struct {
+    int         cnt;
+    char        array;
+    json_elem_t rec[NPP_JSON_MAX_ELEMS];
+} json_t;
+
+typedef json_t JSON;
+
+
+/* REST calls */
+
+typedef struct {
+    char    key[CALL_HTTP_HEADER_KEY_LEN+1];
+    char    value[CALL_HTTP_HEADER_VAL_LEN+1];
+} call_http_header_t;
+
+
+
+/* --------------------------------------------------------------------------
+   prototypes
+-------------------------------------------------------------------------- */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+    /* public */
+
     bool npp_lib_init(void);
     void npp_lib_done(void);
+    void npp_add_message(int code, const char *lang, const char *message, ...);
+    bool npp_open_db(void);
+    void npp_close_db(void);
+    bool npp_file_exists(const char *fname);
+    void npp_get_exec_name(char *dst, const char *path);
+    void npp_update_time_globals(void);
+    char *npp_url_encode(const char *src);
+//    char *npp_uri_encode(const char *src);
+    char *npp_uri_decode(char *src, int srclen, char *dest, int maxlen);
+    char *npp_filter_strict(const char *src);
+    char *npp_add_spaces(const char *src, int len);
+    char *npp_add_lspaces(const char *src, int len);
+    char *npp_get_file_ext(const char *fname);
+    void date_str2rec(const char *str, date_t *rec);
+    void date_rec2str(char *str, date_t *rec);
+    time_t time_http2epoch(const char *str);
+    time_t time_db2epoch(const char *str);
+    char *time_epoch2http(time_t epoch);
+    char *time_epoch2db(time_t epoch);
+    char *npp_sql_esc(const char *str);
+    char *npp_html_esc(const char *str);
+    char *npp_html_unesc(const char *str);
+    char *npp_upper(const char *str);
+    char *npp_bin2hex(char *dst, const unsigned char *src, int len);
+    double npp_elapsed(struct timespec *start);
+    int  npp_get_memory(void);
+    void npp_log_memory(void);
+    bool npp_read_conf(const char *file);
+    bool npp_read_param_str(const char *param, char *dest);
+    bool npp_read_param_int(const char *param, int *dest);
+    bool npp_email(const char *to, const char *subject, const char *message);
+    bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len);
+    char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
+    int  npp_b64_encode(char *dst, const unsigned char* src, int len);
+    int  npp_b64_decode(unsigned char *dst, const char* src);
+    void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
+
+    /* public internal */
+
+    void msleep(int msec);
+    char *stp_right(char *str);
+    bool strdigits(const char *src);
+
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
     void npp_set_tz(int ci);
     time_t npp_ua_time(int ci);
-    char *npp_ua_today(int ci);
-    char *npp_today(void);
+    char *npp_today_ua(int ci);
+    char *npp_today_gmt(void);
     char *npp_render_md(char *dest, const char *src, size_t len);
     char *npp_json_enc(const char *src);
-    bool lib_csrft_ok(int ci);
-    void npp_add_message(int code, const char *lang, const char *message, ...);
-    int  compare_messages(const void *a, const void *b);
+    bool npp_csrft_ok(int ci);
     void npp_sort_messages(void);
-    char *lib_get_message(int ci, int code);
+    char *npp_get_message(int ci, int code);
     bool npp_is_msg_main_cat(int code, const char *cat);
     void npp_add_string(const char *lang, const char *str, const char *str_lang);
-    const char *lib_get_string(int ci, const char *str);
-    char *urlencode(const char *src);
-    bool lib_open_db(void);
-    void lib_close_db(void);
-    bool lib_file_exists(const char *fname);
-    void lib_get_exec_name(char *dst, const char *path);
-    void npp_update_time_globals(void);
+    const char *npp_get_string(int ci, const char *str);
     bool read_snippets(bool first_scan, const char *path);
     char *npp_get_snippet(const char *name);
     unsigned npp_get_snippet_len(const char *name);
-    void lib_out_snippet(int ci, const char *name);
-    void lib_out_snippet_md(int ci, const char *name);
-    void lib_setnonblocking(int sock);
-    void lib_out_html_header(int ci);
-    void lib_out_html_footer(int ci);
-    void lib_append_css(int ci, const char *fname, bool first);
-    void lib_append_script(int ci, const char *fname, bool first);
-    char *uri_decode(char *src, int srclen, char *dest, int maxlen);
-    bool get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type);
-    bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen);
-    char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname);
+    void npp_out_snippet(int ci, const char *name);
+    void npp_out_snippet_md(int ci, const char *name);
+    void npp_setnonblocking(int sock);
+    void npp_out_html_header(int ci);
+    void npp_out_html_footer(int ci);
+    void npp_append_css(int ci, const char *fname, bool first);
+    void npp_append_script(int ci, const char *fname, bool first);
+    bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type);
+    char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname);
     bool lib_qsi(int ci, const char *fieldname, int *retbuf);
     bool lib_qsu(int ci, const char *fieldname, unsigned *retbuf);
     bool lib_qsf(int ci, const char *fieldname, float *retbuf);
@@ -521,55 +595,19 @@ extern "C" {
     void lib_set_res_location(int ci, const char *str, ...);
     void lib_set_res_content_disposition(int ci, const char *str, ...);
     void lib_send_msg_description(int ci, int code);
-    void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
-    void lib_rest_headers_reset(void);
-    void lib_rest_header_set(const char *key, const char *value);
-    void lib_rest_header_unset(const char *key);
-    bool lib_rest_req(const void *req, void *res, const char *method, const char *url, bool json, bool keep);
-    int  lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, void *ssl, int level);
-    void log_ssl_error(int ssl_err);
-    void lib_get_app_dir(void);
-    double lib_elapsed(struct timespec *start);
-    int  lib_get_memory(void);
-    void lib_log_memory(void);
-    char *npp_filter_strict(const char *src);
-    char *lib_add_spaces(const char *src, int len);
-    char *lib_add_lspaces(const char *src, int len);
-    char *get_file_ext(const char *fname);
-    char get_res_type(const char *fname);
-    void date_str2rec(const char *str, date_t *rec);
-    void date_rec2str(char *str, date_t *rec);
-    time_t time_http2epoch(const char *str);
-    time_t time_db2epoch(const char *str);
-    char *time_epoch2http(time_t epoch);
-    char *time_epoch2db(time_t epoch);
-    void lib_set_datetime_formats(const char *lang);
-    char *npp_amt(double val);
-    void amt(char *stramt, long long in_amt);
-    void amtd(char *stramt, double in_amt);
-    void lib_amt(char *stramt, long in_amt);
-    void lib_amtd(char *stramt, double in_amt);
-    void samts(char *stramt, const char *in_amt);
-    void lib_normalize_float(char *str);
-    void ftm(char *strtm, long in_tm);
-    char *fmt_date(short year, short month, short day);
-    char const *san(const char *str);
-    char *san_long(const char *str);
-    char *npp_sql_esc(const char *str);
-    char *npp_html_esc(const char *str);
+    void npp_call_http_headers_reset(void);
+    void npp_call_http_header_set(const char *key, const char *value);
+    void npp_call_http_header_unset(const char *key);
+    bool npp_call_http(const void *req, void *res, const char *method, const char *url, bool json, bool keep);
+    void npp_call_http_disconnect(void);
+    void npp_lib_log_ssl_error(int ssl_err);
+    void npp_lib_get_app_dir(void);
+    char npp_lib_get_res_type(const char *fname);
+    void npp_lib_fmt_int_generic(char *stramt, long long in_amt);
+    void npp_lib_fmt_dec_generic(char *stramt, double in_amt);
+    void npp_lib_normalize_float(char *str);
     void sanitize_sql(char *dst, const char *str, int len);
     void sanitize_html(char *dst, const char *str, int len);
-    char *npp_html_unesc(const char *str);
-    char *uri_encode(const char *str);
-    char *upper(const char *str);
-    char *stp_right(char *str);
-    bool strdigits(const char *src);
-    char *nospaces(char *dst, const char *src);
-    char *lib_bin2hex(char *dst, const unsigned char *src, int len);
-    void init_random_numbers(void);
-    void npp_random(char *dest, int len);
-    void npp_notify_admin(const char *msg);
-    void msleep(int msec);
     int  lib_json_count(JSON *json);
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
@@ -590,41 +628,37 @@ extern "C" {
     void lib_json_log_inf(JSON *json, const char *name);
     void get_byteorder(void);
     time_t db2epoch(const char *str);
-    bool npp_email(const char *to, const char *subject, const char *message);
-    bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len);
     int  npp_minify(char *dest, const char *src);
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
     int  datetime_cmp(const char *str1, const char *str2);
-    bool npp_read_conf(const char *file);
-    bool npp_read_param_str(const char *param, char *dest);
-    bool npp_read_param_int(const char *param, int *dest);
     char *lib_create_pid_file(const char *name);
     char *lib_shm_create(unsigned bytes, int index);
     void lib_shm_delete(int index);
     bool log_start(const char *prefix, bool test);
-    void log_write_time(int level, const char *message, ...);
-    void log_write(int level, const char *message, ...);
+    void log_write_time(char level, const char *message, ...);
+    void log_write(char level, const char *message, ...);
     void log_long(const char *str, int len, const char *desc);
     void log_flush(void);
     void log_finish(void);
-#ifdef ICONV
-    char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
-#endif
-
-    int b64_encode(char *dst, const unsigned char* src, int len);
-    int b64_decode(unsigned char *dst, const char* src);
 
 #ifdef _WIN32   /* Windows */
     int getpid(void);
     int clock_gettime_win(struct timespec *spec);
     char *stpcpy(char *dest, const char *src);
     char *stpncpy(char *dest, const char *src, size_t len);
+    char *strnstr(const char *haystack, const char *needle, size_t len);
 #endif  /* _WIN32 */
 
-#ifndef strnstr
-    char *strnstr(const char *haystack, const char *needle, size_t len);
-#endif 
+#ifndef NPP_CLIENT  /* web app only */
+    void npp_lib_init_random_numbers(void);
+    void npp_lib_set_datetime_formats(int ci);
+    char *npp_lib_fmt_date(int ci, short year, short month, short day);
+    char *npp_lib_fmt_dec(int ci, double in_amt);
+    void npp_lib_fmt_int(int ci, char *stramt, long long in_amt);
+    void npp_random(char *dest, int len);
+    void npp_notify_admin(const char *msg);
+#endif  /* NPP_CLIENT */
 
 #ifdef __cplusplus
 }   // extern "C"

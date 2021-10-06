@@ -24,7 +24,7 @@ void npp_app_main(int ci)
     {
         OUT_HTML_HEADER;
 
-        OUT("<h1>%s</h1>", APP_WEBSITE);
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
         OUT("<h2>Welcome to my web app!</h2>");
 
         if ( REQ_DSK )
@@ -39,7 +39,7 @@ void npp_app_main(int ci)
     else if ( REQ("welcome") )  // welcoming bot
     {
         OUT_HTML_HEADER;
-        OUT("<h1>%s</h1>", APP_WEBSITE);
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
 
         OUT("<p>Please enter your name:</p>");
         OUT("<form action=\"welcome\"><input name=\"firstname\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
@@ -89,7 +89,7 @@ bool npp_app_session_init(int ci)
 }
 
 
-#ifdef USERS
+#ifdef NPP_USERS
 /* --------------------------------------------------------------------------------
    ******* Only for USERS *******
    ------------------------------
@@ -111,13 +111,13 @@ bool npp_app_user_login(int ci)
    ******* Only for USERS *******
    ------------------------------
    Called when downgrading logged in user session to anonymous
-   Application session data (AUS) will be zero-ed as well, unless
-   DONT_RESET_AUS_ON_LOGOUT is defined
+   Application session data (SESSION_DATA) will be zero-ed as well,
+   unless NPP_KEEP_SESSION_DATA_ON_LOGOUT is defined
 -------------------------------------------------------------------------------- */
 void npp_app_user_logout(int ci)
 {
 }
-#endif  /* USERS */
+#endif  /* NPP_USERS */
 
 
 /* --------------------------------------------------------------------------------

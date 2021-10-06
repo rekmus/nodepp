@@ -34,66 +34,71 @@
 #define NPP_USR_H
 
 
-#define PASSWORD_HASH_BUFLEN            45                      /* SHA256 digest in base64 + EOS */
+/* --------------------------------------------------------------------------
+   macros
+-------------------------------------------------------------------------- */
+
+#define NPP_PASSWD_HASH_BUFLEN          45                      /* SHA256 digest in base64 + EOS */
 
 
-#define DB_UAGENT_LEN                   250                     /* User-Agent length stored in ulogins table */
-#define PASSWD_RESET_KEY_LEN            20                      /* password reset key length */
-
-#ifdef APP_MIN_USERNAME_LEN                                     /* minimum user name length */
-#define MIN_USERNAME_LEN                APP_MIN_USERNAME_LEN
-#else
-#define MIN_USERNAME_LEN                2
-#endif
-
-#ifdef APP_MIN_PASSWORD_LEN                                     /* minimum password length */
-#define MIN_PASSWORD_LEN                APP_MIN_PASSWORD_LEN
-#else
-#define MIN_PASSWORD_LEN                5                       /* default minimal password length */
-#endif
-
-#ifndef MAX_ULA_BEFORE_FIRST_SLOW                               /* maximum unsuccessful login tries before slowing down to 1 per minute */
-#define MAX_ULA_BEFORE_FIRST_SLOW       10
-#endif
-
-#ifndef MAX_ULA_BEFORE_SECOND_SLOW                              /* maximum unsuccessful login tries before slowing down to 1 per hour */
-#define MAX_ULA_BEFORE_SECOND_SLOW      25
-#endif
-
-#ifndef MAX_ULA_BEFORE_THIRD_SLOW                               /* maximum unsuccessful login tries before slowing down to 1 per day */
-#define MAX_ULA_BEFORE_THIRD_SLOW       100
-#endif
-
-#ifndef MAX_ULA_BEFORE_LOCK                                     /* maximum unsuccessful login tries before user lockout */
-#define MAX_ULA_BEFORE_LOCK             1000
-#endif
+#define NPP_DB_UAGENT_LEN               250                     /* User-Agent length stored in ulogins table */
+#define NPP_PASSWD_RESET_KEY_LEN        20                      /* password reset key length */
 
 
 /* user status */
 
-#define USER_STATUS_INACTIVE            0
-#define USER_STATUS_ACTIVE              1
-#define USER_STATUS_LOCKED              2
-#define USER_STATUS_PASSWORD_CHANGE     3
-#define USER_STATUS_DELETED             9
+#define USER_STATUS_INACTIVE            (char)0
+#define USER_STATUS_ACTIVE              (char)1
+#define USER_STATUS_LOCKED              (char)2
+#define USER_STATUS_PASSWORD_CHANGE     (char)3
+#define USER_STATUS_DELETED             (char)9
 
 
-/* configurable parameters */
+#define NPP_COMMON_PASSWORDS_FILE       "passwords.txt"
+
+
+
+/* APP-configurable */
+
+#ifndef NPP_MIN_USERNAME_LEN
+#define NPP_MIN_USERNAME_LEN            2                       /* minimum user name length */
+#endif
+
+#ifndef NPP_MIN_PASSWORD_LEN
+#define NPP_MIN_PASSWORD_LEN            5                       /* minimum password length */
+#endif
+
+#ifndef MAX_ULA_BEFORE_FIRST_SLOW                               /* maximum unsuccessful login attempts before slowing down to 1 per minute */
+#define MAX_ULA_BEFORE_FIRST_SLOW       10
+#endif
+
+#ifndef MAX_ULA_BEFORE_SECOND_SLOW                              /* maximum unsuccessful login attempts before slowing down to 1 per hour */
+#define MAX_ULA_BEFORE_SECOND_SLOW      25
+#endif
+
+#ifndef MAX_ULA_BEFORE_THIRD_SLOW                               /* maximum unsuccessful login attempts before slowing down to 1 per day */
+#define MAX_ULA_BEFORE_THIRD_SLOW       100
+#endif
+
+#ifndef MAX_ULA_BEFORE_LOCK                                     /* maximum unsuccessful login attempts before user lockout */
+#define MAX_ULA_BEFORE_LOCK             1000
+#endif
 
 #ifndef DEF_USER_AUTH_LEVEL
 #define DEF_USER_AUTH_LEVEL             AUTH_LEVEL_USER         /* default user authorization level */
 #endif
 
-#ifndef USER_ACTIVATION_HOURS
-#define USER_ACTIVATION_HOURS           48                      /* activate user account within */
+#ifndef NPP_USER_ACTIVATION_HOURS
+#define NPP_USER_ACTIVATION_HOURS       48                      /* activate user account within */
 #endif
 
-#ifndef USER_KEEP_LOGGED_DAYS
-#define USER_KEEP_LOGGED_DAYS           30                      /* ls cookie validity period */
+#ifndef NPP_USER_KEEP_LOGGED_DAYS
+#define NPP_USER_KEEP_LOGGED_DAYS       30                      /* ls cookie validity period */
 #endif
 
-
-#define COMMON_PASSWORDS_FILE           "passwords.txt"
+#ifndef NPP_AUTH_SESSION_TIMEOUT
+#define NPP_AUTH_SESSION_TIMEOUT        1800                    /* authenticated session timeout in seconds (120 for tests / 1800 live) */
+#endif                                                          /* (it's really how long it stays in cache) */
 
 
 #ifndef REFUSE_10_COMMON_PASSWORDS
@@ -106,6 +111,24 @@
 #endif
 #endif
 #endif
+#endif
+
+/* passwords' peppers */
+
+#ifndef NPP_PEPPER_01
+#define NPP_PEPPER_01                   "abcde"
+#endif
+#ifndef NPP_PEPPER_02
+#define NPP_PEPPER_02                   "fghij"
+#endif
+#ifndef NPP_PEPPER_03
+#define NPP_PEPPER_03                   "klmno"
+#endif
+#ifndef NPP_PEPPER_04
+#define NPP_PEPPER_04                   "pqrst"
+#endif
+#ifndef NPP_PEPPER_05
+#define NPP_PEPPER_05                   "uvwxy"
 #endif
 
 
@@ -203,38 +226,16 @@
 #define MSG_CAT_USR_OLD_PASSWORD        "msgPasswordOld"
 
 
-#ifndef LUSES_TIMEOUT
-#define LUSES_TIMEOUT                   1800                /* logged in user session timeout in seconds (120 for tests / 1800 live) */
-#endif                                                      /* it's now how long it stays in cache */
-
 /* user authentication */
 
-#ifndef USERSBYEMAIL
-#ifndef USERSBYLOGIN
-#define USERSBYLOGIN
+#ifndef NPP_USERS_BY_EMAIL
+#ifndef NPP_USERS_BY_LOGIN
+#define NPP_USERS_BY_LOGIN
 #endif
 #endif
 
-/* passwords' hashing padding */
 
-#ifndef STR_001
-#define STR_001                         "abcde"
-#endif
-#ifndef STR_002
-#define STR_002                         "fghij"
-#endif
-#ifndef STR_003
-#define STR_003                         "klmno"
-#endif
-#ifndef STR_004
-#define STR_004                         "pqrst"
-#endif
-#ifndef STR_005
-#define STR_005                         "uvwxy"
-#endif
-
-
-#define MAX_AVATAR_SIZE                 65536   /* MySQL's BLOB size */
+#define NPP_MAX_AVATAR_SIZE             65536   /* MySQL's BLOB size */
 
 
 #define SET_USER_STR(key, val)          npp_usr_set_str(ci, key, val)
@@ -255,23 +256,29 @@
    It essentially defines how many different IPs can take part in a botnet attack.
 */
 
-#ifdef MEM_TINY
+#ifdef NPP_MEM_TINY
 #define FAILED_LOGIN_CNT_SIZE           100
-#elif defined MEM_MEDIUM
+#elif defined NPP_MEM_MEDIUM
 #define FAILED_LOGIN_CNT_SIZE           1000
-#elif defined MEM_LARGE
+#elif defined NPP_MEM_LARGE
 #define FAILED_LOGIN_CNT_SIZE           10000
-#elif defined MEM_XLARGE
+#elif defined NPP_MEM_XLARGE
 #define FAILED_LOGIN_CNT_SIZE           10000
-#elif defined MEM_XXLARGE
+#elif defined NPP_MEM_XXLARGE
 #define FAILED_LOGIN_CNT_SIZE           100000
-#elif defined MEM_XXXLARGE
+#elif defined NPP_MEM_XXXLARGE
 #define FAILED_LOGIN_CNT_SIZE           100000
-#elif defined MEM_XXXXLARGE
+#elif defined NPP_MEM_XXXXLARGE
 #define FAILED_LOGIN_CNT_SIZE           100000
-#else   /* MEM_SMALL -- default */
+#else   /* NPP_MEM_SMALL -- default */
 #define FAILED_LOGIN_CNT_SIZE           1000
 #endif
+
+
+
+/* --------------------------------------------------------------------------
+   structures
+-------------------------------------------------------------------------- */
 
 typedef struct {
     char   ip[INET_ADDRSTRLEN];
@@ -279,6 +286,11 @@ typedef struct {
     time_t when;
 } failed_login_cnt_t;
 
+
+
+/* --------------------------------------------------------------------------
+   prototypes
+-------------------------------------------------------------------------- */
 
 #ifdef __cplusplus
 extern "C" {
@@ -290,12 +302,12 @@ extern "C" {
     int  npp_usr_send_message(int ci);
     int  npp_usr_save_account(int ci);
     int  npp_usr_email_registered(int ci);
-    char *npp_usr_name(const char *login, const char *email, const char *name, int uid);
+    char *npp_usr_name(const char *login, const char *email, const char *name, int user_id);
     int  npp_usr_send_passwd_reset_email(int ci);
-    int  npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *uid);
+    int  npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *user_id);
     int  npp_usr_activate(int ci);
-    int  npp_usr_save_avatar(int ci, int uid);
-    int  npp_usr_get_avatar(int ci, int uid);
+    int  npp_usr_save_avatar(int ci, int user_id);
+    int  npp_usr_get_avatar(int ci, int user_id);
     int  npp_usr_change_password(int ci);
     int  npp_usr_reset_password(int ci);
     void npp_usr_logout(int ci);
@@ -308,7 +320,7 @@ extern "C" {
     int  libusr_luses_ok(int ci);
     void libusr_luses_close_timeouted(void);
     void libusr_luses_save_csrft(void);
-    void libusr_luses_downgrade(int usi, int ci, bool usr_logout);
+    void libusr_luses_downgrade(int si, int ci, bool usr_logout);
 #ifdef __cplusplus
 }   // extern "C"
 #endif

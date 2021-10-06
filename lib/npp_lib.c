@@ -32,35 +32,33 @@
 
 #include "npp.h"
 
-#ifdef ICONV
+#ifdef NPP_ICONV
 #include <iconv.h>
 #include <locale.h>
 #endif
 
-#define RANDOM_NUMBERS 1024*64
 
 
-
-/* globals */
+/* globals (see npp.h for comments) */
 
 bool        G_endianness=ENDIANNESS_LITTLE;
-int         G_logLevel=3;               /* log level -- 'info' by default */
-int         G_logToStdout=0;            /* log to stdout */
-int         G_logCombined=0;            /* standard log format */
-char        G_appdir[256]="..";         /* application root dir */
-int         G_RESTTimeout=CALL_REST_DEFAULT_TIMEOUT;
-int         G_test=0;                   /* test run */
-int         G_pid=0;                    /* pid */
-time_t      G_now=0;                    /* current time (GMT) */
-struct tm   *G_ptm={0};                 /* human readable current time */
-char        G_dt[128]="";               /* datetime for database or log (YYYY-MM-DD hh:mm:ss) */
-char        G_tmp[TMP_BUFSIZE];         /* temporary string buffer */
+int         G_logLevel=3;
+int         G_logToStdout=0;
+int         G_logCombined=0;
+char        G_appdir[256]="..";
+int         G_callHTTPTimeout=CALL_HTTP_DEFAULT_TIMEOUT;
+int         G_test=0;
+int         G_pid=0;
+time_t      G_now=0;
+struct tm   *G_ptm=NULL;
+char        G_dt_string_gmt[128]="";
+char        G_tmp[NPP_TMP_BUFSIZE];
 bool        G_initialized=0;
 char        *G_strm=NULL;
 
 /* database */
-#ifdef DBMYSQL
-MYSQL       *G_dbconn=NULL;             /* database connection */
+#ifdef NPP_MYSQL
+MYSQL       *G_dbconn=NULL;
 #endif
 char        G_dbHost[128]="";
 int         G_dbPort=0;
@@ -69,30 +67,30 @@ char        G_dbUser[128]="";
 char        G_dbPassword[128]="";
 
 /* messages */
-message_t   G_messages[MAX_MESSAGES]={0};
+npp_message_t G_messages[NPP_MAX_MESSAGES]={0};
 int         G_next_msg=0;
-lang_t      G_msg_lang[MAX_LANGUAGES]={0};
+npp_lang_t  G_msg_lang[NPP_MAX_LANGUAGES]={0};
 int         G_next_msg_lang=0;
 
 /* strings */
-string_t    G_strings[MAX_STRINGS]={0};
+npp_string_t G_strings[NPP_MAX_STRINGS]={0};
 int         G_next_str=0;
-lang_t      G_str_lang[MAX_LANGUAGES]={0};
+npp_lang_t  G_str_lang[NPP_MAX_LANGUAGES]={0};
 int         G_next_str_lang=0;
 
-stat_res_t  G_snippets[MAX_SNIPPETS]={0};
+stat_res_t  G_snippets[NPP_MAX_SNIPPETS]={0};
 int         G_snippets_cnt=0;
 
-#ifdef HTTPS
+#ifdef NPP_HTTPS
 bool        G_ssl_lib_initialized=0;
 #endif
 
-unsigned    G_rest_req=0;               /* REST calls counter */
-double      G_rest_elapsed=0;           /* REST calls elapsed for calculating average */
-double      G_rest_average=0;           /* REST calls average elapsed */
-int         G_rest_status;              /* last REST call response status */
-char        G_rest_content_type[MAX_VALUE_LEN+1];
-int         G_rest_res_len=0;
+unsigned    G_call_http_req_cnt=0;
+double      G_call_http_elapsed=0;
+double      G_call_http_average=0;
+int         G_call_http_status;
+char        G_call_http_content_type[NPP_MAX_VALUE_LEN+1];
+int         G_call_http_res_len=0;
 int         G_qs_len=0;
 
 
@@ -101,36 +99,31 @@ int         G_qs_len=0;
 static char *M_conf=NULL;               /* config file content */
 static FILE *M_log_fd=NULL;             /* log file handle */
 
-static char M_df=0;                     /* date format */
-static char M_tsep=' ';                 /* thousand separator */
-static char M_dsep='.';                 /* decimal separator */
-
 static char *M_md_dest;
 static char M_md_list_type;
 
 #ifndef _WIN32
-static int  M_shmid[MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
+static int  M_shmid[NPP_MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
 #endif
 
-static rest_header_t M_rest_headers[REST_MAX_HEADERS];
-static int M_rest_headers_cnt=0;
+static call_http_header_t M_call_http_headers[CALL_HTTP_MAX_HEADERS];
+static int M_call_http_headers_cnt=0;
 #ifdef _WIN32   /* Windows */
-static SOCKET M_rest_sock;
+static SOCKET M_call_http_socket;
 #else
-static int M_rest_sock;
+static int M_call_http_socket;
 #endif  /* _WIN32 */
-#ifdef HTTPS
+#ifdef NPP_HTTPS
 static SSL_CTX *M_ssl_ctx=NULL;
-static SSL *M_rest_ssl=NULL;
-//static SSL_SESSION *M_ssl_session=NULL;
+static SSL *M_call_http_ssl=NULL;
 #else
-static void *M_rest_ssl=NULL;    /* dummy */
-#endif  /* HTTPS */
-static char M_rest_mode;
+static void *M_call_http_ssl=NULL;    /* dummy */
+#endif  /* NPP_HTTPS */
+static char M_call_http_mode;
 
-static bool M_rest_proxy=FALSE;
+static bool M_call_http_proxy=FALSE;
 
-static unsigned char M_random_numbers[RANDOM_NUMBERS];
+static unsigned char M_random_numbers[NPP_RANDOM_NUMBERS];
 static char M_random_initialized=0;
 
 
@@ -157,7 +150,7 @@ bool npp_lib_init()
 
     /* G_appdir */
 
-    lib_get_app_dir();
+    npp_lib_get_app_dir();
 
     /* time globals */
 
@@ -176,11 +169,11 @@ bool npp_lib_init()
     if ( !load_strings() )
         return FALSE;
 
-    for ( i=0; i<MAX_SNIPPETS; ++i )
+    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
         strcpy(G_snippets[i].name, "-");
 #endif
 
-#ifdef ICONV
+#ifdef NPP_ICONV
     setlocale(LC_ALL, "");
 #endif
 
@@ -199,7 +192,7 @@ void npp_lib_done()
 
 #ifndef _WIN32
 
-    for ( i=0; i<MAX_SHM_SEGMENTS; ++i )
+    for ( i=0; i<NPP_MAX_SHM_SEGMENTS; ++i )
         lib_shm_delete(i);
 
 #endif  /* _WIN32 */
@@ -215,16 +208,13 @@ void npp_lib_done()
 -------------------------------------------------------------------------- */
 void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
-#ifdef DUMP
-    DBG("npp_safe_copy [%s], dst_len = %d", src, dst_len);
-#endif
+    DDBG("npp_safe_copy [%s], dst_len = %d", src, dst_len);
+
     strncpy(dst, src, dst_len+1);
 
     if ( dst[dst_len] == EOS )
     {
-#ifdef DUMP
-        DBG("not truncated");
-#endif
+        DDBG("not truncated");
         return;   /* not truncated */
     }
 
@@ -234,9 +224,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
     if ( !UTF8_ANY(dst[dst_len]) )
     {
         dst[dst_len] = EOS;
-#ifdef DUMP
-        DBG("truncated string won't break the UTF-8 sequence");
-#endif
+        DDBG("truncated string won't break the UTF-8 sequence");
         return;
     }
 
@@ -247,9 +235,8 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
     while ( !UTF8_START(dst[dst_len]) )
     {
-#ifdef DUMP
-        DBG("UTF-8 sequence byte (%x)", dst[dst_len]);
-#endif
+        DDBG("UTF-8 sequence byte (%x)", dst[dst_len]);
+
         if ( dst_len == 0 )
         {
             dst[0] = EOS;
@@ -285,7 +272,7 @@ void npp_set_tz(int ci)
 
     /* set it only once */
 
-    US.tz_set = TRUE;
+    SESSION.tz_set = TRUE;
 
     /* time zone offset */
 
@@ -297,7 +284,7 @@ void npp_set_tz(int ci)
 
     if ( tzo < -900 || tzo > 900 ) return;
 
-    US.tz_offset = tzo * -1;
+    SESSION.tz_offset = tzo * -1;
 }
 
 
@@ -306,14 +293,14 @@ void npp_set_tz(int ci)
 -------------------------------------------------------------------------- */
 time_t npp_ua_time(int ci)
 {
-    return G_now + US.tz_offset * 60;
+    return G_now + SESSION.tz_offset * 60;
 }
 
 
 /* --------------------------------------------------------------------------
    Return client's local today string
 -------------------------------------------------------------------------- */
-char *npp_ua_today(int ci)
+char *npp_today_ua(int ci)
 {
 static char today[11];
     strncpy(today, DT_NOW_LOCAL, 10);
@@ -326,10 +313,10 @@ static char today[11];
 /* --------------------------------------------------------------------------
    Return today string
 -------------------------------------------------------------------------- */
-char *npp_today()
+char *npp_today_gmt()
 {
 static char today[11];
-    strncpy(today, DT_NOW, 10);
+    strncpy(today, DT_NOW_GMT, 10);
     today[10] = EOS;
     return today;
 }
@@ -636,9 +623,7 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     skip = detect_tag(src, &tag, true, false, false);
 
-#ifdef DUMP
-    DBG("tag %c detected", tag);
-#endif
+    DDBG("tag %c detected", tag);
 
     if ( skip )
     {
@@ -648,9 +633,8 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     if ( tag == MD_TAG_LI )
     {
-#ifdef DUMP
-        DBG("Starting unordered list");
-#endif
+        DDBG("Starting unordered list");
+
         M_md_dest = stpcpy(M_md_dest, "<ul>");
         written += 4;
         list = 1;
@@ -674,9 +658,8 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     while ( *src && written < len-18 )   /* worst case: </code></li></ul> */
     {
-#ifdef DUMP
-        DBG("%c", *src);
-#endif
+        DDBG("%c", *src);
+
         if ( pos > 0 )
             prev1 = src - 1;
 
@@ -691,9 +674,8 @@ char *npp_render_md(char *dest, const char *src, size_t len)
         {
             if ( tag_i==MD_TAG_B || tag_i==MD_TAG_I || tag_i==MD_TAG_U || tag_i==MD_TAG_CODE )
             {
-#ifdef DUMP
-                DBG("Closing inline tag %c", tag_i);
-#endif
+                DDBG("Closing inline tag %c", tag_i);
+
                 written += close_tag(src, tag_i);
 
                 if ( tag_i==MD_TAG_B )    /* double-char code */
@@ -707,9 +689,9 @@ char *npp_render_md(char *dest, const char *src, size_t len)
             else if ( !pos || *(src-1)=='\r' || *(src-1)=='\n' || *(src-1)==' ' || *(src-1)=='(' )    /* opening tag */
             {
                 skip = detect_tag(src, &tag, false, false, false);
-#ifdef DUMP
-                DBG("tag %c detected", tag);
-#endif
+
+                DDBG("tag %c detected", tag);
+
                 if ( skip )
                 {
                     src += skip;
@@ -754,9 +736,9 @@ char *npp_render_md(char *dest, const char *src, size_t len)
         else if ( *src=='\n' )   /* block tags */
         {
             skip = detect_tag(src, &tag, false, true, false);
-#ifdef DUMP
-            DBG("tag %c detected", tag);
-#endif
+
+            DDBG("tag %c detected", tag);
+
             if ( skip )
             {
                 src += skip;
@@ -765,9 +747,7 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
             if ( tag != MD_TAG_NONE && tag != MD_TAG_ACC_BR && tag_b != MD_TAG_NONE )
             {
-#ifdef DUMP
-                DBG("Closing block tag %c", tag_b);
-#endif
+                DDBG("Closing block tag %c", tag_b);
                 written += close_tag(src, tag_b);
                 tag_b = MD_TAG_NONE;
             }
@@ -776,9 +756,8 @@ char *npp_render_md(char *dest, const char *src, size_t len)
             {
                 if ( !list )   /* start a list */
                 {
-#ifdef DUMP
-                    DBG("Starting %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
-#endif
+                    DDBG("Starting %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
+
                     if ( M_md_list_type == MD_LIST_ORDERED )
                         M_md_dest = stpcpy(M_md_dest, "<ol>");
                     else
@@ -795,9 +774,8 @@ char *npp_render_md(char *dest, const char *src, size_t len)
             }
             else if ( list )   /* close the list */
             {
-#ifdef DUMP
-                DBG("Closing %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
-#endif
+                DDBG("Closing %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
+
                 if ( M_md_list_type == MD_LIST_ORDERED )
                     M_md_dest = stpcpy(M_md_dest, "</ol>");
                 else
@@ -840,16 +818,14 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     if ( tag_b != MD_TAG_NONE )
     {
-#ifdef DUMP
-        DBG("Closing block tag %c", tag_b);
-#endif
+        DDBG("Closing block tag %c", tag_b);
+
         written += close_tag(src, tag_b);
 
         if ( list )    /* close a list */
         {
-#ifdef DUMP
-            DBG("Closing %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
-#endif
+            DDBG("Closing %sordered list", M_md_list_type==MD_LIST_ORDERED?"":"un");
+
             if ( M_md_list_type == MD_LIST_ORDERED )
                 M_md_dest = stpcpy(M_md_dest, "</ol>");
             else
@@ -861,7 +837,7 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     *M_md_dest = EOS;
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     log_long(dest, written, "npp_render_md result");
 #endif
 
@@ -874,10 +850,10 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 -------------------------------------------------------------------------- */
 char *npp_json_enc(const char *src)
 {
-static char dst[JSON_BUFSIZE];
+static char dst[NPP_JSON_BUFSIZE];
     int cnt=0;
 
-    while ( *src && cnt < JSON_BUFSIZE-3 )
+    while ( *src && cnt < NPP_JSON_BUFSIZE-3 )
     {
         if ( *src=='\t' )
         {
@@ -910,7 +886,7 @@ static char dst[JSON_BUFSIZE];
 /* --------------------------------------------------------------------------
    Verify CSRF token
 -------------------------------------------------------------------------- */
-bool lib_csrft_ok(int ci)
+bool npp_csrft_ok(int ci)
 {
 #ifndef NPP_CLIENT
 
@@ -918,7 +894,7 @@ bool lib_csrft_ok(int ci)
 
     if ( !QS("csrft", csrft) ) return FALSE;
 
-    if ( 0 != strcmp(csrft, US.csrft) ) return FALSE;
+    if ( 0 != strcmp(csrft, SESSION.csrft) ) return FALSE;
 
 #endif  /* NPP_CLIENT */
 
@@ -958,14 +934,14 @@ static void load_err_messages()
 -------------------------------------------------------------------------- */
 void npp_add_message(int code, const char *lang, const char *message, ...)
 {
-    if ( G_next_msg >= MAX_MESSAGES )
+    if ( G_next_msg >= NPP_MAX_MESSAGES )
     {
-        ERR("MAX_MESSAGES (%d) has been reached", MAX_MESSAGES);
+        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
         return;
     }
 
     va_list plist;
-    char buffer[MAX_MSG_LEN+1];
+    char buffer[NPP_MAX_MESSAGE_LEN+1];
 
     /* compile message with arguments into buffer */
 
@@ -975,7 +951,7 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
 
     G_messages[G_next_msg].code = code;
     if ( lang )
-        strcpy(G_messages[G_next_msg].lang, upper(lang));
+        strcpy(G_messages[G_next_msg].lang, npp_upper(lang));
     strcpy(G_messages[G_next_msg].message, buffer);
 
     ++G_next_msg;
@@ -990,10 +966,10 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
 /* --------------------------------------------------------------------------
    Comparing function for messages
 ---------------------------------------------------------------------------*/
-int compare_messages(const void *a, const void *b)
+static int compare_messages(const void *a, const void *b)
 {
-    const message_t *p1 = (message_t*)a;
-    const message_t *p2 = (message_t*)b;
+    const npp_message_t *p1 = (npp_message_t*)a;
+    const npp_message_t *p2 = (npp_message_t*)b;
 
     int res = strcmp(p1->lang, p2->lang);
 
@@ -1018,7 +994,7 @@ int compare_messages(const void *a, const void *b)
 -------------------------------------------------------------------------- */
 void npp_sort_messages()
 {
-    qsort(&G_messages, G_next_msg, sizeof(message_t), compare_messages);
+    qsort(&G_messages, G_next_msg, sizeof(npp_message_t), compare_messages);
 
     int i;
 
@@ -1039,17 +1015,17 @@ void npp_sort_messages()
 
 
 /* --------------------------------------------------------------------------
-   Get error description for user in STRINGS_LANG
+   Get error description for user in NPP_STRINGS_LANG
 -------------------------------------------------------------------------- */
 static char *lib_get_message_fallback(int code)
 {
     int l, m;
 
-    /* try in STRINGS_LANG */
+    /* try in NPP_STRINGS_LANG */
 
     for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, STRINGS_LANG) )
+        if ( 0==strcmp(G_msg_lang[l].lang, NPP_STRINGS_LANG) )
         {
             for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
                 if ( G_messages[m].code == code )
@@ -1086,7 +1062,7 @@ static char cat[64];
     {
         strcpy(cat, MSG_CAT_ERROR);
     }
-#ifdef USERS
+#ifdef NPP_USERS
     else if ( code < ERR_MAX_USR_LOGIN_ERROR )
     {
         strcpy(cat, MSG_CAT_USR_LOGIN);
@@ -1119,7 +1095,7 @@ static char cat[64];
     {
         strcpy(cat, MSG_CAT_MESSAGE);
     }
-#endif  /* USERS */
+#endif  /* NPP_USERS */
     else    /* app error */
     {
         strcpy(cat, MSG_CAT_ERROR);
@@ -1143,11 +1119,11 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
     if ( 0==strcmp(cat, arg_cat) )
         return TRUE;
 
-#ifdef USERS
+#ifdef NPP_USERS
     if ( 0==strcmp(arg_cat, MSG_CAT_ERROR) &&
             (0==strcmp(cat, MSG_CAT_USR_LOGIN) || 0==strcmp(cat, MSG_CAT_USR_EMAIL) || 0==strcmp(cat, MSG_CAT_USR_PASSWORD) || 0==strcmp(cat, MSG_CAT_USR_REPEAT_PASSWORD) || 0==strcmp(cat, MSG_CAT_USR_OLD_PASSWORD)) )
         return TRUE;
-#endif
+#endif  /* NPP_USERS */
 
     return FALSE;
 }
@@ -1158,21 +1134,21 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
    Pick the user session language if possible
    TODO: binary search
 -------------------------------------------------------------------------- */
-char *lib_get_message(int ci, int code)
+char *npp_get_message(int ci, int code)
 {
 #ifndef NPP_CLIENT
 
-    if ( 0==strcmp(US.lang, STRINGS_LANG) )   /* no need to translate */
+    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
         return lib_get_message_fallback(code);
 
-    if ( !US.lang[0] )   /* unknown client language */
+    if ( !SESSION.lang[0] )   /* unknown client language */
         return lib_get_message_fallback(code);
 
     int l, m;
 
     for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, US.lang) )
+        if ( 0==strcmp(G_msg_lang[l].lang, SESSION.lang) )
         {
             for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
                 if ( G_messages[m].code == code )
@@ -1184,7 +1160,7 @@ char *lib_get_message(int ci, int code)
 
     for ( l=0; l<G_next_msg_lang; ++l )
     {
-        if ( 0==strncmp(G_msg_lang[l].lang, US.lang, 2) )
+        if ( 0==strncmp(G_msg_lang[l].lang, SESSION.lang, 2) )
         {
             for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
                 if ( G_messages[m].code == code )
@@ -1215,17 +1191,17 @@ static void parse_and_set_strings(const char *lang, const char *data)
 
     const char *p=data;
     int i, j=0;
-    char string_orig[MAX_STR_LEN+1];
-    char string_in_lang[MAX_STR_LEN+1];
+    char string_orig[NPP_MAX_STRING_LEN+1];
+    char string_in_lang[NPP_MAX_STRING_LEN+1];
     bool now_key=1, now_val=0, now_com=0;
 
-    if ( G_next_str_lang >= MAX_LANGUAGES )
+    if ( G_next_str_lang >= NPP_MAX_LANGUAGES )
     {
-        ERR("MAX_LANGUAGES (%d) has been reached", MAX_LANGUAGES);
+        ERR("NPP_MAX_LANGUAGES (%d) has been reached", NPP_MAX_LANGUAGES);
         return;
     }
 
-    strcpy(G_str_lang[G_next_str_lang].lang, upper(lang));
+    strcpy(G_str_lang[G_next_str_lang].lang, npp_upper(lang));
     G_str_lang[G_next_str_lang].first_index = G_next_str;
 
     while ( *p )
@@ -1242,7 +1218,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
                 npp_add_string(lang, string_orig, string_in_lang);
             }
         }
-        else if ( now_key && *p==STRINGS_SEP )   /* separator */
+        else if ( now_key && *p==NPP_STRINGS_SEP )   /* separator */
         {
             now_key = 0;
             now_val = 1;
@@ -1295,8 +1271,8 @@ static void parse_and_set_strings(const char *lang, const char *data)
 static bool load_strings()
 {
     int     i, len;
-    char    bindir[STATIC_PATH_LEN];        /* full path to bin */
-    char    namewpath[STATIC_PATH_LEN*2];   /* full path including file name */
+    char    bindir[NPP_STATIC_PATH_LEN+1];      /* full path to bin */
+    char    namewpath[NPP_STATIC_PATH_LEN*2];   /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -1363,7 +1339,7 @@ static bool load_strings()
             fclose(fd);
             *(data+len) = EOS;
 
-            parse_and_set_strings(get_file_ext(dirent->d_name), data);
+            parse_and_set_strings(npp_get_file_ext(dirent->d_name), data);
 
             free(data);
             data = NULL;
@@ -1381,15 +1357,15 @@ static bool load_strings()
 -------------------------------------------------------------------------- */
 void npp_add_string(const char *lang, const char *str, const char *str_lang)
 {
-    if ( G_next_str >= MAX_STRINGS )
+    if ( G_next_str >= NPP_MAX_STRINGS )
     {
-        ERR("MAX_STRINGS (%d) has been reached", MAX_STRINGS);
+        ERR("NPP_MAX_STRINGS (%d) has been reached", NPP_MAX_STRINGS);
         return;
     }
 
-    strcpy(G_strings[G_next_str].lang, upper(lang));
+    strcpy(G_strings[G_next_str].lang, npp_upper(lang));
 //    strcpy(G_strings[G_next_str].string_orig, str);
-    strcpy(G_strings[G_next_str].string_upper, upper(str));
+    strcpy(G_strings[G_next_str].string_upper, npp_upper(str));
     strcpy(G_strings[G_next_str].string_in_lang, str_lang);
 
     ++G_next_str;
@@ -1402,25 +1378,25 @@ void npp_add_string(const char *lang, const char *str, const char *str_lang)
    If not, return given string
    TODO: binary search
 -------------------------------------------------------------------------- */
-const char *lib_get_string(int ci, const char *str)
+const char *npp_get_string(int ci, const char *str)
 {
 #ifndef NPP_CLIENT
 
-    if ( 0==strcmp(US.lang, STRINGS_LANG) )   /* no need to translate */
+    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
         return str;
 
-    if ( !US.lang[0] )   /* unknown client language */
+    if ( !SESSION.lang[0] )   /* unknown client language */
         return str;
 
-    char str_upper[MAX_STR_LEN+1];
+    char str_upper[NPP_MAX_STRING_LEN+1];
 
-    strcpy(str_upper, upper(str));
+    strcpy(str_upper, npp_upper(str));
 
     int l, s;
 
     for ( l=0; l<G_next_str_lang; ++l )   /* jump to the right language */
     {
-        if ( 0==strcmp(G_str_lang[l].lang, US.lang) )
+        if ( 0==strcmp(G_str_lang[l].lang, SESSION.lang) )
         {
             for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
                 if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
@@ -1435,7 +1411,7 @@ const char *lib_get_string(int ci, const char *str)
 
     for ( l=0; l<G_next_str_lang; ++l )
     {
-        if ( 0==strncmp(G_str_lang[l].lang, US.lang, 2) )
+        if ( 0==strncmp(G_str_lang[l].lang, SESSION.lang, 2) )
         {
             for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
                 if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
@@ -1460,13 +1436,13 @@ static char dummy[16];
 /* --------------------------------------------------------------------------
    URI encoding
 ---------------------------------------------------------------------------*/
-char *urlencode(const char *src)
+char *npp_url_encode(const char *src)
 {
-static char     dest[4096];
+static char     dest[NPP_LIB_STR_BUF];
     int         i, j=0;
     const char  hex[]="0123456789ABCDEF";
 
-    for ( i=0; src[i] && j<4092; ++i )
+    for ( i=0; src[i] && j<NPP_LIB_STR_CHECK; ++i )
     {
         if ( (48 <= src[i] && src[i] <= 57) || (65 <= src[i] && src[i] <= 90) || (97 <= src[i] && src[i] <= 122)
                 || src[i]=='-' || src[i]=='_' || src[i]=='.' || src[i]=='~' )
@@ -1490,9 +1466,9 @@ static char     dest[4096];
 /* --------------------------------------------------------------------------
    Open database connection
 -------------------------------------------------------------------------- */
-bool lib_open_db()
+bool npp_open_db()
 {
-#ifdef DBMYSQL
+#ifdef NPP_MYSQL
     if ( !G_dbName[0] )
     {
         ERR("dbName parameter is required in npp.conf");
@@ -1505,7 +1481,7 @@ bool lib_open_db()
         return FALSE;
     }
 
-#ifdef DBMYSQLRECONNECT
+#ifdef NPP_MYSQL_RECONNECT
     my_bool reconnect=1;
     mysql_options(G_dbconn, MYSQL_OPT_RECONNECT, &reconnect);
 #endif
@@ -1518,7 +1494,7 @@ bool lib_open_db()
         ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
         return FALSE;
     }
-#endif
+#endif  /* NPP_MYSQL */
     return TRUE;
 }
 
@@ -1526,9 +1502,9 @@ bool lib_open_db()
 /* --------------------------------------------------------------------------
    Close database connection
 -------------------------------------------------------------------------- */
-void lib_close_db()
+void npp_close_db()
 {
-#ifdef DBMYSQL
+#ifdef NPP_MYSQL
     if ( G_dbconn )
         mysql_close(G_dbconn);
 #endif
@@ -1538,7 +1514,7 @@ void lib_close_db()
 /* --------------------------------------------------------------------------
    Return TRUE if file exists and it's readable
 -------------------------------------------------------------------------- */
-bool lib_file_exists(const char *fname)
+bool npp_file_exists(const char *fname)
 {
     FILE *f=NULL;
 
@@ -1555,7 +1531,7 @@ bool lib_file_exists(const char *fname)
 /* --------------------------------------------------------------------------
    Get the last part of path
 -------------------------------------------------------------------------- */
-void lib_get_exec_name(char *dst, const char *path)
+void npp_get_exec_name(char *dst, const char *path)
 {
     const char *p=path;
     const char *pd=NULL;
@@ -1584,13 +1560,13 @@ void lib_get_exec_name(char *dst, const char *path)
 
 
 /* --------------------------------------------------------------------------
-   Update G_now, G_ptm and G_dt
+   Update G_now, G_ptm and G_dt_string_gmt
 -------------------------------------------------------------------------- */
 void npp_update_time_globals()
 {
     G_now = time(NULL);
     G_ptm = gmtime(&G_now);
-    sprintf(G_dt, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
+    sprintf(G_dt_string_gmt, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
 }
 
 
@@ -1601,7 +1577,7 @@ static int first_free_snippet()
 {
     int i=0;
 
-    for ( i=0; i<MAX_SNIPPETS; ++i )
+    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
     {
         if ( G_snippets[i].name[0]=='-' || G_snippets[i].name[0]==EOS )
         {
@@ -1610,7 +1586,7 @@ static int first_free_snippet()
         }
     }
 
-    ERR("MAX_SNIPPETS reached (%d)! You can set/increase MAX_SNIPPETS in npp_app.h.", MAX_SNIPPETS);
+    ERR("NPP_MAX_SNIPPETS reached (%d)! You can set/increase NPP_MAX_SNIPPETS in npp_app.h.", NPP_MAX_SNIPPETS);
 
     return -1;   /* nothing's free, we ran out of snippets! */
 }
@@ -1622,10 +1598,10 @@ static int first_free_snippet()
 bool read_snippets(bool first_scan, const char *path)
 {
     int     i;
-    char    resdir[STATIC_PATH_LEN];        /* full path to res */
-    char    ressubdir[STATIC_PATH_LEN*2];   /* full path to res/subdir */
-    char    namewpath[STATIC_PATH_LEN*2];   /* full path including file name */
-    char    resname[STATIC_PATH_LEN];       /* relative path including file name */
+    char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
+    char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
+    char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
+    char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -1638,13 +1614,13 @@ bool read_snippets(bool first_scan, const char *path)
 
     if ( first_scan && !path ) DBG("");
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     if ( first_scan )
     {
         if ( !path ) DBG_LINE_LONG;
         DBG("read_snippets");
     }
-#endif
+#endif  /* NPP_DEBUG */
 
 #ifdef _WIN32   /* be more forgiving */
 
@@ -1663,7 +1639,7 @@ bool read_snippets(bool first_scan, const char *path)
 
 #endif  /* _WIN32 */
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     if ( first_scan )
         DBG("resdir [%s]", resdir);
 #endif
@@ -1677,7 +1653,7 @@ bool read_snippets(bool first_scan, const char *path)
         sprintf(ressubdir, "%s/%s", resdir, path);
     }
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     if ( first_scan )
         DBG("ressubdir [%s]", ressubdir);
 #endif
@@ -1694,19 +1670,18 @@ bool read_snippets(bool first_scan, const char *path)
 
     if ( !first_scan && !path )   /* on the highest level only */
     {
-#ifdef DUMP
-//        DBG("Checking removed files...");
-#endif
+//        DDBG("Checking removed files...");
+
         for ( i=0; i<=G_snippets_cnt; ++i )
         {
             if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
-#ifdef DUMP
-//            DBG("Checking %s...", G_snippets[i].name);
-#endif
-            char fullpath[STATIC_PATH_LEN*2];
+
+//            DDBG("Checking %s...", G_snippets[i].name);
+
+            char fullpath[NPP_STATIC_PATH_LEN*2];
             sprintf(fullpath, "%s/%s", resdir, G_snippets[i].name);
 
-            if ( !lib_file_exists(fullpath) )
+            if ( !npp_file_exists(fullpath) )
             {
                 INF("Removing %s from snippets", G_snippets[i].name);
 
@@ -1720,9 +1695,9 @@ bool read_snippets(bool first_scan, const char *path)
     }
 
     /* ------------------------------------------------------------------- */
-#ifdef DUMP
-//    DBG("Reading %sfiles", first_scan?"":"new ");
-#endif
+
+//    DDBG("Reading %sfiles", first_scan?"":"new ");
+
     /* read the files into the memory */
 
     while ( (dirent=readdir(dir)) )
@@ -1738,7 +1713,7 @@ bool read_snippets(bool first_scan, const char *path)
         else
             sprintf(resname, "%s/%s", path, dirent->d_name);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
         if ( first_scan )
             DBG("resname [%s]", resname);
 #endif
@@ -1748,7 +1723,7 @@ bool read_snippets(bool first_scan, const char *path)
 
         sprintf(namewpath, "%s/%s", resdir, resname);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
         if ( first_scan )
             DBG("namewpath [%s]", namewpath);
 #endif
@@ -1764,7 +1739,7 @@ bool read_snippets(bool first_scan, const char *path)
 
         if ( S_ISDIR(fstat.st_mode) )   /* directory */
         {
-#ifdef DUMP
+#ifdef NPP_DEBUG
             if ( first_scan )
                 DBG("Reading subdirectory [%s]...", dirent->d_name);
 #endif
@@ -1773,7 +1748,7 @@ bool read_snippets(bool first_scan, const char *path)
         }
         else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
         {
-#ifdef DUMP
+#ifdef NPP_DEBUG
             if ( first_scan )
                 DBG("[%s] is not a regular file", resname);
 #endif
@@ -1797,14 +1772,11 @@ bool read_snippets(bool first_scan, const char *path)
 
                 if ( 0==strcmp(G_snippets[i].name, resname) )
                 {
-#ifdef DUMP
-//                    DBG("%s already read", resname);
-#endif
+//                    DDBG("%s already read", resname);
+
                     if ( G_snippets[i].modified == fstat.st_mtime )
                     {
-#ifdef DUMP
-//                        DBG("Not modified");
-#endif
+//                        DDBG("Not modified");
                         exists_not_changed = TRUE;
                     }
                     else
@@ -1883,7 +1855,7 @@ bool read_snippets(bool first_scan, const char *path)
                 char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", lib_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
             }
         }
     }
@@ -1935,7 +1907,7 @@ unsigned npp_get_snippet_len(const char *name)
 /* --------------------------------------------------------------------------
    OUT snippet
 -------------------------------------------------------------------------- */
-void lib_out_snippet(int ci, const char *name)
+void npp_out_snippet(int ci, const char *name)
 {
 #ifndef NPP_CLIENT
     int i;
@@ -1955,7 +1927,7 @@ void lib_out_snippet(int ci, const char *name)
 /* --------------------------------------------------------------------------
    OUT markdown snippet
 -------------------------------------------------------------------------- */
-void lib_out_snippet_md(int ci, const char *name)
+void npp_out_snippet_md(int ci, const char *name)
 {
 #ifndef NPP_CLIENT
     int i;
@@ -1964,7 +1936,7 @@ void lib_out_snippet_md(int ci, const char *name)
     {
         if ( 0==strcmp(G_snippets[i].name, name) )
         {
-            npp_render_md(G_tmp, G_snippets[i].data, TMP_BUFSIZE-1);
+            npp_render_md(G_tmp, G_snippets[i].data, NPP_TMP_BUFSIZE-1);
             OUT(G_tmp);
             break;
         }
@@ -1974,7 +1946,7 @@ void lib_out_snippet_md(int ci, const char *name)
 
 
 
-#ifdef HTTPS
+#ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
    Log SSL error
 -------------------------------------------------------------------------- */
@@ -1989,7 +1961,7 @@ static void log_ssl()
         ERR(buf);
     }
 }
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
 
 
 /* --------------------------------------------------------------------------
@@ -1997,7 +1969,7 @@ static void log_ssl()
 -------------------------------------------------------------------------- */
 static bool init_ssl_client()
 {
-#ifdef HTTPS
+#ifdef NPP_HTTPS
     const SSL_METHOD *method;
 
     DBG("init_ssl (npp_lib)");
@@ -2033,10 +2005,10 @@ static bool init_ssl_client()
 
     /* temporarily ignore server cert errors */
 
-    WAR("Ignoring remote server cert errors for REST calls");
+    WAR("Ignoring remote server cert errors for HTTP calls");
 //    SSL_CTX_set_verify(M_ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
     return TRUE;
 }
 
@@ -2044,7 +2016,7 @@ static bool init_ssl_client()
 /* --------------------------------------------------------------------------
    Set socket as non-blocking
 -------------------------------------------------------------------------- */
-void lib_setnonblocking(int sock)
+void npp_setnonblocking(int sock)
 {
 #ifdef _WIN32   /* Windows */
 
@@ -2078,17 +2050,17 @@ void lib_setnonblocking(int sock)
 /* --------------------------------------------------------------------------
    Output standard HTML header
 -------------------------------------------------------------------------- */
-void lib_out_html_header(int ci)
+void npp_out_html_header(int ci)
 {
     OUT("<!DOCTYPE html>");
     OUT("<html>");
     OUT("<head>");
-    OUT("<title>%s</title>", APP_WEBSITE);
-#ifdef APP_DESCRIPTION
-    OUT("<meta name=\"description\" content=\"%s\">", APP_DESCRIPTION);
+    OUT("<title>%s</title>", NPP_APP_NAME);
+#ifdef NPP_APP_DESCRIPTION
+    OUT("<meta name=\"description\" content=\"%s\">", NPP_APP_DESCRIPTION);
 #endif
-#ifdef APP_KEYWORDS
-    OUT("<meta name=\"keywords\" content=\"%s\">", APP_KEYWORDS);
+#ifdef NPP_APP_KEYWORDS
+    OUT("<meta name=\"keywords\" content=\"%s\">", NPP_APP_KEYWORDS);
 #endif
     if ( REQ_MOB )  // if mobile request
         OUT("<meta name=\"viewport\" content=\"width=device-width\">");
@@ -2100,7 +2072,7 @@ void lib_out_html_header(int ci)
 /* --------------------------------------------------------------------------
    Output standard HTML footer
 -------------------------------------------------------------------------- */
-void lib_out_html_footer(int ci)
+void npp_out_html_footer(int ci)
 {
     OUT("</body>");
     OUT("</html>");
@@ -2110,7 +2082,7 @@ void lib_out_html_footer(int ci)
 /* --------------------------------------------------------------------------
    Add CSS link to HTML head
 -------------------------------------------------------------------------- */
-void lib_append_css(int ci, const char *fname, bool first)
+void npp_append_css(int ci, const char *fname, bool first)
 {
     if ( first )
     {
@@ -2124,7 +2096,7 @@ void lib_append_css(int ci, const char *fname, bool first)
 /* --------------------------------------------------------------------------
    Add script to HTML head
 -------------------------------------------------------------------------- */
-void lib_append_script(int ci, const char *fname, bool first)
+void npp_append_script(int ci, const char *fname, bool first)
 {
     if ( first )
     {
@@ -2155,7 +2127,7 @@ static int xctod(int c)
 /* --------------------------------------------------------------------------
    URI-decode src
 -------------------------------------------------------------------------- */
-char *uri_decode(char *src, int srclen, char *dest, int maxlen)
+char *npp_uri_decode(char *src, int srclen, char *dest, int maxlen)
 {
     char *endp=src+srclen;
     char *srcp;
@@ -2193,54 +2165,6 @@ char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 
 #ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
-   Get incoming request data. TRUE if found.
--------------------------------------------------------------------------- */
-bool get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type)
-{
-static char interbuf[65536];
-
-    if ( conn[ci].in_ctype == CONTENT_TYPE_URLENCODED )
-    {
-static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count */
-
-        if ( !get_qs_param_raw(ci, fieldname, rawbuf, maxlen*3-1) )
-        {
-            if ( retbuf ) retbuf[0] = EOS;
-            return FALSE;
-        }
-
-        if ( retbuf )
-            uri_decode(rawbuf, G_qs_len, interbuf, maxlen);
-    }
-    else    /* usually JSON or multipart */
-    {
-        if ( !get_qs_param_raw(ci, fieldname, interbuf, maxlen) )
-        {
-            if ( retbuf ) retbuf[0] = EOS;
-            return FALSE;
-        }
-    }
-
-    /* now we have URI-decoded string in interbuf */
-
-    if ( retbuf )
-    {
-        if ( esc_type == ESC_HTML )
-            sanitize_html(retbuf, interbuf, maxlen);
-        else if ( esc_type == ESC_SQL )
-            sanitize_sql(retbuf, interbuf, maxlen);
-        else
-        {
-            strncpy(retbuf, interbuf, maxlen);
-            retbuf[maxlen] = EOS;
-        }
-    }
-
-    return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */
 static bool get_qs_param_json(int ci, const char *fieldname, char *retbuf, int maxlen)
@@ -2256,17 +2180,17 @@ static JSON req={0};
         if ( !REQ_DATA )
             return FALSE;
 
-        if ( !JSON_FROM_STRING(&req, REQ_DATA) )
+        if ( !lib_json_from_string(&req, REQ_DATA, 0, 0) )
             return FALSE;
 
         prev_ci = ci;
         prev_req = G_cnts_today.req;
     }
 
-    if ( !JSON_PRESENT(&req, fieldname) )
+    if ( !lib_json_present(&req, fieldname) )
         return FALSE;
 
-    strncpy(retbuf, JSON_GET_STR(&req, fieldname), maxlen);
+    strncpy(retbuf, lib_json_get_str(&req, fieldname, -1), maxlen);
     retbuf[maxlen] = EOS;
 
     return TRUE;
@@ -2281,22 +2205,18 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
     char     *p;
     unsigned len;
 
-    p = get_qs_param_multipart(ci, fieldname, &len, NULL);
+    p = npp_lib_get_qs_param_multipart(ci, fieldname, &len, NULL);
 
     if ( !p ) return FALSE;
 
 //    if ( len > MAX_URI_VAL_LEN ) return FALSE;
 
-#ifdef DUMP
-    DBG("len = %d", len);
-#endif
+    DDBG("len = %d", len);
 
     if ( len > maxlen )
     {
         len = maxlen;
-#ifdef DUMP
-        DBG("len reduced to %d", len);
-#endif
+        DDBG("len reduced to %d", len);
     }
 
     strncpy(retbuf, p, len);
@@ -2309,38 +2229,36 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
 /* --------------------------------------------------------------------------
    Get the query string value. Return TRUE if found.
 -------------------------------------------------------------------------- */
-bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
+static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
 {
     char *qs, *end;
 
     G_qs_len = 0;
 
-#ifdef DUMP
-    DBG("get_qs_param_raw: fieldname [%s]", fieldname);
-#endif
+    DDBG("get_qs_param_raw: fieldname [%s]", fieldname);
 
-    if ( conn[ci].post )
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )
     {
-        if ( conn[ci].in_ctype == CONTENT_TYPE_JSON )
+        if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_JSON )
         {
             return get_qs_param_json(ci, fieldname, retbuf, maxlen);
         }
-        else if ( conn[ci].in_ctype == CONTENT_TYPE_MULTIPART )
+        else if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_MULTIPART )
         {
             return get_qs_param_multipart_txt(ci, fieldname, retbuf, maxlen);
         }
-        else if ( conn[ci].in_ctype != CONTENT_TYPE_URLENCODED && conn[ci].in_ctype != CONTENT_TYPE_UNSET )
+        else if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_URLENCODED && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_UNSET )
         {
             WAR("Invalid Content-Type");
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
         }
-        qs = conn[ci].in_data;
-        end = qs + conn[ci].clen;
+        qs = G_connections[ci].in_data;
+        end = qs + G_connections[ci].clen;
     }
     else    /* GET */
     {
-        qs = strchr(conn[ci].uri, '?');
+        qs = strchr(G_connections[ci].uri, '?');
     }
 
     if ( qs == NULL )
@@ -2349,13 +2267,11 @@ bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
         return FALSE;
     }
 
-    if ( !conn[ci].post )   /* GET */
+    if ( !NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )   /* GET */
     {
         ++qs;      /* skip the question mark */
-        end = qs + (strlen(conn[ci].uri) - (qs-conn[ci].uri));
-#ifdef DUMP
-        DBG("get_qs_param_raw: qs len = %d", strlen(conn[ci].uri) - (qs-conn[ci].uri));
-#endif
+        end = qs + (strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
+        DDBG("get_qs_param_raw: qs len = %d", strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
     }
 
     int fnamelen = strlen(fieldname);
@@ -2412,11 +2328,59 @@ bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
 
     retbuf[i] = EOS;
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     log_long(retbuf, i, "get_qs_param_raw: retbuf");
 #endif
 
     G_qs_len = i;
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   Get incoming request data. TRUE if found.
+-------------------------------------------------------------------------- */
+bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type)
+{
+static char interbuf[65536];
+
+    if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_URLENCODED )
+    {
+static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count */
+
+        if ( !get_qs_param_raw(ci, fieldname, rawbuf, maxlen*3-1) )
+        {
+            if ( retbuf ) retbuf[0] = EOS;
+            return FALSE;
+        }
+
+        if ( retbuf )
+            npp_uri_decode(rawbuf, G_qs_len, interbuf, maxlen);
+    }
+    else    /* usually JSON or multipart */
+    {
+        if ( !get_qs_param_raw(ci, fieldname, interbuf, maxlen) )
+        {
+            if ( retbuf ) retbuf[0] = EOS;
+            return FALSE;
+        }
+    }
+
+    /* now we have URI-decoded string in interbuf */
+
+    if ( retbuf )
+    {
+        if ( esc_type == NPP_ESC_HTML )
+            sanitize_html(retbuf, interbuf, maxlen);
+        else if ( esc_type == NPP_ESC_SQL )
+            sanitize_sql(retbuf, interbuf, maxlen);
+        else
+        {
+            strncpy(retbuf, interbuf, maxlen);
+            retbuf[maxlen] = EOS;
+        }
+    }
 
     return TRUE;
 }
@@ -2428,36 +2392,36 @@ bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
    If retfname is not NULL then assume binary data and it must be the last
    data element
 -------------------------------------------------------------------------- */
-char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname)
+char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname)
 {
     unsigned blen;           /* boundary length */
     char     *cp;            /* current pointer */
     char     *p;             /* tmp pointer */
     unsigned b;              /* tmp bytes count */
-    char     fn[MAX_LABEL_LEN+1];    /* field name */
+    char     fn[NPP_MAX_LABEL_LEN+1];    /* field name */
     char     *end;
     unsigned len;
 
     /* Couple of checks to make sure it's properly formatted multipart content */
 
-    if ( conn[ci].in_ctype != CONTENT_TYPE_MULTIPART )
+    if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART )
     {
         WAR("This is not multipart/form-data");
         return NULL;
     }
 
-    if ( !conn[ci].in_data )
+    if ( !G_connections[ci].in_data )
         return NULL;
 
-    if ( conn[ci].clen < 10 )
+    if ( G_connections[ci].clen < 10 )
     {
-        WAR("Content length seems to be too small for multipart (%u)", conn[ci].clen);
+        WAR("Content length seems to be too small for multipart (%u)", G_connections[ci].clen);
         return NULL;
     }
 
-    cp = conn[ci].in_data;
+    cp = G_connections[ci].in_data;
 
-    if ( !conn[ci].boundary[0] )    /* find first end of line -- that would be end of boundary */
+    if ( !G_connections[ci].boundary[0] )    /* find first end of line -- that would be end of boundary */
     {
         if ( NULL == (p=strchr(cp, '\n')) )
         {
@@ -2472,22 +2436,22 @@ char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, ch
             WAR("Boundary appears to be too short (%u)", b);
             return NULL;
         }
-        else if ( b > 255 )
+        else if ( b > NPP_MAX_BOUNDARY_LEN )
         {
             WAR("Boundary appears to be too long (%u)", b);
             return NULL;
         }
 
-        strncpy(conn[ci].boundary, cp+2, b);
-        if ( conn[ci].boundary[b-1] == '\r' )
-            conn[ci].boundary[b-1] = EOS;
+        strncpy(G_connections[ci].boundary, cp+2, b);
+        if ( G_connections[ci].boundary[b-1] == '\r' )
+            G_connections[ci].boundary[b-1] = EOS;
         else
-            conn[ci].boundary[b] = EOS;
+            G_connections[ci].boundary[b] = EOS;
     }
 
-    blen = strlen(conn[ci].boundary);
+    blen = strlen(G_connections[ci].boundary);
 
-    if ( conn[ci].in_data[conn[ci].clen-4] != '-' || conn[ci].in_data[conn[ci].clen-3] != '-' )
+    if ( G_connections[ci].in_data[G_connections[ci].clen-4] != '-' || G_connections[ci].in_data[G_connections[ci].clen-3] != '-' )
     {
         WAR("Content doesn't end with '--'");
         return NULL;
@@ -2495,7 +2459,7 @@ char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, ch
 
     while (TRUE)    /* find the right section */
     {
-        if ( NULL == (p=strstr(cp, conn[ci].boundary)) )
+        if ( NULL == (p=strstr(cp, G_connections[ci].boundary)) )
         {
             WAR("No (next) boundary found");
             return NULL;
@@ -2532,7 +2496,7 @@ char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, ch
 
         b = p - cp;
 
-        if ( b > MAX_LABEL_LEN )
+        if ( b > NPP_MAX_LABEL_LEN )
         {
             WAR("Field name too long (%u)", b);
             return NULL;
@@ -2599,7 +2563,7 @@ char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, ch
 
     if ( !retfname )    /* text */
     {
-        if ( NULL == (end=strstr(cp, conn[ci].boundary)) )
+        if ( NULL == (end=strstr(cp, G_connections[ci].boundary)) )
         {
             WAR("No closing boundary found");
             return NULL;
@@ -2609,7 +2573,7 @@ char *get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, ch
     }
     else    /* potentially binary content -- calculate rather than use strstr */
     {
-        len = conn[ci].clen - (cp - conn[ci].in_data) - blen - 8;  /* fast version */
+        len = G_connections[ci].clen - (cp - G_connections[ci].in_data) - blen - 8;  /* fast version */
                                                                 /* Note that the file content must come as last! */
     }
 
@@ -2738,7 +2702,7 @@ bool lib_qsb(int ci, const char *fieldname, bool *retbuf)
 -------------------------------------------------------------------------- */
 void lib_set_res_status(int ci, int status)
 {
-    conn[ci].status = status;
+    G_connections[ci].status = status;
 }
 
 
@@ -2751,18 +2715,18 @@ bool lib_res_header(int ci, const char *hdr, const char *val)
     int vlen = strlen(val);
     int all = hlen + vlen + 4;
 
-    if ( all > CUST_HDR_LEN - conn[ci].cust_headers_len )
+    if ( all > NPP_CUST_HDR_LEN - G_connections[ci].cust_headers_len )
     {
         WAR("Couldn't add %s to custom headers: no space", hdr);
         return FALSE;
     }
 
-    strcat(conn[ci].cust_headers, hdr);
-    strcat(conn[ci].cust_headers, ": ");
-    strcat(conn[ci].cust_headers, val);
-    strcat(conn[ci].cust_headers, "\r\n");
+    strcat(G_connections[ci].cust_headers, hdr);
+    strcat(G_connections[ci].cust_headers, ": ");
+    strcat(G_connections[ci].cust_headers, val);
+    strcat(G_connections[ci].cust_headers, "\r\n");
 
-    conn[ci].cust_headers_len += all;
+    G_connections[ci].cust_headers_len += all;
 
     return TRUE;
 }
@@ -2778,7 +2742,7 @@ bool lib_get_cookie(int ci, const char *key, char *value)
 
     sprintf(nkey, "%s=", key);
 
-    v = strstr(conn[ci].in_cookie, nkey);
+    v = strstr(G_connections[ci].in_cookie, nkey);
 
     if ( !v ) return FALSE;
 
@@ -2807,7 +2771,7 @@ bool lib_get_cookie(int ci, const char *key, char *value)
 -------------------------------------------------------------------------- */
 bool lib_set_cookie(int ci, const char *key, const char *value, int days)
 {
-    char v[CUST_HDR_LEN+1];
+    char v[NPP_CUST_HDR_LEN+1];
 
     if ( days )
         sprintf(v, "%s=%s; Expires=%s;", key, value, time_epoch2http(G_now + 3600*24*days));
@@ -2825,47 +2789,47 @@ bool lib_set_cookie(int ci, const char *key, const char *value, int days)
 void lib_set_res_content_type(int ci, const char *str)
 {
     if ( 0==strcmp(str, "text/html; charset=utf-8") )
-        conn[ci].ctype = RES_HTML;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(str, "text/plain") )
-        conn[ci].ctype = RES_TEXT;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
     else if ( 0==strcmp(str, "text/css") )
-        conn[ci].ctype = RES_CSS;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_CSS;
     else if ( 0==strcmp(str, "application/javascript") )
-        conn[ci].ctype = RES_JS;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_JS;
     else if ( 0==strcmp(str, "image/gif") )
-        conn[ci].ctype = RES_GIF;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_GIF;
     else if ( 0==strcmp(str, "image/jpeg") )
-        conn[ci].ctype = RES_JPG;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_JPG;
     else if ( 0==strcmp(str, "image/x-icon") )
-        conn[ci].ctype = RES_ICO;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(str, "image/png") )
-        conn[ci].ctype = RES_PNG;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_PNG;
     else if ( 0==strcmp(str, "image/bmp") )
-        conn[ci].ctype = RES_BMP;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_BMP;
     else if ( 0==strcmp(str, "image/svg+xml") )
-        conn[ci].ctype = RES_SVG;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(str, "application/json") )
-        conn[ci].ctype = RES_JSON;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
     else if ( 0==strcmp(str, "application/pdf") )
-        conn[ci].ctype = RES_PDF;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_PDF;
     else if ( 0==strcmp(str, "audio/mpeg") )
-        conn[ci].ctype = RES_AMPEG;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(str, "application/x-msdownload") )
-        conn[ci].ctype = RES_EXE;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(str, "application/zip") )
-        conn[ci].ctype = RES_ZIP;
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_ZIP;
     else    /* custom */
     {
         if ( 0==strncmp(str, "text/html", 9) )
-            conn[ci].ctype = RES_HTML;
+            G_connections[ci].ctype = NPP_CONTENT_TYPE_HTML;
         else if ( 0==strncmp(str, "text/plain", 10) )
-            conn[ci].ctype = RES_TEXT;
+            G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
         else if ( !str[0] )
-            conn[ci].ctype = CONTENT_TYPE_UNSET;
+            G_connections[ci].ctype = NPP_CONTENT_TYPE_UNSET;
         else
-            conn[ci].ctype = CONTENT_TYPE_USER;
+            G_connections[ci].ctype = NPP_CONTENT_TYPE_USER;
 
-        COPY(conn[ci].ctypestr, str, CONTENT_TYPE_LEN);
+        COPY(G_connections[ci].ctypestr, str, NPP_CONTENT_TYPE_LEN);
     }
 }
 
@@ -2878,7 +2842,7 @@ void lib_set_res_location(int ci, const char *str, ...)
     va_list plist;
 
     va_start(plist, str);
-    vsprintf(conn[ci].location, str, plist);
+    vsprintf(G_connections[ci].location, str, plist);
     va_end(plist);
 }
 
@@ -2891,14 +2855,14 @@ void lib_set_res_content_disposition(int ci, const char *str, ...)
     va_list plist;
 
     va_start(plist, str);
-    vsprintf(conn[ci].cdisp, str, plist);
+    vsprintf(G_connections[ci].cdisp, str, plist);
     va_end(plist);
 }
 
 
 /* --------------------------------------------------------------------------
    Send message description as plain, pipe-delimited text as follows:
-   <category>|<description>
+   <code>|<category>|<description>
 -------------------------------------------------------------------------- */
 void lib_send_msg_description(int ci, int code)
 {
@@ -2908,17 +2872,20 @@ void lib_send_msg_description(int ci, int code)
     strcpy(cat, get_msg_cat(code));
     strcpy(msg, npp_message(code));
 
-#ifdef MSG_FORMAT_JSON
+#ifdef NPP_SILGY_COMPATIBILITY
+    #ifdef MSG_FORMAT_JSON
+        OUT("{\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"}", code, cat, msg);
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
+    #else
+        OUT("%d|%s|%s", code, cat, msg);
+        G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
+    #endif
+#else   /* always JSON */
     OUT("{\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"}", code, cat, msg);
-    conn[ci].ctype = RES_JSON;
-#else
-    OUT("%d|%s|%s", code, cat, msg);
-    conn[ci].ctype = RES_TEXT;
-#endif
+    G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
+#endif  /* NPP_SILGY_COMPATIBILITY */
 
     RES_KEEP_CONTENT;
-
-//    DBG("lib_send_msg_description: [%s]", G_tmp);
 
     RES_DONT_CACHE;
 }
@@ -2927,19 +2894,19 @@ void lib_send_msg_description(int ci, int code)
 /* --------------------------------------------------------------------------
    Format counters
 -------------------------------------------------------------------------- */
-static void format_counters(counters_fmt_t *s, counters_t *n)
+static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
 {
-    amt(s->req, n->req);
-    amt(s->req_dsk, n->req_dsk);
-    amt(s->req_tab, n->req_tab);
-    amt(s->req_mob, n->req_mob);
-    amt(s->req_bot, n->req_bot);
-    amt(s->visits, n->visits);
-    amt(s->visits_dsk, n->visits_dsk);
-    amt(s->visits_tab, n->visits_tab);
-    amt(s->visits_mob, n->visits_mob);
-    amt(s->blocked, n->blocked);
-    amtd(s->average, n->average);
+    npp_lib_fmt_int(ci, s->req, n->req);
+    npp_lib_fmt_int(ci, s->req_dsk, n->req_dsk);
+    npp_lib_fmt_int(ci, s->req_tab, n->req_tab);
+    npp_lib_fmt_int(ci, s->req_mob, n->req_mob);
+    npp_lib_fmt_int(ci, s->req_bot, n->req_bot);
+    npp_lib_fmt_int(ci, s->visits, n->visits);
+    npp_lib_fmt_int(ci, s->visits_dsk, n->visits_dsk);
+    npp_lib_fmt_int(ci, s->visits_tab, n->visits_tab);
+    npp_lib_fmt_int(ci, s->visits_mob, n->visits_mob);
+    npp_lib_fmt_int(ci, s->blocked, n->blocked);
+    strcpy(s->average, AMT(n->average));
 }
 
 
@@ -2948,13 +2915,13 @@ static void format_counters(counters_fmt_t *s, counters_t *n)
 -------------------------------------------------------------------------- */
 static void users_info(int ci, char activity, int rows, admin_info_t ai[], int ai_cnt)
 {
-#ifdef DBMYSQL
-#ifdef USERS
-    char        sql[SQLBUF];
+#ifdef NPP_MYSQL
+#ifdef NPP_USERS
+    char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
-    char ai_sql[SQLBUF]="";
+    char ai_sql[NPP_SQLBUF]="";
 
     if ( ai && ai_cnt )
     {
@@ -2998,12 +2965,12 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 
     if ( days==366 || days==31 )
     {
-        sprintf(tmp, " WHERE status=%d AND visits>0 AND DATEDIFF('%s', last_login)<%d", USER_STATUS_ACTIVE, DT_NOW, days);
+        sprintf(tmp, " WHERE status=%d AND visits>0 AND DATEDIFF('%s', last_login)<%d", USER_STATUS_ACTIVE, DT_NOW_GMT, days);
         strcat(sql, tmp);
     }
     else if ( days==2 )   /* last 24 hours */
     {
-        sprintf(tmp, " WHERE status=%d AND visits>0 AND TIME_TO_SEC(TIMEDIFF('%s', last_login))<86401", USER_STATUS_ACTIVE, DT_NOW);
+        sprintf(tmp, " WHERE status=%d AND visits>0 AND TIME_TO_SEC(TIMEDIFF('%s', last_login))<86401", USER_STATUS_ACTIVE, DT_NOW_GMT);
         strcat(sql, tmp);
     }
 
@@ -3032,8 +2999,8 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     char formatted1[64];
     char formatted2[64];
 
-    amt(formatted1, records);
-    amt(formatted2, last_to_show);
+    npp_lib_fmt_int(ci, formatted1, records);
+    npp_lib_fmt_int(ci, formatted2, last_to_show);
     OUT("<p>%s %s users, showing %s of last seen</p>", formatted1, activity_desc, formatted2);
 
     OUT("<table cellpadding=4 border=1 style=\"margin-bottom:3em;\">");
@@ -3061,9 +3028,9 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     OUT("</tr>");
 
 //    int     id;                     /* row[0] */
-//    char    login[LOGIN_LEN+1];     /* row[1] */
-//    char    email[EMAIL_LEN+1];     /* row[2] */
-//    char    name[UNAME_LEN+1];      /* row[3] */
+//    char    login[NPP_LOGIN_LEN+1];     /* row[1] */
+//    char    email[NPP_EMAIL_LEN+1];     /* row[2] */
+//    char    name[NPP_UNAME_LEN+1];      /* row[3] */
 //    char    status;                 /* row[4] */
 //    char    created[32];            /* row[5] */
 //    char    last_login[32];         /* row[6] */
@@ -3075,7 +3042,7 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     int  i;
     char trstyle[16];
 
-    char ai_td[4096]="";
+    char ai_td[NPP_LIB_STR_BUF]="";
     double ai_double;
     char ai_fmt[64];
 
@@ -3083,8 +3050,8 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     {
         row = mysql_fetch_row(result);
 
-        amt(fmt0, atoi(row[0]));    /* id */
-        amt(fmt7, atoi(row[7]));    /* visits */
+        npp_lib_fmt_int(ci, fmt0, atoi(row[0]));    /* id */
+        npp_lib_fmt_int(ci, fmt7, atoi(row[7]));    /* visits */
 
         if ( atoi(row[4]) != USER_STATUS_ACTIVE )
             strcpy(trstyle, " class=g");
@@ -3103,20 +3070,20 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
                 if ( 0==strcmp(ai[j].type, "int") )
                 {
                     strcat(ai_td, "<td class=r>");
-                    amt(ai_fmt, atoi(row[j+8]));
+                    npp_lib_fmt_int(ci, ai_fmt, atoi(row[j+8]));
                     strcat(ai_td, ai_fmt);
                 }
                 else if ( 0==strcmp(ai[j].type, "long") )
                 {
                     strcat(ai_td, "<td class=r>");
-                    amt(ai_fmt, atol(row[j+8]));
+                    npp_lib_fmt_int(ci, ai_fmt, atol(row[j+8]));
                     strcat(ai_td, ai_fmt);
                 }
                 else if ( 0==strcmp(ai[j].type, "float") || 0==strcmp(ai[j].type, "double") )
                 {
                     strcat(ai_td, "<td class=r>");
                     sscanf(row[j+8], "%f", &ai_double);
-                    amtd(ai_fmt, ai_double);
+                    strcpy(ai_fmt, npp_lib_fmt_dec(ci, ai_double));
                     strcat(ai_td, ai_fmt);
                 }
                 else    /* string */
@@ -3141,8 +3108,8 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 
     mysql_free_result(result);
 
-#endif  /* USERS */
-#endif  /* DBMYSQL */
+#endif  /* NPP_USERS */
+#endif  /* NPP_MYSQL */
 }
 
 
@@ -3151,20 +3118,19 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 -------------------------------------------------------------------------- */
 void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer)
 {
-#ifdef USERS
-    if ( !LOGGED || uses[conn[ci].usi].auth_level < AUTH_LEVEL_ADMIN )
+#ifdef NPP_USERS
+    if ( !LOGGED || G_sessions[G_connections[ci].si].auth_level < AUTH_LEVEL_ADMIN )
     {
         ERR("npp_admin_info: user authorization level < %d", AUTH_LEVEL_ADMIN);
         RES_STATUS(404);
         return;
     }
-#endif  /* USERS */
+#endif  /* NPP_USERS */
 
     /* ------------------------------------------------------------------- */
 
     INF("admin_info: --------------------");
-//    INF("admin_info: 2019-11-08 10:56:19"
-    INF("admin_info: %s", DT_NOW);
+    INF("admin_info: %s", DT_NOW_GMT);
 
     if ( header_n_footer )
     {
@@ -3193,10 +3159,8 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 
     char formatted[64];
 
-    amt(formatted, G_days_up);
-    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, formatted, WEB_SERVER_VERSION);
-
-    OUT("<p>App version: %s</p>", APP_VERSION);
+    npp_lib_fmt_int(ci, formatted, G_days_up);
+    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, formatted, NPP_VERSION);
 
     /* ------------------------------------------------------------------- */
     /* Memory */
@@ -3208,19 +3172,19 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     char mem_used_mib[64];
     char mem_used_gib[64];
 
-    mem_used = lib_get_memory();
+    mem_used = npp_get_memory();
 
-    amt(mem_used_kib, mem_used);
-    amtd(mem_used_mib, (double)mem_used/1024);
-    amtd(mem_used_gib, (double)mem_used/1024/1024);
+    npp_lib_fmt_int(ci, mem_used_kib, mem_used);
+    strcpy(mem_used_mib, AMT((double)mem_used/1024));
+    strcpy(mem_used_gib, AMT((double)mem_used/1024/1024));
 
     OUT("<p>HWM: %s KiB (%s MiB / %s GiB)</p>", mem_used_kib, mem_used_mib, mem_used_gib);
 
     OUT("<h2>Counters</h2>");
 
-    OUT("<p>%d open connection(s), HWM: %d</p>", G_open_conn, G_open_conn_hwm);
+    OUT("<p>%d open connection(s), HWM: %d</p>", G_connections_cnt, G_connections_hwm);
 
-    OUT("<p>%d user session(s), HWM: %d</p>", G_sessions, G_sessions_hwm);
+    OUT("<p>%d session(s), HWM: %d</p>", G_sessions_cnt, G_sessions_hwm);
 
     /* ------------------------------------------------------------------- */
     /* Counters */
@@ -3229,10 +3193,10 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     counters_fmt_t y;       /* yesterday */
     counters_fmt_t b;       /* the day before */
 
-    format_counters(&t, &G_cnts_today);
-    format_counters(&y, &G_cnts_yesterday);
+    format_counters(ci, &t, &G_cnts_today);
+    format_counters(ci, &y, &G_cnts_yesterday);
     if ( REQ_DSK )
-        format_counters(&b, &G_cnts_day_before);
+        format_counters(ci, &b, &G_cnts_day_before);
 
     OUT("<table cellpadding=4 border=1>");
 
@@ -3268,7 +3232,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     {
         OUT("<h2>Blacklist</h2>");
 
-        amt(formatted, G_blacklist_cnt);
+        npp_lib_fmt_int(ci, formatted, G_blacklist_cnt);
         OUT("<p>%s blacklisted IPs</p>", formatted);
 //        OUT("<p><form action=\"add2blocked\" method=\"post\"><input type=\"text\" name=\"ip\"> <input type=\"submit\" onClick=\"wait();\" value=\"Block\"></form></p>");
     }
@@ -3280,7 +3244,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 
     /* ------------------------------------------------------------------- */
     /* Users */
-#ifdef USERS
+#ifdef NPP_USERS
     if ( users > 0 )
     {
         OUT("<h2>Users</h2>");
@@ -3289,7 +3253,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
         users_info(ci, AI_USERS_MAU, users, ai, ai_cnt);
         users_info(ci, AI_USERS_DAU, users, ai, ai_cnt);
     }
-#endif
+#endif  /* NPP_USERS */
 
     if ( header_n_footer )
         OUT_HTML_FOOTER;
@@ -3300,62 +3264,62 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 
 
 /* --------------------------------------------------------------------------
-   REST call -- reset request headers
+   HTTP call -- reset request headers
 -------------------------------------------------------------------------- */
-void lib_rest_headers_reset()
+void npp_call_http_headers_reset()
 {
-    M_rest_headers_cnt = 0;
+    M_call_http_headers_cnt = 0;
 }
 
 
 /* --------------------------------------------------------------------------
-   REST call -- set request header value
+   HTTP call -- set request header value
 -------------------------------------------------------------------------- */
-void lib_rest_header_set(const char *key, const char *value)
+void npp_call_http_header_set(const char *key, const char *value)
 {
     int i;
 
-    for ( i=0; i<M_rest_headers_cnt; ++i )
+    for ( i=0; i<M_call_http_headers_cnt; ++i )
     {
-        if ( M_rest_headers[i].key[0]==EOS )
+        if ( M_call_http_headers[i].key[0]==EOS )
         {
-            strncpy(M_rest_headers[M_rest_headers_cnt].key, key, REST_HEADER_KEY_LEN);
-            M_rest_headers[M_rest_headers_cnt].key[REST_HEADER_KEY_LEN] = EOS;
-            strncpy(M_rest_headers[i].value, value, REST_HEADER_VAL_LEN);
-            M_rest_headers[i].value[REST_HEADER_VAL_LEN] = EOS;
+            strncpy(M_call_http_headers[M_call_http_headers_cnt].key, key, CALL_HTTP_HEADER_KEY_LEN);
+            M_call_http_headers[M_call_http_headers_cnt].key[CALL_HTTP_HEADER_KEY_LEN] = EOS;
+            strncpy(M_call_http_headers[i].value, value, CALL_HTTP_HEADER_VAL_LEN);
+            M_call_http_headers[i].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
             return;
         }
-        else if ( 0==strcmp(M_rest_headers[i].key, key) )
+        else if ( 0==strcmp(M_call_http_headers[i].key, key) )
         {
-            strncpy(M_rest_headers[i].value, value, REST_HEADER_VAL_LEN);
-            M_rest_headers[i].value[REST_HEADER_VAL_LEN] = EOS;
+            strncpy(M_call_http_headers[i].value, value, CALL_HTTP_HEADER_VAL_LEN);
+            M_call_http_headers[i].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
             return;
         }
     }
 
-    if ( M_rest_headers_cnt >= REST_MAX_HEADERS ) return;
+    if ( M_call_http_headers_cnt >= CALL_HTTP_MAX_HEADERS ) return;
 
-    strncpy(M_rest_headers[M_rest_headers_cnt].key, key, REST_HEADER_KEY_LEN);
-    M_rest_headers[M_rest_headers_cnt].key[REST_HEADER_KEY_LEN] = EOS;
-    strncpy(M_rest_headers[M_rest_headers_cnt].value, value, REST_HEADER_VAL_LEN);
-    M_rest_headers[M_rest_headers_cnt].value[REST_HEADER_VAL_LEN] = EOS;
-    ++M_rest_headers_cnt;
+    strncpy(M_call_http_headers[M_call_http_headers_cnt].key, key, CALL_HTTP_HEADER_KEY_LEN);
+    M_call_http_headers[M_call_http_headers_cnt].key[CALL_HTTP_HEADER_KEY_LEN] = EOS;
+    strncpy(M_call_http_headers[M_call_http_headers_cnt].value, value, CALL_HTTP_HEADER_VAL_LEN);
+    M_call_http_headers[M_call_http_headers_cnt].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
+    ++M_call_http_headers_cnt;
 }
 
 
 /* --------------------------------------------------------------------------
-   REST call -- unset request header value
+   HTTP call -- unset request header value
 -------------------------------------------------------------------------- */
-void lib_rest_header_unset(const char *key)
+void npp_call_http_header_unset(const char *key)
 {
     int i;
 
-    for ( i=0; i<M_rest_headers_cnt; ++i )
+    for ( i=0; i<M_call_http_headers_cnt; ++i )
     {
-        if ( 0==strcmp(M_rest_headers[i].key, key) )
+        if ( 0==strcmp(M_call_http_headers[i].key, key) )
         {
-            M_rest_headers[i].key[0] = EOS;
-            M_rest_headers[i].value[0] = EOS;
+            M_call_http_headers[i].key[0] = EOS;
+            M_call_http_headers[i].value[0] = EOS;
             return;
         }
     }
@@ -3363,7 +3327,7 @@ void lib_rest_header_unset(const char *key)
 
 
 /* --------------------------------------------------------------------------
-   REST call / close connection
+   HTTP call / close connection
 -------------------------------------------------------------------------- */
 static void close_conn(int sock)
 {
@@ -3376,9 +3340,9 @@ static void close_conn(int sock)
 
 
 /* --------------------------------------------------------------------------
-   REST call / parse URL
+   HTTP call / parse URL
 -------------------------------------------------------------------------- */
-static bool rest_parse_url(const char *url, char *host, char *port, char *uri, bool *secure)
+static bool call_http_parse_url(const char *url, char *host, char *port, char *uri, bool *secure)
 {
     int len = strlen(url);
 
@@ -3402,7 +3366,7 @@ static bool rest_parse_url(const char *url, char *host, char *port, char *uri, b
     }
     else if ( len > 7 && url[0]=='h' && url[1]=='t' && url[2]=='t' && url[3]=='p' && url[4]=='s' && url[5]==':' )
     {
-#ifdef HTTPS
+#ifdef NPP_HTTPS
         *secure = TRUE;
 
         url += 8;
@@ -3421,12 +3385,10 @@ static bool rest_parse_url(const char *url, char *host, char *port, char *uri, b
 #else
         ERR("HTTPS is not enabled");
         return FALSE;
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
     }
 
-#ifdef DUMP
-    DBG("url [%s]", url);
-#endif
+    DDBG("url [%s]", url);
 
     char *colon, *slash;
 
@@ -3463,36 +3425,38 @@ static bool rest_parse_url(const char *url, char *host, char *port, char *uri, b
             strcpy(host, url);
             uri[0] = EOS;
         }
-#ifdef HTTPS
+#ifdef NPP_HTTPS
         if ( *secure )
             strcpy(port, "443");
         else
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
         strcpy(port, "80");
     }
-#ifdef DUMP
+
+#ifdef NPP_DEBUG
     DBG("secure=%d", *secure);
     DBG("host [%s]", host);
     DBG("port [%s]", port);
     DBG(" uri [%s]", uri);
-#endif
+#endif  /* NPP_DEBUG */
+
     return TRUE;
 }
 
 
 /* --------------------------------------------------------------------------
-   REST call / return true if header is already present
+   HTTP call / return true if header is already present
 -------------------------------------------------------------------------- */
-static bool rest_header_present(const char *key)
+static bool call_http_header_present(const char *key)
 {
     int i;
-    char uheader[MAX_LABEL_LEN+1];
+    char uheader[NPP_MAX_LABEL_LEN+1];
 
-    strcpy(uheader, upper(key));
+    strcpy(uheader, npp_upper(key));
 
-    for ( i=0; i<M_rest_headers_cnt; ++i )
+    for ( i=0; i<M_call_http_headers_cnt; ++i )
     {
-        if ( 0==strcmp(upper(M_rest_headers[i].key), uheader) )
+        if ( 0==strcmp(npp_upper(M_call_http_headers[i].key), uheader) )
         {
             return TRUE;
         }
@@ -3503,18 +3467,18 @@ static bool rest_header_present(const char *key)
 
 
 /* --------------------------------------------------------------------------
-   REST call / set proxy
+   HTTP call / set proxy
 -------------------------------------------------------------------------- */
-void lib_rest_proxy(bool value)
+void call_http_set_proxy(bool value)
 {
-    M_rest_proxy = value;
+    M_call_http_proxy = value;
 }
 
 
 /* --------------------------------------------------------------------------
-   REST call / render request
+   HTTP call / render request
 -------------------------------------------------------------------------- */
-static int rest_render_req(char *buffer, const char *method, const char *host, const char *uri, const void *req, bool json, bool keep)
+static int call_http_render_req(char *buffer, const char *method, const char *host, const char *uri, const void *req, bool json, bool keep)
 {
     char *p=buffer;     /* stpcpy is faster than strcat */
 
@@ -3522,7 +3486,7 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
 
     p = stpcpy(p, method);
 
-    if ( M_rest_proxy )
+    if ( M_call_http_proxy )
         p = stpcpy(p, " ");
     else
         p = stpcpy(p, " /");
@@ -3533,20 +3497,20 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
     p = stpcpy(p, host);
     p = stpcpy(p, "\r\n");
 
-    char jtmp[JSON_BUFSIZE];
+    char jtmp[NPP_JSON_BUFSIZE];
 
     if ( 0 != strcmp(method, "GET") && req )
     {
         if ( json )     /* JSON -> string conversion */
         {
-            if ( !rest_header_present("Content-Type") )
+            if ( !call_http_header_present("Content-Type") )
                 p = stpcpy(p, "Content-Type: application/json; charset=utf-8\r\n");
 
             strcpy(jtmp, lib_json_to_string((JSON*)req));
         }
         else
         {
-            if ( !rest_header_present("Content-Type") )
+            if ( !call_http_header_present("Content-Type") )
                 p = stpcpy(p, "Content-Type: application/x-www-form-urlencoded; charset=utf-8\r\n");
         }
         char tmp[64];
@@ -3554,18 +3518,18 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
         p = stpcpy(p, tmp);
     }
 
-    if ( json && !rest_header_present("Accept") )
+    if ( json && !call_http_header_present("Accept") )
         p = stpcpy(p, "Accept: application/json\r\n");
 
     int i;
 
-    for ( i=0; i<M_rest_headers_cnt; ++i )
+    for ( i=0; i<M_call_http_headers_cnt; ++i )
     {
-        if ( M_rest_headers[i].key[0] )
+        if ( M_call_http_headers[i].key[0] )
         {
-            p = stpcpy(p, M_rest_headers[i].key);
+            p = stpcpy(p, M_call_http_headers[i].key);
             p = stpcpy(p, ": ");
-            p = stpcpy(p, M_rest_headers[i].value);
+            p = stpcpy(p, M_call_http_headers[i].value);
             p = stpcpy(p, "\r\n");
         }
     }
@@ -3575,14 +3539,14 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
     else
         p = stpcpy(p, "Connection: close\r\n");
 
-#ifndef NO_IDENTITY
-    if ( !rest_header_present("User-Agent") )
+#ifndef NPP_NO_IDENTITY
+    if ( !call_http_header_present("User-Agent") )
 #ifdef NPP_AS_BOT
         p = stpcpy(p, "User-Agent: Node++ Bot\r\n");
 #else
         p = stpcpy(p, "User-Agent: Node++\r\n");
 #endif
-#endif  /* NO_IDENTITY */
+#endif  /* NPP_NO_IDENTITY */
 
     /* end of headers */
 
@@ -3600,1031 +3564,32 @@ static int rest_render_req(char *buffer, const char *method, const char *host, c
 
 
 /* --------------------------------------------------------------------------
-   REST call / connect
--------------------------------------------------------------------------- */
-static bool rest_connect(const char *host, const char *port, struct timespec *start, int *timeout_remain, bool secure)
-{
-static struct {
-    char host[256];
-    char port[16];
-    struct addrinfo addr;
-    struct sockaddr ai_addr;
-} addresses[REST_ADDRESSES_CACHE_SIZE];
-static int addresses_cnt=0, addresses_last=0;
-    int  i;
-    bool addr_cached=FALSE;
-
-    DBG("rest_connect [%s:%s]", host, port);
-
-    struct addrinfo *result=NULL;
-
-#ifndef REST_CALL_DONT_CACHE_ADDRINFO
-
-    DBG("Trying cache...");
-
-#ifdef DUMP
-    DBG("addresses_cnt=%d", addresses_cnt);
-#endif
-
-    for ( i=0; i<addresses_cnt; ++i )
-    {
-        if ( 0==strcmp(addresses[i].host, host) && 0==strcmp(addresses[i].port, port) )
-        {
-            DBG("Host [%s:%s] found in cache (%d)", host, port, i);
-            addr_cached = TRUE;
-            result = &addresses[i].addr;
-            break;
-        }
-    }
-
-#endif  /* REST_CALL_DONT_CACHE_ADDRINFO */
-
-    if ( !addr_cached )
-    {
-#ifndef REST_CALL_DONT_CACHE_ADDRINFO
-        DBG("Host [%s:%s] not found in cache", host, port);
-#endif
-        DBG("getaddrinfo...");   /* TODO: change to asynchronous, i.e. getaddrinfo_a */
-
-        struct addrinfo hints;
-        int s;
-
-        memset(&hints, 0, sizeof(struct addrinfo));
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
-
-        if ( (s=getaddrinfo(host, port, &hints, &result)) != 0 )
-        {
-            ERR("getaddrinfo: %s", gai_strerror(s));
-            return FALSE;
-        }
-
-#ifdef DUMP
-        DBG("elapsed after getaddrinfo: %.3lf ms", lib_elapsed(start));
-#endif
-        *timeout_remain = G_RESTTimeout - lib_elapsed(start);
-        if ( *timeout_remain < 1 ) *timeout_remain = 1;
-
-        /* getaddrinfo() returns a list of address structures.
-           Try each address until we successfully connect */
-    }
-
-    DBG("Trying to connect...");
-
-    struct addrinfo *rp;
-
-    for ( rp=result; rp!=NULL; rp=rp->ai_next )
-    {
-#ifdef DUMP
-        DBG("Trying socket...");
-#endif
-        M_rest_sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (M_rest_sock == -1) continue;
-#ifdef DUMP
-        DBG("socket succeeded");
-        DBG("elapsed after socket: %.3lf ms", lib_elapsed(start));
-#endif
-        *timeout_remain = G_RESTTimeout - lib_elapsed(start);
-        if ( *timeout_remain < 1 ) *timeout_remain = 1;
-
-        /* Windows timeout option is a s**t -- go for non-blocking I/O */
-
-        lib_setnonblocking(M_rest_sock);
-
-        int timeout_tmp = G_RESTTimeout/5;
-
-        /* plain socket connection --------------------------------------- */
-
-        if ( connect(M_rest_sock, rp->ai_addr, rp->ai_addrlen) != -1 )
-        {
-            break;  /* immediate success */
-        }
-        else if ( lib_finish_with_timeout(M_rest_sock, CONNECT, WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
-        {
-            break;  /* success within timeout */
-        }
-
-        close_conn(M_rest_sock);   /* no cigar */
-    }
-
-    if ( rp == NULL )   /* no address succeeded */
-    {
-        ERR("Could not connect");
-        if ( result && !addr_cached ) freeaddrinfo(result);
-        return FALSE;
-    }
-
-    /* -------------------------------------------------------------------------- */
-
-    *timeout_remain = G_RESTTimeout - lib_elapsed(start);
-    if ( *timeout_remain < 1 ) *timeout_remain = 1;
-
-    /* -------------------------------------------------------------------------- */
-
-    if ( !addr_cached )   /* add to cache */
-    {
-#ifndef REST_CALL_DONT_CACHE_ADDRINFO
-        strcpy(addresses[addresses_last].host, host);
-        strcpy(addresses[addresses_last].port, port);
-        memcpy(&addresses[addresses_last].addr, rp, sizeof(struct addrinfo));
-        /* addrinfo contains pointers -- mind the shallow copy! */
-        memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr));
-        addresses[addresses_last].addr.ai_addr = &addresses[addresses_last].ai_addr;
-        addresses[addresses_last].addr.ai_next = NULL;
-
-        /* get the remote address */
-        char remote_addr[INET_ADDRSTRLEN]="";
-        struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
-#ifdef _WIN32   /* Windows */
-        strcpy(remote_addr, inet_ntoa(remote_addr_struct->sin_addr));
-#else
-        inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
-#endif
-        INF("Connected to %s", remote_addr);
-
-        DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);
-
-        if ( addresses_cnt < REST_ADDRESSES_CACHE_SIZE-1 )   /* first round */
-        {
-            ++addresses_cnt;    /* cache usage */
-            ++addresses_last;   /* next to use index */
-        }
-        else    /* cache full -- reuse it from start */
-        {
-            if ( addresses_last < REST_ADDRESSES_CACHE_SIZE-1 )
-                ++addresses_last;
-            else
-                addresses_last = 0;
-        }
-
-#endif  /* REST_CALL_DONT_CACHE_ADDRINFO */
-
-        freeaddrinfo(result);
-    }
-
-    DBG("Connected");
-
-#ifdef DUMP
-    DBG("elapsed after plain connect: %.3lf ms", lib_elapsed(start));
-#endif
-
-    /* -------------------------------------------------------------------------- */
-
-#ifdef HTTPS
-
-    if ( secure )
-    {
-        DBG("Trying SSL_new...");
-
-        M_rest_ssl = SSL_new(M_ssl_ctx);
-
-        if ( !M_rest_ssl )
-        {
-            ERR("SSL_new failed");
-            close_conn(M_rest_sock);
-            return FALSE;
-        }
-
-        DBG("Trying SSL_set_fd...");
-
-        int ret = SSL_set_fd(M_rest_ssl, M_rest_sock);
-
-        if ( ret <= 0 )
-        {
-            ERR("SSL_set_fd failed, ret = %d", ret);
-            close_conn(M_rest_sock);
-            SSL_free(M_rest_ssl);
-            M_rest_ssl = NULL;
-            return FALSE;
-        }
-
-        DBG("Trying SSL_set_tlsext_host_name...");
-
-        ret = SSL_set_tlsext_host_name(M_rest_ssl, host);
-
-        if ( ret <= 0 )
-        {
-            ERR("SSL_set_tlsext_host_name failed, ret = %d", ret);
-            close_conn(M_rest_sock);
-            SSL_free(M_rest_ssl);
-            M_rest_ssl = NULL;
-            return FALSE;
-        }
-
-        DBG("Trying SSL_connect...");
-
-        ret = SSL_connect(M_rest_ssl);
-#ifdef DUMP
-        DBG("ret = %d", ret);    /* 1 = success */
-#endif
-        if ( ret == 1 )
-        {
-            DBG("SSL_connect immediate success");
-        }
-        else if ( lib_finish_with_timeout(M_rest_sock, CONNECT, CONNECT, NULL, ret, timeout_remain, M_rest_ssl, 0) > 0 )
-        {
-            DBG("SSL_connect successful");
-        }
-        else
-        {
-            ERR("SSL_connect failed");
-            close_conn(M_rest_sock);
-            SSL_free(M_rest_ssl);
-            M_rest_ssl = NULL;
-            return FALSE;
-        }
-
-#ifdef DUMP
-        DBG("elapsed after SSL connect: %.3lf ms", lib_elapsed(start));
-#endif
-//        M_ssl_session = SSL_get_session(M_rest_ssl);
-
-        X509 *server_cert;
-        server_cert = SSL_get_peer_certificate(M_rest_ssl);
-        if ( server_cert )
-        {
-            DBG("Got server certificate");
-			X509_NAME *certname;
-			certname = X509_NAME_new();
-			certname = X509_get_subject_name(server_cert);
-			DBG("server_cert [%s]", X509_NAME_oneline(certname, NULL, 0));
-            X509_free(server_cert);
-        }
-        else
-            WAR("Couldn't get server certificate");
-    }
-#endif  /* HTTPS */
-
-    return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
-   REST call / disconnect
--------------------------------------------------------------------------- */
-static void rest_disconnect(int ssl_ret)
-{
-    DBG("rest_disconnect");
-
-#ifdef HTTPS
-    if ( M_rest_ssl )
-    {
-        bool shutdown=TRUE;
-
-        if ( ssl_ret < 0 )
-        {
-            int ssl_err = SSL_get_error(M_rest_ssl, ssl_ret);
-
-            if ( ssl_err==SSL_ERROR_SYSCALL || ssl_err==SSL_ERROR_SSL )
-                shutdown = FALSE;
-        }
-
-        if ( shutdown )
-        {
-            int timeout_tmp = G_RESTTimeout/5;
-
-            int ret = SSL_shutdown(M_rest_ssl);
-
-            if ( ret == 1 )
-            {
-                DBG("SSL_shutdown immediate success");
-            }
-            else if ( ret == 0 )
-            {
-                DBG("First SSL_shutdown looks fine, trying to complete the bidirectional shutdown handshake...");
-
-                ret = SSL_shutdown(M_rest_ssl);
-
-                if ( ret == 1 )
-                    DBG("SSL_shutdown success");
-                else if ( lib_finish_with_timeout(M_rest_sock, SHUTDOWN, SHUTDOWN, NULL, ret, &timeout_tmp, M_rest_ssl, 0) > 0 )
-                    DBG("SSL_shutdown successful");
-                else
-                    ERR("SSL_shutdown failed");
-            }
-            else if ( lib_finish_with_timeout(M_rest_sock, SHUTDOWN, SHUTDOWN, NULL, ret, &timeout_tmp, M_rest_ssl, 0) > 0 )
-            {
-                DBG("SSL_shutdown successful");
-            }
-            else
-            {
-                ERR("SSL_shutdown failed");
-            }
-        }
-
-        SSL_free(M_rest_ssl);
-
-/*        if ( M_ssl_session )
-            SSL_SESSION_free(M_ssl_session); */
-
-        M_rest_ssl = NULL;
-    }
-#endif  /* HTTPS */
-
-    close_conn(M_rest_sock);
-}
-
-
-/* --------------------------------------------------------------------------
-   REST call / convert chunked to normal content
-   Return number of bytes written to res_content
--------------------------------------------------------------------------- */
-static int chunked2content(char *res_content, const char *buffer, int src_len, int res_len)
-{
-    char *res=res_content;
-    char chunk_size_str[8];
-    int  chunk_size=src_len;
-    const char *p=buffer;
-    int  was_read=0, written=0;
-
-    while ( chunk_size > 0 )    /* chunk by chunk */
-    {
-        /* get the chunk size */
-
-        int i=0;
-
-        while ( *p!='\r' && *p!='\n' && i<6 && i<src_len )
-            chunk_size_str[i++] = *p++;
-
-        chunk_size_str[i] = EOS;
-#ifdef DUMP
-        DBG("chunk_size_str [%s]", chunk_size_str);
-#endif
-        sscanf(chunk_size_str, "%x", &chunk_size);
-        DBG("chunk_size = %d", chunk_size);
-
-        was_read += i;
-
-        /* --------------------------------------------------------------- */
-
-        if ( chunk_size == 0 )    /* last one */
-        {
-            DBG("Last chunk");
-            break;
-        }
-        else if ( chunk_size < 0 )
-        {
-            WAR("chunk_size < 0");
-            break;
-        }
-        else if ( chunk_size > res_len-written )
-        {
-            WAR("chunk_size > res_len-written");
-            break;
-        }
-
-        /* --------------------------------------------------------------- */
-        /* skip "\r\n" */
-
-//        p += 2;
-#ifdef DUMP
-        DBG("skip %d (should be 13)", *p);
-#endif
-        ++p;    /* skip '\r' */
-#ifdef DUMP
-        DBG("skip %d (should be 10)", *p);
-#endif
-        ++p;    /* skip '\n' */
-
-        was_read += 2;
-
-        /* once again may be needed */
-
-        if ( *p == '\r' )
-        {
-#ifdef DUMP
-            DBG("skip 13");
-#endif
-            ++p;    /* skip '\r' */
-            ++was_read;
-        }
-
-        if ( *p == '\n' )
-        {
-#ifdef DUMP
-            DBG("skip 10");
-#endif
-            ++p;    /* skip '\n' */
-            ++was_read;
-        }
-
-#ifdef DUMP
-        DBG("was_read = %d", was_read);
-#endif
-
-        /* --------------------------------------------------------------- */
-
-        if ( was_read >= src_len || chunk_size > src_len-was_read )
-        {
-            WAR("Unexpected end of buffer");
-            break;
-        }
-
-        /* --------------------------------------------------------------- */
-        /* copy chunk to destination */
-
-        /* stpncpy() returns a pointer to the terminating null byte in dest, or,
-           if dest is not null-terminated, dest+n. */
-
-        DBG("Appending %d bytes to the content buffer", chunk_size);
-
-#ifdef DUMP
-        DBG("p starts with '%c'", *p);
-#endif
-        res = stpncpy(res, p, chunk_size);
-        written += chunk_size;
-
-#ifdef DUMP
-        DBG("written = %d", written);
-#endif
-
-        p += chunk_size;
-        was_read += chunk_size;
-
-#ifdef DUMP
-//        DBG("p starts with '%c'", *p);
-#endif
-        /* --------------------------------------------------------------- */
-
-        while ( *p != '\n' && was_read<src_len-1 )
-        {
-#ifdef DUMP
-            DBG("skip %d (expected 13)", *p);
-#endif
-            ++p;
-            ++was_read;
-        }
-
-#ifdef DUMP
-        DBG("skip %d (should be 10)", *p);
-#endif
-        ++p;    /* skip '\n' */
-
-        ++was_read;
-    }
-
-    return written;
-}
-
-
-/* --------------------------------------------------------------------------
-   REST call / get response content length
--------------------------------------------------------------------------- */
-static int rest_res_content_length(const char *u_res_header, int len)
-{
-    const char *p;
-
-    if ( (p=strstr(u_res_header, "\nCONTENT-LENGTH: ")) == NULL )
-        return -1;
-
-    if ( len < (p-u_res_header) + 18 ) return -1;
-
-    char result_str[8];
-    char i=0;
-
-    p += 17;
-
-    while ( isdigit(*p) && i<7 )
-    {
-        result_str[i++] = *p++;
-    }
-
-    result_str[i] = EOS;
-
-#ifdef DUMP
-    DBG("result_str [%s]", result_str);
-#endif
-
-    return atoi(result_str);
-}
-
-
-
-#define TRANSFER_MODE_NORMAL     '1'
-#define TRANSFER_MODE_NO_CONTENT '2'
-#define TRANSFER_MODE_CHUNKED    '3'
-#define TRANSFER_MODE_ERROR      '4'
-
-
-/* --------------------------------------------------------------------------
-   REST call / parse response
--------------------------------------------------------------------------- */
-bool lib_rest_res_parse(char *res_header, int bytes)
-{
-    /* HTTP/1.1 200 OK <== 15 chars */
-
-    char status[4];
-
-    if ( bytes < 14 || 0 != strncmp(res_header, "HTTP/1.", 7) )
-    {
-        return FALSE;
-    }
-
-    res_header[bytes] = EOS;
-#ifdef DUMP
-    DBG("");
-    DBG("Got %d bytes of response [%s]", bytes, res_header);
-#else
-    DBG("Got %d bytes of response", bytes);
-#endif  /* DUMP */
-
-    /* Status */
-
-    strncpy(status, res_header+9, 3);
-    status[3] = EOS;
-    G_rest_status = atoi(status);
-    INF("REST response status: %s", status);
-
-    char u_res_header[REST_RES_HEADER_LEN+1];   /* uppercase */
-    strcpy(u_res_header, upper(res_header));
-
-    /* Content-Type */
-
-    const char *p;
-
-    if ( (p=strstr(u_res_header, "\nCONTENT-TYPE: ")) == NULL )
-    {
-        G_rest_content_type[0] = EOS;
-    }
-    else if ( bytes < (p-res_header) + 16 )
-    {
-        G_rest_content_type[0] = EOS;
-    }
-    else
-    {
-        char i=0;
-
-        p += 15;
-
-        while ( *p != '\r' && *p != '\n' && *p && i<255 )
-        {
-            G_rest_content_type[i++] = *p++;
-        }
-
-        G_rest_content_type[i] = EOS;
-        DBG("REST content type [%s]", G_rest_content_type);
-    }
-
-    /* content length */
-
-    G_rest_res_len = rest_res_content_length(u_res_header, bytes);
-
-    if ( G_rest_res_len > JSON_BUFSIZE-1 )
-    {
-        WAR("Response content is too big (%d)", G_rest_res_len);
-        return FALSE;
-    }
-
-    if ( G_rest_res_len > 0 )     /* Content-Length present in response */
-    {
-        DBG("TRANSFER_MODE_NORMAL");
-        M_rest_mode = TRANSFER_MODE_NORMAL;
-    }
-    else if ( G_rest_res_len == 0 )
-    {
-        DBG("TRANSFER_MODE_NO_CONTENT");
-        M_rest_mode = TRANSFER_MODE_NO_CONTENT;
-    }
-    else    /* content length == -1 */
-    {
-        if ( strstr(u_res_header, "\nTRANSFER-ENCODING: CHUNKED") != NULL )
-        {
-            DBG("TRANSFER_MODE_CHUNKED");
-            M_rest_mode = TRANSFER_MODE_CHUNKED;
-        }
-        else
-        {
-            WAR("TRANSFER_MODE_ERROR");
-            M_rest_mode = TRANSFER_MODE_ERROR;
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
-   REST call
--------------------------------------------------------------------------- */
-bool lib_rest_req(const void *req, void *res, const char *method, const char *url, bool json, bool keep)
-{
-    char     host[256];
-    char     port[8];
-    bool     secure=FALSE;
-static char  prev_host[256];
-static char  prev_port[8];
-static bool  prev_secure=FALSE;
-    char     uri[MAX_URI_LEN+1];
-static bool  connected=FALSE;
-static time_t connected_time=0;
-    char     res_header[REST_RES_HEADER_LEN+1];
-static char  buffer[JSON_BUFSIZE];
-    int      bytes;
-    char     *body;
-    unsigned content_read=0, buffer_read=0;
-    unsigned len, i, j;
-    int      timeout_remain = G_RESTTimeout;
-#ifdef HTTPS
-    int      ssl_err;
-#endif  /* HTTPS */
-
-    DBG("lib_rest_req [%s] [%s]", method, url);
-
-    /* -------------------------------------------------------------------------- */
-
-    if ( !rest_parse_url(url, host, port, uri, &secure) ) return FALSE;
-
-    if ( M_rest_proxy )
-        strcpy(uri, url);
-
-    len = rest_render_req(buffer, method, host, uri, req, json, keep);
-
-#ifdef DUMP
-    DBG("------------------------------------------------------------");
-    DBG("lib_rest_req buffer [%s]", buffer);
-    DBG("------------------------------------------------------------");
-#endif  /* DUMP */
-
-    struct timespec start;
-#ifdef _WIN32
-    clock_gettime_win(&start);
-#else
-    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
-#endif
-
-    /* -------------------------------------------------------------------------- */
-
-    if ( connected
-            && (secure!=prev_secure || 0 != strcmp(host, prev_host) || 0 != strcmp(port, prev_port) || G_now-connected_time > CONN_TIMEOUT) )
-    {
-        /* reconnect anyway */
-        DBG("different host, port or old connection, reconnecting");
-        rest_disconnect(0);
-        connected = FALSE;
-    }
-
-    bool was_connected = connected;
-
-    /* connect if necessary ----------------------------------------------------- */
-
-    if ( !connected && !rest_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-
-    /* -------------------------------------------------------------------------- */
-
-    DBG("Sending request...");
-
-    bool after_reconnect=0;
-
-    while ( timeout_remain > 1 )
-    {
-#ifdef HTTPS
-        if ( secure )
-        {
-/*            char first_char[2];
-            first_char[0] = buffer[0];
-            first_char[1] = EOS;
-
-            bytes = SSL_write(M_rest_ssl, first_char, 1);
-
-            if ( bytes > 0 )
-                bytes = SSL_write(M_rest_ssl, buffer+1, len-1) + bytes; */
-
-            bytes = SSL_write(M_rest_ssl, buffer, len);
-        }
-        else
-#endif  /* HTTPS */
-            bytes = send(M_rest_sock, buffer, len, 0);    /* try in one go */
-
-        if ( !secure && bytes <= 0 )
-        {
-            if ( !was_connected || after_reconnect )
-            {
-                ERR("Send (after fresh connect) failed");
-                rest_disconnect(0);
-                connected = FALSE;
-                return FALSE;
-            }
-
-            DBG("Disconnected? Trying to reconnect...");
-            rest_disconnect(0);
-            if ( !rest_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-            after_reconnect = 1;
-        }
-        else if ( secure && bytes == -1 )
-        {
-            bytes = lib_finish_with_timeout(M_rest_sock, WRITE, WRITE, buffer, len, &timeout_remain, secure?M_rest_ssl:NULL, 0);
-
-            if ( bytes == -1 )
-            {
-                if ( !was_connected || after_reconnect )
-                {
-                    ERR("Send (after fresh connect) failed");
-                    rest_disconnect(-1);
-                    connected = FALSE;
-                    return FALSE;
-                }
-
-                DBG("Disconnected? Trying to reconnect...");
-                rest_disconnect(-1);
-                if ( !rest_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-                after_reconnect = 1;
-            }
-        }
-        else    /* bytes > 0 ==> OK */
-        {
-            break;
-        }
-    }
-
-#ifdef DUMP
-    DBG("Sent %d bytes", bytes);
-#endif
-
-    if ( bytes < 15 )
-    {
-        ERR("send failed, errno = %d (%s)", errno, strerror(errno));
-        rest_disconnect(bytes);
-        connected = FALSE;
-        return FALSE;
-    }
-
-#ifdef DUMP
-    DBG("elapsed after request: %.3lf ms", lib_elapsed(&start));
-#endif
-
-    /* -------------------------------------------------------------------------- */
-
-    DBG("Reading response...");
-
-#ifdef HTTPS
-    if ( secure )
-        bytes = SSL_read(M_rest_ssl, res_header, REST_RES_HEADER_LEN);
-    else
-#endif  /* HTTPS */
-        bytes = recv(M_rest_sock, res_header, REST_RES_HEADER_LEN, 0);
-
-    if ( bytes == -1 )
-    {
-        bytes = lib_finish_with_timeout(M_rest_sock, READ, READ, res_header, REST_RES_HEADER_LEN, &timeout_remain, secure?M_rest_ssl:NULL, 0);
-
-        if ( bytes <= 0 )
-        {
-            ERR("recv failed, errno = %d (%s)", errno, strerror(errno));
-            rest_disconnect(bytes);
-            connected = FALSE;
-            return FALSE;
-        }
-    }
-
-    DBG("Read %d bytes", bytes);
-
-#ifdef DUMP
-    DBG("elapsed after first response read: %.3lf ms", lib_elapsed(&start));
-#endif
-
-    /* -------------------------------------------------------------------------- */
-    /* parse the response                                                         */
-    /* we assume that at least response header arrived at once                    */
-
-    if ( !lib_rest_res_parse(res_header, bytes) )
-    {
-        ERR("No or invalid response");
-#ifdef DUMP
-        if ( bytes >= 0 )
-        {
-            res_header[bytes] = EOS;
-            DBG("Got %d bytes of response [%s]", bytes, res_header);
-        }
-#endif
-        G_rest_status = 500;
-        rest_disconnect(bytes);
-        connected = FALSE;
-        return FALSE;
-    }
-
-    /* ------------------------------------------------------------------- */
-    /* at this point we've got something that seems to be a HTTP header,
-       possibly with content */
-
-static char res_content[JSON_BUFSIZE];
-
-    /* ------------------------------------------------------------------- */
-    /* some content may have already been read                             */
-
-    body = strstr(res_header, "\r\n\r\n");
-
-    if ( body )
-    {
-        body += 4;
-
-        int was_read = bytes - (body-res_header);
-
-        if ( was_read > 0 )
-        {
-            if ( M_rest_mode == TRANSFER_MODE_NORMAL )   /* not chunked goes directly to res_content */
-            {
-                content_read = was_read;
-                strncpy(res_content, body, content_read);
-            }
-            else if ( M_rest_mode == TRANSFER_MODE_CHUNKED )   /* chunked goes to buffer before res_content */
-            {
-                buffer_read = was_read;
-                strncpy(buffer, body, buffer_read);
-            }
-        }
-    }
-
-    /* ------------------------------------------------------------------- */
-    /* read content                                                        */
-
-    if ( M_rest_mode == TRANSFER_MODE_NORMAL )
-    {
-        while ( content_read < G_rest_res_len && timeout_remain > 1 )   /* read whatever we can within timeout */
-        {
-#ifdef DUMP
-            DBG("trying again (content-length)");
-#endif
-
-#ifdef HTTPS
-            if ( secure )
-                bytes = SSL_read(M_rest_ssl, res_content+content_read, JSON_BUFSIZE-content_read-1);
-            else
-#endif  /* HTTPS */
-                bytes = recv(M_rest_sock, res_content+content_read, JSON_BUFSIZE-content_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_rest_sock, READ, READ, res_content+content_read, JSON_BUFSIZE-content_read-1, &timeout_remain, secure?M_rest_ssl:NULL, 0);
-
-            if ( bytes > 0 )
-                content_read += bytes;
-        }
-
-        if ( bytes < 1 )
-        {
-            DBG("timeouted?");
-            rest_disconnect(bytes);
-            connected = FALSE;
-            return FALSE;
-        }
-    }
-    else if ( M_rest_mode == TRANSFER_MODE_CHUNKED )
-    {
-        /* for single-threaded process, I can't see better option than to read everything
-           into a buffer and then parse and copy chunks into final res_content */
-
-        /* there's no guarantee that every read = one chunk, so just read whatever comes in, until it does */
-
-        while ( bytes > 0 && timeout_remain > 1 )   /* read whatever we can within timeout */
-        {
-#ifdef DUMP
-            DBG("Has the last chunk been read?");
-            DBG("buffer_read = %d", buffer_read);
-            if ( buffer_read > 5 )
-            {
-                int ii;
-                for ( ii=buffer_read-6; ii<buffer_read; ++ii )
-                {
-                    if ( buffer[ii] == '\r' )
-                        DBG("buffer[%d] '\\r'", ii);
-                    else if ( buffer[ii] == '\n' )
-                        DBG("buffer[%d] '\\n'", ii);
-                    else
-                        DBG("buffer[%d] '%c'", ii, buffer[ii]);
-                }
-            }
-#endif
-            if ( buffer_read>5 && buffer[buffer_read-6]=='\n' && buffer[buffer_read-5]=='0' && buffer[buffer_read-4]=='\r' && buffer[buffer_read-3]=='\n' && buffer[buffer_read-2]=='\r' && buffer[buffer_read-1]=='\n' )
-            {
-                DBG("Last chunk detected (with \\r\\n\\r\\n)");
-                break;
-            }
-            else if ( buffer_read>3 && buffer[buffer_read-4]=='\n' && buffer[buffer_read-3]=='0' && buffer[buffer_read-2]=='\r' && buffer[buffer_read-1]=='\n' )
-            {
-                DBG("Last chunk detected (with \\r\\n)");
-                break;
-            }
-
-#ifdef DUMP
-            DBG("trying again (chunked)");
-#endif
-
-#ifdef HTTPS
-            if ( secure )
-                bytes = SSL_read(M_rest_ssl, buffer+buffer_read, JSON_BUFSIZE-buffer_read-1);
-            else
-#endif  /* HTTPS */
-                bytes = recv(M_rest_sock, buffer+buffer_read, JSON_BUFSIZE-buffer_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_rest_sock, READ, READ, buffer+buffer_read, JSON_BUFSIZE-buffer_read-1, &timeout_remain, secure?M_rest_ssl:NULL, 0);
-
-            if ( bytes > 0 )
-                buffer_read += bytes;
-        }
-
-        if ( buffer_read < 5 )
-        {
-            ERR("buffer_read is only %d, this can't be valid chunked content", buffer_read);
-            rest_disconnect(bytes);
-            connected = FALSE;
-            return FALSE;
-        }
-
-        content_read = chunked2content(res_content, buffer, buffer_read, JSON_BUFSIZE);
-    }
-
-    /* ------------------------------------------------------------------- */
-
-    res_content[content_read] = EOS;
-
-    DBG("Read %d bytes of content", content_read);
-
-    G_rest_res_len = content_read;
-
-#ifdef DUMP
-    log_long(res_content, content_read, "Content");
-#endif
-
-    /* ------------------------------------------------------------------- */
-
-    if ( !keep || strstr(res_header, "\nConnection: close") != NULL || strstr(res_header, "\nConnection: Close") != NULL )
-    {
-        DBG("Closing connection");
-        rest_disconnect(bytes);
-        connected = FALSE;
-    }
-    else    /* keep the connection open */
-    {
-#ifdef HTTPS
-        prev_secure = secure;
-#endif
-        strcpy(prev_host, host);
-        strcpy(prev_port, port);
-        connected = TRUE;
-        connected_time = G_now;
-    }
-
-#ifdef DUMP
-    DBG("elapsed after second response read: %.3lf ms", lib_elapsed(&start));
-#endif
-
-    /* -------------------------------------------------------------------------- */
-    /* we expect JSON response in body                                            */
-
-    if ( len && res )
-    {
-        if ( json )
-            lib_json_from_string((JSON*)res, res_content, content_read, 0);
-        else
-            strcpy((char*)res, res_content);
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /* stats                                                                      */
-
-    ++G_rest_req;
-
-    double elapsed = lib_elapsed(&start);
-
-    DBG("REST call finished in %.3lf ms", elapsed);
-
-    G_rest_elapsed += elapsed;
-
-    G_rest_average = G_rest_elapsed / G_rest_req;
-
-    return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
    Finish socket operation with timeout
 -------------------------------------------------------------------------- */
-int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, void *ssl, int level)
+static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, void *ssl, int level)
 {
     int             sockerr;
     struct timeval  timeout;
     fd_set          readfds;
     fd_set          writefds;
     int             socks=0;
-#ifdef HTTPS
+#ifdef NPP_HTTPS
     int             bytes;
     int             ssl_err;
 #endif
 
-#ifdef DUMP
-    if ( oper == READ )
-        DBG("lib_finish_with_timeout READ, level=%d", level);
-    else if ( oper == WRITE )
-        DBG("lib_finish_with_timeout WRITE, level=%d", level);
-    else if ( oper == CONNECT )
-        DBG("lib_finish_with_timeout CONNECT, level=%d", level);
-    else if ( oper == SHUTDOWN )
-        DBG("lib_finish_with_timeout SHUTDOWN, level=%d", level);
+#ifdef NPP_DEBUG
+    if ( oper == NPP_OPER_READ )
+        DBG("lib_finish_with_timeout NPP_OPER_READ, level=%d", level);
+    else if ( oper == NPP_OPER_WRITE )
+        DBG("lib_finish_with_timeout NPP_OPER_WRITE, level=%d", level);
+    else if ( oper == NPP_OPER_CONNECT )
+        DBG("lib_finish_with_timeout NPP_OPER_CONNECT, level=%d", level);
+    else if ( oper == NPP_OPER_SHUTDOWN )
+        DBG("lib_finish_with_timeout NPP_OPER_SHUTDOWN, level=%d", level);
     else
         ERR("lib_finish_with_timeout -- unknown operation: %d", oper);
-#endif
+#endif  /* NPP_DEBUG */
 
     if ( level > 20 )   /* just in case */
     {
@@ -4693,58 +3658,51 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
 
     /* set up fd-s and wait ---------------------------------------------- */
 
-    if ( readwrite == READ )
+    if ( readwrite == NPP_OPER_READ )
     {
-#ifdef DUMP
-        DBG("READ, waiting on select()...");
-#endif
+        DDBG("NPP_OPER_READ, waiting on select()...");
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
         socks = select(sock+1, &readfds, NULL, NULL, &timeout);
     }
-    else if ( readwrite == WRITE )
+    else if ( readwrite == NPP_OPER_WRITE )
     {
-#ifdef DUMP
-        DBG("WRITE, waiting on select()...");
-#endif
+        DDBG("NPP_OPER_WRITE, waiting on select()...");
         FD_ZERO(&writefds);
         FD_SET(sock, &writefds);
         socks = select(sock+1, NULL, &writefds, NULL, &timeout);
     }
-    else if ( readwrite == CONNECT || readwrite == SHUTDOWN )   /* SSL only! */
+    else if ( readwrite == NPP_OPER_CONNECT || readwrite == NPP_OPER_SHUTDOWN )   /* SSL only! */
     {
-#ifdef HTTPS
-#ifdef DUMP
-        DBG("SSL_connect or SSL_shutdown, determining the next step...");
-#endif
+#ifdef NPP_HTTPS
+        DDBG("SSL_connect or SSL_shutdown, determining the next step...");
+
         ssl_err = SSL_get_error((SSL*)ssl, len);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
         DBG("len = %d", len);
-        log_ssl_error(ssl_err);
-#endif  /* DUMP */
+        npp_lib_log_ssl_error(ssl_err);
+#endif  /* NPP_DEBUG */
 
         if ( ssl_err==SSL_ERROR_WANT_READ )
-            return lib_finish_with_timeout(sock, oper, READ, buffer, len, msec, ssl, level+1);
+            return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
         else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-            return lib_finish_with_timeout(sock, oper, WRITE, buffer, len, msec, ssl, level+1);
+            return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
         else
         {
             DBG("SSL_connect or SSL_shutdown error %d", ssl_err);
             return -1;
         }
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
     }
     else
     {
         ERR("lib_finish_with_timeout -- invalid readwrite (%d) for this operation (%d)", readwrite, oper);
     }
 
-    *msec -= lib_elapsed(&start);
+    *msec -= npp_elapsed(&start);
     if ( *msec < 1 ) *msec = 1;
-#ifdef DUMP
-    DBG("msec reduced to %d ms", *msec);
-#endif
+    DDBG("msec reduced to %d ms", *msec);
 
     /* process select result --------------------------------------------- */
 
@@ -4755,24 +3713,23 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
     }
     else if ( socks == 0 )
     {
-        WAR("lib_finish_with_timeout timeouted (was waiting for %.2f ms)", lib_elapsed(&start));
+        WAR("lib_finish_with_timeout timeouted (was waiting for %.2f ms)", npp_elapsed(&start));
         return -1;
     }
     else    /* socket is ready for I/O */
     {
-#ifdef DUMP
-        DBG("lib_finish_with_timeout socks > 0");
-#endif
-        if ( readwrite == READ )
+        DDBG("lib_finish_with_timeout socks > 0");
+
+        if ( readwrite == NPP_OPER_READ )
         {
-#ifdef HTTPS
+#ifdef NPP_HTTPS
             if ( ssl )
             {
                 if ( buffer )
                     bytes = SSL_read((SSL*)ssl, buffer, len);
-                else if ( oper == CONNECT )
+                else if ( oper == NPP_OPER_CONNECT )
                     bytes = SSL_connect((SSL*)ssl);
-                else    /* SHUTDOWN */
+                else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
                 if ( bytes > 0 )
@@ -4783,15 +3740,15 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
                 {
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
                     DBG("bytes = %d", bytes);
-                    log_ssl_error(ssl_err);
-#endif  /* DUMP */
+                    npp_lib_log_ssl_error(ssl_err);
+#endif  /* NPP_DEBUG */
 
                     if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, READ, buffer, len, msec, ssl, level+1);
+                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, WRITE, buffer, len, msec, ssl, level+1);
+                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else
                     {
                         DBG("SSL_read error %d", ssl_err);
@@ -4800,19 +3757,19 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
                 }
             }
             else
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
                 return recv(sock, buffer, len, 0);
         }
-        else if ( readwrite == WRITE )
+        else if ( readwrite == NPP_OPER_WRITE )
         {
-#ifdef HTTPS
+#ifdef NPP_HTTPS
             if ( ssl )
             {
                 if ( buffer )
                     bytes = SSL_write((SSL*)ssl, buffer, len);
-                else if ( oper == CONNECT )
+                else if ( oper == NPP_OPER_CONNECT )
                     bytes = SSL_connect((SSL*)ssl);
-                else    /* SHUTDOWN */
+                else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
                 if ( bytes > 0 )
@@ -4823,15 +3780,15 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
                 {
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
                     DBG("bytes = %d", bytes);
-                    log_ssl_error(ssl_err);
-#endif  /* DUMP */
+                    npp_lib_log_ssl_error(ssl_err);
+#endif  /* NPP_DEBUG */
 
                     if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, WRITE, buffer, len, msec, ssl, level+1);
+                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, READ, buffer, len, msec, ssl, level+1);
+                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else
                     {
                         DBG("SSL_write error %d", ssl_err);
@@ -4840,7 +3797,7 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
                 }
             }
             else
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
                 return send(sock, buffer, len, 0);
         }
         else
@@ -4849,6 +3806,981 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
             return -1;
         }
     }
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call / connect
+-------------------------------------------------------------------------- */
+static bool call_http_connect(const char *host, const char *port, struct timespec *start, int *timeout_remain, bool secure)
+{
+static struct {
+    char host[NPP_MAX_HOST_LEN+1];
+    char port[16];
+    struct addrinfo addr;
+    struct sockaddr ai_addr;
+} addresses[CALL_HTTP_ADDRESSES_CACHE_SIZE];
+static int addresses_cnt=0, addresses_last=0;
+    int  i;
+    bool addr_cached=FALSE;
+
+    DBG("call_http_connect [%s:%s]", host, port);
+
+    struct addrinfo *result=NULL;
+
+#ifndef CALL_HTTP_DONT_CACHE_ADDRINFO
+
+    DBG("Trying cache...");
+
+    DDBG("addresses_cnt=%d", addresses_cnt);
+
+    for ( i=0; i<addresses_cnt; ++i )
+    {
+        if ( 0==strcmp(addresses[i].host, host) && 0==strcmp(addresses[i].port, port) )
+        {
+            DBG("Host [%s:%s] found in cache (%d)", host, port, i);
+            addr_cached = TRUE;
+            result = &addresses[i].addr;
+            break;
+        }
+    }
+
+#endif  /* CALL_HTTP_DONT_CACHE_ADDRINFO */
+
+    if ( !addr_cached )
+    {
+#ifndef CALL_HTTP_DONT_CACHE_ADDRINFO
+        DBG("Host [%s:%s] not found in cache", host, port);
+#endif
+        DBG("getaddrinfo...");   /* TODO: change to asynchronous, i.e. getaddrinfo_a */
+
+        struct addrinfo hints;
+        int s;
+
+        memset(&hints, 0, sizeof(struct addrinfo));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_protocol = IPPROTO_TCP;
+
+        if ( (s=getaddrinfo(host, port, &hints, &result)) != 0 )
+        {
+            ERR("getaddrinfo: %s", gai_strerror(s));
+            return FALSE;
+        }
+
+        DDBG("elapsed after getaddrinfo: %.3lf ms", npp_elapsed(start));
+
+        *timeout_remain = G_callHTTPTimeout - npp_elapsed(start);
+
+        if ( *timeout_remain < 1 ) *timeout_remain = 1;
+
+        /* getaddrinfo() returns a list of address structures.
+           Try each address until we successfully connect */
+    }
+
+    DBG("Trying to connect...");
+
+    struct addrinfo *rp;
+
+    for ( rp=result; rp!=NULL; rp=rp->ai_next )
+    {
+        DDBG("Trying socket...");
+        M_call_http_socket = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (M_call_http_socket == -1) continue;
+#ifdef NPP_DEBUG
+        DBG("socket succeeded");
+        DBG("elapsed after socket: %.3lf ms", npp_elapsed(start));
+#endif
+        *timeout_remain = G_callHTTPTimeout - npp_elapsed(start);
+        if ( *timeout_remain < 1 ) *timeout_remain = 1;
+
+        /* Windows timeout option is a s**t -- go for non-blocking I/O */
+
+        npp_setnonblocking(M_call_http_socket);
+
+        int timeout_tmp = G_callHTTPTimeout/5;
+
+        /* plain socket connection --------------------------------------- */
+
+        if ( connect(M_call_http_socket, rp->ai_addr, rp->ai_addrlen) != -1 )
+        {
+            break;  /* immediate success */
+        }
+        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
+        {
+            break;  /* success within timeout */
+        }
+
+        close_conn(M_call_http_socket);   /* no cigar */
+    }
+
+    if ( rp == NULL )   /* no address succeeded */
+    {
+        ERR("Could not connect");
+        if ( result && !addr_cached ) freeaddrinfo(result);
+        return FALSE;
+    }
+
+    /* -------------------------------------------------------------------------- */
+
+    *timeout_remain = G_callHTTPTimeout - npp_elapsed(start);
+    if ( *timeout_remain < 1 ) *timeout_remain = 1;
+
+    /* -------------------------------------------------------------------------- */
+
+    if ( !addr_cached )   /* add to cache */
+    {
+#ifndef CALL_HTTP_DONT_CACHE_ADDRINFO
+        strcpy(addresses[addresses_last].host, host);
+        strcpy(addresses[addresses_last].port, port);
+        memcpy(&addresses[addresses_last].addr, rp, sizeof(struct addrinfo));
+        /* addrinfo contains pointers -- mind the shallow copy! */
+        memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr));
+        addresses[addresses_last].addr.ai_addr = &addresses[addresses_last].ai_addr;
+        addresses[addresses_last].addr.ai_next = NULL;
+
+        /* get the remote address */
+        char remote_addr[INET_ADDRSTRLEN]="";
+        struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+#ifdef _WIN32   /* Windows */
+        strcpy(remote_addr, inet_ntoa(remote_addr_struct->sin_addr));
+#else
+        inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
+#endif
+        INF("Connected to %s", remote_addr);
+
+        DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);
+
+        if ( addresses_cnt < CALL_HTTP_ADDRESSES_CACHE_SIZE-1 )   /* first round */
+        {
+            ++addresses_cnt;    /* cache usage */
+            ++addresses_last;   /* next to use index */
+        }
+        else    /* cache full -- reuse it from start */
+        {
+            if ( addresses_last < CALL_HTTP_ADDRESSES_CACHE_SIZE-1 )
+                ++addresses_last;
+            else
+                addresses_last = 0;
+        }
+
+#endif  /* CALL_HTTP_DONT_CACHE_ADDRINFO */
+
+        freeaddrinfo(result);
+    }
+
+    DBG("Connected");
+
+    DDBG("elapsed after plain connect: %.3lf ms", npp_elapsed(start));
+
+    /* -------------------------------------------------------------------------- */
+
+#ifdef NPP_HTTPS
+
+    if ( secure )
+    {
+        DBG("Trying SSL_new...");
+
+        M_call_http_ssl = SSL_new(M_ssl_ctx);
+
+        if ( !M_call_http_ssl )
+        {
+            ERR("SSL_new failed");
+            close_conn(M_call_http_socket);
+            return FALSE;
+        }
+
+        DBG("Trying SSL_set_fd...");
+
+        int ret = SSL_set_fd(M_call_http_ssl, M_call_http_socket);
+
+        if ( ret <= 0 )
+        {
+            ERR("SSL_set_fd failed, ret = %d", ret);
+            close_conn(M_call_http_socket);
+            SSL_free(M_call_http_ssl);
+            M_call_http_ssl = NULL;
+            return FALSE;
+        }
+
+        DBG("Trying SSL_set_tlsext_host_name...");
+
+        ret = SSL_set_tlsext_host_name(M_call_http_ssl, host);
+
+        if ( ret <= 0 )
+        {
+            ERR("SSL_set_tlsext_host_name failed, ret = %d", ret);
+            close_conn(M_call_http_socket);
+            SSL_free(M_call_http_ssl);
+            M_call_http_ssl = NULL;
+            return FALSE;
+        }
+
+        DBG("Trying SSL_connect...");
+
+        ret = SSL_connect(M_call_http_ssl);
+
+        DDBG("ret = %d", ret);    /* 1 = success */
+
+        if ( ret == 1 )
+        {
+            DBG("SSL_connect immediate success");
+        }
+        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_CONNECT, NULL, ret, timeout_remain, M_call_http_ssl, 0) > 0 )
+        {
+            DBG("SSL_connect successful");
+        }
+        else
+        {
+            ERR("SSL_connect failed");
+            close_conn(M_call_http_socket);
+            SSL_free(M_call_http_ssl);
+            M_call_http_ssl = NULL;
+            return FALSE;
+        }
+
+        DDBG("elapsed after SSL connect: %.3lf ms", npp_elapsed(start));
+
+//        M_ssl_session = SSL_get_session(M_call_http_ssl);
+
+        X509 *server_cert;
+        server_cert = SSL_get_peer_certificate(M_call_http_ssl);
+        if ( server_cert )
+        {
+            DBG("Got server certificate");
+			X509_NAME *certname;
+			certname = X509_NAME_new();
+			certname = X509_get_subject_name(server_cert);
+			DBG("server_cert [%s]", X509_NAME_oneline(certname, NULL, 0));
+            X509_free(server_cert);
+        }
+        else
+            WAR("Couldn't get server certificate");
+    }
+#endif  /* NPP_HTTPS */
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call / disconnect
+-------------------------------------------------------------------------- */
+static void call_http_disconnect(int ssl_ret)
+{
+    DBG("call_http_disconnect");
+
+#ifdef NPP_HTTPS
+    if ( M_call_http_ssl )
+    {
+        bool shutdown=TRUE;
+
+        if ( ssl_ret < 0 )
+        {
+            int ssl_err = SSL_get_error(M_call_http_ssl, ssl_ret);
+
+            if ( ssl_err==SSL_ERROR_SYSCALL || ssl_err==SSL_ERROR_SSL )
+                shutdown = FALSE;
+        }
+
+        if ( shutdown )
+        {
+            int timeout_tmp = G_callHTTPTimeout/5;
+
+            int ret = SSL_shutdown(M_call_http_ssl);
+
+            if ( ret == 1 )
+            {
+                DBG("SSL_shutdown immediate success");
+            }
+            else if ( ret == 0 )
+            {
+                DBG("First SSL_shutdown looks fine, trying to complete the bidirectional shutdown handshake...");
+
+                ret = SSL_shutdown(M_call_http_ssl);
+
+                if ( ret == 1 )
+                    DBG("SSL_shutdown success");
+                else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+                    DBG("SSL_shutdown successful");
+                else
+                    ERR("SSL_shutdown failed");
+            }
+            else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+            {
+                DBG("SSL_shutdown successful");
+            }
+            else
+            {
+                ERR("SSL_shutdown failed");
+            }
+        }
+
+        SSL_free(M_call_http_ssl);
+
+/*        if ( M_ssl_session )
+            SSL_SESSION_free(M_ssl_session); */
+
+        M_call_http_ssl = NULL;
+    }
+#endif  /* NPP_HTTPS */
+
+    close_conn(M_call_http_socket);
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call / convert chunked to normal content
+   Return number of bytes written to res_content
+-------------------------------------------------------------------------- */
+static int chunked2content(char *res_content, const char *buffer, int src_len, int res_len)
+{
+    char *res=res_content;
+    char chunk_size_str[8];
+    int  chunk_size=src_len;
+    const char *p=buffer;
+    int  was_read=0, written=0;
+
+    while ( chunk_size > 0 )    /* chunk by chunk */
+    {
+        /* get the chunk size */
+
+        int i=0;
+
+        while ( *p!='\r' && *p!='\n' && i<6 && i<src_len )
+            chunk_size_str[i++] = *p++;
+
+        chunk_size_str[i] = EOS;
+
+        DDBG("chunk_size_str [%s]", chunk_size_str);
+
+        sscanf(chunk_size_str, "%x", &chunk_size);
+        DBG("chunk_size = %d", chunk_size);
+
+        was_read += i;
+
+        /* --------------------------------------------------------------- */
+
+        if ( chunk_size == 0 )    /* last one */
+        {
+            DBG("Last chunk");
+            break;
+        }
+        else if ( chunk_size < 0 )
+        {
+            WAR("chunk_size < 0");
+            break;
+        }
+        else if ( chunk_size > res_len-written )
+        {
+            WAR("chunk_size > res_len-written");
+            break;
+        }
+
+        /* --------------------------------------------------------------- */
+        /* skip "\r\n" */
+
+        DDBG("skip %d (should be 13)", *p);
+
+        ++p;    /* skip '\r' */
+
+        DDBG("skip %d (should be 10)", *p);
+
+        ++p;    /* skip '\n' */
+
+        was_read += 2;
+
+        /* once again may be needed */
+
+        if ( *p == '\r' )
+        {
+            DDBG("skip 13");
+            ++p;    /* skip '\r' */
+            ++was_read;
+        }
+
+        if ( *p == '\n' )
+        {
+            DDBG("skip 10");
+            ++p;    /* skip '\n' */
+            ++was_read;
+        }
+
+        DDBG("was_read = %d", was_read);
+
+        /* --------------------------------------------------------------- */
+
+        if ( was_read >= src_len || chunk_size > src_len-was_read )
+        {
+            WAR("Unexpected end of buffer");
+            break;
+        }
+
+        /* --------------------------------------------------------------- */
+        /* copy chunk to destination */
+
+        /* stpncpy() returns a pointer to the terminating null byte in dest, or,
+           if dest is not null-terminated, dest+n. */
+
+        DBG("Appending %d bytes to the content buffer", chunk_size);
+
+        DDBG("p starts with '%c'", *p);
+
+        res = stpncpy(res, p, chunk_size);
+        written += chunk_size;
+
+        DDBG("written = %d", written);
+
+        p += chunk_size;
+        was_read += chunk_size;
+
+        /* --------------------------------------------------------------- */
+
+        while ( *p != '\n' && was_read<src_len-1 )
+        {
+            DDBG("skip %d (expected 13)", *p);
+            ++p;
+            ++was_read;
+        }
+
+        DDBG("skip %d (should be 10)", *p);
+
+        ++p;    /* skip '\n' */
+
+        ++was_read;
+    }
+
+    return written;
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call / get response content length
+-------------------------------------------------------------------------- */
+static int call_http_res_content_length(const char *u_res_header, int len)
+{
+    const char *p;
+
+    if ( (p=strstr(u_res_header, "\nCONTENT-LENGTH: ")) == NULL )
+        return -1;
+
+    if ( len < (p-u_res_header) + 18 ) return -1;
+
+    char result_str[8];
+    char i=0;
+
+    p += 17;
+
+    while ( isdigit(*p) && i<7 )
+    {
+        result_str[i++] = *p++;
+    }
+
+    result_str[i] = EOS;
+
+    DDBG("result_str [%s]", result_str);
+
+    return atoi(result_str);
+}
+
+
+
+#define NPP_TRANSFER_MODE_NORMAL     '1'
+#define NPP_TRANSFER_MODE_NO_CONTENT '2'
+#define NPP_TRANSFER_MODE_CHUNKED    '3'
+#define NPP_TRANSFER_MODE_ERROR      '4'
+
+
+/* --------------------------------------------------------------------------
+   HTTP call / parse response
+-------------------------------------------------------------------------- */
+static bool call_http_res_parse(char *res_header, int bytes)
+{
+    /* HTTP/1.1 200 OK <== 15 chars */
+
+    char status[4];
+
+    if ( bytes < 14 || 0 != strncmp(res_header, "HTTP/1.", 7) )
+    {
+        return FALSE;
+    }
+
+    res_header[bytes] = EOS;
+#ifdef NPP_DEBUG
+    DBG("");
+    DBG("Got %d bytes of response [%s]", bytes, res_header);
+#else
+    DBG("Got %d bytes of response", bytes);
+#endif  /* NPP_DEBUG */
+
+    /* Status */
+
+    strncpy(status, res_header+9, 3);
+    status[3] = EOS;
+    G_call_http_status = atoi(status);
+    INF("CALL_HTTP response status: %s", status);
+
+    char u_res_header[CALL_HTTP_RES_HEADER_LEN+1];   /* uppercase */
+    strcpy(u_res_header, npp_upper(res_header));
+
+    /* Content-Type */
+
+    const char *p;
+
+    if ( (p=strstr(u_res_header, "\nCONTENT-TYPE: ")) == NULL )
+    {
+        G_call_http_content_type[0] = EOS;
+    }
+    else if ( bytes < (p-res_header) + 16 )
+    {
+        G_call_http_content_type[0] = EOS;
+    }
+    else
+    {
+        char i=0;
+
+        p += 15;
+
+        while ( *p != '\r' && *p != '\n' && *p && i<255 )
+        {
+            G_call_http_content_type[i++] = *p++;
+        }
+
+        G_call_http_content_type[i] = EOS;
+        DBG("CALL_HTTP content type [%s]", G_call_http_content_type);
+    }
+
+    /* content length */
+
+    G_call_http_res_len = call_http_res_content_length(u_res_header, bytes);
+
+    if ( G_call_http_res_len > NPP_JSON_BUFSIZE-1 )
+    {
+        WAR("Response content is too big (%d)", G_call_http_res_len);
+        return FALSE;
+    }
+
+    if ( G_call_http_res_len > 0 )     /* Content-Length present in response */
+    {
+        DBG("NPP_TRANSFER_MODE_NORMAL");
+        M_call_http_mode = NPP_TRANSFER_MODE_NORMAL;
+    }
+    else if ( G_call_http_res_len == 0 )
+    {
+        DBG("NPP_TRANSFER_MODE_NO_CONTENT");
+        M_call_http_mode = NPP_TRANSFER_MODE_NO_CONTENT;
+    }
+    else    /* content length == -1 */
+    {
+        if ( strstr(u_res_header, "\nTRANSFER-ENCODING: CHUNKED") != NULL )
+        {
+            DBG("NPP_TRANSFER_MODE_CHUNKED");
+            M_call_http_mode = NPP_TRANSFER_MODE_CHUNKED;
+        }
+        else
+        {
+            WAR("NPP_TRANSFER_MODE_ERROR");
+            M_call_http_mode = NPP_TRANSFER_MODE_ERROR;
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call
+-------------------------------------------------------------------------- */
+bool npp_call_http(const void *req, void *res, const char *method, const char *url, bool json, bool keep)
+{
+    char     host[NPP_MAX_HOST_LEN+1];
+    char     port[8];
+    bool     secure=FALSE;
+static char  prev_host[NPP_MAX_HOST_LEN+1];
+static char  prev_port[8];
+static bool  prev_secure=FALSE;
+    char     uri[NPP_MAX_URI_LEN+1];
+static bool  connected=FALSE;
+static time_t connected_time=0;
+    char     res_header[CALL_HTTP_RES_HEADER_LEN+1];
+static char  buffer[NPP_JSON_BUFSIZE];
+    int      bytes;
+    char     *body;
+    unsigned content_read=0, buffer_read=0;
+    unsigned len, i, j;
+    int      timeout_remain = G_callHTTPTimeout;
+#ifdef NPP_HTTPS
+    int      ssl_err;
+#endif  /* NPP_HTTPS */
+
+    DBG("npp_call_http [%s] [%s]", method, url);
+
+    /* -------------------------------------------------------------------------- */
+
+    if ( !call_http_parse_url(url, host, port, uri, &secure) ) return FALSE;
+
+    if ( M_call_http_proxy )
+        strcpy(uri, url);
+
+    len = call_http_render_req(buffer, method, host, uri, req, json, keep);
+
+#ifdef NPP_DEBUG
+    DBG("------------------------------------------------------------");
+    DBG("npp_call_http buffer [%s]", buffer);
+    DBG("------------------------------------------------------------");
+#endif  /* NPP_DEBUG */
+
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+
+    /* -------------------------------------------------------------------------- */
+
+    if ( connected
+            && (secure!=prev_secure || 0 != strcmp(host, prev_host) || 0 != strcmp(port, prev_port) || G_now-connected_time > NPP_CONNECTION_TIMEOUT) )
+    {
+        /* reconnect anyway */
+        DBG("different host, port or old connection, reconnecting");
+        call_http_disconnect(0);
+        connected = FALSE;
+    }
+
+    bool was_connected = connected;
+
+    /* connect if necessary ----------------------------------------------------- */
+
+    if ( !connected && !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
+
+    /* -------------------------------------------------------------------------- */
+
+    DBG("Sending request...");
+
+    bool after_reconnect=0;
+
+    while ( timeout_remain > 1 )
+    {
+#ifdef NPP_HTTPS
+        if ( secure )
+        {
+/*            char first_char[2];
+            first_char[0] = buffer[0];
+            first_char[1] = EOS;
+
+            bytes = SSL_write(M_call_http_ssl, first_char, 1);
+
+            if ( bytes > 0 )
+                bytes = SSL_write(M_call_http_ssl, buffer+1, len-1) + bytes; */
+
+            bytes = SSL_write(M_call_http_ssl, buffer, len);
+        }
+        else
+#endif  /* NPP_HTTPS */
+            bytes = send(M_call_http_socket, buffer, len, 0);    /* try in one go */
+
+        if ( !secure && bytes <= 0 )
+        {
+            if ( !was_connected || after_reconnect )
+            {
+                ERR("Send (after fresh connect) failed");
+                call_http_disconnect(0);
+                connected = FALSE;
+                return FALSE;
+            }
+
+            DBG("Disconnected? Trying to reconnect...");
+            call_http_disconnect(0);
+            if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
+            after_reconnect = 1;
+        }
+        else if ( secure && bytes == -1 )
+        {
+            bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+            if ( bytes == -1 )
+            {
+                if ( !was_connected || after_reconnect )
+                {
+                    ERR("Send (after fresh connect) failed");
+                    call_http_disconnect(-1);
+                    connected = FALSE;
+                    return FALSE;
+                }
+
+                DBG("Disconnected? Trying to reconnect...");
+                call_http_disconnect(-1);
+                if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
+                after_reconnect = 1;
+            }
+        }
+        else    /* bytes > 0 ==> OK */
+        {
+            break;
+        }
+    }
+
+    DDBG("Sent %d bytes", bytes);
+
+    if ( bytes < 15 )
+    {
+        ERR("send failed, errno = %d (%s)", errno, strerror(errno));
+        call_http_disconnect(bytes);
+        connected = FALSE;
+        return FALSE;
+    }
+
+    DDBG("elapsed after request: %.3lf ms", npp_elapsed(&start));
+
+    /* -------------------------------------------------------------------------- */
+
+    DBG("Reading response...");
+
+#ifdef NPP_HTTPS
+    if ( secure )
+        bytes = SSL_read(M_call_http_ssl, res_header, CALL_HTTP_RES_HEADER_LEN);
+    else
+#endif  /* NPP_HTTPS */
+        bytes = recv(M_call_http_socket, res_header, CALL_HTTP_RES_HEADER_LEN, 0);
+
+    if ( bytes == -1 )
+    {
+        bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+        if ( bytes <= 0 )
+        {
+            ERR("recv failed, errno = %d (%s)", errno, strerror(errno));
+            call_http_disconnect(bytes);
+            connected = FALSE;
+            return FALSE;
+        }
+    }
+
+    DBG("Read %d bytes", bytes);
+
+    DDBG("elapsed after first response read: %.3lf ms", npp_elapsed(&start));
+
+    /* -------------------------------------------------------------------------- */
+    /* parse the response                                                         */
+    /* we assume that at least response header arrived at once                    */
+
+    if ( !call_http_res_parse(res_header, bytes) )
+    {
+        ERR("No or invalid response");
+
+#ifdef NPP_DEBUG
+        if ( bytes >= 0 )
+        {
+            res_header[bytes] = EOS;
+            DBG("Got %d bytes of response [%s]", bytes, res_header);
+        }
+#endif  /* NPP_DEBUG */
+
+        G_call_http_status = 500;
+        call_http_disconnect(bytes);
+        connected = FALSE;
+        return FALSE;
+    }
+
+    /* ------------------------------------------------------------------- */
+    /* at this point we've got something that seems to be a HTTP header,
+       possibly with content */
+
+static char res_content[NPP_JSON_BUFSIZE];
+
+    /* ------------------------------------------------------------------- */
+    /* some content may have already been read                             */
+
+    body = strstr(res_header, "\r\n\r\n");
+
+    if ( body )
+    {
+        body += 4;
+
+        int was_read = bytes - (body-res_header);
+
+        if ( was_read > 0 )
+        {
+            if ( M_call_http_mode == NPP_TRANSFER_MODE_NORMAL )   /* not chunked goes directly to res_content */
+            {
+                content_read = was_read;
+                strncpy(res_content, body, content_read);
+            }
+            else if ( M_call_http_mode == NPP_TRANSFER_MODE_CHUNKED )   /* chunked goes to buffer before res_content */
+            {
+                buffer_read = was_read;
+                strncpy(buffer, body, buffer_read);
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------------- */
+    /* read content                                                        */
+
+    if ( M_call_http_mode == NPP_TRANSFER_MODE_NORMAL )
+    {
+        while ( content_read < G_call_http_res_len && timeout_remain > 1 )   /* read whatever we can within timeout */
+        {
+            DDBG("trying again (content-length)");
+
+#ifdef NPP_HTTPS
+            if ( secure )
+                bytes = SSL_read(M_call_http_ssl, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1);
+            else
+#endif  /* NPP_HTTPS */
+                bytes = recv(M_call_http_socket, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1, 0);
+
+            if ( bytes == -1 )
+                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+            if ( bytes > 0 )
+                content_read += bytes;
+        }
+
+        if ( bytes < 1 )
+        {
+            DBG("timeouted?");
+            call_http_disconnect(bytes);
+            connected = FALSE;
+            return FALSE;
+        }
+    }
+    else if ( M_call_http_mode == NPP_TRANSFER_MODE_CHUNKED )
+    {
+        /* for single-threaded process, I can't see better option than to read everything
+           into a buffer and then parse and copy chunks into final res_content */
+
+        /* there's no guarantee that every read = one chunk, so just read whatever comes in, until it does */
+
+        while ( bytes > 0 && timeout_remain > 1 )   /* read whatever we can within timeout */
+        {
+
+#ifdef NPP_DEBUG
+            DBG("Has the last chunk been read?");
+            DBG("buffer_read = %d", buffer_read);
+            if ( buffer_read > 5 )
+            {
+                int ii;
+                for ( ii=buffer_read-6; ii<buffer_read; ++ii )
+                {
+                    if ( buffer[ii] == '\r' )
+                        DBG("buffer[%d] '\\r'", ii);
+                    else if ( buffer[ii] == '\n' )
+                        DBG("buffer[%d] '\\n'", ii);
+                    else
+                        DBG("buffer[%d] '%c'", ii, buffer[ii]);
+                }
+            }
+#endif  /* NPP_DEBUG */
+
+            if ( buffer_read>5 && buffer[buffer_read-6]=='\n' && buffer[buffer_read-5]=='0' && buffer[buffer_read-4]=='\r' && buffer[buffer_read-3]=='\n' && buffer[buffer_read-2]=='\r' && buffer[buffer_read-1]=='\n' )
+            {
+                DBG("Last chunk detected (with \\r\\n\\r\\n)");
+                break;
+            }
+            else if ( buffer_read>3 && buffer[buffer_read-4]=='\n' && buffer[buffer_read-3]=='0' && buffer[buffer_read-2]=='\r' && buffer[buffer_read-1]=='\n' )
+            {
+                DBG("Last chunk detected (with \\r\\n)");
+                break;
+            }
+
+            DDBG("trying again (chunked)");
+
+#ifdef NPP_HTTPS
+            if ( secure )
+                bytes = SSL_read(M_call_http_ssl, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1);
+            else
+#endif  /* NPP_HTTPS */
+                bytes = recv(M_call_http_socket, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1, 0);
+
+            if ( bytes == -1 )
+                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+            if ( bytes > 0 )
+                buffer_read += bytes;
+        }
+
+        if ( buffer_read < 5 )
+        {
+            ERR("buffer_read is only %d, this can't be valid chunked content", buffer_read);
+            call_http_disconnect(bytes);
+            connected = FALSE;
+            return FALSE;
+        }
+
+        content_read = chunked2content(res_content, buffer, buffer_read, NPP_JSON_BUFSIZE);
+    }
+
+    /* ------------------------------------------------------------------- */
+
+    res_content[content_read] = EOS;
+
+    DBG("Read %d bytes of content", content_read);
+
+    G_call_http_res_len = content_read;
+
+#ifdef NPP_DEBUG
+    log_long(res_content, content_read, "Content");
+#endif
+
+    /* ------------------------------------------------------------------- */
+
+    if ( !keep || strstr(res_header, "\nConnection: close") != NULL || strstr(res_header, "\nConnection: Close") != NULL )
+    {
+        DBG("Closing connection");
+        call_http_disconnect(bytes);
+        connected = FALSE;
+    }
+    else    /* keep the connection open */
+    {
+#ifdef NPP_HTTPS
+        prev_secure = secure;
+#endif
+        strcpy(prev_host, host);
+        strcpy(prev_port, port);
+        connected = TRUE;
+        connected_time = G_now;
+    }
+
+    DDBG("elapsed after second response read: %.3lf ms", npp_elapsed(&start));
+
+    /* -------------------------------------------------------------------------- */
+    /* we expect JSON response in body                                            */
+
+    if ( len && res )
+    {
+        if ( json )
+            lib_json_from_string((JSON*)res, res_content, content_read, 0);
+        else
+            strcpy((char*)res, res_content);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* stats                                                                      */
+
+    ++G_call_http_req_cnt;
+
+    double elapsed = npp_elapsed(&start);
+
+    DBG("CALL_HTTP finished in %.3lf ms", elapsed);
+
+    G_call_http_elapsed += elapsed;
+
+    G_call_http_average = G_call_http_elapsed / G_call_http_req_cnt;
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   HTTP call
+-------------------------------------------------------------------------- */
+void npp_call_http_disconnect()
+{
+    DBG("npp_call_http_disconnect");
+    call_http_disconnect(0);
 }
 
 
@@ -4864,9 +4796,9 @@ int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, i
 #define SSL_ERROR_SYSCALL     (5)
 #define SSL_ERROR_ZERO_RETURN (6)
 -------------------------------------------------------------------------- */
-void log_ssl_error(int ssl_err)
+void npp_lib_log_ssl_error(int ssl_err)
 {
-#ifdef HTTPS
+#ifdef NPP_HTTPS
 
     if ( ssl_err != SSL_ERROR_SYSCALL ) return;
 
@@ -4887,14 +4819,14 @@ void log_ssl_error(int ssl_err)
 
 #endif  /* _WIN32 */
 
-#endif  /* HTTPS */
+#endif  /* NPP_HTTPS */
 }
 
 
 /* --------------------------------------------------------------------------
    Set G_appdir
 -------------------------------------------------------------------------- */
-void lib_get_app_dir()
+void npp_lib_get_app_dir()
 {
     char *appdir=NULL;
 
@@ -4914,7 +4846,7 @@ void lib_get_app_dir()
 /* --------------------------------------------------------------------------
    Calculate elapsed time
 -------------------------------------------------------------------------- */
-double lib_elapsed(struct timespec *start)
+double npp_elapsed(struct timespec *start)
 {
 struct timespec end;
     double      elapsed;
@@ -4932,18 +4864,18 @@ struct timespec end;
 /* --------------------------------------------------------------------------
    Log the memory footprint
 -------------------------------------------------------------------------- */
-void lib_log_memory()
+void npp_log_memory()
 {
-    int         mem_used;
-    char        mem_used_kib[64];
-    char        mem_used_mib[64];
-    char        mem_used_gib[64];
+    int  mem_used;
+    char mem_used_kib[64];
+    char mem_used_mib[64];
+    char mem_used_gib[64];
 
-    mem_used = lib_get_memory();
+    mem_used = npp_get_memory();
 
-    amt(mem_used_kib, mem_used);
-    amtd(mem_used_mib, (double)mem_used/1024);
-    amtd(mem_used_gib, (double)mem_used/1024/1024);
+    npp_lib_fmt_int_generic(mem_used_kib, mem_used);
+    npp_lib_fmt_dec_generic(mem_used_mib, (double)mem_used/1024);
+    npp_lib_fmt_dec_generic(mem_used_gib, (double)mem_used/1024/1024);
 
     ALWAYS_LINE;
     ALWAYS("Memory: %s KiB (%s MiB / %s GiB)", mem_used_kib, mem_used_mib, mem_used_gib);
@@ -4961,14 +4893,16 @@ static int mem_parse_line(const char* line)
     char    strret[64];
     const char* p=line;
 
-    while (!isdigit(*p)) ++p;       /* skip non-digits */
+    while (!isdigit(*p)) ++p;     /* skip non-digits */
 
     while (isdigit(*p)) strret[i++] = *p++;
 
     strret[i] = EOS;
 
-/*  DBG("mem_parse_line: line [%s]", line);
-    DBG("mem_parse_line: strret [%s]", strret);*/
+#ifdef NPP_DEBUG
+    DBG("mem_parse_line: line [%s]", line);
+    DBG("mem_parse_line: strret [%s]", strret);
+#endif  /* NPP_DEBUG */
 
     ret = atoi(strret);
 
@@ -4979,7 +4913,7 @@ static int mem_parse_line(const char* line)
 /* --------------------------------------------------------------------------
    Return currently used memory (high water mark) by current process in kB
 -------------------------------------------------------------------------- */
-int lib_get_memory()
+int npp_get_memory()
 {
     int result=0;
 
@@ -5033,10 +4967,10 @@ struct rusage usage;
 ---------------------------------------------------------------------------*/
 char *npp_filter_strict(const char *src)
 {
-static char dst[4096];
+static char dst[NPP_LIB_STR_BUF];
     int     i=0, j=0;
 
-    while ( src[i] && j<4095 )
+    while ( src[i] && j<NPP_LIB_STR_CHECK )
     {
         if ( (src[i] >= 65 && src[i] <= 90)
                 || (src[i] >= 97 && src[i] <= 122)
@@ -5057,9 +4991,9 @@ static char dst[4096];
 /* --------------------------------------------------------------------------
    Add spaces to make string to have len length
 -------------------------------------------------------------------------- */
-char *lib_add_spaces(const char *src, int len)
+char *npp_add_spaces(const char *src, int len)
 {
-static char ret[4096];
+static char dst[NPP_LIB_STR_BUF];
     int     src_len;
     int     spaces;
     int     i;
@@ -5070,23 +5004,23 @@ static char ret[4096];
 
     if ( spaces < 0 ) spaces = 0;
 
-    strcpy(ret, src);
+    strcpy(dst, src);
 
     for ( i=src_len; i<len; ++i )
-        ret[i] = ' ';
+        dst[i] = ' ';
 
-    ret[i] = EOS;
+    dst[i] = EOS;
 
-    return ret;
+    return dst;
 }
 
 
 /* --------------------------------------------------------------------------
    Add leading spaces to make string to have len length
 -------------------------------------------------------------------------- */
-char *lib_add_lspaces(const char *src, int len)
+char *npp_add_lspaces(const char *src, int len)
 {
-static char ret[4096];
+static char dst[NPP_LIB_STR_BUF];
     int     src_len;
     int     spaces;
     int     i;
@@ -5098,25 +5032,23 @@ static char ret[4096];
     if ( spaces < 0 ) spaces = 0;
 
     for ( i=0; i<spaces; ++i )
-        ret[i] = ' ';
+        dst[i] = ' ';
 
-    strcpy(ret+spaces, src);
+    strcpy(dst+spaces, src);
 
-    return ret;
+    return dst;
 }
 
 
 /* --------------------------------------------------------------------------
    Get the file extension
 -------------------------------------------------------------------------- */
-char *get_file_ext(const char *fname)
+char *npp_get_file_ext(const char *fname)
 {
-static char ext[256];
+static char ext[64];
     char *pext=NULL;
 
-#ifdef DUMP
-    DBG("name: [%s]", fname);
-#endif
+    DDBG("name: [%s]", fname);
 
     if ( (pext=(char*)strrchr(fname, '.')) == NULL )     /* no dot */
     {
@@ -5132,11 +5064,9 @@ static char ext[256];
 
     ++pext;
 
-    strcpy(ext, pext);
+    COPY(ext, pext, 63);
 
-#ifdef DUMP
-    DBG("ext: [%s]", ext);
-#endif
+    DDBG("ext: [%s]", ext);
 
     return ext;
 }
@@ -5145,60 +5075,52 @@ static char ext[256];
 /* --------------------------------------------------------------------------
    Determine resource type by its extension
 -------------------------------------------------------------------------- */
-char get_res_type(const char *fname)
+char npp_lib_get_res_type(const char *fname)
 {
     char *ext=NULL;
     char uext[8]="";
 
-#ifdef DUMP
-//  DBG("name: [%s]", fname);
-#endif
-
     if ( (ext=(char*)strrchr(fname, '.')) == NULL )     /* no dot */
-        return RES_TEXT;
+        return NPP_CONTENT_TYPE_TEXT;
 
     if ( ext-fname == strlen(fname)-1 )             /* dot is the last char */
-        return RES_TEXT;
+        return NPP_CONTENT_TYPE_TEXT;
 
     ++ext;
 
     if ( strlen(ext) > 4 )                          /* extension too long */
-        return RES_TEXT;
+        return NPP_CONTENT_TYPE_TEXT;
 
-#ifdef DUMP
-//  DBG("ext: [%s]", ext);
-#endif
-
-    strcpy(uext, upper(ext));
+    strcpy(uext, npp_upper(ext));
 
     if ( 0==strcmp(uext, "HTML") || 0==strcmp(uext, "HTM") )
-        return RES_HTML;
+        return NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(uext, "CSS") )
-        return RES_CSS;
+        return NPP_CONTENT_TYPE_CSS;
     else if ( 0==strcmp(uext, "JS") )
-        return RES_JS;
+        return NPP_CONTENT_TYPE_JS;
     else if ( 0==strcmp(uext, "PDF") )
-        return RES_PDF;
+        return NPP_CONTENT_TYPE_PDF;
     else if ( 0==strcmp(uext, "GIF") )
-        return RES_GIF;
+        return NPP_CONTENT_TYPE_GIF;
     else if ( 0==strcmp(uext, "JPG") )
-        return RES_JPG;
+        return NPP_CONTENT_TYPE_JPG;
     else if ( 0==strcmp(uext, "ICO") )
-        return RES_ICO;
+        return NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(uext, "PNG") )
-        return RES_PNG;
+        return NPP_CONTENT_TYPE_PNG;
     else if ( 0==strcmp(uext, "BMP") )
-        return RES_BMP;
+        return NPP_CONTENT_TYPE_BMP;
     else if ( 0==strcmp(uext, "SVG") )
-        return RES_SVG;
+        return NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(uext, "MP3") )
-        return RES_AMPEG;
+        return NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(uext, "EXE") )
-        return RES_EXE;
+        return NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(uext, "ZIP") )
-        return RES_ZIP;
+        return NPP_CONTENT_TYPE_ZIP;
 
-    return RES_TEXT;
+    return NPP_CONTENT_TYPE_TEXT;
 }
 
 
@@ -5327,10 +5249,8 @@ time_t time_http2epoch(const char *str)
     time_t  epoch;
     char    tmp[8];
 struct tm   tm;
-//  char    *temp;  // temporarily
 
-    // temporarily
-//  DBG("time_http2epoch in:  [%s]", str);
+    DDBG("time_http2epoch in:  [%s]", str);
 
     if ( strlen(str) != 29 )
         return 0;
@@ -5402,9 +5322,10 @@ struct tm   tm;
     epoch = win_timegm(&tm);
 #endif
 
-    // temporarily
-//  char *temp = time_epoch2http(epoch);
-//  DBG("time_http2epoch out: [%s]", temp);
+#ifdef NPP_DEBUG
+    char *temp = time_epoch2http(epoch);
+    DBG("time_http2epoch out: [%s]", temp);
+#endif  /* NPP_DEBUG */
 
     return epoch;
 }
@@ -5474,20 +5395,20 @@ struct tm   tm;
 -------------------------------------------------------------------------- */
 char *time_epoch2http(time_t epoch)
 {
-static char str[32];
+static char dst[32];
 
     G_ptm = gmtime(&epoch);
 #ifdef _WIN32   /* Windows */
-    strftime(str, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
+    strftime(dst, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
 #else
-    strftime(str, 32, "%a, %d %b %Y %T GMT", G_ptm);
+    strftime(dst, 32, "%a, %d %b %Y %T GMT", G_ptm);
 #endif  /* _WIN32 */
 
     G_ptm = gmtime(&G_now);  /* make sure G_ptm is up to date */
 
-//  DBG("time_epoch2http: [%s]", str);
+    DDBG("time_epoch2http: [%s]", dst);
 
-    return str;
+    return dst;
 }
 
 
@@ -5496,77 +5417,58 @@ static char str[32];
 -------------------------------------------------------------------------- */
 char *time_epoch2db(time_t epoch)
 {
-static char str[20];
+static char dst[20];
 
     G_ptm = gmtime(&epoch);
 
-    strftime(str, 20, "%Y-%m-%d %H:%M:%S", G_ptm);
+    strftime(dst, 20, "%Y-%m-%d %H:%M:%S", G_ptm);
 
     G_ptm = gmtime(&G_now);  /* make sure G_ptm is up to date */
 
-//    DBG("time_epoch2db: [%s]", str);
+    DDBG("time_epoch2db: [%s]", dst);
 
-    return str;
+    return dst;
 }
 
 
 /* --------------------------------------------------------------------------
-   Set decimal & thousand separator
+   Format decimal amount (generic SESSION format)
 ---------------------------------------------------------------------------*/
-void lib_set_datetime_formats(const char *lang)
+void npp_lib_fmt_dec_generic(char *stramt, double in_amt)
 {
-#ifdef DUMP
-    DBG("lib_set_datetime_formats, lang [%s]", lang);
-#endif
+    char    in_stramt[64];
+    int     len;
+    int     i, j=0;
+    bool    minus=FALSE;
 
-    /* date format */
+    sprintf(in_stramt, "%0.2lf", in_amt);
 
-    if ( 0==strcmp(lang, "EN-US") )
-        M_df = 1;
-    else if ( 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "FR-FR") || 0==strcmp(lang, "EN-IE") || 0==strcmp(lang, "ES-ES") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "PT-PT") || 0==strcmp(lang, "PT-BR") || 0==strcmp(lang, "ES-AR") )
-        M_df = 2;
-    else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "RU-RU") || 0==strcmp(lang, "DE-CH") || 0==strcmp(lang, "FR-CH") )
-        M_df = 3;
-    else
-        M_df = 0;
-
-    /* amount format */
-
-    if ( 0==strcmp(lang, "EN-US") || 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "TH-TH") )
+    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
     {
-        M_tsep = ',';
-        M_dsep = '.';
+        strcpy(stramt, "− ");
+        j = 4;
+        minus = TRUE;
     }
-    else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "NB-NO") || 0==strcmp(lang, "ES-ES") )
+
+    len = strlen(in_stramt);
+
+    for ( i=(j?1:0); i<len; ++i, ++j )
     {
-        M_tsep = '.';
-        M_dsep = ',';
+        if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
+        {
+            stramt[j++] = ',';    /* extra character */
+        }
+        stramt[j] = in_stramt[i];
     }
-    else
-    {
-        M_tsep = ' ';
-        M_dsep = ',';
-    }
+
+    stramt[j] = EOS;
 }
 
 
 /* --------------------------------------------------------------------------
-   Format amount
+   Format integer amount (generic SESSION format)
 ---------------------------------------------------------------------------*/
-char *npp_amt(double val)
-{
-static char str[64];
-
-    amtd(str, val);
-
-    return str;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format amount
----------------------------------------------------------------------------*/
-void amt(char *stramt, long long in_amt)
+void npp_lib_fmt_int_generic(char *stramt, long long in_amt)
 {
     char    in_stramt[256];
     int     len;
@@ -5575,41 +5477,7 @@ void amt(char *stramt, long long in_amt)
 
     sprintf(in_stramt, "%lld", in_amt);
 
-    if ( in_stramt[0] == '-' )  /* change to proper UTF-8 minus sign */
-    {
-        strcpy(stramt, "− ");
-        j = 4;
-        minus = TRUE;
-    }
-
-    len = strlen(in_stramt);
-
-/*  DBG("----- len = %d", len); */
-
-    for ( i=(j?1:0); i<len; ++i, ++j )
-    {
-        if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) )
-            stramt[j++] = M_tsep;
-        stramt[j] = in_stramt[i];
-    }
-
-    stramt[j] = EOS;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format double amount
----------------------------------------------------------------------------*/
-void amtd(char *stramt, double in_amt)
-{
-    char    in_stramt[64];
-    int     len;
-    int     i, j=0;
-    bool    minus=FALSE;
-
-    sprintf(in_stramt, "%0.2lf", in_amt);
-
-    if ( in_stramt[0] == '-' )  /* change to proper UTF-8 minus sign */
+    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
     {
         strcpy(stramt, "− ");
         j = 4;
@@ -5620,154 +5488,22 @@ void amtd(char *stramt, double in_amt)
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
-        if ( in_stramt[i]=='.' && M_dsep!='.' )
-        {
-            stramt[j] = M_dsep;
-            continue;
-        }
-        else if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
-        {
-            stramt[j++] = M_tsep;   /* extra character */
-        }
-        stramt[j] = in_stramt[i];
-    }
-
-    stramt[j] = EOS;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format amount -- special version
----------------------------------------------------------------------------*/
-void lib_amt(char *stramt, long in_amt)
-{
-    char    in_stramt[64];
-    int     len;
-    int     i, j=0;
-    bool    minus=FALSE;
-
-    sprintf(in_stramt, "%ld", in_amt);
-
-    if ( in_stramt[0] == '-' )
-    {
-        strcpy(stramt, "- ");
-        j = 2;
-        minus = TRUE;
-    }
-
-    len = strlen(in_stramt);
-
-    for ( i=(j?1:0); i<len; ++i, ++j )
-    {
         if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) )
-            stramt[j++] = M_tsep;
+            stramt[j++] = ',';
         stramt[j] = in_stramt[i];
     }
 
     stramt[j] = EOS;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format double amount -- special version
----------------------------------------------------------------------------*/
-void lib_amtd(char *stramt, double in_amt)
-{
-    char    in_stramt[64];
-    int     len;
-    int     i, j=0;
-    bool    minus=FALSE;
-
-    sprintf(in_stramt, "%0.2lf", in_amt);
-
-    if ( in_stramt[0] == '-' )
-    {
-        strcpy(stramt, "- ");
-        j = 2;
-        minus = TRUE;
-    }
-
-    len = strlen(in_stramt);
-
-    for ( i=(j?1:0); i<len; ++i, ++j )
-    {
-        if ( in_stramt[i]=='.' && M_dsep!='.' )
-        {
-            stramt[j] = M_dsep;
-            continue;
-        }
-        else if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
-        {
-            stramt[j++] = M_tsep;   /* extra character */
-        }
-        stramt[j] = in_stramt[i];
-    }
-
-    stramt[j] = EOS;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format double amount string to string
----------------------------------------------------------------------------*/
-void samts(char *stramt, const char *in_amt)
-{
-    double  d;
-
-    sscanf(in_amt, "%lf", &d);
-    amtd(stramt, d);
 }
 
 
 /* --------------------------------------------------------------------------
    Convert string replacing first comma to dot
 ---------------------------------------------------------------------------*/
-void lib_normalize_float(char *str)
+void npp_lib_normalize_float(char *str)
 {
     char *comma = strchr(str, ',');
     if ( comma ) *comma = '.';
-}
-
-
-/* --------------------------------------------------------------------------
-   Format time (add separators between parts)
----------------------------------------------------------------------------*/
-void ftm(char *strtm, long in_tm)
-{
-    char    in_strtm[16];
-    int     i, j=0;
-const char  sep=':';
-
-    sprintf(in_strtm, "%06ld", in_tm);
-
-    for ( i=0; i<6; ++i, ++j )
-    {
-        if ( i == 2 || i == 4 )
-            strtm[j++] = sep;
-        strtm[j] = in_strtm[i];
-    }
-
-    strtm[j] = EOS;
-}
-
-
-/* --------------------------------------------------------------------------
-   Format date depending on M_df
----------------------------------------------------------------------------*/
-char *fmt_date(short year, short month, short day)
-{
-static char date[32];
-
-    if ( M_df == 1 )
-        sprintf(date, "%02d/%02d/%d", month, day, year);
-    else if ( M_df == 2 )
-        sprintf(date, "%02d/%02d/%d", day, month, year);
-    else if ( M_df == 3 )
-        sprintf(date, "%02d.%02d.%d", day, month, year);
-    else    /* M_df == 0 */
-        sprintf(date, "%d-%02d-%02d", year, month, day);
-
-    return date;
 }
 
 
@@ -6021,24 +5757,24 @@ static char dst[MAX_LONG_URI_VAL_LEN+1];
 
 
 /* --------------------------------------------------------------------------
-   Convert string to upper
+   Convert string to uppercase
 ---------------------------------------------------------------------------*/
-char *upper(const char *str)
+char *npp_upper(const char *str)
 {
-static char upper[4096];
+static char dst[NPP_LIB_STR_BUF];
     int     i;
 
-    for ( i=0; str[i] && i<4095; ++i )
+    for ( i=0; str[i] && i<NPP_LIB_STR_CHECK; ++i )
     {
         if ( str[i] >= 97 && str[i] <= 122 )
-            upper[i] = str[i] - 32;
+            dst[i] = str[i] - 32;
         else
-            upper[i] = str[i];
+            dst[i] = str[i];
     }
 
-    upper[i] = EOS;
+    dst[i] = EOS;
 
-    return upper;
+    return dst;
 }
 
 
@@ -6078,7 +5814,7 @@ bool strdigits(const char *src)
 /* --------------------------------------------------------------------------
    Copy string without spaces and tabs
 ---------------------------------------------------------------------------*/
-char *nospaces(char *dst, const char *src)
+static char *nospaces(char *dst, const char *src)
 {
     const char  *p=src;
     int     i=0;
@@ -6099,7 +5835,7 @@ char *nospaces(char *dst, const char *src)
 /* --------------------------------------------------------------------------
    Binary to string
 ---------------------------------------------------------------------------*/
-char *lib_bin2hex(char *dst, const unsigned char *src, int len)
+char *npp_bin2hex(char *dst, const unsigned char *src, int len)
 {
     char *d=dst;
     char hex[4];
@@ -6115,346 +5851,6 @@ char *lib_bin2hex(char *dst, const unsigned char *src, int len)
 
     return dst;
 }
-
-
-
-#ifndef NPP_CLIENT
-/* --------------------------------------------------------------------------
-   Return a random 8-bit number from M_random_numbers
--------------------------------------------------------------------------- */
-static unsigned char get_random_number()
-{
-    static int i=0;
-
-    if ( M_random_initialized )
-    {
-        if ( i >= RANDOM_NUMBERS )  /* refill the pool with fresh numbers */
-        {
-            init_random_numbers();
-            i = 0;
-        }
-        return M_random_numbers[i++];
-    }
-    else
-    {
-        WAR("Using get_random_number() before M_random_initialized");
-        return rand() % 256;
-    }
-}
-
-
-/* --------------------------------------------------------------------------
-   Seed rand()
--------------------------------------------------------------------------- */
-static void seed_rand()
-{
-#define NPP_SEEDS_MEM 256  /* remaining 8 bits & last seeds to remember */
-static char first=1;
-/* make sure at least the last NPP_SEEDS_MEM seeds are unique */
-static unsigned int seeds[NPP_SEEDS_MEM];
-
-    DBG("seed_rand");
-
-    /* generate possibly random, or at least based on some non-deterministic factors, 32-bit integer */
-
-    int time_remainder = (int)G_now % 63 + 1;     /* 6 bits */
-    int mem_remainder = lib_get_memory() % 63 + 1;    /* 6 bits */
-    int pid_remainder;       /* 6 bits */
-    int yesterday_rem;    /* 6 bits */
-
-    if ( first )    /* initial seed */
-    {
-        pid_remainder = G_pid % 63 + 1;
-        yesterday_rem = G_cnts_yesterday.req % 63 + 1;
-    }
-    else    /* subsequent calls */
-    {
-        pid_remainder = rand() % 63 + 1;
-        yesterday_rem = rand() % 63 + 1;
-    }
-
-static int seeded=0;    /* 8 bits */
-
-    unsigned int seed;
-static unsigned int prev_seed=0;
-
-    while ( 1 )
-    {
-        if ( seeded >= NPP_SEEDS_MEM )
-            seeded = 1;
-        else
-            ++seeded;
-
-        seed = pid_remainder * time_remainder * mem_remainder * yesterday_rem * seeded;
-
-        /* check uniqueness in the history */
-
-        char found=0;
-        int i = 0;
-        while ( i < NPP_SEEDS_MEM )
-        {
-            if ( seeds[i++] == seed )
-            {
-                found = 1;
-                break;
-            }
-        }
-
-        if ( found )    /* same seed again */
-        {
-            WAR("seed %u repeated; seeded = %d, i = %d", seed, seeded, i);
-        }
-        else   /* seed not found ==> OK */
-        {
-            /* new seed needs to be at least 10000 apart from the previous one */
-
-            if ( !first && abs((long long)(seed-prev_seed)) < 10000 )
-            {
-                WAR("seed %u too close to the previous one (%u); seeded = %d", seed, prev_seed, seeded);
-            }
-            else    /* everything OK */
-            {
-                seeds[seeded-1] = seed;
-                break;
-            }
-        }
-
-        /* stir it up to avoid endless loop */
-
-        pid_remainder = rand() % 63 + 1;
-        time_remainder = rand() % 63 + 1;
-    }
-
-    char f[256];
-    amt(f, seed);
-    DBG("seed = %s", f);
-    DBG("");
-
-    prev_seed = seed;
-
-    first = 0;
-
-    srand(seed);
-}
-
-
-/* --------------------------------------------------------------------------
-   Initialize M_random_numbers array
--------------------------------------------------------------------------- */
-void init_random_numbers()
-{
-    int i;
-
-#ifdef DUMP
-    struct timespec start;
-#ifdef _WIN32
-    clock_gettime_win(&start);
-#else
-    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
-#endif
-#endif  /* DUMP */
-
-    DBG("init_random_numbers");
-
-    seed_rand();
-
-#ifdef __linux__
-    /* On Linux we have access to a hardware-influenced RNG */
-
-    DBG("Trying /dev/urandom...");
-
-    int urandom_fd = open("/dev/urandom", O_RDONLY);
-
-    if ( urandom_fd )
-    {
-        if ( read(urandom_fd, &M_random_numbers, RANDOM_NUMBERS) < RANDOM_NUMBERS )
-        {
-            WAR("Couldn't read from /dev/urandom");
-            close(urandom_fd);
-            return;
-        }
-
-        close(urandom_fd);
-
-        INF("M_random_numbers obtained from /dev/urandom");
-    }
-    else
-    {
-        WAR("Couldn't open /dev/urandom");
-
-        /* fallback to old plain rand(), seeded the best we could */
-
-        for ( i=0; i<RANDOM_NUMBERS; ++i )
-            M_random_numbers[i] = rand() % 256;
-
-        INF("M_random_numbers obtained from rand()");
-    }
-
-#else   /* Windows */
-
-    for ( i=0; i<RANDOM_NUMBERS; ++i )
-        M_random_numbers[i] = rand() % 256;
-
-    INF("M_random_numbers obtained from rand()");
-
-#endif
-
-    INF("");
-
-    M_random_initialized = 1;
-
-#ifdef DUMP
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-    DBG("M_random_numbers distribution visualization");
-    DBG("The square below should be filled fairly randomly and uniformly.");
-    DBG("If it's not, or you can see any regular patterns across the square, your system may be broken or too old to be deemed secure.");
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-
-    /* One square takes two columns, so we can have between 0 and 4 dots per square */
-
-#define SQUARE_ROWS             64
-#define SQUARE_COLS             SQUARE_ROWS*2
-#define SQUARE_IS_EMPTY(x, y)   (dots[y][x*2]==' ' && dots[y][x*2+1]==' ')
-#define SQUARE_HAS_ONE(x, y)    (dots[y][x*2]==' ' && dots[y][x*2+1]=='.')
-#define SQUARE_HAS_TWO(x, y)    (dots[y][x*2]=='.' && dots[y][x*2+1]=='.')
-#define SQUARE_HAS_THREE(x, y)  (dots[y][x*2]=='.' && dots[y][x*2+1]==':')
-#define SQUARE_HAS_FOUR(x, y)   (dots[y][x*2]==':' && dots[y][x*2+1]==':')
-
-    char dots[SQUARE_ROWS][SQUARE_COLS+1]={0};
-    int j;
-
-    for ( i=0; i<SQUARE_ROWS; ++i )
-        for ( j=0; j<SQUARE_COLS; ++j )
-            dots[i][j] = ' ';
-
-    /* we only have SQUARE_ROWS^2 squares with 5 possible values in each of them */
-    /* let only once in divider in */
-
-    int divider = RANDOM_NUMBERS / (SQUARE_ROWS*SQUARE_ROWS) + 1;
-
-    for ( i=0; i<RANDOM_NUMBERS-1; i+=2 )
-    {
-        if ( i % divider ) continue;
-
-        int x = M_random_numbers[i] % SQUARE_ROWS;
-        int y = M_random_numbers[i+1] % SQUARE_ROWS;
-
-        if ( SQUARE_IS_EMPTY(x, y) )    /* make it one */
-            dots[y][x*2+1] = '.';
-        else if ( SQUARE_HAS_ONE(x, y) )    /* make it two */
-            dots[y][x*2] = '.';
-        else if ( SQUARE_HAS_TWO(x, y) )    /* make it three */
-            dots[y][x*2+1] = ':';
-        else if ( SQUARE_HAS_THREE(x, y) )  /* make it four */
-            dots[y][x*2] = ':';
-    }
-
-    for ( i=0; i<SQUARE_ROWS; ++i )
-        DBG(dots[i]);
-
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-    DBG("");
-    DBG("init_random_numbers took %.3lf ms", lib_elapsed(&start));
-    DBG("");
-#endif
-}
-
-
-/* --------------------------------------------------------------------------
-   Generate random string
-   Generates FIPS-compliant random sequences (tested with Burp)
--------------------------------------------------------------------------- */
-void npp_random(char *dest, int len)
-{
-const char  *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-static int  since_seed=0;
-    int     i;
-
-#ifdef DUMP
-    struct timespec start;
-#ifdef _WIN32
-    clock_gettime_win(&start);
-#else
-    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
-#endif
-#endif  /* DUMP */
-
-    if ( since_seed > (G_cnts_today.req % 246 + 10) )  /* seed every now and then */
-//    if ( 1 )  /* test */
-    {
-        seed_rand();
-        since_seed = 0;
-    }
-    else
-    {
-        ++since_seed;
-#ifdef DUMP
-        DBG("since_seed = %d", since_seed);
-#endif
-    }
-
-#ifdef DUMP
-    DBG_LINE;
-#endif
-
-    int r;
-
-    for ( i=0; i<len; ++i )
-    {
-        /* source random numbers from two different sets: 'normal' and 'lucky' */
-
-        if ( get_random_number() % 3 == 0 )
-        {
-#ifdef DUMP
-            DBG("i=%d lucky", i);
-#endif
-            r = get_random_number();
-            while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
-        }
-        else
-        {
-#ifdef DUMP
-            DBG("i=%d normal", i);
-#endif
-            r = rand() % 256;
-            while ( r > 247 ) r = rand() % 256;
-        }
-
-        dest[i] = chars[r % 62];
-    }
-
-    dest[i] = EOS;
-
-#ifdef DUMP
-    DBG_LINE;
-    DBG("npp_random took %.3lf ms", lib_elapsed(&start));
-#endif
-}
-
-
-/* --------------------------------------------------------------------------
-   Notify admin via email
--------------------------------------------------------------------------- */
-void npp_notify_admin(const char *msg)
-{
-#ifdef APP_CONTACT_EMAIL
-
-    char tag[8];
-
-    npp_random(tag, 7);
-
-    char message[MAX_LOG_STR_LEN+1];
-
-    sprintf(message, "%s %s", msg, tag);
-
-    ALWAYS_T(message);
-
-    npp_email(APP_CONTACT_EMAIL, "Admin Notification", message);
-
-#endif  /* APP_CONTACT_EMAIL */
-}
-
-#endif  /* NPP_CLIENT */
 
 
 /* --------------------------------------------------------------------------
@@ -6476,44 +5872,15 @@ void msleep(int msec)
         tv.tv_usec = (msec-((int)(msec/1000)*1000))*1000;
     }
 
+#ifdef NPP_DEBUG
 /*    DBG("-----------------------");
     DBG("msec = %d", msec);
     DBG("tv.tv_sec = %d", tv.tv_sec);
     DBG("tv.tv_usec = %d", tv.tv_usec); */
+#endif  /* NPP_DEBUG */
 
     select(0, NULL, NULL, NULL, &tv);
 }
-
-
-#ifdef AUTO_INIT_EXPERIMENT
-/* --------------------------------------------------------------------------
-   Implicitly init JSON buffer
--------------------------------------------------------------------------- */
-static void json_auto_init(JSON *json)
-{
-    int     i;
-    bool    initialized=0;
-
-    for ( i=0; i<M_jsons_cnt; ++i )
-    {
-        if ( M_jsons[i] == json )
-        {
-            initialized = 1;
-            break;
-        }
-    }
-
-    if ( !initialized )     /* recognize it by the address */
-    {
-        if ( M_jsons_cnt >= JSON_MAX_JSONS )
-            M_jsons_cnt = 0;
-
-        M_jsons[M_jsons_cnt] = json;
-        ++M_jsons_cnt;
-        lib_json_reset(json);
-    }
-}
-#endif  /* AUTO_INIT_EXPERIMENT */
 
 
 /* --------------------------------------------------------------------------
@@ -6521,9 +5888,7 @@ static void json_auto_init(JSON *json)
 -------------------------------------------------------------------------- */
 int lib_json_count(JSON *json)
 {
-#ifdef DUMP
-    DBG("lib_json_count");
-#endif
+    DDBG("lib_json_count");
     return json->cnt;
 }
 
@@ -6533,9 +5898,7 @@ int lib_json_count(JSON *json)
 -------------------------------------------------------------------------- */
 void lib_json_reset(JSON *json)
 {
-#ifdef DUMP
-    DBG("lib_json_reset");
-#endif
+    DDBG("lib_json_reset");
     json->cnt = 0;
     json->array = 0;
 }
@@ -6580,29 +5943,29 @@ static void json_to_string(char *dst, JSON *json, bool array)
 
         /* value */
 
-        if ( json->rec[i].type == JSON_STRING )
+        if ( json->rec[i].type == NPP_JSON_STRING )
         {
             p = stpcpy(p, "\"");
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==JSON_INTEGER || json->rec[i].type==JSON_UNSIGNED || json->rec[i].type==JSON_FLOAT || json->rec[i].type==JSON_DOUBLE || json->rec[i].type==JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
-        else if ( json->rec[i].type == JSON_RECORD )
+        else if ( json->rec[i].type == NPP_JSON_RECORD )
         {
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char tmp[JSON_BUFSIZE];
+            char tmp[NPP_JSON_BUFSIZE];
             json_to_string(tmp, (JSON*)jp, FALSE);
             p = stpcpy(p, tmp);
         }
-        else if ( json->rec[i].type == JSON_ARRAY )
+        else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char tmp[JSON_BUFSIZE];
+            char tmp[NPP_JSON_BUFSIZE];
             json_to_string(tmp, (JSON*)jp, TRUE);
             p = stpcpy(p, tmp);
         }
@@ -6622,15 +5985,13 @@ static void json_to_string(char *dst, JSON *json, bool array)
 -------------------------------------------------------------------------- */
 static char *json_indent(int level)
 {
-#define JSON_PRETTY_INDENT "    "
-
-static char dst[4096];
+static char dst[NPP_LIB_STR_BUF];
     int     i;
 
     dst[0] = EOS;
 
     for ( i=0; i<level; ++i )
-        strcat(dst, JSON_PRETTY_INDENT);
+        strcat(dst, NPP_JSON_PRETTY_INDENT);
 
     return dst;
 }
@@ -6662,17 +6023,17 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
 
         /* value */
 
-        if ( json->rec[i].type == JSON_STRING )
+        if ( json->rec[i].type == NPP_JSON_STRING )
         {
             p = stpcpy(p, "\"");
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==JSON_INTEGER || json->rec[i].type==JSON_UNSIGNED || json->rec[i].type==JSON_FLOAT || json->rec[i].type==JSON_DOUBLE || json->rec[i].type==JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
-        else if ( json->rec[i].type == JSON_RECORD )
+        else if ( json->rec[i].type == NPP_JSON_RECORD )
         {
             if ( !array || i > 0 )
             {
@@ -6681,11 +6042,11 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char tmp[JSON_BUFSIZE];
+            char tmp[NPP_JSON_BUFSIZE];
             json_to_string_pretty(tmp, (JSON*)jp, FALSE, level+1);
             p = stpcpy(p, tmp);
         }
-        else if ( json->rec[i].type == JSON_ARRAY )
+        else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
             if ( !array || i > 0 )
             {
@@ -6694,7 +6055,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char tmp[JSON_BUFSIZE];
+            char tmp[NPP_JSON_BUFSIZE];
             json_to_string_pretty(tmp, (JSON*)jp, TRUE, level+1);
             p = stpcpy(p, tmp);
         }
@@ -6717,7 +6078,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
 -------------------------------------------------------------------------- */
 char *lib_json_to_string(JSON *json)
 {
-static char dst[JSON_BUFSIZE];
+static char dst[NPP_JSON_BUFSIZE];
 
     json_to_string(dst, json, FALSE);
 
@@ -6730,7 +6091,7 @@ static char dst[JSON_BUFSIZE];
 -------------------------------------------------------------------------- */
 char *lib_json_to_string_pretty(JSON *json)
 {
-static char dst[JSON_BUFSIZE];
+static char dst[NPP_JSON_BUFSIZE];
 
     json_to_string_pretty(dst, json, FALSE, 1);
 
@@ -6746,11 +6107,11 @@ static char *get_json_closing_bracket(const char *src)
     int     i=1, subs=0;
     bool    in_quotes=0, escape=0;
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     int len = strlen(src);
     DBG("get_json_closing_bracket: len = %d", len);
 //    log_long(src, len, "get_json_closing_bracket");
-#endif  /* DUMP */
+#endif  /* NPP_DEBUG */
 
     while ( src[i] )
     {
@@ -6784,9 +6145,7 @@ static char *get_json_closing_bracket(const char *src)
         ++i;
     }
 
-#ifdef DUMP
-    DBG("get_json_closing_bracket: not found");
-#endif
+    DDBG("get_json_closing_bracket: not found");
 
     return NULL;
 }
@@ -6800,17 +6159,16 @@ static char *get_json_closing_square_bracket(const char *src)
     int     i=1, subs=0;
     bool    in_quotes=0, escape=0;
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     int len = strlen(src);
     DBG("get_json_closing_square_bracket: len = %d", len);
 //    log_long(src, len, "get_json_closing_square_bracket");
-#endif  /* DUMP */
+#endif  /* NPP_DEBUG */
 
     while ( src[i] )
     {
-#ifdef DUMP
-//        DBG("%c", src[i]);
-#endif
+//        DDBG("%c", src[i]);
+
         if ( escape )
         {
             escape = 0;
@@ -6821,23 +6179,19 @@ static char *get_json_closing_square_bracket(const char *src)
         }
         else if ( src[i]=='"' )
         {
-#ifdef DUMP
-//            DBG("in_quotes = %d", in_quotes);
-#endif
+//            DDBG("in_quotes = %d", in_quotes);
+
             if ( in_quotes )
                 in_quotes = 0;
             else
                 in_quotes = 1;
-#ifdef DUMP
-//            DBG("in_quotes switched to %d", in_quotes);
-#endif
+
+//            DDBG("in_quotes switched to %d", in_quotes);
         }
         else if ( src[i]=='[' && !in_quotes )
         {
             ++subs;
-#ifdef DUMP
-//            DBG("subs+1 = %d", subs);
-#endif
+//            DDBG("subs+1 = %d", subs);
         }
         else if ( src[i]==']' && !in_quotes )
         {
@@ -6845,17 +6199,14 @@ static char *get_json_closing_square_bracket(const char *src)
                 return (char*)(src+i);
             else
                 subs--;
-#ifdef DUMP
-//            DBG("subs-1 = %d", subs);
-#endif
+
+//            DDBG("subs-1 = %d", subs);
         }
 
         ++i;
     }
 
-#ifdef DUMP
-    DBG("get_json_closing_square_bracket: not found");
-#endif
+    DDBG("get_json_closing_square_bracket: not found");
 
     return NULL;
 }
@@ -6867,15 +6218,15 @@ static char *get_json_closing_square_bracket(const char *src)
 bool lib_json_from_string(JSON *json, const char *src, int len, int level)
 {
     int     i=0, j=0;
-    char    key[JSON_KEY_LEN+1];
-    char    value[JSON_VAL_LEN+1];
+    char    key[NPP_JSON_KEY_LEN+1];
+    char    value[NPP_JSON_STR_LEN+1];
     int     index;
     char    now_key=0, now_value=0, inside_array=0, type;
     float   flo_value;
     double  dbl_value;
 
-static JSON json_pool[JSON_POOL_SIZE*JSON_MAX_LEVELS];
-static int  json_pool_cnt[JSON_MAX_LEVELS]={0};
+static JSON json_pool[NPP_JSON_POOL_SIZE*NPP_JSON_MAX_LEVELS];
+static int  json_pool_cnt[NPP_JSON_MAX_LEVELS]={0};
 
     if ( len == 0 ) len = strlen(src);
 
@@ -6904,15 +6255,15 @@ static int  json_pool_cnt[JSON_MAX_LEVELS]={0};
         index = -1;
     }
 
-#ifdef DUMP
-static char tmp[JSON_BUFSIZE];
+#ifdef NPP_DEBUG
+static char tmp[NPP_JSON_BUFSIZE];
     strncpy(tmp, src+i, len-i);
     tmp[len-i] = EOS;
     char debug[64];
     sprintf(debug, "lib_json_from_string level %d", level);
     log_long(tmp, len, debug);
     if ( inside_array ) DBG("inside_array");
-#endif  /* DUMP */
+#endif  /* NPP_DEBUG */
 
     for ( i; i<len; ++i )
     {
@@ -6930,27 +6281,26 @@ static char tmp[JSON_BUFSIZE];
 
         if ( (now_key && src[i]=='"') || (inside_array && !now_value && (index==-1 || src[i]==',')) )      /* end of key */
         {
-#ifdef DUMP
+#ifdef NPP_DEBUG
             if ( now_key && src[i]=='"' )
                 DBG("second if because of now_key");
             else
                 DBG("second if because of inside_array");
-#endif  /* DUMP */
+#endif  /* NPP_DEBUG */
             if ( inside_array )
             {
                 if ( src[i]==',' ) ++i;    /* skip ',' */
 
                 ++index;
-#ifdef DUMP
-                DBG("inside_array, starting new value, index = %d", index);
-#endif
+
+                DDBG("inside_array, starting new value, index = %d", index);
             }
             else
             {
                 key[j] = EOS;
-#ifdef DUMP
-                DBG("key [%s]", key);
-#endif
+
+                DDBG("key [%s]", key);
+
                 now_key = 0;
 
                 ++i;    /* skip '"' */
@@ -6976,28 +6326,26 @@ static char tmp[JSON_BUFSIZE];
 
             /* value starts here --------------------------------------------------- */
 
-            if ( src[i]=='"' )    /* JSON_STRING */
+            if ( src[i]=='"' )    /* NPP_JSON_STRING */
             {
-#ifdef DUMP
-                DBG("JSON_STRING");
-#endif
-                type = JSON_STRING;
+                DDBG("NPP_JSON_STRING");
+
+                type = NPP_JSON_STRING;
 
                 now_value = 1;
                 j = 0;
             }
-            else if ( src[i]=='{' )     /* JSON_RECORD */
+            else if ( src[i]=='{' )     /* NPP_JSON_RECORD */
             {
-#ifdef DUMP
-                DBG("JSON_RECORD");
-#endif
-                type = JSON_RECORD;
+                DDBG("NPP_JSON_RECORD");
 
-                if ( level < JSON_MAX_LEVELS-1 )
+                type = NPP_JSON_RECORD;
+
+                if ( level < NPP_JSON_MAX_LEVELS-1 )
                 {
-                    if ( json_pool_cnt[level] >= JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
+                    if ( json_pool_cnt[level] >= NPP_JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
 
-                    int pool_idx = JSON_POOL_SIZE*level + json_pool_cnt[level];
+                    int pool_idx = NPP_JSON_POOL_SIZE*level + json_pool_cnt[level];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
@@ -7022,18 +6370,17 @@ static char tmp[JSON_BUFSIZE];
                     }
                 }
             }
-            else if ( src[i]=='[' )     /* JSON_ARRAY */
+            else if ( src[i]=='[' )     /* NPP_JSON_ARRAY */
             {
-#ifdef DUMP
-                DBG("JSON_ARRAY");
-#endif
-                type = JSON_ARRAY;
+                DDBG("NPP_JSON_ARRAY");
 
-                if ( level < JSON_MAX_LEVELS-1 )
+                type = NPP_JSON_ARRAY;
+
+                if ( level < NPP_JSON_MAX_LEVELS-1 )
                 {
-                    if ( json_pool_cnt[level] >= JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
+                    if ( json_pool_cnt[level] >= NPP_JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
 
-                    int pool_idx = JSON_POOL_SIZE*level + json_pool_cnt[level];
+                    int pool_idx = NPP_JSON_POOL_SIZE*level + json_pool_cnt[level];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
@@ -7060,10 +6407,9 @@ static char tmp[JSON_BUFSIZE];
             }
             else    /* number */
             {
-#ifdef DUMP
-                DBG("JSON_INTEGER || JSON_UNSIGNED || JSON_FLOAT || JSON_DOUBLE || JSON_BOOL");
-#endif
-                type = JSON_INTEGER;    /* we're not sure yet but need to mark it's definitely not STRING */
+                DDBG("NPP_JSON_INTEGER || NPP_JSON_UNSIGNED || NPP_JSON_FLOAT || NPP_JSON_DOUBLE || NPP_JSON_BOOL");
+
+                type = NPP_JSON_INTEGER;    /* we're not sure yet but need to mark it's definitely not STRING */
 
                 i--;
 
@@ -7072,68 +6418,68 @@ static char tmp[JSON_BUFSIZE];
             }
         }
         else if ( now_value
-                    && ((type==JSON_STRING && src[i]=='"' && src[i-1]!='\\')
-                            || (type!=JSON_STRING && (src[i]==',' || src[i]=='}' || src[i]==']' || src[i]=='\r' || src[i]=='\n'))) )     /* end of value */
+                    && ((type==NPP_JSON_STRING && src[i]=='"' && src[i-1]!='\\')
+                            || (type!=NPP_JSON_STRING && (src[i]==',' || src[i]=='}' || src[i]==']' || src[i]=='\r' || src[i]=='\n'))) )     /* end of value */
         {
             value[j] = EOS;
-#ifdef DUMP
-            DBG("value [%s]", value);
-#endif
-            if ( type==JSON_STRING ) ++i;   /* skip closing '"' */
+
+            DDBG("value [%s]", value);
+
+            if ( type==NPP_JSON_STRING ) ++i;   /* skip closing '"' */
 
             /* src[i] should now be at ',' */
 
             if ( inside_array )
             {
-                if ( type==JSON_STRING )
-                    lib_json_add(json, NULL, value, 0, 0, 0, 0, JSON_STRING, index);
+                if ( type==NPP_JSON_STRING )
+                    lib_json_add(json, NULL, value, 0, 0, 0, 0, NPP_JSON_STRING, index);
                 else if ( value[0]=='t' )
-                    lib_json_add(json, NULL, NULL, 1, 0, 0, 0, JSON_BOOL, index);
+                    lib_json_add(json, NULL, NULL, 1, 0, 0, 0, NPP_JSON_BOOL, index);
                 else if ( value[0]=='f' )
-                    lib_json_add(json, NULL, NULL, 0, 0, 0, 0, JSON_BOOL, index);
+                    lib_json_add(json, NULL, NULL, 0, 0, 0, 0, NPP_JSON_BOOL, index);
                 else if ( strchr(value, '.') )
                 {
-                    if ( strlen(value) <= JSON_MAX_FLOAT_LEN )
+                    if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add(json, NULL, NULL, 0, 0, flo_value, 0, JSON_FLOAT, index);
+                        lib_json_add(json, NULL, NULL, 0, 0, flo_value, 0, NPP_JSON_FLOAT, index);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add(json, NULL, NULL, 0, 0, 0, dbl_value, JSON_DOUBLE, index);
+                        lib_json_add(json, NULL, NULL, 0, 0, 0, dbl_value, NPP_JSON_DOUBLE, index);
                     }
                 }
                 else if ( value[0] == '-' || strtoul(value, NULL, 10) < INT_MAX )
-                    lib_json_add(json, NULL, NULL, atoi(value), 0, 0, 0, JSON_INTEGER, index);
+                    lib_json_add(json, NULL, NULL, atoi(value), 0, 0, 0, NPP_JSON_INTEGER, index);
                 else    /* unsigned */
-                    lib_json_add(json, NULL, NULL, 0, (unsigned)strtoul(value, NULL, 10), 0, 0, JSON_UNSIGNED, index);
+                    lib_json_add(json, NULL, NULL, 0, (unsigned)strtoul(value, NULL, 10), 0, 0, NPP_JSON_UNSIGNED, index);
             }
             else    /* not an array */
             {
-                if ( type==JSON_STRING )
-                    lib_json_add(json, key, value, 0, 0, 0, 0, JSON_STRING, -1);
+                if ( type==NPP_JSON_STRING )
+                    lib_json_add(json, key, value, 0, 0, 0, 0, NPP_JSON_STRING, -1);
                 else if ( value[0]=='t' )
-                    lib_json_add(json, key, NULL, 1, 0, 0, 0, JSON_BOOL, -1);
+                    lib_json_add(json, key, NULL, 1, 0, 0, 0, NPP_JSON_BOOL, -1);
                 else if ( value[0]=='f' )
-                    lib_json_add(json, key, NULL, 0, 0, 0, 0, JSON_BOOL, -1);
+                    lib_json_add(json, key, NULL, 0, 0, 0, 0, NPP_JSON_BOOL, -1);
                 else if ( strchr(value, '.') )
                 {
-                    if ( strlen(value) <= JSON_MAX_FLOAT_LEN )
+                    if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add(json, key, NULL, 0, 0, flo_value, 0, JSON_FLOAT, -1);
+                        lib_json_add(json, key, NULL, 0, 0, flo_value, 0, NPP_JSON_FLOAT, -1);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add(json, key, NULL, 0, 0, 0, dbl_value, JSON_DOUBLE, -1);
+                        lib_json_add(json, key, NULL, 0, 0, 0, dbl_value, NPP_JSON_DOUBLE, -1);
                     }
                 }
                 else if ( value[0] == '-' || strtoul(value, NULL, 10) < INT_MAX )
-                    lib_json_add(json, key, NULL, atoi(value), 0, 0, 0, JSON_INTEGER, -1);
+                    lib_json_add(json, key, NULL, atoi(value), 0, 0, 0, NPP_JSON_INTEGER, -1);
                 else    /* unsigned */
-                    lib_json_add(json, key, NULL, 0, (unsigned)strtoul(value, NULL, 10), 0, 0, JSON_UNSIGNED, -1);
+                    lib_json_add(json, key, NULL, 0, (unsigned)strtoul(value, NULL, 10), 0, 0, NPP_JSON_UNSIGNED, -1);
             }
 
             now_value = 0;
@@ -7142,12 +6488,12 @@ static char tmp[JSON_BUFSIZE];
         }
         else if ( now_key )
         {
-            if ( j < JSON_KEY_LEN )
+            if ( j < NPP_JSON_KEY_LEN )
                 key[j++] = src[i];
         }
         else if ( now_value )
         {
-            if ( j < JSON_VAL_LEN )
+            if ( j < NPP_JSON_STR_LEN )
                 value[j++] = src[i];
         }
 
@@ -7176,22 +6522,22 @@ void lib_json_log_dbg(JSON *json, const char *name)
 
     for ( i=0; i<json->cnt; ++i )
     {
-        if ( json->rec[i].type == JSON_STRING )
-            strcpy(type, "JSON_STRING");
-        else if ( json->rec[i].type == JSON_INTEGER )
-            strcpy(type, "JSON_INTEGER");
-        else if ( json->rec[i].type == JSON_UNSIGNED )
-            strcpy(type, "JSON_UNSIGNED");
-        else if ( json->rec[i].type == JSON_FLOAT )
-            strcpy(type, "JSON_FLOAT");
-        else if ( json->rec[i].type == JSON_DOUBLE )
-            strcpy(type, "JSON_DOUBLE");
-        else if ( json->rec[i].type == JSON_BOOL )
-            strcpy(type, "JSON_BOOL");
-        else if ( json->rec[i].type == JSON_RECORD )
-            strcpy(type, "JSON_RECORD");
-        else if ( json->rec[i].type == JSON_ARRAY )
-            strcpy(type, "JSON_ARRAY");
+        if ( json->rec[i].type == NPP_JSON_STRING )
+            strcpy(type, "NPP_JSON_STRING");
+        else if ( json->rec[i].type == NPP_JSON_INTEGER )
+            strcpy(type, "NPP_JSON_INTEGER");
+        else if ( json->rec[i].type == NPP_JSON_UNSIGNED )
+            strcpy(type, "NPP_JSON_UNSIGNED");
+        else if ( json->rec[i].type == NPP_JSON_FLOAT )
+            strcpy(type, "NPP_JSON_FLOAT");
+        else if ( json->rec[i].type == NPP_JSON_DOUBLE )
+            strcpy(type, "NPP_JSON_DOUBLE");
+        else if ( json->rec[i].type == NPP_JSON_BOOL )
+            strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_RECORD )
+            strcpy(type, "NPP_JSON_RECORD");
+        else if ( json->rec[i].type == NPP_JSON_ARRAY )
+            strcpy(type, "NPP_JSON_ARRAY");
         else
         {
             sprintf(type, "Unknown type! (%d)", json->rec[i].type);
@@ -7222,22 +6568,22 @@ void lib_json_log_inf(JSON *json, const char *name)
 
     for ( i=0; i<json->cnt; ++i )
     {
-        if ( json->rec[i].type == JSON_STRING )
-            strcpy(type, "JSON_STRING");
-        else if ( json->rec[i].type == JSON_INTEGER )
-            strcpy(type, "JSON_INTEGER");
-        else if ( json->rec[i].type == JSON_UNSIGNED )
-            strcpy(type, "JSON_UNSIGNED");
-        else if ( json->rec[i].type == JSON_FLOAT )
-            strcpy(type, "JSON_FLOAT");
-        else if ( json->rec[i].type == JSON_DOUBLE )
-            strcpy(type, "JSON_DOUBLE");
-        else if ( json->rec[i].type == JSON_BOOL )
-            strcpy(type, "JSON_BOOL");
-        else if ( json->rec[i].type == JSON_RECORD )
-            strcpy(type, "JSON_RECORD");
-        else if ( json->rec[i].type == JSON_ARRAY )
-            strcpy(type, "JSON_ARRAY");
+        if ( json->rec[i].type == NPP_JSON_STRING )
+            strcpy(type, "NPP_JSON_STRING");
+        else if ( json->rec[i].type == NPP_JSON_INTEGER )
+            strcpy(type, "NPP_JSON_INTEGER");
+        else if ( json->rec[i].type == NPP_JSON_UNSIGNED )
+            strcpy(type, "NPP_JSON_UNSIGNED");
+        else if ( json->rec[i].type == NPP_JSON_FLOAT )
+            strcpy(type, "NPP_JSON_FLOAT");
+        else if ( json->rec[i].type == NPP_JSON_DOUBLE )
+            strcpy(type, "NPP_JSON_DOUBLE");
+        else if ( json->rec[i].type == NPP_JSON_BOOL )
+            strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_RECORD )
+            strcpy(type, "NPP_JSON_RECORD");
+        else if ( json->rec[i].type == NPP_JSON_ARRAY )
+            strcpy(type, "NPP_JSON_ARRAY");
         else
         {
             sprintf(type, "Unknown type! (%d)", json->rec[i].type);
@@ -7266,43 +6612,43 @@ bool lib_json_add(JSON *json, const char *name, const char *str_value, int int_v
 
         if ( i==-1 )    /* not present -- append new */
         {
-            if ( json->cnt >= JSON_MAX_ELEMS ) return FALSE;
+            if ( json->cnt >= NPP_JSON_MAX_ELEMS ) return FALSE;
             i = json->cnt;
             ++json->cnt;
-            strncpy(json->rec[i].name, name, JSON_KEY_LEN);
-            json->rec[i].name[JSON_KEY_LEN] = EOS;
+            strncpy(json->rec[i].name, name, NPP_JSON_KEY_LEN);
+            json->rec[i].name[NPP_JSON_KEY_LEN] = EOS;
             json->array = FALSE;
         }
     }
     else    /* array */
     {
-        if ( i >= JSON_MAX_ELEMS-1 ) return FALSE;
+        if ( i >= NPP_JSON_MAX_ELEMS-1 ) return FALSE;
         json->array = TRUE;
         if ( json->cnt < i+1 ) json->cnt = i + 1;
     }
 
-    if ( type == JSON_STRING )
+    if ( type == NPP_JSON_STRING )
     {
-        strncpy(json->rec[i].value, str_value, JSON_VAL_LEN);
-        json->rec[i].value[JSON_VAL_LEN] = EOS;
+        strncpy(json->rec[i].value, str_value, NPP_JSON_STR_LEN);
+        json->rec[i].value[NPP_JSON_STR_LEN] = EOS;
     }
-    else if ( type == JSON_INTEGER )
+    else if ( type == NPP_JSON_INTEGER )
     {
         sprintf(json->rec[i].value, "%d", int_value);
     }
-    else if ( type == JSON_UNSIGNED )
+    else if ( type == NPP_JSON_UNSIGNED )
     {
         sprintf(json->rec[i].value, "%u", uint_value);
     }
-    else if ( type == JSON_FLOAT )
+    else if ( type == NPP_JSON_FLOAT )
     {
-        snprintf(json->rec[i].value, JSON_VAL_LEN, "%f", flo_value);
+        snprintf(json->rec[i].value, NPP_JSON_STR_LEN, "%f", flo_value);
     }
-    else if ( type == JSON_DOUBLE )
+    else if ( type == NPP_JSON_DOUBLE )
     {
-        snprintf(json->rec[i].value, JSON_VAL_LEN, "%lf", dbl_value);
+        snprintf(json->rec[i].value, NPP_JSON_STR_LEN, "%lf", dbl_value);
     }
-    else if ( type == JSON_BOOL )
+    else if ( type == NPP_JSON_BOOL )
     {
         if ( int_value )
             strcpy(json->rec[i].value, "true");
@@ -7311,7 +6657,7 @@ bool lib_json_add(JSON *json, const char *name, const char *str_value, int int_v
     }
     else
     {
-        COPY(json->rec[i].value, "Invalid type!", JSON_VAL_LEN);
+        COPY(json->rec[i].value, "Invalid type!", NPP_JSON_STR_LEN);
     }
 
     json->rec[i].type = type;
@@ -7333,27 +6679,25 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 
     if ( name )
     {
-#ifdef DUMP
-        DBG("name [%s]", name);
-#endif
+        DDBG("name [%s]", name);
+
         i = json_get_i(json, name);
 
         if ( i==-1 )    /* not present -- append new */
         {
-            if ( json->cnt >= JSON_MAX_ELEMS ) return FALSE;
+            if ( json->cnt >= NPP_JSON_MAX_ELEMS ) return FALSE;
             i = json->cnt;
             ++json->cnt;
-            strncpy(json->rec[i].name, name, JSON_KEY_LEN);
-            json->rec[i].name[JSON_KEY_LEN] = EOS;
+            strncpy(json->rec[i].name, name, NPP_JSON_KEY_LEN);
+            json->rec[i].name[NPP_JSON_KEY_LEN] = EOS;
             json->array = FALSE;
         }
     }
     else    /* array */
     {
-#ifdef DUMP
-        DBG("index = %d", i);
-#endif
-        if ( i >= JSON_MAX_ELEMS-1 ) return FALSE;
+        DDBG("index = %d", i);
+
+        if ( i >= NPP_JSON_MAX_ELEMS-1 ) return FALSE;
         json->array = TRUE;
         if ( json->cnt < i+1 ) json->cnt = i + 1;
     }
@@ -7362,7 +6706,7 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 
     sprintf(json->rec[i].value, "%p", json_sub);
 
-    json->rec[i].type = is_array?JSON_ARRAY:JSON_RECORD;
+    json->rec[i].type = is_array?NPP_JSON_ARRAY:NPP_JSON_RECORD;
 
     return TRUE;
 }
@@ -7390,7 +6734,7 @@ bool lib_json_present(JSON *json, const char *name)
 -------------------------------------------------------------------------- */
 char *lib_json_get_str(JSON *json, const char *name, int i)
 {
-static char dst[JSON_VAL_LEN+1];
+static char dst[NPP_JSON_STR_LEN+1];
 
     if ( !name )    /* array elem */
     {
@@ -7401,7 +6745,7 @@ static char dst[JSON_VAL_LEN+1];
             return dst;
         }
 
-        if ( json->rec[i].type==JSON_STRING || json->rec[i].type==JSON_INTEGER || json->rec[i].type==JSON_UNSIGNED || json->rec[i].type==JSON_FLOAT || json->rec[i].type==JSON_DOUBLE || json->rec[i].type==JSON_BOOL )
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
             strcpy(dst, json->rec[i].value);
             return dst;
@@ -7417,7 +6761,7 @@ static char dst[JSON_VAL_LEN+1];
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type==JSON_STRING || json->rec[i].type==JSON_INTEGER || json->rec[i].type==JSON_UNSIGNED || json->rec[i].type==JSON_FLOAT || json->rec[i].type==JSON_DOUBLE || json->rec[i].type==JSON_BOOL )
+            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
             {
                 strcpy(dst, json->rec[i].value);
                 return dst;
@@ -7446,9 +6790,9 @@ int lib_json_get_int(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == JSON_INTEGER )
+        if ( json->rec[i].type == NPP_JSON_INTEGER )
             return atoi(json->rec[i].value);
-        else if ( json->rec[i].type == JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
+        else if ( json->rec[i].type == NPP_JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
             return (int)strtoul(json->rec[i].value, NULL, 10);
         else    /* types don't match */
             return 0;
@@ -7458,9 +6802,9 @@ int lib_json_get_int(JSON *json, const char *name, int i)
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == JSON_INTEGER )
+            if ( json->rec[i].type == NPP_JSON_INTEGER )
                 return atoi(json->rec[i].value);
-            else if ( json->rec[i].type == JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
+            else if ( json->rec[i].type == NPP_JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
                 return (int)strtoul(json->rec[i].value, NULL, 10);
 
             return 0;   /* types don't match or couldn't convert */
@@ -7484,11 +6828,11 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == JSON_UNSIGNED )
+        if ( json->rec[i].type == NPP_JSON_UNSIGNED )
         {
             return (unsigned)strtoul(json->rec[i].value, NULL, 10);
         }
-        else if ( json->rec[i].type == JSON_INTEGER )
+        else if ( json->rec[i].type == NPP_JSON_INTEGER )
         {
             int tmp = atoi(json->rec[i].value);
 
@@ -7505,11 +6849,11 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == JSON_UNSIGNED )
+            if ( json->rec[i].type == NPP_JSON_UNSIGNED )
             {
                 return (unsigned)strtoul(json->rec[i].value, NULL, 10);
             }
-            else if ( json->rec[i].type == JSON_INTEGER )
+            else if ( json->rec[i].type == NPP_JSON_INTEGER )
             {
                 int tmp = atoi(json->rec[i].value);
 
@@ -7542,7 +6886,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == JSON_FLOAT )
+        if ( json->rec[i].type == NPP_JSON_FLOAT )
         {
             sscanf(json->rec[i].value, "%f", &flo_value);
             return flo_value;
@@ -7555,7 +6899,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == JSON_FLOAT )
+            if ( json->rec[i].type == NPP_JSON_FLOAT )
             {
                 sscanf(json->rec[i].value, "%f", &flo_value);
                 return flo_value;
@@ -7584,7 +6928,7 @@ double lib_json_get_double(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == JSON_FLOAT || json->rec[i].type == JSON_DOUBLE )
+        if ( json->rec[i].type == NPP_JSON_FLOAT || json->rec[i].type == NPP_JSON_DOUBLE )
         {
             sscanf(json->rec[i].value, "%lf", &dbl_value);
             return dbl_value;
@@ -7597,7 +6941,7 @@ double lib_json_get_double(JSON *json, const char *name, int i)
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == JSON_FLOAT || json->rec[i].type == JSON_DOUBLE )
+            if ( json->rec[i].type == NPP_JSON_FLOAT || json->rec[i].type == NPP_JSON_DOUBLE )
             {
                 sscanf(json->rec[i].value, "%lf", &dbl_value);
                 return dbl_value;
@@ -7624,14 +6968,14 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
             return FALSE;
         }
 
-        if ( json->rec[i].type == JSON_BOOL )
+        if ( json->rec[i].type == NPP_JSON_BOOL )
         {
             if ( json->rec[i].value[0] == 't' )
                 return TRUE;
             else
                 return FALSE;
         }
-        else if ( json->rec[i].type == JSON_STRING )
+        else if ( json->rec[i].type == NPP_JSON_STRING )
         {
             if ( 0==strcmp(json->rec[i].value, "true") )
                 return TRUE;
@@ -7648,14 +6992,14 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == JSON_BOOL )
+            if ( json->rec[i].type == NPP_JSON_BOOL )
             {
                 if ( json->rec[i].value[0] == 't' )
                     return TRUE;
                 else
                     return FALSE;
             }
-            else if ( json->rec[i].type == JSON_STRING )
+            else if ( json->rec[i].type == NPP_JSON_STRING )
             {
                 if ( 0==strcmp(json->rec[i].value, "true") )
                     return TRUE;
@@ -7687,10 +7031,10 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
             WAR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
             return FALSE;
         }
-#ifdef DUMP
-        DBG("index = %d", i);
-#endif
-        if ( json->rec[i].type == JSON_RECORD || json->rec[i].type == JSON_ARRAY )
+
+        DDBG("index = %d", i);
+
+        if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
         {
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
@@ -7703,16 +7047,14 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
         }
     }
 
-#ifdef DUMP
-    DBG("name [%s]", name);
-#endif
+    DDBG("name [%s]", name);
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
 //            DBG("lib_json_get_record, found [%s]", name);
-            if ( json->rec[i].type == JSON_RECORD || json->rec[i].type == JSON_ARRAY )
+            if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
             {
                 intptr_t jp;
                 sscanf(json->rec[i].value, "%p", (void**)&jp);
@@ -7876,7 +7218,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
 
 //#ifndef NPP_SVC   /* web server mode */
 
-//    sprintf(sender, "%s <noreply@%s>", conn[ci].website, conn[ci].host);
+//    sprintf(sender, "%s <noreply@%s>", G_connections[ci].app_name, G_connections[ci].host);
 
     /* happens when using non-standard port */
 
@@ -7888,7 +7230,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
 //        DBG("sender truncated to [%s]", sender);
 //    }
 //#else
-    sprintf(sender, "%s <%s@%s>", APP_WEBSITE, EMAIL_FROM_USER, APP_DOMAIN);
+    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
 //#endif  /* NPP_SVC */
 
     sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
@@ -7923,77 +7265,19 @@ bool npp_email(const char *to, const char *subject, const char *message)
 
 
 /* --------------------------------------------------------------------------
-   Convert string to quoted-printable
--------------------------------------------------------------------------- */
-/*void qp(char *dst, const char *asrc)
-{
-    char *src=(char*)asrc;
-    int curr_line_length = 0;
-    bool first=TRUE;
-
-    while ( *src )
-    {
-        if ( curr_line_length > 72 )
-        {
-            // insert '=' if prev char exists and is not a space
-            if ( !first )
-            {
-                if (*(src-1) != 0x20)
-                    *dst++ = '=';
-            }
-            *dst++ = '\n';
-            curr_line_length = 0;
-        }
-
-        if ( *src == 0x20 )
-        {
-            *dst++ = *src;
-        }
-        else if ( *src >= 33 && *src <= 126 && *src != 61 )
-        {
-            *dst++ = *src;
-            // double escape newline periods
-            // http://tools.ietf.org/html/rfc5321#section-4.5.2
-            if ( curr_line_length == 0 && *src == 46 )
-            {
-                *dst++ = '.';
-            }
-        }
-        else
-        {
-            *dst++ = '=';
-            char hex[8];
-            sprintf(hex, "%x", (*src >> 4) & 0x0F);
-            dst = stpcpy(dst, hex);
-            sprintf(hex, "%x", *src & 0x0F);
-            dst = stpcpy(dst, hex);
-            // 2 more chars bc hex and equals
-            curr_line_length += 2;
-        }
-
-        ++curr_line_length;
-        first = FALSE;
-        ++src;
-    }
-
-    *dst = EOS;
-}*/
-
-
-/* --------------------------------------------------------------------------
    Send an email with attachement
 -------------------------------------------------------------------------- */
 bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len)
 {
     DBG("Sending email to [%s], subject [%s], with attachement [%s]", to, subject, att_name);
 
-#define BOUNDARY "nppbndGq7ehJxt"
+#define NPP_BOUNDARY "nppbndGq7ehJxtz"
 
 #ifndef _WIN32
     char    sender[512];
     char    command[1024];
 
-    sprintf(sender, "%s <%s@%s>", APP_WEBSITE, EMAIL_FROM_USER, APP_DOMAIN);
+    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
 
     sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
 
@@ -8009,12 +7293,12 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
         fprintf(mailpipe, "From: %s\n", sender);
         fprintf(mailpipe, "To: %s\n", to);
         fprintf(mailpipe, "Subject: %s\n", subject);
-        fprintf(mailpipe, "Content-Type: multipart/mixed; boundary=%s\n", BOUNDARY);
+        fprintf(mailpipe, "Content-Type: multipart/mixed; boundary=%s\n", NPP_BOUNDARY);
         fprintf(mailpipe, "\n");
 
         /* message */
 
-        fprintf(mailpipe, "--%s\n", BOUNDARY);
+        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
 
         fprintf(mailpipe, "Content-Type: text/plain; charset=\"utf-8\"\n");
 //        fprintf(mailpipe, "Content-Transfer-Encoding: quoted-printable\n");
@@ -8043,7 +7327,7 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         /* attachement */
 
-        fprintf(mailpipe, "--%s\n", BOUNDARY);
+        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
 
         fprintf(mailpipe, "Content-Type: application\n");
         fprintf(mailpipe, "Content-Transfer-Encoding: base64\n");
@@ -8061,7 +7345,7 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
             return FALSE;
         }
 
-        b64_encode(b64data, att_data, att_data_len);
+        npp_b64_encode(b64data, att_data, att_data_len);
         b64data_len = strlen(b64data);
 
         DBG("     Real b64data_len = %d", b64data_len);
@@ -8072,7 +7356,7 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         /* finish */
 
-        fprintf(mailpipe, "\n\n--%s--\n", BOUNDARY);
+        fprintf(mailpipe, "\n\n--%s--\n", NPP_BOUNDARY);
 
         pclose(mailpipe);
     }
@@ -8402,9 +7686,9 @@ bool npp_read_param_str(const char *param, char *dest)
 {
     char *p;
     int  plen = strlen(param);
-#ifdef DUMP
-    DBG("npp_read_param_str [%s]", param);
-#endif
+
+    DDBG("npp_read_param_str [%s]", param);
+
     if ( !M_conf )
     {
 //        ERR("No config file or not read yet");
@@ -8425,16 +7709,12 @@ bool npp_read_param_str(const char *param, char *dest)
     {
         if ( p > M_conf && *(p-1) != '\n' )  /* commented out or within quotes -- try the next occurence */
         {
-#ifdef DUMP
-            DBG("param commented out or within quotes, continue search...");
-#endif
+            DDBG("param commented out or within quotes, continue search...");
             p = strstr(++p, param);
         }
         else if ( *(p+plen) != '=' && *(p+plen) != ' ' && *(p+plen) != '\t' )
         {
-#ifdef DUMP
-            DBG("param does not end with '=', space or tab, continue search...");
-#endif
+            DDBG("param does not end with '=', space or tab, continue search...");
             p = strstr(++p, param);
         }
         else
@@ -8597,9 +7877,9 @@ char *lib_shm_create(unsigned bytes, int index)
 {
     char *shm_segptr=NULL;
 
-    if ( index >= MAX_SHM_SEGMENTS )
+    if ( index >= NPP_MAX_SHM_SEGMENTS )
     {
-        ERR("Too many SHM segments, MAX_SHM_SEGMENTS=%d", MAX_SHM_SEGMENTS);
+        ERR("Too many SHM segments, NPP_MAX_SHM_SEGMENTS=%d", NPP_MAX_SHM_SEGMENTS);
         return NULL;
     }
 
@@ -8718,7 +7998,7 @@ bool log_start(const char *prefix, bool test)
 
     fprintf(M_log_fd, LOG_LINE_LONG_N);
 
-    ALWAYS(" %s  Starting %s's log. Server version: %s, app version: %s", G_dt, APP_WEBSITE, WEB_SERVER_VERSION, APP_VERSION);
+    ALWAYS(" %s  Starting %s's log. Node++ version: %s", DT_NOW_GMT, NPP_APP_NAME, NPP_VERSION);
 
     fprintf(M_log_fd, LOG_LINE_LONG_NN);
 
@@ -8729,13 +8009,13 @@ bool log_start(const char *prefix, bool test)
 /* --------------------------------------------------------------------------
    Write to log with date/time
 -------------------------------------------------------------------------- */
-void log_write_time(int level, const char *message, ...)
+void log_write_time(char level, const char *message, ...)
 {
     if ( level > G_logLevel ) return;
 
     /* output timestamp */
 
-    fprintf(M_log_fd, "[%s] ", G_dt+11);
+    fprintf(M_log_fd, "[%s] ", G_dt_string_gmt+11);
 
     if ( LOG_ERR == level )
         fprintf(M_log_fd, "ERROR: ");
@@ -8745,7 +8025,7 @@ void log_write_time(int level, const char *message, ...)
     /* compile message with arguments into buffer */
 
     va_list plist;
-    char buffer[MAX_LOG_STR_LEN+1+64];
+    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
     va_start(plist, message);
     vsprintf(buffer, message, plist);
@@ -8755,7 +8035,7 @@ void log_write_time(int level, const char *message, ...)
 
     fprintf(M_log_fd, "%s\n", buffer);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     fflush(M_log_fd);
 #else
     if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
@@ -8766,7 +8046,7 @@ void log_write_time(int level, const char *message, ...)
 /* --------------------------------------------------------------------------
    Write to log
 -------------------------------------------------------------------------- */
-void log_write(int level, const char *message, ...)
+void log_write(char level, const char *message, ...)
 {
     if ( level > G_logLevel ) return;
 
@@ -8778,7 +8058,7 @@ void log_write(int level, const char *message, ...)
     /* compile message with arguments into buffer */
 
     va_list plist;
-    char buffer[MAX_LOG_STR_LEN+1+64];
+    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
     va_start(plist, message);
     vsprintf(buffer, message, plist);
@@ -8788,7 +8068,7 @@ void log_write(int level, const char *message, ...)
 
     fprintf(M_log_fd, "%s\n", buffer);
 
-#ifdef DUMP
+#ifdef NPP_DEBUG
     fflush(M_log_fd);
 #else
     if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
@@ -8798,23 +8078,23 @@ void log_write(int level, const char *message, ...)
 
 /* --------------------------------------------------------------------------
    Write looong message to a log or --
-   its first (MAX_LOG_STR_LEN-50) part if it's longer
+   its first (NPP_MAX_LOG_STR_LEN-50) part if it's longer
 -------------------------------------------------------------------------- */
 void log_long(const char *message, int len, const char *desc)
 {
     if ( G_logLevel < LOG_DBG ) return;
 
-    char buffer[MAX_LOG_STR_LEN+1];
+    char buffer[NPP_MAX_LOG_STR_LEN+1];
 
-    if ( len < MAX_LOG_STR_LEN-50 )
+    if ( len < NPP_MAX_LOG_STR_LEN-50 )
     {
         strncpy(buffer, message, len);
         buffer[len] = EOS;
     }
     else
     {
-        strncpy(buffer, message, MAX_LOG_STR_LEN-50);
-        strcpy(buffer+MAX_LOG_STR_LEN-50, " (...)");
+        strncpy(buffer, message, NPP_MAX_LOG_STR_LEN-50);
+        strcpy(buffer+NPP_MAX_LOG_STR_LEN-50, " (...)");
     }
 
     DBG("%s:\n\n[%s]\n", desc, buffer);
@@ -8847,13 +8127,16 @@ void log_finish()
 }
 
 
-#ifdef ICONV
 /* --------------------------------------------------------------------------
    Convert string
 -------------------------------------------------------------------------- */
 char *npp_convert(const char *src, const char *cp_from, const char *cp_to)
 {
-static char dst[4096];
+static char dst[NPP_LIB_STR_BUF];
+
+    char *out_buf = dst;
+
+#ifdef NPP_ICONV
 
     iconv_t cd = iconv_open(cp_to, cp_from);
 
@@ -8866,8 +8149,7 @@ static char dst[4096];
     const char *in_buf = src;
     size_t in_left = strlen(src);
 
-    char *out_buf = &dst[0];
-    size_t out_left = 4095;
+    size_t out_left = NPP_LIB_STR_BUF-1;
 
     do
     {
@@ -8878,13 +8160,14 @@ static char dst[4096];
         }
     } while (in_left > 0 && out_left > 0);
 
-    *out_buf = 0;
-
     iconv_close(cd);
+
+#endif  /* NPP_ICONV */
+
+    *out_buf = EOS;
 
     return dst;
 }
-#endif  /* ICONV */
 
 
 
@@ -8902,7 +8185,7 @@ static char dst[4096];
 /* --------------------------------------------------------------------------
    Base64 encode
 -------------------------------------------------------------------------- */
-int b64_encode(char *dst, const unsigned char *src, int len)
+int npp_b64_encode(char *dst, const unsigned char *src, int len)
 {
 static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     unsigned int i, j=0, k=0, block[3];
@@ -8948,7 +8231,7 @@ static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 /* --------------------------------------------------------------------------
    Base64 decode
 -------------------------------------------------------------------------- */
-int b64_decode(unsigned char *dst, const char *src)
+int npp_b64_decode(unsigned char *dst, const char *src)
 {
     unsigned int i=0, k=0, block[4];
     const char *p=src;
@@ -9089,10 +8372,8 @@ char *stpncpy(char *dest, const char *src, size_t len)
 
     return d;
 }
-#endif  /* _WIN32 */
 
 
-#ifndef strnstr
 /* --------------------------------------------------------------------------
    Windows port of strnstr
 -------------------------------------------------------------------------- */
@@ -9115,3 +8396,574 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
     return NULL;
 }
 #endif  /* _WIN32 */
+
+
+
+
+/* ================================================================================================ */
+/* Main process (npp_app) only                                                                      */
+/* ================================================================================================ */
+
+#ifndef NPP_CLIENT
+/* --------------------------------------------------------------------------
+   Return a random 8-bit number from M_random_numbers
+-------------------------------------------------------------------------- */
+static unsigned char get_random_number()
+{
+    static int i=0;
+
+    if ( M_random_initialized )
+    {
+        if ( i >= NPP_RANDOM_NUMBERS )  /* refill the pool with fresh numbers */
+        {
+            npp_lib_init_random_numbers();
+            i = 0;
+        }
+        return M_random_numbers[i++];
+    }
+    else
+    {
+        WAR("Using get_random_number() before M_random_initialized");
+        return rand() % 256;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Seed rand()
+-------------------------------------------------------------------------- */
+static void seed_rand()
+{
+#define NPP_SEEDS_MEM 256  /* remaining 8 bits & last seeds to remember */
+static char first=1;
+/* make sure at least the last NPP_SEEDS_MEM seeds are unique */
+static unsigned int seeds[NPP_SEEDS_MEM];
+
+    DBG("seed_rand");
+
+    /* generate possibly random, or at least based on some non-deterministic factors, 32-bit integer */
+
+    int time_remainder = (int)G_now % 63 + 1;     /* 6 bits */
+    int mem_remainder = npp_get_memory() % 63 + 1;    /* 6 bits */
+    int pid_remainder;       /* 6 bits */
+    int yesterday_rem;    /* 6 bits */
+
+    if ( first )    /* initial seed */
+    {
+        pid_remainder = G_pid % 63 + 1;
+        yesterday_rem = G_cnts_yesterday.req % 63 + 1;
+    }
+    else    /* subsequent calls */
+    {
+        pid_remainder = rand() % 63 + 1;
+        yesterday_rem = rand() % 63 + 1;
+    }
+
+static int seeded=0;    /* 8 bits */
+
+    unsigned int seed;
+static unsigned int prev_seed=0;
+
+    while ( 1 )
+    {
+        if ( seeded >= NPP_SEEDS_MEM )
+            seeded = 1;
+        else
+            ++seeded;
+
+        seed = pid_remainder * time_remainder * mem_remainder * yesterday_rem * seeded;
+
+        /* check uniqueness in the history */
+
+        char found=0;
+        int i = 0;
+        while ( i < NPP_SEEDS_MEM )
+        {
+            if ( seeds[i++] == seed )
+            {
+                found = 1;
+                break;
+            }
+        }
+
+        if ( found )    /* same seed again */
+        {
+            WAR("seed %u repeated; seeded = %d, i = %d", seed, seeded, i);
+        }
+        else   /* seed not found ==> OK */
+        {
+            /* new seed needs to be at least 10000 apart from the previous one */
+
+            if ( !first && abs((long long)(seed-prev_seed)) < 10000 )
+            {
+                WAR("seed %u too close to the previous one (%u); seeded = %d", seed, prev_seed, seeded);
+            }
+            else    /* everything OK */
+            {
+                seeds[seeded-1] = seed;
+                break;
+            }
+        }
+
+        /* stir it up to avoid endless loop */
+
+        pid_remainder = rand() % 63 + 1;
+        time_remainder = rand() % 63 + 1;
+    }
+
+#ifdef NPP_DEBUG
+    char f[256];
+    npp_lib_fmt_int_generic(f, seed);
+    DBG("seed = %s", f);
+    DBG("");
+#endif  /* NPP_DEBUG */
+
+    prev_seed = seed;
+
+    first = 0;
+
+    srand(seed);
+}
+
+
+/* --------------------------------------------------------------------------
+   Initialize M_random_numbers array
+-------------------------------------------------------------------------- */
+void npp_lib_init_random_numbers()
+{
+    int i;
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    DBG("npp_lib_init_random_numbers");
+
+    seed_rand();
+
+#ifdef __linux__
+    /* On Linux we have access to a hardware-influenced RNG */
+
+    DBG("Trying /dev/urandom...");
+
+    int urandom_fd = open("/dev/urandom", O_RDONLY);
+
+    if ( urandom_fd )
+    {
+        if ( read(urandom_fd, &M_random_numbers, NPP_RANDOM_NUMBERS) < NPP_RANDOM_NUMBERS )
+        {
+            WAR("Couldn't read from /dev/urandom");
+            close(urandom_fd);
+            return;
+        }
+
+        close(urandom_fd);
+
+        INF("M_random_numbers obtained from /dev/urandom");
+    }
+    else
+    {
+        WAR("Couldn't open /dev/urandom");
+
+        /* fallback to old plain rand(), seeded the best we could */
+
+        for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
+            M_random_numbers[i] = rand() % 256;
+
+        INF("M_random_numbers obtained from rand()");
+    }
+
+#else   /* Windows */
+
+    for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
+        M_random_numbers[i] = rand() % 256;
+
+    INF("M_random_numbers obtained from rand()");
+
+#endif
+
+    INF("");
+
+    M_random_initialized = 1;
+
+#ifdef NPP_DEBUG
+
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+    DBG("M_random_numbers distribution visualization");
+    DBG("The square below should be filled fairly randomly and uniformly.");
+    DBG("If it's not, or you can see any regular patterns across the square, your system may be broken or too old to be deemed secure.");
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+
+    /* One square takes two columns, so we can have between 0 and 4 dots per square */
+
+#define SQUARE_ROWS             64
+#define SQUARE_COLS             SQUARE_ROWS*2
+#define SQUARE_IS_EMPTY(x, y)   (dots[y][x*2]==' ' && dots[y][x*2+1]==' ')
+#define SQUARE_HAS_ONE(x, y)    (dots[y][x*2]==' ' && dots[y][x*2+1]=='.')
+#define SQUARE_HAS_TWO(x, y)    (dots[y][x*2]=='.' && dots[y][x*2+1]=='.')
+#define SQUARE_HAS_THREE(x, y)  (dots[y][x*2]=='.' && dots[y][x*2+1]==':')
+#define SQUARE_HAS_FOUR(x, y)   (dots[y][x*2]==':' && dots[y][x*2+1]==':')
+
+    char dots[SQUARE_ROWS][SQUARE_COLS+1]={0};
+    int j;
+
+    for ( i=0; i<SQUARE_ROWS; ++i )
+        for ( j=0; j<SQUARE_COLS; ++j )
+            dots[i][j] = ' ';
+
+    /* we only have SQUARE_ROWS^2 squares with 5 possible values in each of them */
+    /* let only once in divider in */
+
+    int divider = NPP_RANDOM_NUMBERS / (SQUARE_ROWS*SQUARE_ROWS) + 1;
+
+    for ( i=0; i<NPP_RANDOM_NUMBERS-1; i+=2 )
+    {
+        if ( i % divider ) continue;
+
+        int x = M_random_numbers[i] % SQUARE_ROWS;
+        int y = M_random_numbers[i+1] % SQUARE_ROWS;
+
+        if ( SQUARE_IS_EMPTY(x, y) )    /* make it one */
+            dots[y][x*2+1] = '.';
+        else if ( SQUARE_HAS_ONE(x, y) )    /* make it two */
+            dots[y][x*2] = '.';
+        else if ( SQUARE_HAS_TWO(x, y) )    /* make it three */
+            dots[y][x*2+1] = ':';
+        else if ( SQUARE_HAS_THREE(x, y) )  /* make it four */
+            dots[y][x*2] = ':';
+    }
+
+    for ( i=0; i<SQUARE_ROWS; ++i )
+        DBG(dots[i]);
+
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+    DBG("");
+    DBG("npp_lib_init_random_numbers took %.3lf ms", npp_elapsed(&start));
+    DBG("");
+
+#endif  /* NPP_DEBUG */
+}
+
+
+/* --------------------------------------------------------------------------
+   Generate random string
+   Generates FIPS-compliant random sequences (tested with Burp)
+-------------------------------------------------------------------------- */
+void npp_random(char *dest, int len)
+{
+const char  *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+static int  since_seed=0;
+    int     i;
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    if ( since_seed > (G_cnts_today.req % 246 + 10) )  /* seed every now and then */
+//    if ( 1 )  /* test */
+    {
+        seed_rand();
+        since_seed = 0;
+    }
+    else
+    {
+        ++since_seed;
+
+        DDBG("since_seed = %d", since_seed);
+    }
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+#endif
+
+    int r;
+
+    for ( i=0; i<len; ++i )
+    {
+        /* source random numbers from two different sets: 'normal' and 'lucky' */
+
+        if ( get_random_number() % 3 == 0 )
+        {
+            DDBG("i=%d lucky", i);
+            r = get_random_number();
+            while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
+        }
+        else
+        {
+            DDBG("i=%d normal", i);
+            r = rand() % 256;
+            while ( r > 247 ) r = rand() % 256;
+        }
+
+        dest[i] = chars[r % 62];
+    }
+
+    dest[i] = EOS;
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+    DBG("npp_random took %.3lf ms", npp_elapsed(&start));
+#endif
+}
+
+
+/* --------------------------------------------------------------------------
+   Set date format, decimal & thousand separator
+---------------------------------------------------------------------------*/
+void npp_lib_set_datetime_formats(int ci)
+{
+    DDBG("npp_lib_set_datetime_formats, lang [%s]", G_connections[ci].lang);
+
+    /* date format */
+
+    if ( 0==strcmp(G_connections[ci].lang, "EN-US") )
+        G_connections[ci].formats |= NPP_DATE_US;
+    else if ( 0==strcmp(G_connections[ci].lang, "EN-GB") || 0==strcmp(G_connections[ci].lang, "EN-AU") || 0==strcmp(G_connections[ci].lang, "FR-FR") || 0==strcmp(G_connections[ci].lang, "EN-IE") || 0==strcmp(G_connections[ci].lang, "ES-ES") || 0==strcmp(G_connections[ci].lang, "IT-IT") || 0==strcmp(G_connections[ci].lang, "PT-PT") || 0==strcmp(G_connections[ci].lang, "PT-BR") || 0==strcmp(G_connections[ci].lang, "ES-AR") )
+        G_connections[ci].formats |= NPP_DATE_GB;
+    else if ( 0==strcmp(G_connections[ci].lang, "PL-PL") || 0==strcmp(G_connections[ci].lang, "RU-RU") || 0==strcmp(G_connections[ci].lang, "DE-CH") || 0==strcmp(G_connections[ci].lang, "FR-CH") )
+        G_connections[ci].formats |= NPP_DATE_PL;
+
+    /* amount format */
+
+    if ( 0==strcmp(G_connections[ci].lang, "EN-US") || 0==strcmp(G_connections[ci].lang, "EN-GB") || 0==strcmp(G_connections[ci].lang, "EN-AU") || 0==strcmp(G_connections[ci].lang, "TH-TH") )
+    {
+//        M_dsep = '.';
+//        M_tsep = ',';
+        G_connections[ci].formats |= NPP_NUMBER_DS_DOT;
+        G_connections[ci].formats |= NPP_NUMBER_TS_COMMA;
+    }
+    else if ( 0==strcmp(G_connections[ci].lang, "PL-PL") || 0==strcmp(G_connections[ci].lang, "IT-IT") || 0==strcmp(G_connections[ci].lang, "NB-NO") || 0==strcmp(G_connections[ci].lang, "ES-ES") )
+    {
+//        M_dsep = ',';
+//        M_tsep = '.';
+        G_connections[ci].formats |= NPP_NUMBER_TS_DOT;
+    }
+    else
+    {
+//        M_dsep = ',';
+//        M_tsep = ' ';
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Format date
+---------------------------------------------------------------------------*/
+static bool lib_is_date_US(int ci)
+{
+    if ( IS_SESSION )
+        return ((SESSION.formats & NPP_DATE_US) == NPP_DATE_US);
+    else
+        return ((G_connections[ci].formats & NPP_DATE_US) == NPP_DATE_US);
+}
+
+
+/* --------------------------------------------------------------------------
+   Format date
+---------------------------------------------------------------------------*/
+static bool lib_is_date_GB(int ci)
+{
+    if ( IS_SESSION )
+        return ((SESSION.formats & NPP_DATE_GB) == NPP_DATE_GB);
+    else
+        return ((G_connections[ci].formats & NPP_DATE_GB) == NPP_DATE_GB);
+}
+
+
+/* --------------------------------------------------------------------------
+   Format date
+---------------------------------------------------------------------------*/
+static bool lib_is_date_PL(int ci)
+{
+    if ( IS_SESSION )
+        return ((SESSION.formats & NPP_DATE_PL) == NPP_DATE_PL);
+    else
+        return ((G_connections[ci].formats & NPP_DATE_PL) == NPP_DATE_PL);
+}
+
+
+/* --------------------------------------------------------------------------
+   Format date
+---------------------------------------------------------------------------*/
+char *npp_lib_fmt_date(int ci, short year, short month, short day)
+{
+static char dest[32];
+
+    if ( lib_is_date_US(ci) )
+        sprintf(dest, "%02hd/%02hd/%hd", month, day, year);
+    else if ( lib_is_date_GB(ci) )
+        sprintf(dest, "%02hd/%02hd/%hd", day, month, year);
+    else if ( lib_is_date_PL(ci) )
+        sprintf(dest, "%02hd.%02hd.%hd", day, month, year);
+    else    /* NPP_DATE_DEFAULT */
+        sprintf(dest, "%hd-%02hd-%02hd", year, month, day);
+
+    return dest;
+}
+
+
+/* --------------------------------------------------------------------------
+   Format amount
+---------------------------------------------------------------------------*/
+static char get_dsep(int ci)
+{
+    if ( IS_SESSION )
+    {
+        if ( (SESSION.formats & NPP_NUMBER_DS_COMMA) == NPP_NUMBER_DS_COMMA )
+            return ',';
+        else
+            return '.';
+    }
+    else    /* no session -- get from current request */
+    {
+        if ( (G_connections[ci].formats & NPP_NUMBER_DS_COMMA) == NPP_NUMBER_DS_COMMA )
+            return ',';
+        else
+            return '.';
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Format amount
+---------------------------------------------------------------------------*/
+static char get_tsep(int ci)
+{
+    if ( IS_SESSION )
+    {
+        if ( (SESSION.formats & NPP_NUMBER_TS_SPACE) == NPP_NUMBER_TS_SPACE )
+            return ' ';
+        else if ( (SESSION.formats & NPP_NUMBER_TS_COMMA) == NPP_NUMBER_TS_COMMA )
+            return ',';
+        else
+            return '.';
+    }
+    else    /* no session -- get from current request */
+    {
+        if ( (G_connections[ci].formats & NPP_NUMBER_TS_SPACE) == NPP_NUMBER_TS_SPACE )
+            return ' ';
+        else if ( (G_connections[ci].formats & NPP_NUMBER_TS_COMMA) == NPP_NUMBER_TS_COMMA )
+            return ',';
+        else
+            return '.';
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Format decimal amount
+---------------------------------------------------------------------------*/
+char *npp_lib_fmt_dec(int ci, double in_amt)
+{
+static char dest[64];
+
+    char    in_stramt[64];
+    int     len;
+    int     i, j=0;
+    bool    minus=FALSE;
+
+    sprintf(in_stramt, "%0.2lf", in_amt);
+
+    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    {
+        strcpy(dest, "− ");
+        j = 4;
+        minus = TRUE;
+    }
+
+    len = strlen(in_stramt);
+
+    char dsep = get_dsep(ci);   /* decimal separator */
+    char tsep = get_tsep(ci);   /* thousand separator */
+
+    for ( i=(j?1:0); i<len; ++i, ++j )
+    {
+        if ( in_stramt[i]=='.' && dsep!='.' )   /* replace decimal separator */
+        {
+            dest[j] = dsep;
+            continue;
+        }
+        else if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
+        {
+            dest[j++] = tsep;    /* extra character */
+        }
+        dest[j] = in_stramt[i];
+    }
+
+    dest[j] = EOS;
+
+    return dest;
+}
+
+
+/* --------------------------------------------------------------------------
+   Format integer amount
+---------------------------------------------------------------------------*/
+void npp_lib_fmt_int(int ci, char *stramt, long long in_amt)
+{
+    char    in_stramt[256];
+    int     len;
+    int     i, j=0;
+    bool    minus=FALSE;
+
+    sprintf(in_stramt, "%lld", in_amt);
+
+    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    {
+        strcpy(stramt, "− ");
+        j = 4;
+        minus = TRUE;
+    }
+
+    len = strlen(in_stramt);
+
+    char tsep = get_tsep(ci);   /* thousand separator */
+
+    for ( i=(j?1:0); i<len; ++i, ++j )
+    {
+        if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) )
+            stramt[j++] = tsep;
+        stramt[j] = in_stramt[i];
+    }
+
+    stramt[j] = EOS;
+}
+
+
+/* --------------------------------------------------------------------------
+   Notify admin via email
+-------------------------------------------------------------------------- */
+void npp_notify_admin(const char *msg)
+{
+#ifdef NPP_ADMIN_EMAIL
+
+    char tag[8];
+
+    npp_random(tag, 7);
+
+    char message[NPP_MAX_LOG_STR_LEN+1];
+
+    sprintf(message, "%s %s", msg, tag);
+
+    ALWAYS_T(message);
+
+    npp_email(NPP_ADMIN_EMAIL, "Admin Notification", message);
+
+#endif  /* NPP_ADMIN_EMAIL */
+}
+
+#endif  /* NPP_CLIENT */
+
+/* ================================================================================================ */
+/* End of main process (npp_app) only part                                                          */
+/* ================================================================================================ */

@@ -21,7 +21,7 @@
 void getCustomer(int ci)
 {
     OUT_HTML_HEADER;
-    OUT("<h1>%s</h1>", APP_WEBSITE);
+    OUT("<h1>%s</h1>", NPP_APP_NAME);
     OUT("<p>Hello from getCustomer service!</p>");
     OUT_HTML_FOOTER;
 }
@@ -33,7 +33,7 @@ void getCustomer(int ci)
 void getAccounts(int ci)
 {
     OUT_HTML_HEADER;
-    OUT("<h1>%s</h1>", APP_WEBSITE);
+    OUT("<h1>%s</h1>", NPP_APP_NAME);
     OUT("<p>Hello from getAccounts service!</p>");
     OUT_HTML_FOOTER;
 }
