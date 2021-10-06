@@ -1,19 +1,22 @@
 # Node++
 
-This is going to be [Silgy](https://github.com/silgy/silgy)'s successor.
+This is a [Silgy](https://github.com/silgy/silgy)'s successor.
 
-There are a couple of breaches that I think need to be introduced in order to ensure the quality and ease of use of the code. I'll keep adding the notes here as I go.
+Among new features you'll find:
 
 1. OpenSSL linkage will be mandatory. All crypto functions that exist in OpenSSL will be removed from npp_lib. (DONE in v0.0.1)
 1. There will be different default hashing algorithm for passwords. (DONE in v0.0.1)
 1. HTTP/2 (in progress).
-1. epoll will finally be implemented.
+1. Semantic versioning. (DONE in v1.0.0)
+1. Functions, globals and macros naming consistency. (DONE in v1.0.0)
+1. epoll will be added to socket monitoring options.
 1. USERS will be based on the [ORM](https://nodepp.org/mysqldaogen) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
-1. npp_lib (formerly silgy_lib) will probably get split into smaller parts.
-1. Popular packaging support.
+1. Popular Linux packaging support.
 1. OUT and similar macros will take std::strings as arguments (with C-style strings still supported).
 
 Please add your comments, interest in contributing, wishes, etc. in Issues or silgy.help@gmail.com.
+
+I try to post updates on [Node++'s Facebook page](https://www.facebook.com/nodepp).
 
 
 ## Silgy project migration to Node++ project
@@ -42,6 +45,17 @@ In all your project files (sources and shell scripts), do case-sensitive replace
 2. Replace all occurrences of `silgy.h` with `npp.h`
 3. Replace all occurrences of `silgy_` with `npp_`
 4. Replace all occurrences of `SILGY_` with `NPP_`
+
+
+In `m` and `m.bat` scripts:
+
+1. For `npp_app` executable replace `npp_eng.c` with `npp_eng_app.c`
+2. For `npp_svc` executable replace `npp_eng.c` with `npp_eng_svc.c`
+
+
+In `npp_app.h` add the following line:
+
+`#define NPP_SILGY_COMPATIBILITY`
 
 
 ### USERS
