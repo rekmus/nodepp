@@ -10,6 +10,178 @@
 #include "npp.h"
 
 
+/* --------------------------------------------------------------------------
+   Output HTML & page header
+-------------------------------------------------------------------------- */
+static void header(int ci)
+{
+    OUT("<!DOCTYPE html>");
+    OUT("<html>");
+    OUT("<head>");
+    OUT("<meta charset=\"UTF-8\">");
+    OUT("<title>%s</title>", NPP_APP_NAME);
+    if ( REQ_MOB )
+        OUT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+    OUT("</head>");
+
+    OUT("<body>");
+
+    if ( REQ_DSK )  /* for desktop only */
+    {
+        OUT("<style>");
+        OUT("body{margin-left:25px;}");
+        OUT("</style>");
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* first row -- logo */
+
+    OUT("<div>");
+
+    if ( REQ("") )
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
+    else
+        OUT("<h1><a href=\"/\">%s</a></h1>", NPP_APP_NAME);
+
+    OUT("</div>");  /* end of first row */
+
+    /* -------------------------------------------------------------------------- */
+    /* second row -- main menu */
+
+    OUT("<div style=\"margin-bottom:2.5em;\">");
+
+    char lnk_home[256]="<a href=\"/\">Home</a>";
+    char lnk_welcome[256]="<a href=\"/welcome\">Welcome</a>";
+    char lnk_performance[256]="<a href=\"/performance\">Performance</a>";
+
+    if ( REQ("") )
+        strcpy(lnk_home, "<b>Home</b>");
+    else if ( REQ("welcome") )
+        strcpy(lnk_welcome, "<b>Welcome</b>");
+    else if ( REQ("performance") )
+        strcpy(lnk_performance, "<b>Performance</b>");
+
+    /* display menu */
+
+    OUT(lnk_home);
+    OUT(" | ");
+    OUT(lnk_welcome);
+    OUT(" | ");
+    OUT(lnk_performance);
+
+    OUT("</div>");  /* end of second row */
+}
+
+
+/* --------------------------------------------------------------------------
+   Output footer; body & html tags close here
+-------------------------------------------------------------------------- */
+static void footer(int ci)
+{
+    OUT("</body></html>");
+}
+
+
+/* --------------------------------------------------------------------------
+   Render landing page
+-------------------------------------------------------------------------- */
+void render_landing(int ci)
+{
+    header(ci);
+
+    OUT("<h2>Welcome to my web app!</h2>");
+
+    /* show client type */
+
+    if ( REQ_DSK )
+        OUT("<p>You're on desktop.</p>");
+    else if ( REQ_TAB )
+        OUT("<p>You're on tablet.</p>");
+    else  /* REQ_MOB */
+        OUT("<p>You're on the phone.</p>");
+
+    /* show some info */
+
+    OUT("<p>You can see how a <a href=\"/welcome\">simple form</a> works.</p>");
+
+    OUT("<p>You can also estimate <a href=\"/performance\">your server's performance</a>.</p>");
+
+    OUT("<p>You can modify this app in <b style=\"font-family:monospace;\">src/npp_app.cpp</b>.</p>");
+
+    footer(ci);
+}
+
+
+/* --------------------------------------------------------------------------
+   Render page
+-------------------------------------------------------------------------- */
+void render_welcome(int ci)
+{
+    header(ci);
+
+    /* display form */
+
+    OUT("<p>Say something about yourself:</p>");
+
+    OUT("<form action=\"/welcome\" style=\"width:250px;text-align:right;margin-bottom:2em;\">");
+    OUT("<p>Name: <input name=\"name\" autofocus></p>");
+    OUT("<p>Age: <input name=\"age\" type=\"number\"></p>");
+    OUT("<p><input type=\"submit\" value=\"Submit\"></p>");
+    OUT("</form>");
+
+    /* try to retrieve query string values */
+
+    QSVAL name;   /* string value */
+
+    if ( QS("name", name) )    /* if present, bid welcome */
+        OUT("<p>Welcome <b>%s</b>, my dear friend!</p>", name);  /* QS sanitizes strings by default */
+
+    int age;    /* integer */
+
+    if ( QSI("age", &age) )   /* if present, say something nice */
+        OUT("<p>It's good to see you in a good health, despite being already %d years old!</p>", age);
+
+    footer(ci);
+}
+
+
+/* --------------------------------------------------------------------------
+   Render page
+-------------------------------------------------------------------------- */
+void render_performance(int ci)
+{
+    header(ci);
+
+static int    requests;
+static double elapsed_all;
+static double average;
+
+    ++requests;
+
+    double elapsed = npp_elapsed(&G_connections[ci].proc_start);
+
+    elapsed_all += elapsed;
+
+    average = elapsed_all / requests;
+
+    long long requests_daily = 86400000 / average;
+
+    OUT("<p>This request took %0.3lf ms to process.</p>", elapsed);
+    OUT("<p>Based on %d request(s), average rendering time is %0.3lf ms.</p>", requests, average);
+
+    char formatted[256];
+    npp_lib_fmt_int(ci, formatted, requests_daily);  /* format number depending on user agent language */
+
+    OUT("<p>So this server could handle up to <b>%s</b> requests per day.</p>", formatted);
+
+    OUT("<p>Refresh this page a couple of times to obtain more accurate estimation.</p>");
+
+    footer(ci);
+}
+
+
+
+
 /* --------------------------------------------------------------------------------
    Called after parsing HTTP request header
    ------------------------------
@@ -22,36 +194,15 @@ void npp_app_main(int ci)
 {
     if ( REQ("") )  // landing page
     {
-        OUT_HTML_HEADER;
-
-        OUT("<h1>%s</h1>", NPP_APP_NAME);
-        OUT("<h2>Welcome to my web app!</h2>");
-
-        if ( REQ_DSK )
-            OUT("<p>You're on desktop.</p>");
-        else  /* REQ_MOB */
-            OUT("<p>You're on the phone.</p>");
-
-        OUT("<p>Click <a href=\"welcome\">here</a> to try my welcoming bot.</p>");
-
-        OUT_HTML_FOOTER;
+        render_landing(ci);
     }
-    else if ( REQ("welcome") )  // welcoming bot
+    else if ( REQ("welcome") )
     {
-        OUT_HTML_HEADER;
-        OUT("<h1>%s</h1>", NPP_APP_NAME);
-
-        OUT("<p>Please enter your name:</p>");
-        OUT("<form action=\"welcome\"><input name=\"firstname\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
-
-        QSVAL qs_firstname;   // query string value
-
-        if ( QS("firstname", qs_firstname) )    // if present, bid welcome
-            OUT("<p>Welcome %s, my dear friend!</p>", qs_firstname);
-
-        OUT("<p><a href=\"/\">Back to landing page</a></p>");
-
-        OUT_HTML_FOOTER;
+        render_welcome(ci);
+    }
+    else if ( REQ("performance") )
+    {
+        render_performance(ci);
     }
     else  // page not found
     {

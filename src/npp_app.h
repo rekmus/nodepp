@@ -10,9 +10,9 @@
 #define NPP_APP_H
 
 
-#define NPP_APP_NAME                    "Node++ Hello World"
+#define NPP_APP_NAME                    "Sample Node++ App"
 #define NPP_APP_DOMAIN                  "example.com"
-#define NPP_APP_DESCRIPTION             "Hello World Sample Node++ Web Application"
+#define NPP_APP_DESCRIPTION             "Sample Node++ Web Application"
 
 
 
