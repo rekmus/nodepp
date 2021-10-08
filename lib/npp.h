@@ -888,7 +888,7 @@ typedef char str256k[1024*256];
 #define STATIC_SOURCE_INTERNAL          '0'
 #define STATIC_SOURCE_RES               '1'
 #define STATIC_SOURCE_RESMIN            '2'
-#define STATIC_SOURCE_SNIPPET           '3'
+#define STATIC_SOURCE_SNIPPETS          '3'
 
 
 /* asynchronous calls */
@@ -1541,7 +1541,19 @@ typedef struct {
     unsigned len_deflated;
     time_t   modified;
     char     source;
-} stat_res_t;
+} static_res_t;
+
+
+/* snippets */
+
+typedef struct {
+    char     host[NPP_MAX_HOST_LEN+1];
+    char     name[NPP_STATIC_PATH_LEN+1];
+    char     type;
+    char     *data;
+    unsigned len;
+    time_t   modified;
+} snippet_t;
 
 
 /* admin info */
@@ -1644,7 +1656,7 @@ extern npp_lang_t   G_str_lang[NPP_MAX_LANGUAGES];
 extern int          G_next_str_lang;
 
 /* snippets */
-extern stat_res_t   G_snippets[NPP_MAX_SNIPPETS];
+extern snippet_t    G_snippets[NPP_MAX_SNIPPETS];
 extern int          G_snippets_cnt;
 
 #ifdef NPP_HTTPS

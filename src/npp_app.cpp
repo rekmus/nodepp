@@ -26,12 +26,18 @@ static void header(int ci)
 
     OUT("<body>");
 
-    if ( REQ_DSK )  /* for desktop only */
-    {
-        OUT("<style>");
-        OUT("body{margin-left:25px;}");
-        OUT("</style>");
-    }
+    /* -------------------------------------------------------------------------- */
+    /* style */
+
+    OUT("<style>");
+
+    if ( REQ_DSK )
+        OUT("body{margin-left:25px;}");   /* for desktop only */
+
+    OUT("code{font-size:1.1em;}");
+    OUT(".m{font-family:monospace;font-size:1.1em;}");
+
+    OUT("</style>");
 
     /* -------------------------------------------------------------------------- */
     /* first row -- logo */
@@ -52,12 +58,15 @@ static void header(int ci)
 
     char lnk_home[256]="<a href=\"/\">Home</a>";
     char lnk_welcome[256]="<a href=\"/welcome\">Welcome</a>";
+    char lnk_snippets[256]="<a href=\"/snippets\">Snippets</a>";
     char lnk_performance[256]="<a href=\"/performance\">Performance</a>";
 
     if ( REQ("") )
         strcpy(lnk_home, "<b>Home</b>");
     else if ( REQ("welcome") )
         strcpy(lnk_welcome, "<b>Welcome</b>");
+    else if ( REQ("snippets") )
+        strcpy(lnk_snippets, "<b>Snippets</b>");
     else if ( REQ("performance") )
         strcpy(lnk_performance, "<b>Performance</b>");
 
@@ -66,6 +75,8 @@ static void header(int ci)
     OUT(lnk_home);
     OUT(" | ");
     OUT(lnk_welcome);
+    OUT(" | ");
+    OUT(lnk_snippets);
     OUT(" | ");
     OUT(lnk_performance);
 
@@ -94,19 +105,21 @@ void render_landing(int ci)
     /* show client type */
 
     if ( REQ_DSK )
-        OUT("<p>You're on desktop.</p>");
+        OUT("<p>You're on desktop, right?</p>");
     else if ( REQ_TAB )
-        OUT("<p>You're on tablet.</p>");
+        OUT("<p>You're on tablet, right?</p>");
     else  /* REQ_MOB */
-        OUT("<p>You're on the phone.</p>");
+        OUT("<p>You're on the phone, right?</p>");
 
     /* show some info */
 
     OUT("<p>You can see how a <a href=\"/welcome\">simple form</a> works.</p>");
 
+    OUT("<p>You can use <a href=\"/snippets\">HTML and Markdown snippets</a> for static content.</p>");
+
     OUT("<p>You can also estimate <a href=\"/performance\">your server's performance</a>.</p>");
 
-    OUT("<p>You can modify this app in <b style=\"font-family:monospace;\">src/npp_app.cpp</b>.</p>");
+    OUT("<p>You can modify this app in <b class=m>src/npp_app.cpp</b>.</p>");
 
     footer(ci);
 }
@@ -132,14 +145,30 @@ void render_welcome(int ci)
     /* try to retrieve query string values */
 
     QSVAL name;   /* string value */
+    int   age;    /* integer */
 
     if ( QS("name", name) )    /* if present, bid welcome */
         OUT("<p>Welcome <b>%s</b>, my dear friend!</p>", name);  /* QS sanitizes strings by default */
 
-    int age;    /* integer */
-
     if ( QSI("age", &age) )   /* if present, say something nice */
         OUT("<p>It's good to see you in a good health, despite being already %d years old!</p>", age);
+
+    footer(ci);
+}
+
+
+/* --------------------------------------------------------------------------
+   Render page
+-------------------------------------------------------------------------- */
+void render_snippets(int ci)
+{
+    header(ci);
+
+    OUT_SNIPPET("sample_snippet.html");
+
+    OUT("<p>&nbsp;</p>");
+
+    OUT_SNIPPET_MD("sample_snippet.md");
 
     footer(ci);
 }
@@ -196,6 +225,10 @@ void npp_app_main(int ci)
     else if ( REQ("welcome") )
     {
         render_welcome(ci);
+    }
+    else if ( REQ("snippets") )
+    {
+        render_snippets(ci);
     }
     else if ( REQ("performance") )
     {

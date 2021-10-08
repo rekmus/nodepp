@@ -200,7 +200,7 @@ typedef char                            QSVAL_TEXT[65536];
 #define GET_COOKIE(key, val)            lib_get_cookie(ci, key, val)
 #define SET_COOKIE(key, val, days)      lib_set_cookie(ci, key, val, days)
 
-#define STR(str)                        npp_get_string(ci, str)
+#define STR(str)                        npp_lib_get_string(ci, str)
 
 
 /* convenient & fast string building */
@@ -553,7 +553,11 @@ extern "C" {
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
     int  npp_b64_encode(char *dst, const unsigned char* src, int len);
     int  npp_b64_decode(unsigned char *dst, const char* src);
+#ifndef NPP_CLIENT  /* web app only */
+    void npp_random(char *dest, int len);
+    void npp_notify_admin(const char *msg);
     void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
+#endif  /* NPP_CLIENT */
 
     /* public internal */
 
@@ -563,22 +567,15 @@ extern "C" {
 
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
     void npp_set_tz(int ci);
-    time_t npp_ua_time(int ci);
-    char *npp_today_ua(int ci);
     char *npp_today_gmt(void);
-    char *npp_render_md(char *dest, const char *src, size_t len);
+    char *npp_render_md(char *dest, const char *src, size_t dest_len);
     char *npp_json_enc(const char *src);
     bool npp_csrft_ok(int ci);
     void npp_sort_messages(void);
     char *npp_get_message(int ci, int code);
     bool npp_is_msg_main_cat(int code, const char *cat);
-    void npp_add_string(const char *lang, const char *str, const char *str_lang);
-    const char *npp_get_string(int ci, const char *str);
-    bool read_snippets(bool first_scan, const char *path);
-    char *npp_get_snippet(const char *name);
-    unsigned npp_get_snippet_len(const char *name);
-    void npp_out_snippet(int ci, const char *name);
-    void npp_out_snippet_md(int ci, const char *name);
+    void npp_lib_add_string(const char *lang, const char *str, const char *str_lang);
+    const char *npp_lib_get_string(int ci, const char *str);
     void npp_setnonblocking(int sock);
     void npp_out_html_header(int ci);
     void npp_out_html_footer(int ci);
@@ -631,7 +628,6 @@ extern "C" {
     void lib_json_log_dbg(JSON *json, const char *name);
     void lib_json_log_inf(JSON *json, const char *name);
     void get_byteorder(void);
-    time_t db2epoch(const char *str);
     int  npp_minify(char *dest, const char *src);
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
@@ -657,11 +653,16 @@ extern "C" {
 #ifndef NPP_CLIENT  /* web app only */
     void npp_lib_init_random_numbers(void);
     void npp_lib_set_datetime_formats(int ci);
+    time_t npp_ua_time(int ci);
+    char *npp_today_ua(int ci);
     char *npp_lib_fmt_date(int ci, short year, short month, short day);
     char *npp_lib_fmt_dec(int ci, double in_val);
     char *npp_lib_fmt_int(int ci, long long in_val);
-    void npp_random(char *dest, int len);
-    void npp_notify_admin(const char *msg);
+    bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path);
+    char *npp_get_snippet(const char *name);
+    unsigned npp_get_snippet_len(const char *name);
+    void npp_out_snippet(int ci, const char *name);
+    void npp_out_snippet_md(int ci, const char *name);
 #endif  /* NPP_CLIENT */
 
 #ifdef __cplusplus

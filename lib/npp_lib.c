@@ -78,7 +78,7 @@ int         G_next_str=0;
 npp_lang_t  G_str_lang[NPP_MAX_LANGUAGES]={0};
 int         G_next_str_lang=0;
 
-stat_res_t  G_snippets[NPP_MAX_SNIPPETS]={0};
+snippet_t   G_snippets[NPP_MAX_SNIPPETS]={0};
 int         G_snippets_cnt=0;
 
 #ifdef NPP_HTTPS
@@ -251,11 +251,12 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
 
 
+
+#ifndef NPP_CLIENT
+
 /* --------------------------------------------------------- */
 /* Time zone handling -------------------------------------- */
 
-
-#ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
    Set client's time zone offset on the server
 -------------------------------------------------------------------------- */
@@ -602,7 +603,7 @@ static int close_tag(const char *src, char tag)
 /* --------------------------------------------------------------------------
    Render simplified markdown to HTML
 -------------------------------------------------------------------------- */
-char *npp_render_md(char *dest, const char *src, size_t len)
+char *npp_render_md(char *dest, const char *src, size_t dest_len)
 {
     int  pos=0;    /* source position */
     char tag;
@@ -610,12 +611,12 @@ char *npp_render_md(char *dest, const char *src, size_t len)
     char tag_i=MD_TAG_NONE;   /* inline */
     int  skip;
     int  written=0;
-    bool list=0;
-    bool escape=false;
+    bool list=FALSE;
+    bool escape=FALSE;
 
     M_md_dest = dest;
 
-    if ( len < 40 )
+    if ( dest_len < 40 )
     {
         *M_md_dest = EOS;
         return dest;
@@ -656,37 +657,51 @@ char *npp_render_md(char *dest, const char *src, size_t len)
 
     const char *prev1, *prev2;
 
-    while ( *src && written < len-18 )   /* worst case: </code></li></ul> */
+    while ( *src && written < dest_len-18 )   /* worst case: </code></li></ul> */
     {
         DDBG("%c", *src);
 
         if ( pos > 0 )
+        {
             prev1 = src - 1;
 
-        if ( pos > 1 )
-            prev2 = src - 2;
+            if ( pos > 1 )
+                prev2 = src - 2;
+        }
 
         if ( *src == '\\' && !escape )
         {
             escape = true;
         }
-        else if ( (*src=='*' || *src=='_' || *src=='`') && !escape )   /* inline tags */
+        else if ( *src=='*' && (tag_i==MD_TAG_B || tag_i==MD_TAG_I) && !escape )
         {
-            if ( tag_i==MD_TAG_B || tag_i==MD_TAG_I || tag_i==MD_TAG_U || tag_i==MD_TAG_CODE )
+            DDBG("Closing inline tag %c", tag_i);
+
+            written += close_tag(src, tag_i);
+
+            if ( tag_i==MD_TAG_B )    /* double-char code */
             {
-                DDBG("Closing inline tag %c", tag_i);
-
-                written += close_tag(src, tag_i);
-
-                if ( tag_i==MD_TAG_B )    /* double-char code */
-                {
-                    ++src;
-                    ++pos;
-                }
-
-                tag_i = MD_TAG_NONE;
+                ++src;
+                ++pos;
             }
-            else if ( !pos || *(src-1)=='\r' || *(src-1)=='\n' || *(src-1)==' ' || *(src-1)=='(' )    /* opening tag */
+
+            tag_i = MD_TAG_NONE;
+        }
+        else if ( *src=='_' && tag_i==MD_TAG_U && !escape )
+        {
+            DDBG("Closing inline tag %c", tag_i);
+            written += close_tag(src, tag_i);
+            tag_i = MD_TAG_NONE;
+        }
+        else if ( *src=='`' && tag_i==MD_TAG_CODE && !escape )
+        {
+            DDBG("Closing inline tag %c", tag_i);
+            written += close_tag(src, tag_i);
+            tag_i = MD_TAG_NONE;
+        }
+        else if ( (*src=='*' || *src=='_' || *src=='`') && !escape )    /* inline tags */
+        {
+            if ( !pos || *(src-1)=='\r' || *(src-1)=='\n' || *(src-1)==' ' || *(src-1)=='(' )    /* opening tag */
             {
                 skip = detect_tag(src, &tag, false, false, false);
 
@@ -1215,7 +1230,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_add_string(lang, string_orig, string_in_lang);
+                npp_lib_add_string(lang, string_orig, string_in_lang);
             }
         }
         else if ( now_key && *p==NPP_STRINGS_SEP )   /* separator */
@@ -1231,7 +1246,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_add_string(lang, string_orig, string_in_lang);
+                npp_lib_add_string(lang, string_orig, string_in_lang);
             }
             else if ( now_com )
             {
@@ -1257,7 +1272,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
     if ( now_val )
     {
         string_in_lang[j] = EOS;
-        npp_add_string(lang, string_orig, string_in_lang);
+        npp_lib_add_string(lang, string_orig, string_in_lang);
     }
 
     G_str_lang[G_next_str_lang].next_lang_index = G_next_str;
@@ -1355,7 +1370,7 @@ static bool load_strings()
 /* --------------------------------------------------------------------------
    Add string
 -------------------------------------------------------------------------- */
-void npp_add_string(const char *lang, const char *str, const char *str_lang)
+void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
 {
     if ( G_next_str >= NPP_MAX_STRINGS )
     {
@@ -1378,7 +1393,7 @@ void npp_add_string(const char *lang, const char *str, const char *str_lang)
    If not, return given string
    TODO: binary search
 -------------------------------------------------------------------------- */
-const char *npp_get_string(int ci, const char *str)
+const char *npp_lib_get_string(int ci, const char *str)
 {
 #ifndef NPP_CLIENT
 
@@ -1570,381 +1585,6 @@ void npp_update_time_globals()
 }
 
 
-/* --------------------------------------------------------------------------
-   Find first free slot in G_snippets
--------------------------------------------------------------------------- */
-static int first_free_snippet()
-{
-    int i=0;
-
-    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
-    {
-        if ( G_snippets[i].name[0]=='-' || G_snippets[i].name[0]==EOS )
-        {
-            if ( i > G_snippets_cnt ) G_snippets_cnt = i;
-            return i;
-        }
-    }
-
-    ERR("NPP_MAX_SNIPPETS reached (%d)! You can set/increase NPP_MAX_SNIPPETS in npp_app.h.", NPP_MAX_SNIPPETS);
-
-    return -1;   /* nothing's free, we ran out of snippets! */
-}
-
-
-/* --------------------------------------------------------------------------
-   Read snippets from disk
--------------------------------------------------------------------------- */
-bool read_snippets(bool first_scan, const char *path)
-{
-    int     i;
-    char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
-    char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
-    char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
-    char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
-    DIR     *dir;
-    struct dirent *dirent;
-    FILE    *fd;
-    char    *data_tmp=NULL;
-    struct stat fstat;
-
-#ifndef _WIN32
-    if ( G_appdir[0] == EOS ) return TRUE;
-#endif
-
-    if ( first_scan && !path ) DBG("");
-
-#ifdef NPP_DEBUG
-    if ( first_scan )
-    {
-        if ( !path ) DBG_LINE_LONG;
-        DBG("read_snippets");
-    }
-#endif  /* NPP_DEBUG */
-
-#ifdef _WIN32   /* be more forgiving */
-
-    if ( G_appdir[0] )
-    {
-        sprintf(resdir, "%s\\snippets", G_appdir);
-    }
-    else    /* no NPP_DIR */
-    {
-        sprintf(resdir, "..\\snippets");
-    }
-
-#else   /* Linux -- don't fool around */
-
-    sprintf(resdir, "%s/snippets", G_appdir);
-
-#endif  /* _WIN32 */
-
-#ifdef NPP_DEBUG
-    if ( first_scan )
-        DBG("resdir [%s]", resdir);
-#endif
-
-    if ( !path )   /* highest level */
-    {
-        strcpy(ressubdir, resdir);
-    }
-    else    /* recursive call */
-    {
-        sprintf(ressubdir, "%s/%s", resdir, path);
-    }
-
-#ifdef NPP_DEBUG
-    if ( first_scan )
-        DBG("ressubdir [%s]", ressubdir);
-#endif
-
-    if ( (dir=opendir(ressubdir)) == NULL )
-    {
-        if ( first_scan )
-            DBG("Couldn't open directory [%s]", ressubdir);
-        return TRUE;    /* don't panic, just no snippets will be used */
-    }
-
-    /* ------------------------------------------------------------------- */
-    /* check removed files */
-
-    if ( !first_scan && !path )   /* on the highest level only */
-    {
-//        DDBG("Checking removed files...");
-
-        for ( i=0; i<=G_snippets_cnt; ++i )
-        {
-            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
-
-//            DDBG("Checking %s...", G_snippets[i].name);
-
-            char fullpath[NPP_STATIC_PATH_LEN*2];
-            sprintf(fullpath, "%s/%s", resdir, G_snippets[i].name);
-
-            if ( !npp_file_exists(fullpath) )
-            {
-                INF("Removing %s from snippets", G_snippets[i].name);
-
-                G_snippets[i].name[0] = EOS;
-
-                free(G_snippets[i].data);
-                G_snippets[i].data = NULL;
-                G_snippets[i].len = 0;
-            }
-        }
-    }
-
-    /* ------------------------------------------------------------------- */
-
-//    DDBG("Reading %sfiles", first_scan?"":"new ");
-
-    /* read the files into the memory */
-
-    while ( (dirent=readdir(dir)) )
-    {
-        if ( dirent->d_name[0] == '.' )   /* skip ".", ".." and hidden files */
-            continue;
-
-        /* ------------------------------------------------------------------- */
-        /* resource name */
-
-        if ( !path )
-            strcpy(resname, dirent->d_name);
-        else
-            sprintf(resname, "%s/%s", path, dirent->d_name);
-
-#ifdef NPP_DEBUG
-        if ( first_scan )
-            DBG("resname [%s]", resname);
-#endif
-
-        /* ------------------------------------------------------------------- */
-        /* additional file info */
-
-        sprintf(namewpath, "%s/%s", resdir, resname);
-
-#ifdef NPP_DEBUG
-        if ( first_scan )
-            DBG("namewpath [%s]", namewpath);
-#endif
-
-        if ( stat(namewpath, &fstat) != 0 )
-        {
-            ERR("stat for [%s] failed, errno = %d (%s)", namewpath, errno, strerror(errno));
-            closedir(dir);
-            return FALSE;
-        }
-
-        /* ------------------------------------------------------------------- */
-
-        if ( S_ISDIR(fstat.st_mode) )   /* directory */
-        {
-#ifdef NPP_DEBUG
-            if ( first_scan )
-                DBG("Reading subdirectory [%s]...", dirent->d_name);
-#endif
-            read_snippets(first_scan, resname);
-            continue;
-        }
-        else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
-        {
-#ifdef NPP_DEBUG
-            if ( first_scan )
-                DBG("[%s] is not a regular file", resname);
-#endif
-            continue;
-        }
-
-        /* ------------------------------------------------------------------- */
-        /* already read? */
-
-        bool reread = FALSE;
-
-        if ( !first_scan )
-        {
-            bool exists_not_changed = FALSE;
-
-            for ( i=0; i<=G_snippets_cnt; ++i )
-            {
-                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
-
-                /* ------------------------------------------------------------------- */
-
-                if ( 0==strcmp(G_snippets[i].name, resname) )
-                {
-//                    DDBG("%s already read", resname);
-
-                    if ( G_snippets[i].modified == fstat.st_mtime )
-                    {
-//                        DDBG("Not modified");
-                        exists_not_changed = TRUE;
-                    }
-                    else
-                    {
-                        INF("%s has been modified", resname);
-                        reread = TRUE;
-                    }
-
-                    break;
-                }
-            }
-
-            if ( exists_not_changed ) continue;   /* not modified */
-        }
-
-        /* find the first unused slot in G_snippets array */
-
-        if ( !reread )
-        {
-            i = first_free_snippet();
-            /* file name */
-            strcpy(G_snippets[i].name, resname);
-        }
-
-        /* last modified */
-
-        G_snippets[i].modified = fstat.st_mtime;
-
-        /* size and content */
-
-#ifdef _WIN32   /* Windows */
-        if ( NULL == (fd=fopen(namewpath, "rb")) )
-#else
-        if ( NULL == (fd=fopen(namewpath, "r")) )
-#endif  /* _WIN32 */
-            ERR("Couldn't open %s", namewpath);
-        else
-        {
-            fseek(fd, 0, SEEK_END);     /* determine the file size */
-            G_snippets[i].len = ftell(fd);
-            rewind(fd);
-
-            /* allocate the final destination */
-
-            if ( reread )
-            {
-                free(G_snippets[i].data);
-                G_snippets[i].data = NULL;
-            }
-
-            G_snippets[i].data = (char*)malloc(G_snippets[i].len+1);
-
-            if ( NULL == G_snippets[i].data )
-            {
-                ERR("Couldn't allocate %u bytes for %s", G_snippets[i].len+1, G_snippets[i].name);
-                fclose(fd);
-                closedir(dir);
-                return FALSE;
-            }
-
-            if ( fread(G_snippets[i].data, G_snippets[i].len, 1, fd) != 1 )
-            {
-                ERR("Couldn't read from %s", G_snippets[i].name);
-                fclose(fd);
-                closedir(dir);
-                return FALSE;
-            }
-
-            fclose(fd);
-
-            /* log file info ----------------------------------- */
-
-            if ( G_logLevel > LOG_INF )
-            {
-                G_ptm = gmtime(&G_snippets[i].modified);
-                char mod_time[128];
-                sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
-                G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
-            }
-        }
-    }
-
-    closedir(dir);
-
-    if ( first_scan && !path ) DBG("");
-
-    return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
-   Get snippet
--------------------------------------------------------------------------- */
-char *npp_get_snippet(const char *name)
-{
-#ifndef NPP_CLIENT
-    int i;
-
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-    {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-            return G_snippets[i].data;
-    }
-#endif  /* NPP_CLIENT */
-    return NULL;
-}
-
-
-/* --------------------------------------------------------------------------
-   Get snippet length
--------------------------------------------------------------------------- */
-unsigned npp_get_snippet_len(const char *name)
-{
-#ifndef NPP_CLIENT
-    int i;
-
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-    {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-            return G_snippets[i].len;
-    }
-#endif  /* NPP_CLIENT */
-    return 0;
-}
-
-
-/* --------------------------------------------------------------------------
-   OUT snippet
--------------------------------------------------------------------------- */
-void npp_out_snippet(int ci, const char *name)
-{
-#ifndef NPP_CLIENT
-    int i;
-
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-    {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-        {
-            OUT_BIN(G_snippets[i].data, G_snippets[i].len);
-            break;
-        }
-    }
-#endif  /* NPP_CLIENT */
-}
-
-
-/* --------------------------------------------------------------------------
-   OUT markdown snippet
--------------------------------------------------------------------------- */
-void npp_out_snippet_md(int ci, const char *name)
-{
-#ifndef NPP_CLIENT
-    int i;
-
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-    {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-        {
-            npp_render_md(G_tmp, G_snippets[i].data, NPP_TMP_BUFSIZE-1);
-            OUT(G_tmp);
-            break;
-        }
-    }
-#endif  /* NPP_CLIENT */
-}
-
-
 
 #ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
@@ -2076,6 +1716,427 @@ void npp_out_html_footer(int ci)
 {
     OUT("</body>");
     OUT("</html>");
+}
+
+
+/* --------------------------------------------------------------------------
+   Find first free slot in G_snippets
+-------------------------------------------------------------------------- */
+static int first_free_snippet()
+{
+    int i=0;
+
+    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
+    {
+        if ( G_snippets[i].name[0]=='-' || G_snippets[i].name[0]==EOS )
+        {
+            if ( i > G_snippets_cnt ) G_snippets_cnt = i;
+            return i;
+        }
+    }
+
+    ERR("NPP_MAX_SNIPPETS reached (%d)! You can set/increase NPP_MAX_SNIPPETS in npp_app.h.", NPP_MAX_SNIPPETS);
+
+    return -1;   /* nothing's free, we ran out of snippets! */
+}
+
+
+/* --------------------------------------------------------------------------
+   Read snippets from disk
+   Unlike res or resmin, snippets need to be available
+   in both npp_app and npp_svc processes
+-------------------------------------------------------------------------- */
+bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path)
+{
+    int     i;
+    char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
+    char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
+    char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
+    char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
+    DIR     *dir;
+    struct dirent *dirent;
+    FILE    *fd;
+    char    *data_tmp=NULL;
+    struct stat fstat;
+
+#ifndef _WIN32
+    if ( G_appdir[0] == EOS ) return TRUE;
+#endif
+
+    if ( first_scan && !path ) DBG("");
+
+#ifdef NPP_DEBUG
+    if ( first_scan )
+    {
+        if ( !path ) DBG_LINE_LONG;
+        DBG("npp_lib_read_snippets");
+    }
+#endif  /* NPP_DEBUG */
+
+#ifdef _WIN32   /* be more forgiving */
+
+    if ( G_appdir[0] )
+    {
+        sprintf(resdir, "%s\\snippets", G_appdir);
+    }
+    else    /* no NPP_DIR */
+    {
+        sprintf(resdir, "..\\snippets");
+    }
+
+#else   /* Linux -- don't fool around */
+
+    sprintf(resdir, "%s/%s", G_appdir, directory);
+
+#endif  /* _WIN32 */
+
+#ifdef NPP_DEBUG
+    if ( first_scan )
+        DBG("resdir [%s]", resdir);
+#endif
+
+    if ( !path )   /* highest level */
+    {
+        strcpy(ressubdir, resdir);
+    }
+    else    /* recursive call */
+    {
+#ifdef _WIN32
+        sprintf(ressubdir, "%s\\%s", resdir, path);
+#else
+        sprintf(ressubdir, "%s/%s", resdir, path);
+#endif
+    }
+
+#ifdef NPP_DEBUG
+    if ( first_scan )
+        DBG("ressubdir [%s]", ressubdir);
+#endif
+
+    if ( (dir=opendir(ressubdir)) == NULL )
+    {
+        if ( first_scan )
+            DBG("Couldn't open directory [%s]", ressubdir);
+        return TRUE;    /* don't panic, just no snippets will be used */
+    }
+
+    /* ------------------------------------------------------------------- */
+    /* check removed files */
+
+    if ( !first_scan && !path )   /* on the highest level only */
+    {
+//        DDBG("Checking removed files...");
+
+        for ( i=0; i<=G_snippets_cnt; ++i )
+        {
+            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
+
+            if ( 0 != strcmp(G_snippets[i].host, host) ) continue;
+
+//            DDBG("Checking %s...", G_snippets[i].name);
+
+            char fullpath[NPP_STATIC_PATH_LEN*2];
+#ifdef _WIN32
+            sprintf(fullpath, "%s\\%s", resdir, G_snippets[i].name);
+#else
+            sprintf(fullpath, "%s/%s", resdir, G_snippets[i].name);
+#endif
+            if ( !npp_file_exists(fullpath) )
+            {
+                INF("Removing %s from snippets", G_snippets[i].name);
+
+                G_snippets[i].host[0] = EOS;
+                G_snippets[i].name[0] = EOS;
+
+                free(G_snippets[i].data);
+                G_snippets[i].data = NULL;
+                G_snippets[i].len = 0;
+            }
+        }
+    }
+
+    /* ------------------------------------------------------------------- */
+
+//    DDBG("Reading %sfiles", first_scan?"":"new ");
+
+    /* read the files into the memory */
+
+    while ( (dirent=readdir(dir)) )
+    {
+        if ( dirent->d_name[0] == '.' )   /* skip ".", ".." and hidden files */
+            continue;
+
+        /* ------------------------------------------------------------------- */
+        /* resource name */
+
+        if ( !path )
+            strcpy(resname, dirent->d_name);
+        else
+#ifdef _WIN32
+            sprintf(resname, "%s\\%s", path, dirent->d_name);
+#else
+            sprintf(resname, "%s/%s", path, dirent->d_name);
+#endif
+
+#ifdef NPP_DEBUG
+        if ( first_scan )
+            DBG("resname [%s]", resname);
+#endif
+
+        /* ------------------------------------------------------------------- */
+        /* additional file info */
+
+#ifdef _WIN32
+        sprintf(namewpath, "%s\\%s", resdir, resname);
+#else
+        sprintf(namewpath, "%s/%s", resdir, resname);
+#endif
+
+#ifdef NPP_DEBUG
+        if ( first_scan )
+            DBG("namewpath [%s]", namewpath);
+#endif
+
+        if ( stat(namewpath, &fstat) != 0 )
+        {
+            ERR("stat for [%s] failed, errno = %d (%s)", namewpath, errno, strerror(errno));
+            closedir(dir);
+            return FALSE;
+        }
+
+        /* ------------------------------------------------------------------- */
+
+        if ( S_ISDIR(fstat.st_mode) )   /* directory */
+        {
+#ifdef NPP_DEBUG
+            if ( first_scan )
+                DBG("Reading subdirectory [%s]...", dirent->d_name);
+#endif
+            npp_lib_read_snippets(host, directory, first_scan, resname);
+            continue;
+        }
+        else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
+        {
+#ifdef NPP_DEBUG
+            if ( first_scan )
+                DBG("[%s] is not a regular file", resname);
+#endif
+            continue;
+        }
+
+        /* ------------------------------------------------------------------- */
+        /* already read? */
+
+        bool reread = FALSE;
+
+        if ( !first_scan )
+        {
+            bool exists_not_changed = FALSE;
+
+            for ( i=0; i<=G_snippets_cnt; ++i )
+            {
+                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
+
+                /* ------------------------------------------------------------------- */
+
+                if ( 0==strcmp(G_snippets[i].host, host) && 0==strcmp(G_snippets[i].name, resname) )
+                {
+//                    DDBG("%s already read", resname);
+
+                    if ( G_snippets[i].modified == fstat.st_mtime )
+                    {
+//                        DDBG("Not modified");
+                        exists_not_changed = TRUE;
+                    }
+                    else
+                    {
+                        INF("%s has been modified", resname);
+                        reread = TRUE;
+                    }
+
+                    break;
+                }
+            }
+
+            if ( exists_not_changed ) continue;   /* not modified */
+        }
+
+        /* find the first unused slot in G_snippets array */
+
+        if ( !reread )
+        {
+            i = first_free_snippet();
+
+            /* host -- already uppercase */
+
+            strcpy(G_snippets[i].host, host);
+
+            /* file name */
+
+            strcpy(G_snippets[i].name, resname);
+        }
+
+        /* last modified */
+
+        G_snippets[i].modified = fstat.st_mtime;
+
+        /* size and content */
+
+#ifdef _WIN32   /* Windows */
+        if ( NULL == (fd=fopen(namewpath, "rb")) )
+#else
+        if ( NULL == (fd=fopen(namewpath, "r")) )
+#endif  /* _WIN32 */
+            ERR("Couldn't open %s", namewpath);
+        else
+        {
+            fseek(fd, 0, SEEK_END);     /* determine the file size */
+            G_snippets[i].len = ftell(fd);
+            rewind(fd);
+
+            /* allocate the final destination */
+
+            if ( reread )
+            {
+                free(G_snippets[i].data);
+                G_snippets[i].data = NULL;
+            }
+
+            G_snippets[i].data = (char*)malloc(G_snippets[i].len+1);
+
+            if ( NULL == G_snippets[i].data )
+            {
+                ERR("Couldn't allocate %u bytes for %s", G_snippets[i].len+1, G_snippets[i].name);
+                fclose(fd);
+                closedir(dir);
+                return FALSE;
+            }
+
+            if ( fread(G_snippets[i].data, G_snippets[i].len, 1, fd) != 1 )
+            {
+                ERR("Couldn't read from %s", G_snippets[i].name);
+                fclose(fd);
+                closedir(dir);
+                return FALSE;
+            }
+
+            fclose(fd);
+
+            *(G_snippets[i].data+G_snippets[i].len) = EOS;
+
+            /* log file info ----------------------------------- */
+
+            if ( G_logLevel > LOG_INF )
+            {
+                G_ptm = gmtime(&G_snippets[i].modified);
+                char mod_time[128];
+                sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
+                G_ptm = gmtime(&G_now);     /* set it back */
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
+            }
+        }
+    }
+
+    closedir(dir);
+
+    if ( first_scan && !path ) DBG("");
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   Get snippet index
+-------------------------------------------------------------------------- */
+static int get_snippet_idx(const char *name)
+{
+    int i;
+
+#ifdef NPP_MULTI_HOST
+
+    if ( !G_connections[ci].host_id )    /* main host */
+    {
+        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+        {
+            if ( !G_snippets[i].host[0] && 0==strcmp(G_snippets[i].name, name) )
+                return i;
+        }
+    }
+    else    /* side gig */
+    {
+        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+        {
+            if ( 0==strcmp(G_snippets[i].host, G_connections[ci].host_normalized) && 0==strcmp(G_snippets[i].name, name) )
+                return i;
+        }
+    }
+
+#else   /* NOT NPP_MULTI_HOST */
+
+    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+    {
+        if ( 0==strcmp(G_snippets[i].name, name) )
+            return i;
+    }
+
+#endif  /* NPP_MULTI_HOST */
+
+    return -1;
+}
+
+
+/* --------------------------------------------------------------------------
+   Get snippet
+-------------------------------------------------------------------------- */
+char *npp_get_snippet(const char *name)
+{
+    int i = get_snippet_idx(name);
+
+    if ( i != -1 )
+        return G_snippets[i].data;
+
+    return NULL;
+}
+
+
+/* --------------------------------------------------------------------------
+   Get snippet length
+-------------------------------------------------------------------------- */
+unsigned npp_get_snippet_len(const char *name)
+{
+    int i = get_snippet_idx(name);
+
+    if ( i != -1 )
+        return G_snippets[i].len;
+
+    return 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   OUT snippet
+-------------------------------------------------------------------------- */
+void npp_out_snippet(int ci, const char *name)
+{
+    int i = get_snippet_idx(name);
+
+    if ( i != -1 )
+        OUT_BIN(G_snippets[i].data, G_snippets[i].len);
+}
+
+
+/* --------------------------------------------------------------------------
+   OUT markdown snippet
+-------------------------------------------------------------------------- */
+void npp_out_snippet_md(int ci, const char *name)
+{
+    int i = get_snippet_idx(name);
+
+    if ( i != -1 )
+    {
+        npp_render_md(G_tmp, G_snippets[i].data, NPP_TMP_BUFSIZE-1);
+        OUT(G_tmp);
+    }
 }
 
 
@@ -5324,14 +5385,13 @@ struct tm   tm;
 
 
 /* --------------------------------------------------------------------------
-   Convert db time to epoch
-   2016-12-25 12:15:00
+   Convert db time (YYYY-MM-DD hh:mm:ss) to epoch
 -------------------------------------------------------------------------- */
 time_t time_db2epoch(const char *str)
 {
     time_t  epoch;
     char    tmp[8];
-struct tm   tm;
+struct tm   tm={0};
 
     if ( strlen(str) != 19 )
         return 0;
@@ -7127,75 +7187,6 @@ void get_byteorder()
 
 
 /* --------------------------------------------------------------------------
-   Convert database datetime to epoch time
--------------------------------------------------------------------------- */
-time_t db2epoch(const char *str)
-{
-    time_t  epoch;
-    int     i;
-    int     j=0;
-    char    part='Y';
-    char    tmp[8];
-struct tm   t={0};
-
-/*  DBG("db2epoch: str: [%s]", str); */
-
-    for ( i=0; str[i]; ++i )
-    {
-        if ( isdigit(str[i]) )
-        {
-            tmp[j++] = str[i];
-        }
-        else    /* end of part */
-        {
-            tmp[j] = EOS;
-
-            if ( part == 'Y' )  /* year */
-            {
-                t.tm_year = atoi(tmp) - 1900;
-                part = 'M';
-            }
-            else if ( part == 'M' )  /* month */
-            {
-                t.tm_mon = atoi(tmp) - 1;
-                part = 'D';
-            }
-            else if ( part == 'D' )  /* day */
-            {
-                t.tm_mday = atoi(tmp);
-                part = 'H';
-            }
-            else if ( part == 'H' )  /* hour */
-            {
-                t.tm_hour = atoi(tmp);
-                part = 'm';
-            }
-            else if ( part == 'm' )  /* minutes */
-            {
-                t.tm_min = atoi(tmp);
-                part = 's';
-            }
-
-            j = 0;
-        }
-    }
-
-    /* seconds */
-
-    tmp[j] = EOS;
-    t.tm_sec = atoi(tmp);
-
-#ifdef __linux__
-    epoch = timegm(&t);
-#else
-    epoch = win_timegm(&t);
-#endif
-
-    return epoch;
-}
-
-
-/* --------------------------------------------------------------------------
    Send an email
 -------------------------------------------------------------------------- */
 bool npp_email(const char *to, const char *subject, const char *message)
@@ -7575,7 +7566,7 @@ void date_inc(char *str, int days, int *dow)
 
     sprintf(full, "%s 00:00:00", str);
 
-    told = db2epoch(full);
+    told = time_db2epoch(full);
 
     tnew = told + 3600*24*days;
 
@@ -7598,10 +7589,10 @@ int date_cmp(const char *str1, const char *str2)
     time_t  t1, t2;
 
     sprintf(full, "%s 00:00:00", str1);
-    t1 = db2epoch(full);
+    t1 = time_db2epoch(full);
 
     sprintf(full, "%s 00:00:00", str2);
-    t2 = db2epoch(full);
+    t2 = time_db2epoch(full);
 
     return t1 - t2;
 }
@@ -7615,8 +7606,8 @@ int datetime_cmp(const char *str1, const char *str2)
 {
     time_t  t1, t2;
 
-    t1 = db2epoch(str1);
-    t2 = db2epoch(str2);
+    t1 = time_db2epoch(str1);
+    t2 = time_db2epoch(str2);
 
     return t1 - t2;
 }

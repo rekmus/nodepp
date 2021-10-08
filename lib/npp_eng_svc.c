@@ -208,9 +208,9 @@ int main(int argc, char *argv[])
 
     /* load snippets ----------------------------------------------------- */
 
-    if ( !read_snippets(TRUE, NULL) )
+    if ( !npp_lib_read_snippets(TRUE, NULL) )
     {
-        ERR("read_snippets() failed");
+        ERR("npp_lib_read_snippets() failed");
         return EXIT_FAILURE;
     }
 
@@ -325,9 +325,9 @@ int main(int argc, char *argv[])
 
                 npp_lib_init_random_numbers();
 
-                if ( !read_snippets(FALSE, NULL) )
+                if ( !npp_lib_read_snippets(FALSE, NULL) )
                 {
-                    ERR("read_snippets() failed");
+                    ERR("npp_lib_read_snippets() failed");
                     clean_up();
                     return EXIT_FAILURE;
                 }
@@ -450,7 +450,7 @@ int main(int argc, char *argv[])
             else
             {
                 G_connections[0].si = 0;    /* no session */
-                strcpy(G_sessions[0].lang, G_connections[0].lang);  /* for npp_message and npp_get_string */
+                strcpy(G_sessions[0].lang, G_connections[0].lang);  /* for npp_message and npp_lib_get_string */
             }
 
             /* globals */

@@ -185,11 +185,11 @@ static int          M_poll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS]={0};
 
 #endif  /* NPP_FD_MON_POLL */
 
-static stat_res_t   M_stat[NPP_MAX_STATICS]={0};    /* static resources */
+static static_res_t M_stat[NPP_MAX_STATICS]={0};    /* static resources */
 static char         M_resp_date[32];                /* response header Date */
 static char         M_expires_stat[32];             /* response header for static resources */
 static char         M_expires_gen[32];              /* response header for generated resources */
-static int          M_max_static=-1;                /* highest static resource M_stat index */
+static int          M_static_cnt=-1;                /* highest static resource M_stat index */
 static bool         M_popular_favicon=FALSE;        /* popular statics -- don't create sessions for those */
 static bool         M_popular_appleicon=FALSE;      /* -''- */
 static bool         M_popular_robots=FALSE;         /* -''- */
@@ -3281,7 +3281,8 @@ static bool ip_allowed(const char *addr)
 /* --------------------------------------------------------------------------
    Read static resources from disk
    Read all the files from G_appdir/res or resmin directory
-   path is a relative path uder `res` or `resmin`
+   path is a relative path under `res` or `resmin`
+   Unlike snippets, these are only used by main npp_app process
 -------------------------------------------------------------------------- */
 static bool read_files(const char *host, const char *directory, char source, bool first_scan, const char *path)
 {
@@ -3316,11 +3317,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
 
     if ( G_appdir[0] )
     {
-        sprintf(resdir, "%s/%s", G_appdir, directory);
+        sprintf(resdir, "%s\\%s", G_appdir, directory);
     }
     else    /* no NPP_DIR */
     {
-        sprintf(resdir, "../%s", directory);
+        sprintf(resdir, "..\\%s", directory);
     }
 
 #else   /* Linux -- don't fool around */
@@ -3340,7 +3341,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
     }
     else    /* recursive call */
     {
+#ifdef _WIN32
+        sprintf(ressubdir, "%s\\%s", resdir, path);
+#else
         sprintf(ressubdir, "%s/%s", resdir, path);
+#endif
     }
 
 #ifdef NPP_DEBUG
@@ -3362,7 +3367,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
     {
 //        DDBG("Checking removed files...");
 
-        for ( i=0; i<=M_max_static; ++i )
+        for ( i=0; i<=M_static_cnt; ++i )
         {
             if ( M_stat[i].name[0]==EOS ) continue;   /* already removed */
 
@@ -3371,8 +3376,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
 //            DDBG("Checking %s...", M_stat[i].name);
 
             char fullpath[NPP_STATIC_PATH_LEN*2];
+#ifdef _WIN32
+            sprintf(fullpath, "%s\\%s", resdir, M_stat[i].name);
+#else
             sprintf(fullpath, "%s/%s", resdir, M_stat[i].name);
-
+#endif
             if ( !npp_file_exists(fullpath) )
             {
                 INF("Removing %s from static resources", M_stat[i].name);
@@ -3394,7 +3402,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
                         M_popular_sw = FALSE;
                 }
 #ifdef NPP_MULTI_HOST
-                else if ( 0!=strcmp(directory, "snippets") )   /* side gig */
+                else    /* side gig */
                 {
                     if ( 0==strcmp(M_stat[i].name, "index.html") )
                     {
@@ -3445,7 +3453,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
         if ( !path )
             strcpy(resname, dirent->d_name);
         else
+#ifdef _WIN32
+            sprintf(resname, "%s\\%s", path, dirent->d_name);
+#else
             sprintf(resname, "%s/%s", path, dirent->d_name);
+#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -3455,7 +3467,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
+#ifdef _WIN32
+        sprintf(namewpath, "%s\\%s", resdir, resname);
+#else
         sprintf(namewpath, "%s/%s", resdir, resname);
+#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -3498,7 +3514,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
         {
             bool exists_not_changed = FALSE;
 
-            for ( i=0; i<=M_max_static; ++i )
+            for ( i=0; i<=M_static_cnt; ++i )
             {
                 if ( M_stat[i].name[0]==EOS ) continue;   /* removed */
 
@@ -3613,10 +3629,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
                 }
             }
 
-            if ( M_stat[i].source == STATIC_SOURCE_SNIPPET )
-                M_stat[i].data = (char*)malloc(M_stat[i].len+1);
-            else
-                M_stat[i].data = (char*)malloc(M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE);
+            M_stat[i].data = (char*)malloc(M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE);
 
             if ( NULL == M_stat[i].data )
             {
@@ -3626,12 +3639,12 @@ static bool read_files(const char *host, const char *directory, char source, boo
                 return FALSE;
             }
 
-            if ( minify )
+            if ( minify )   /* STATIC_SOURCE_RESMIN */
             {
                 memcpy(M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_stat[i].len+1);
                 free(data_tmp);
-                free(data_tmp_min);
                 data_tmp = NULL;
+                free(data_tmp_min);
                 data_tmp_min = NULL;
             }
             else if ( M_stat[i].source == STATIC_SOURCE_RES )
@@ -3644,22 +3657,12 @@ static bool read_files(const char *host, const char *directory, char source, boo
                     return FALSE;
                 }
             }
-            else    /* snippet */
-            {
-                if ( fread(M_stat[i].data, M_stat[i].len, 1, fd) != 1 )
-                {
-                    ERR("Couldn't read from %s", M_stat[i].name);
-                    fclose(fd);
-                    closedir(dir);
-                    return FALSE;
-                }
-            }
 
             fclose(fd);
 
             /* get the file type ------------------------------- */
 
-            if ( !reread && M_stat[i].source != STATIC_SOURCE_SNIPPET )
+            if ( !reread )
             {
                 M_stat[i].type = npp_lib_get_res_type(M_stat[i].name);
 
@@ -3680,7 +3683,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
                         M_popular_sw = TRUE;
                 }
 #ifdef NPP_MULTI_HOST
-                else if ( 0!=strcmp(directory, "snippets") )   /* side gig */
+                else    /* side gig */
                 {
                     if ( 0==strcmp(M_stat[i].name, "index.html") )
                     {
@@ -3702,7 +3705,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_stat[i].len, M_stat[i].type) && M_stat[i].source != STATIC_SOURCE_SNIPPET )
+            if ( SHOULD_BE_COMPRESSED(M_stat[i].len, M_stat[i].type) && M_stat[i].source != STATIC_SOURCE_SNIPPETS )
             {
                 if ( NULL == (data_tmp=(char*)malloc(M_stat[i].len)) )
                 {
@@ -3790,15 +3793,14 @@ static bool read_resources(bool first_scan)
         return FALSE;
     }
 
-    if ( !read_snippets(first_scan, NULL) )
+    if ( !npp_lib_read_snippets("", "snippets", first_scan, NULL) )
     {
         ERR("reading snippets failed");
         return FALSE;
     }
 
-    /* side gigs */
 
-#ifdef NPP_MULTI_HOST
+#ifdef NPP_MULTI_HOST   /* side gigs */
 
     int i;
 
@@ -3813,6 +3815,12 @@ static bool read_resources(bool first_scan)
         if ( !read_files(M_hosts[i].host, M_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
             ERR("reading %s's resmin failed", M_hosts[i].host);
+            return FALSE;
+        }
+
+        if ( !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, first_scan, NULL) )
+        {
+            ERR("reading %s's snippets failed", M_hosts[i].host);
             return FALSE;
         }
     }
@@ -3834,7 +3842,7 @@ static int first_free_stat()
     {
         if ( M_stat[i].name[0]=='-' || M_stat[i].name[0]==EOS )
         {
-            if ( i > M_max_static ) M_max_static = i;
+            if ( i > M_static_cnt ) M_static_cnt = i;
             return i;
         }
     }
@@ -3846,7 +3854,7 @@ static int first_free_stat()
 
 
 /* --------------------------------------------------------------------------
-   Return M_stat array index if name is on statics' list
+   Return M_stat array index if URI is on statics' list
 -------------------------------------------------------------------------- */
 static int is_static_res(int ci)
 {
@@ -3858,7 +3866,7 @@ static int is_static_res(int ci)
     {
         for ( i=0; M_stat[i].name[0] != '-'; ++i )
         {
-            if ( !M_stat[i].host[0] && 0==strcmp(M_stat[i].name, G_connections[ci].uri) && M_stat[i].source != STATIC_SOURCE_SNIPPET )
+            if ( !M_stat[i].host[0] && 0==strcmp(M_stat[i].name, G_connections[ci].uri) /*&& M_stat[i].source != STATIC_SOURCE_SNIPPETS*/ )
             {
                 if ( G_connections[ci].if_mod_since >= M_stat[i].modified )
                 {
@@ -3889,7 +3897,7 @@ static int is_static_res(int ci)
 
     for ( i=0; M_stat[i].name[0] != '-'; ++i )
     {
-        if ( 0==strcmp(M_stat[i].name, G_connections[ci].uri) && M_stat[i].source != STATIC_SOURCE_SNIPPET )
+        if ( 0==strcmp(M_stat[i].name, G_connections[ci].uri) /*&& M_stat[i].source != STATIC_SOURCE_SNIPPETS*/ )
         {
             if ( G_connections[ci].if_mod_since >= M_stat[i].modified )
             {
@@ -6130,7 +6138,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
             DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
 
-            /* for npp_message and npp_get_string if no session */
+            /* for npp_message and npp_lib_get_string if no session */
 
 //            strcpy(G_sessions[0].lang, G_connections[ci].lang);
 
