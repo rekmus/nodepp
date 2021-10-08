@@ -15,7 +15,7 @@
 #define NPP_APP_DESCRIPTION             "Sample Node++ Web Application"
 
 
-#define NPP_DEBUG
+//#define NPP_DEBUG
 
 
 /* app session data */
