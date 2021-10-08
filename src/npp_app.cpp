@@ -44,10 +44,12 @@ static void header(int ci)
 
     OUT("<div>");
 
+static char logo[]="<img src=\"/nodepp.jpg\" alt=\"Logo\" width=\"250\" height=\"62\">";
+
     if ( REQ("") )
-        OUT("<h1>%s</h1>", NPP_APP_NAME);
+        OUT("<h1>%s</h1>", logo);
     else
-        OUT("<h1><a href=\"/\">%s</a></h1>", NPP_APP_NAME);
+        OUT("<h1><a href=\"/\">%s</a></h1>", logo);
 
     OUT("</div>");  /* end of first row */
 
@@ -100,7 +102,7 @@ void render_landing(int ci)
 {
     header(ci);
 
-    OUT("<h2>Welcome to my web app!</h2>");
+    OUT("<h2>Welcome to your web app!</h2>");
 
     /* show client type */
 
@@ -119,7 +121,7 @@ void render_landing(int ci)
 
     OUT("<p>You can also estimate <a href=\"/performance\">your server's performance</a>.</p>");
 
-    OUT("<p>You can modify this app in <b class=m>src/npp_app.cpp</b>.</p>");
+    OUT("<p>You can modify this app in <b class=m>src/npp_app.cpp</b>. The entry point is <code>npp_app_main()</code>.</p>");
 
     footer(ci);
 }
