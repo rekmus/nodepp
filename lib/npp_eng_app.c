@@ -145,7 +145,7 @@ static struct {
     char snippets[256];
     bool index_present;
     } M_hosts[NPP_MAX_HOSTS] = {
-        {"", "res", "resmin", FALSE}
+        {"", "res", "resmin", "snippets", FALSE}
     };
 
 static int      M_hosts_cnt=1;              /* main host always present */
@@ -3806,19 +3806,19 @@ static bool read_resources(bool first_scan)
 
     for ( i=1; i<M_hosts_cnt; ++i )
     {
-        if ( !read_files(M_hosts[i].host, M_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
+        if ( M_hosts[i].res[0] && !read_files(M_hosts[i].host, M_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
         {
             ERR("reading %s's res failed", M_hosts[i].host);
             return FALSE;
         }
 
-        if ( !read_files(M_hosts[i].host, M_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
+        if ( M_hosts[i].resmin[0] && !read_files(M_hosts[i].host, M_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
             ERR("reading %s's resmin failed", M_hosts[i].host);
             return FALSE;
         }
 
-        if ( !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, first_scan, NULL) )
+        if ( M_hosts[i].snippets[0] && !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, first_scan, NULL) )
         {
             ERR("reading %s's snippets failed", M_hosts[i].host);
             return FALSE;
@@ -6908,27 +6908,22 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
 
 
 /* --------------------------------------------------------------------------
-   Return true if host matches requested host
+   Add a host and assign resource directories
 -------------------------------------------------------------------------- */
-/*bool eng_host(int ci, const char *host)
-{
-    return (0==strcmp(G_connections[ci].host_normalized, npp_upper(host)));
-}*/
-
-
-/* --------------------------------------------------------------------------
-   Assign resource directories to a host
--------------------------------------------------------------------------- */
-bool npp_set_host_dirs(const char *host, const char *res, const char *resmin, const char *snippets)
+bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
 {
 #ifdef NPP_MULTI_HOST
 
     if ( M_hosts_cnt >= NPP_MAX_HOSTS ) return FALSE;
 
     COPY(M_hosts[M_hosts_cnt].host, npp_upper(host), NPP_MAX_HOST_LEN);
-    COPY(M_hosts[M_hosts_cnt].res, res, 255);
-    COPY(M_hosts[M_hosts_cnt].resmin, resmin, 255);
-    COPY(M_hosts[M_hosts_cnt].snippets, snippets, 255);
+
+    if ( res )
+        COPY(M_hosts[M_hosts_cnt].res, res, 255);
+    if ( resmin )
+        COPY(M_hosts[M_hosts_cnt].resmin, resmin, 255);
+    if ( snippets )
+        COPY(M_hosts[M_hosts_cnt].snippets, snippets, 255);
 
     ++M_hosts_cnt;
 

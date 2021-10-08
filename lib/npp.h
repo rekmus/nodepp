@@ -1730,7 +1730,7 @@ extern "C" {
 
     void npp_set_auth_level(const char *path, char level);
     void npp_add_to_static_res(const char *name, const char *src);
-    bool npp_set_host_dirs(const char *host, const char *res, const char *resmin, const char *snippets);
+    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
 
     /* public internal */
 
