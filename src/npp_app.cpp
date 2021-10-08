@@ -169,10 +169,7 @@ static double average;
     OUT("<p>This request took %0.3lf ms to process.</p>", elapsed);
     OUT("<p>Based on %d request(s), average rendering time is %0.3lf ms.</p>", requests, average);
 
-    char formatted[256];
-    npp_lib_fmt_int(ci, formatted, requests_daily);  /* format number depending on user agent language */
-
-    OUT("<p>So this server could handle up to <b>%s</b> requests per day.</p>", formatted);
+    OUT("<p>So this server could handle up to <b>%s</b> requests per day.</p>", INT(requests_daily));
 
     OUT("<p>Refresh this page a couple of times to obtain more accurate estimation.</p>");
 

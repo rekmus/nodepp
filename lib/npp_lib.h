@@ -248,6 +248,10 @@ typedef char                            QSVAL_TEXT[65536];
 
 #define AMT(val)                        npp_lib_fmt_dec(ci, val)
 
+/* format integer */
+
+#define INT(val)                        npp_lib_fmt_int(ci, val)
+
 
 
 /* HTTP & RESTful calls */
@@ -654,8 +658,8 @@ extern "C" {
     void npp_lib_init_random_numbers(void);
     void npp_lib_set_datetime_formats(int ci);
     char *npp_lib_fmt_date(int ci, short year, short month, short day);
-    char *npp_lib_fmt_dec(int ci, double in_amt);
-    void npp_lib_fmt_int(int ci, char *stramt, long long in_amt);
+    char *npp_lib_fmt_dec(int ci, double in_val);
+    char *npp_lib_fmt_int(int ci, long long in_val);
     void npp_random(char *dest, int len);
     void npp_notify_admin(const char *msg);
 #endif  /* NPP_CLIENT */

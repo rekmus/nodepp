@@ -2896,16 +2896,16 @@ void lib_send_msg_description(int ci, int code)
 -------------------------------------------------------------------------- */
 static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
 {
-    npp_lib_fmt_int(ci, s->req, n->req);
-    npp_lib_fmt_int(ci, s->req_dsk, n->req_dsk);
-    npp_lib_fmt_int(ci, s->req_tab, n->req_tab);
-    npp_lib_fmt_int(ci, s->req_mob, n->req_mob);
-    npp_lib_fmt_int(ci, s->req_bot, n->req_bot);
-    npp_lib_fmt_int(ci, s->visits, n->visits);
-    npp_lib_fmt_int(ci, s->visits_dsk, n->visits_dsk);
-    npp_lib_fmt_int(ci, s->visits_tab, n->visits_tab);
-    npp_lib_fmt_int(ci, s->visits_mob, n->visits_mob);
-    npp_lib_fmt_int(ci, s->blocked, n->blocked);
+    strcpy(s->req, INT(n->req));
+    strcpy(s->req_dsk, INT(n->req_dsk));
+    strcpy(s->req_tab, INT(n->req_tab));
+    strcpy(s->req_mob, INT(n->req_mob));
+    strcpy(s->req_bot, INT(n->req_bot));
+    strcpy(s->visits, INT(n->visits));
+    strcpy(s->visits_dsk, INT(n->visits_dsk));
+    strcpy(s->visits_tab, INT(n->visits_tab));
+    strcpy(s->visits_mob, INT(n->visits_mob));
+    strcpy(s->blocked, INT(n->blocked));
     strcpy(s->average, AMT(n->average));
 }
 
@@ -2999,8 +2999,8 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     char formatted1[64];
     char formatted2[64];
 
-    npp_lib_fmt_int(ci, formatted1, records);
-    npp_lib_fmt_int(ci, formatted2, last_to_show);
+    strcpy(formatted1, INT(records));
+    strcpy(formatted2, INT(last_to_show));
     OUT("<p>%s %s users, showing %s of last seen</p>", formatted1, activity_desc, formatted2);
 
     OUT("<table cellpadding=4 border=1 style=\"margin-bottom:3em;\">");
@@ -3044,14 +3044,13 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 
     char ai_td[NPP_LIB_STR_BUF]="";
     double ai_double;
-    char ai_fmt[64];
 
     for ( i=0; i<last_to_show; ++i )
     {
         row = mysql_fetch_row(result);
 
-        npp_lib_fmt_int(ci, fmt0, atoi(row[0]));    /* id */
-        npp_lib_fmt_int(ci, fmt7, atoi(row[7]));    /* visits */
+        strcpy(fmt0, INT(atoi(row[0])));    /* id */
+        strcpy(fmt7, INT(atoi(row[7])));    /* visits */
 
         if ( atoi(row[4]) != USER_STATUS_ACTIVE )
             strcpy(trstyle, " class=g");
@@ -3070,21 +3069,18 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
                 if ( 0==strcmp(ai[j].type, "int") )
                 {
                     strcat(ai_td, "<td class=r>");
-                    npp_lib_fmt_int(ci, ai_fmt, atoi(row[j+8]));
-                    strcat(ai_td, ai_fmt);
+                    strcat(ai_td, INT(atoi(row[j+8])));
                 }
                 else if ( 0==strcmp(ai[j].type, "long") )
                 {
                     strcat(ai_td, "<td class=r>");
-                    npp_lib_fmt_int(ci, ai_fmt, atol(row[j+8]));
-                    strcat(ai_td, ai_fmt);
+                    strcat(ai_td, INT(atol(row[j+8])));
                 }
                 else if ( 0==strcmp(ai[j].type, "float") || 0==strcmp(ai[j].type, "double") )
                 {
                     strcat(ai_td, "<td class=r>");
                     sscanf(row[j+8], "%f", &ai_double);
-                    strcpy(ai_fmt, npp_lib_fmt_dec(ci, ai_double));
-                    strcat(ai_td, ai_fmt);
+                    strcat(ai_td, AMT(ai_double));
                 }
                 else    /* string */
                 {
@@ -3119,7 +3115,7 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer)
 {
 #ifdef NPP_USERS
-    if ( !LOGGED || G_sessions[G_connections[ci].si].auth_level < AUTH_LEVEL_ADMIN )
+    if ( SESSION.auth_level < AUTH_LEVEL_ADMIN )
     {
         ERR("npp_admin_info: user authorization level < %d", AUTH_LEVEL_ADMIN);
         RES_STATUS(404);
@@ -3157,10 +3153,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     /* ------------------------------------------------------------------- */
     /* Server info */
 
-    char formatted[64];
-
-    npp_lib_fmt_int(ci, formatted, G_days_up);
-    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, formatted, NPP_VERSION);
+    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, INT(G_days_up), NPP_VERSION);
 
     /* ------------------------------------------------------------------- */
     /* Memory */
@@ -3174,7 +3167,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 
     mem_used = npp_get_memory();
 
-    npp_lib_fmt_int(ci, mem_used_kib, mem_used);
+    strcpy(mem_used_kib, INT(mem_used));
     strcpy(mem_used_mib, AMT((double)mem_used/1024));
     strcpy(mem_used_gib, AMT((double)mem_used/1024/1024));
 
@@ -3232,8 +3225,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     {
         OUT("<h2>Blacklist</h2>");
 
-        npp_lib_fmt_int(ci, formatted, G_blacklist_cnt);
-        OUT("<p>%s blacklisted IPs</p>", formatted);
+        OUT("<p>%s blacklisted IPs</p>", INT(G_blacklist_cnt));
 //        OUT("<p><form action=\"add2blocked\" method=\"post\"><input type=\"text\" name=\"ip\"> <input type=\"submit\" onClick=\"wait();\" value=\"Block\"></form></p>");
     }
 
@@ -5432,68 +5424,66 @@ static char dst[20];
 
 
 /* --------------------------------------------------------------------------
-   Format decimal amount (generic SESSION format)
+   Format decimal amount (generic US format)
 ---------------------------------------------------------------------------*/
-void npp_lib_fmt_dec_generic(char *stramt, double in_amt)
+void npp_lib_fmt_dec_generic(char *dest, double in_val)
 {
-    char    in_stramt[64];
-    int     len;
+    char    in_val_str[64];
     int     i, j=0;
     bool    minus=FALSE;
 
-    sprintf(in_stramt, "%0.2lf", in_amt);
+    sprintf(in_val_str, "%0.2lf", in_val);
 
-    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    if ( in_val_str[0] == '-' )   /* change to UTF-8 minus sign */
     {
-        strcpy(stramt, "− ");
+        strcpy(dest, "− ");
         j = 4;
         minus = TRUE;
     }
 
-    len = strlen(in_stramt);
+    int len = strlen(in_val_str);
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
-        if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
+        if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_val_str[i] != ' ' && in_val_str[i-1] != ' ' && in_val_str[i-1] != '-' )
         {
-            stramt[j++] = ',';    /* extra character */
+            dest[j++] = ',';    /* extra character */
         }
-        stramt[j] = in_stramt[i];
+        dest[j] = in_val_str[i];
     }
 
-    stramt[j] = EOS;
+    dest[j] = EOS;
 }
 
 
 /* --------------------------------------------------------------------------
-   Format integer amount (generic SESSION format)
+   Format integer amount (generic US format)
 ---------------------------------------------------------------------------*/
-void npp_lib_fmt_int_generic(char *stramt, long long in_amt)
+void npp_lib_fmt_int_generic(char *dest, long long in_val)
 {
-    char    in_stramt[256];
-    int     len;
+    char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
 
-    sprintf(in_stramt, "%lld", in_amt);
+    sprintf(in_val_str, "%lld", in_val);
 
-    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    if ( in_val_str[0] == '-' )   /* change to UTF-8 minus sign */
     {
-        strcpy(stramt, "− ");
+        strcpy(dest, "− ");
         j = 4;
         minus = TRUE;
     }
 
-    len = strlen(in_stramt);
+    int len = strlen(in_val_str);
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
         if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) )
-            stramt[j++] = ',';
-        stramt[j] = in_stramt[i];
+            dest[j++] = ',';
+        dest[j] = in_val_str[i];
     }
 
-    stramt[j] = EOS;
+    dest[j] = EOS;
 }
 
 
@@ -8863,41 +8853,40 @@ static char get_tsep(int ci)
 /* --------------------------------------------------------------------------
    Format decimal amount
 ---------------------------------------------------------------------------*/
-char *npp_lib_fmt_dec(int ci, double in_amt)
+char *npp_lib_fmt_dec(int ci, double in_val)
 {
 static char dest[64];
 
-    char    in_stramt[64];
-    int     len;
+    char    in_val_str[64];
     int     i, j=0;
     bool    minus=FALSE;
 
-    sprintf(in_stramt, "%0.2lf", in_amt);
+    sprintf(in_val_str, "%0.2lf", in_val);
 
-    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    if ( in_val_str[0] == '-' )   /* change to UTF-8 minus sign */
     {
         strcpy(dest, "− ");
         j = 4;
         minus = TRUE;
     }
 
-    len = strlen(in_stramt);
+    int len = strlen(in_val_str);
 
     char dsep = get_dsep(ci);   /* decimal separator */
     char tsep = get_tsep(ci);   /* thousand separator */
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
-        if ( in_stramt[i]=='.' && dsep!='.' )   /* replace decimal separator */
+        if ( in_val_str[i]=='.' && dsep!='.' )   /* replace decimal separator */
         {
             dest[j] = dsep;
             continue;
         }
-        else if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_stramt[i] != ' ' && in_stramt[i-1] != ' ' && in_stramt[i-1] != '-' )
+        else if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) && len-i > 3 && in_val_str[i] != ' ' && in_val_str[i-1] != ' ' && in_val_str[i-1] != '-' )
         {
             dest[j++] = tsep;    /* extra character */
         }
-        dest[j] = in_stramt[i];
+        dest[j] = in_val_str[i];
     }
 
     dest[j] = EOS;
@@ -8909,34 +8898,37 @@ static char dest[64];
 /* --------------------------------------------------------------------------
    Format integer amount
 ---------------------------------------------------------------------------*/
-void npp_lib_fmt_int(int ci, char *stramt, long long in_amt)
+char *npp_lib_fmt_int(int ci, long long in_val)
 {
-    char    in_stramt[256];
-    int     len;
+static char dest[64];
+
+    char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
 
-    sprintf(in_stramt, "%lld", in_amt);
+    sprintf(in_val_str, "%lld", in_val);
 
-    if ( in_stramt[0] == '-' )   /* change to UTF-8 minus sign */
+    if ( in_val_str[0] == '-' )   /* change to UTF-8 minus sign */
     {
-        strcpy(stramt, "− ");
+        strcpy(dest, "− ");
         j = 4;
         minus = TRUE;
     }
 
-    len = strlen(in_stramt);
+    int len = strlen(in_val_str);
 
     char tsep = get_tsep(ci);   /* thousand separator */
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
         if ( ((!minus && i) || (minus && i>1)) && !((len-i)%3) )
-            stramt[j++] = tsep;
-        stramt[j] = in_stramt[i];
+            dest[j++] = tsep;
+        dest[j] = in_val_str[i];
     }
 
-    stramt[j] = EOS;
+    dest[j] = EOS;
+
+    return dest;
 }
 
 
