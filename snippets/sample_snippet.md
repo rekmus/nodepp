@@ -26,4 +26,4 @@ _This is underline text_
 
 ## Note
 
-This is simplified Markdown parser. I hope the most important tags are present. As my spare time will allow, I'll keep extending it.
+This is simplified Markdown parser. I believe the most important tags are present. As my spare time will allow, I'll keep extending it.
