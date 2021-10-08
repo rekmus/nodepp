@@ -32,10 +32,11 @@ static void header(int ci)
     OUT("<style>");
 
     if ( REQ_DSK )
-        OUT("body{margin-left:25px;}");   /* for desktop only */
+        OUT("body{margin-left:25px;margin-bottom:50px;}");   /* for desktop only */
 
     OUT("code{font-size:1.1em;}");
     OUT(".m{font-family:monospace;font-size:1.1em;}");
+    OUT(".mt{margin-top:50px;}");
 
     OUT("</style>");
 
@@ -102,7 +103,9 @@ void render_landing(int ci)
 {
     header(ci);
 
-    OUT("<h2>Welcome to your web app!</h2>");
+    OUT("<h2>Congratulations!</h2>");
+
+    OUT("<p>You've managed to compile and run Node++ web application! I hope you will like the performance of the compiled code.</p>");
 
     /* show client type */
 
@@ -121,7 +124,11 @@ void render_landing(int ci)
 
     OUT("<p>You can also estimate <a href=\"/performance\">your server's performance</a>.</p>");
 
-    OUT("<p>You can modify this app in <b class=m>src/npp_app.cpp</b>. The entry point is <code>npp_app_main()</code>.</p>");
+    OUT("<p>You can modify this app in <b class=m>src/npp_app.cpp</b>. The entry point is <code>npp_app_main()</code>. Have fun!</p>");
+
+    /* --------------------------------------------------- */
+
+    OUT("<p class=mt><i>To see the source code look at <code>render_landing()</code>.</i></p>");
 
     footer(ci);
 }
@@ -155,6 +162,11 @@ void render_welcome(int ci)
     if ( QSI("age", &age) )   /* if present, say something nice */
         OUT("<p>It's good to see you in a good health, despite being already %d years old!</p>", age);
 
+    /* --------------------------------------------------- */
+
+    if ( QS("name", NULL) )    /* show this only if there's something in query string */
+        OUT("<p class=mt><i>To see the source code look at <code>render_welcome()</code>.</i></p>");
+
     footer(ci);
 }
 
@@ -172,6 +184,10 @@ void render_snippets(int ci)
 
     OUT_SNIPPET_MD("sample_snippet.md");
 
+    /* --------------------------------------------------- */
+
+    OUT("<p class=mt><i>To see the source code look at <code>render_snippets()</code>.</i></p>");
+
     footer(ci);
 }
 
@@ -183,26 +199,26 @@ void render_performance(int ci)
 {
     header(ci);
 
-static int    requests;
-static double elapsed_all;
-static double average;
+    if ( G_cnts_today.req < 2 )
+    {
+        OUT("<p>Refresh this page to let the server measure the average processing time.</p>");
+    }
+    else    /* server average is available only after the first request has finished */
+    {
+        long long requests_daily = 86400000 / G_cnts_today.average;
 
-    ++requests;
+        OUT("<p>Based on %d request(s) the average rendering time is %0.3lf ms.</p>", G_cnts_today.req, G_cnts_today.average);
 
-    double elapsed = npp_elapsed(&G_connections[ci].proc_start);
+        OUT("<p>It seems that this Node++ application on your server could handle up to <b>%s</b> requests per day.</p>", INT(requests_daily));
 
-    elapsed_all += elapsed;
+        OUT("<p>Refresh this page a couple of times to obtain more accurate estimation.</p>");
+    }
 
-    average = elapsed_all / requests;
+    /* --------------------------------------------------- */
 
-    long long requests_daily = 86400000 / average;
+    OUT("<p class=mt><i>To see the source code look at <code>render_performance()</code>.</i></p>");
 
-    OUT("<p>This request took %0.3lf ms to process.</p>", elapsed);
-    OUT("<p>Based on %d request(s), average rendering time is %0.3lf ms.</p>", requests, average);
-
-    OUT("<p>So this server could handle up to <b>%s</b> requests per day.</p>", INT(requests_daily));
-
-    OUT("<p>Refresh this page a couple of times to obtain more accurate estimation.</p>");
+    RES_DONT_CACHE;
 
     footer(ci);
 }
