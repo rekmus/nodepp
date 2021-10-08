@@ -32,11 +32,11 @@ static void header(int ci)
     OUT("<style>");
 
     if ( REQ_DSK )
-        OUT("body{margin-left:25px;margin-bottom:50px;}");   /* for desktop only */
+        OUT("body{margin-left:25px;margin-bottom:40px;}");   /* for desktop only */
 
     OUT("code{font-size:1.1em;}");
     OUT(".m{font-family:monospace;font-size:1.1em;}");
-    OUT(".mt{margin-top:50px;}");
+    OUT(".mt{margin-top:40px;}");
 
     OUT("</style>");
 
@@ -164,7 +164,7 @@ void render_welcome(int ci)
 
     /* --------------------------------------------------- */
 
-    if ( QS("name", NULL) )    /* show this only if there's something in query string */
+    if ( QS("name", NULL) )    /* show this only if there's a name in query string */
         OUT("<p class=mt><i>To see the source code look at <code>render_welcome()</code>.</i></p>");
 
     footer(ci);
@@ -227,12 +227,22 @@ void render_performance(int ci)
 
 
 /* --------------------------------------------------------------------------------
-   Called after parsing HTTP request header
-   ------------------------------
    This is the main entry point for a request
    ------------------------------
-   Response status will be 200 by default
+   Called after parsing HTTP request headers
+   ------------------------------
+   If required (NPP_REQUIRED_AUTH_LEVEL >= AUTH_LEVEL_ANONYMOUS),
+   the session is already created
+
+   If valid ls cookie is present in the request or
+   it's over existing connection that has already been authenticated,
+   the session is already authenticated
+   ------------------------------
+   Response status is 200 by default
    Use RES_STATUS() if you want to change it
+
+   Response content type is text/html by default
+   Use RES_CONTENT_TYPE() if you want to change it
 -------------------------------------------------------------------------------- */
 void npp_app_main(int ci)
 {

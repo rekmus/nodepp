@@ -16,6 +16,7 @@
 
 
 /* app session data */
+/* accessible via SESSION_DATA macro */
 
 typedef struct {
     char dummy;     // replace with your own struct members

@@ -702,8 +702,8 @@ typedef char str256k[1024*256];
 #define NPP_MAX_SNIPPETS                    1000            /* max snippets */
 #endif
 
-#ifndef DEF_RES_AUTH_LEVEL
-#define DEF_RES_AUTH_LEVEL                  AUTH_LEVEL_NONE /* default resource authorization level */
+#ifndef NPP_REQUIRED_AUTH_LEVEL
+#define NPP_REQUIRED_AUTH_LEVEL             AUTH_LEVEL_NONE /* default resource authorization level */
 #endif
 
 /* asynchronous calls */
