@@ -327,7 +327,7 @@ int main(int argc, char **argv)
 
     /* Set socket to non-blocking */
 
-    npp_setnonblocking(M_listening_fd);
+    npp_lib_setnonblocking(M_listening_fd);
 
     /* bind socket to a port */
 
@@ -379,7 +379,7 @@ int main(int argc, char **argv)
 
     /* Set socket to non-blocking */
 
-    npp_setnonblocking(M_listening_sec_fd);
+    npp_lib_setnonblocking(M_listening_sec_fd);
 
     /* bind socket to a port */
 
@@ -2302,7 +2302,7 @@ static bool init(int argc, char **argv)
     // SIZE_MAX is not defined in older GCC!
 //    ALWAYS("              SIZE_MAX = %lu (%lu KiB / %lu MiB)", SIZE_MAX, SIZE_MAX/1024, SIZE_MAX/1024/1024);
 #endif
-    get_byteorder();
+    npp_get_byteorder();
 
     ALWAYS("              FD_SETSIZE = %d", FD_SETSIZE);
     ALWAYS("               SOMAXCONN = %d", SOMAXCONN);
@@ -2825,7 +2825,7 @@ static void accept_http()
         return;
     }
 
-    npp_setnonblocking(connection);
+    npp_lib_setnonblocking(connection);
 
     /* find a free slot in G_connections */
 
@@ -2936,7 +2936,7 @@ static void accept_https()
         return;
     }
 
-    npp_setnonblocking(connection);
+    npp_lib_setnonblocking(connection);
 
     /* find a free slot in G_connections */
 
@@ -4789,7 +4789,7 @@ static              bool first=TRUE;
 
 /* --------------------------------------------------------------------------
    Print Content-Type to response header
-   Mirrored lib_set_res_content_type
+   Mirrored npp_lib_set_res_content_type
 -------------------------------------------------------------------------- */
 static void print_content_type(int ci, char type)
 {

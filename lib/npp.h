@@ -1045,13 +1045,13 @@ typedef char str256k[1024*256];
 #endif  /* _MSC_VER */
 
 
-#define RES_STATUS(val)                 lib_set_res_status(ci, val)
-#define RES_CONTENT_TYPE(str)           lib_set_res_content_type(ci, str)
-#define RES_LOCATION(str, ...)          lib_set_res_location(ci, str, ##__VA_ARGS__)
+#define RES_STATUS(val)                 npp_lib_set_res_status(ci, val)
+#define RES_CONTENT_TYPE(str)           npp_lib_set_res_content_type(ci, str)
+#define RES_LOCATION(str, ...)          npp_lib_set_res_location(ci, str, ##__VA_ARGS__)
 #define RES_REDIRECT(str, ...)          RES_LOCATION(str, ##__VA_ARGS__)
 #define RES_KEEP_CONTENT                G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_CONTENT
 #define RES_DONT_CACHE                  G_connections[ci].flags |= NPP_CONN_FLAG_DONT_CACHE
-#define RES_CONTENT_DISPOSITION(str, ...) lib_set_res_content_disposition(ci, str, ##__VA_ARGS__)
+#define RES_CONTENT_DISPOSITION(str, ...) npp_lib_set_res_content_disposition(ci, str, ##__VA_ARGS__)
 
 #define REDIRECT_TO_LANDING             sprintf(G_connections[ci].location, "%s://%s", NPP_PROTOCOL, G_connections[ci].host)
 
