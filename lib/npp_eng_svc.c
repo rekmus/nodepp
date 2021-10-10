@@ -208,11 +208,26 @@ int main(int argc, char *argv[])
 
     /* load snippets ----------------------------------------------------- */
 
-    if ( !npp_lib_read_snippets(TRUE, NULL) )
+    if ( !npp_lib_read_snippets("", "snippets", TRUE, NULL) )
     {
         ERR("npp_lib_read_snippets() failed");
         return EXIT_FAILURE;
     }
+
+#ifdef NPP_MULTI_HOST   /* side gigs */
+
+    int i;
+
+/*    for ( i=1; i<M_hosts_cnt; ++i )
+    {
+        if ( M_hosts[i].snippets[0] && !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, TRUE, NULL) )
+        {
+            ERR("reading %s's snippets failed", M_hosts[i].host);
+            return EXIT_FAILURE;
+        }
+    }*/
+
+#endif  /* NPP_MULTI_HOST */
 
     /* open database ----------------------------------------------------- */
 
@@ -325,7 +340,7 @@ int main(int argc, char *argv[])
 
                 npp_lib_init_random_numbers();
 
-                if ( !npp_lib_read_snippets(FALSE, NULL) )
+                if ( !npp_lib_read_snippets("", "snippets", FALSE, NULL) )
                 {
                     ERR("npp_lib_read_snippets() failed");
                     clean_up();

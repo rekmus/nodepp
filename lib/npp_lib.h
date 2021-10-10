@@ -646,7 +646,7 @@ extern "C" {
     void npp_append_css(int ci, const char *fname, bool first);
     void npp_append_script(int ci, const char *fname, bool first);
     bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type);
-    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname);
+    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname);
     bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf);
     bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf);
     bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf);

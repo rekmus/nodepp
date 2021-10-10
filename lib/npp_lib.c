@@ -2264,7 +2264,7 @@ static JSON req={0};
 static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, int maxlen)
 {
     unsigned char *p;
-    unsigned len;
+    size_t len;
 
     p = npp_lib_get_qs_param_multipart(ci, fieldname, &len, NULL);
 
@@ -2450,7 +2450,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
    If retfname is not NULL then assume binary data and it must be the last
    data element
 -------------------------------------------------------------------------- */
-unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname)
+unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname)
 {
     unsigned blen;           /* boundary length */
     char     *cp;            /* current pointer */
@@ -2458,7 +2458,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, uns
     unsigned b;              /* tmp bytes count */
     char     fn[NPP_MAX_LABEL_LEN+1];    /* field name */
     char     *end;
-    unsigned len;
+    size_t  len;
 
     /* Couple of checks to make sure it's properly formatted multipart content */
 

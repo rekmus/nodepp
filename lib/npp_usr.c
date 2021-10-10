@@ -2357,14 +2357,14 @@ int npp_usr_save_avatar(int ci, int user_id)
 {
     QSVAL   name;
     QSVAL   name_filtered;
-    char    *img_raw;                       /* raw image data */
+    unsigned char *img_raw;                     /* raw image data */
 static char img_esc[NPP_MAX_AVATAR_SIZE*2];     /* image data escaped */
 static char sql[NPP_MAX_AVATAR_SIZE*2+1024];
-    unsigned len;
+    size_t  len;
 
     DBG("npp_usr_save_avatar");
 
-    img_raw = npp_lib_get_qs_param_multipart(ci, "data", &len, name);
+    img_raw = QS_FILE("data", &len, name);
 
     if ( !img_raw || len < 1 )
     {
@@ -2383,7 +2383,7 @@ static char sql[NPP_MAX_AVATAR_SIZE*2+1024];
     }
     else
     {
-        mysql_real_escape_string(G_dbconn, img_esc, img_raw, len);
+        mysql_real_escape_string(G_dbconn, img_esc, (char*)img_raw, len);
 
         sprintf(sql, "UPDATE users SET avatar_name='%s', avatar_data='%s' WHERE id=%d", name_filtered, img_esc, user_id);
 
