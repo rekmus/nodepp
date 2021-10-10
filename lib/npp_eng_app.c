@@ -2422,10 +2422,10 @@ static bool init(int argc, char **argv)
 #endif
 
 #ifdef NPP_ADMIN_EMAIL
-    ALWAYS("     NPP_ADMIN_EMAIL = %s", NPP_ADMIN_EMAIL);
+    ALWAYS("         NPP_ADMIN_EMAIL = %s", NPP_ADMIN_EMAIL);
 #endif
 #ifdef NPP_CONTACT_EMAIL
-    ALWAYS("   NPP_CONTACT_EMAIL = %s", NPP_CONTACT_EMAIL);
+    ALWAYS("       NPP_CONTACT_EMAIL = %s", NPP_CONTACT_EMAIL);
 #endif
 #ifdef NPP_USERS
     ALWAYS("");

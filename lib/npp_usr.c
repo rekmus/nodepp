@@ -269,7 +269,7 @@ int libusr_luses_ok(int ci)
     MYSQL_ROW   row;
 
     char sanuagent[NPP_DB_UAGENT_LEN+1];
-    sanitize_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
+    npp_lib_escape_for_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
 
     char sanlscookie[NPP_SESSID_LEN+1];
     strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
@@ -365,7 +365,7 @@ int libusr_luses_ok(int ci)
     /* -------------------------------------------------- */
     /* Verify time. If created more than NPP_USER_KEEP_LOGGED_DAYS ago -- refuse */
 
-    time_t created = db2epoch(row[2]);
+    time_t created = time_db2epoch(row[2]);
 
     if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
     {
@@ -885,7 +885,7 @@ static int npp_usr_verify_activation_key(int ci, char *linkkey, int *user_id)
 
     /* validate expiry time */
 
-    if ( db2epoch(row[1]) < G_now-3600*NPP_USER_ACTIVATION_HOURS )
+    if ( time_db2epoch(row[1]) < G_now-3600*NPP_USER_ACTIVATION_HOURS )
     {
         WAR("Key created more than %d hours ago", NPP_USER_ACTIVATION_HOURS);
         mysql_free_result(result);
@@ -1075,7 +1075,7 @@ int npp_usr_login(int ci)
 
         WAR("ula_cnt = %d", ula_cnt);
 
-        time_t last_ula_epoch = db2epoch(ula_time);
+        time_t last_ula_epoch = time_db2epoch(ula_time);
 
         if ( ula_cnt <= MAX_ULA_BEFORE_SECOND_SLOW )
         {
@@ -1173,7 +1173,7 @@ int npp_usr_login(int ci)
     DBG("Saving user session [%s] in users_logins...", SESSION.sesid);
 
     char sanuagent[NPP_DB_UAGENT_LEN+1];
-    sanitize_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
+    npp_lib_escape_for_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
 
     sprintf(sql, "INSERT INTO users_logins (sesid,uagent,ip,user_id,csrft,created,last_used) VALUES ('%s','%s','%s',%d,'%s','%s','%s')", SESSION.sesid, sanuagent, G_connections[ci].ip, us.user_id, SESSION.csrft, DT_NOW_GMT, DT_NOW_GMT);
     DBG("sql: %s", sql);
@@ -2259,7 +2259,7 @@ int npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *user_id)
 
     /* validate expiry time */
 
-    if ( db2epoch(row[1]) < G_now-3600*24 )  /* older than 24 hours? */
+    if ( time_db2epoch(row[1]) < G_now-3600*24 )  /* older than 24 hours? */
     {
         WAR("Key created more than 24 hours ago");
         mysql_free_result(result);

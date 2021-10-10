@@ -2263,14 +2263,12 @@ static JSON req={0};
 -------------------------------------------------------------------------- */
 static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, int maxlen)
 {
-    char     *p;
+    unsigned char *p;
     unsigned len;
 
     p = npp_lib_get_qs_param_multipart(ci, fieldname, &len, NULL);
 
     if ( !p ) return FALSE;
-
-//    if ( len > MAX_URI_VAL_LEN ) return FALSE;
 
     DDBG("len = %d", len);
 
@@ -2280,8 +2278,7 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
         DDBG("len reduced to %d", len);
     }
 
-    strncpy(retbuf, p, len);
-    retbuf[len] = EOS;
+    COPY(retbuf, (char*)p, len);
 
     return TRUE;
 }
@@ -2433,9 +2430,9 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
     if ( retbuf )
     {
         if ( esc_type == NPP_ESC_HTML )
-            sanitize_html(retbuf, interbuf, maxlen);
+            npp_lib_escape_for_html(retbuf, interbuf, maxlen);
         else if ( esc_type == NPP_ESC_SQL )
-            sanitize_sql(retbuf, interbuf, maxlen);
+            npp_lib_escape_for_sql(retbuf, interbuf, maxlen);
         else
         {
             strncpy(retbuf, interbuf, maxlen);
@@ -2453,7 +2450,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
    If retfname is not NULL then assume binary data and it must be the last
    data element
 -------------------------------------------------------------------------- */
-char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname)
+unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname)
 {
     unsigned blen;           /* boundary length */
     char     *cp;            /* current pointer */
@@ -2651,7 +2648,7 @@ char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *re
     if ( retfname )
         strcpy(retfname, fn);
 
-    return cp;
+    return (unsigned char*)cp;
 }
 
 
@@ -5583,7 +5580,7 @@ char *npp_sql_esc(const char *str)
 {
 static char dst[MAX_LONG_URI_VAL_LEN+1];
 
-    sanitize_sql(dst, str, MAX_LONG_URI_VAL_LEN);
+    npp_lib_escape_for_sql(dst, str, MAX_LONG_URI_VAL_LEN);
 
     return dst;
 }
@@ -5596,7 +5593,7 @@ char *npp_html_esc(const char *str)
 {
 static char dst[MAX_LONG_URI_VAL_LEN+1];
 
-    sanitize_html(dst, str, MAX_LONG_URI_VAL_LEN);
+    npp_lib_escape_for_html(dst, str, MAX_LONG_URI_VAL_LEN);
 
     return dst;
 }
@@ -5628,13 +5625,13 @@ void sanitize_sql_old(char *dest, const char *str, int len)
 /* --------------------------------------------------------------------------
    SQL-escape string respecting destination length (excluding '\0')
 -------------------------------------------------------------------------- */
-void sanitize_sql(char *dst, const char *str, int len)
+void npp_lib_escape_for_sql(char *dst, const char *str, int dst_len)
 {
     int i=0, j=0;
 
     while ( str[i] )
     {
-        if ( j > len-3 )
+        if ( j > dst_len-3 )
             break;
         else if ( str[i] == '\'' )
         {
@@ -5663,13 +5660,13 @@ void sanitize_sql(char *dst, const char *str, int len)
 /* --------------------------------------------------------------------------
    HTML-escape string respecting destination length (excluding '\0')
 -------------------------------------------------------------------------- */
-void sanitize_html(char *dst, const char *str, int len)
+void npp_lib_escape_for_html(char *dst, const char *str, int dst_len)
 {
     int i=0, j=0;
 
     while ( str[i] )
     {
-        if ( j > len-7 )
+        if ( j > dst_len-7 )
             break;
         else if ( str[i] == '\'' )
         {
@@ -5689,11 +5686,6 @@ void sanitize_html(char *dst, const char *str, int len)
             dst[j++] = 't';
             dst[j++] = ';';
         }
-/*        else if ( str[i] == '\\' )
-        {
-            dst[j++] = '\\';
-            dst[j++] = '\\';
-        }*/
         else if ( str[i] == '<' )
         {
             dst[j++] = '&';

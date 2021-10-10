@@ -124,6 +124,8 @@ typedef char                            QSVAL_TEXT[65536];
 #define QS_TEXT_SQL_ESCAPE(param, val)  npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
 #define QS_TEXT_HTML_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
 
+#define QS_FILE(param, retlen, retfname) npp_lib_get_qs_param_multipart(ci, param, retlen, retfname)
+
 #ifdef QS_DEF_HTML_ESCAPE
 #define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
 #define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_HTML)
@@ -586,8 +588,8 @@ extern "C" {
     void npp_lib_fmt_int_generic(char *stramt, long long in_amt);
     void npp_lib_fmt_dec_generic(char *stramt, double in_amt);
     void npp_lib_normalize_float(char *str);
-    void sanitize_sql(char *dst, const char *str, int len);
-    void sanitize_html(char *dst, const char *str, int len);
+    void npp_lib_escape_for_sql(char *dst, const char *str, int dst_len);
+    void npp_lib_escape_for_html(char *dst, const char *str, int dst_len);
     int  lib_json_count(JSON *json);
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
@@ -644,7 +646,7 @@ extern "C" {
     void npp_append_css(int ci, const char *fname, bool first);
     void npp_append_script(int ci, const char *fname, bool first);
     bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type);
-    char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname);
+    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, unsigned *retlen, char *retfname);
     bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf);
     bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf);
     bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf);
