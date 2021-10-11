@@ -1097,7 +1097,7 @@ typedef struct {
 
 /* hosts */
 
-static struct {
+typedef struct {
     char host[NPP_MAX_HOST_LEN+1];
     char res[256];
     char resmin[256];
