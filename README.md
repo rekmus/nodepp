@@ -37,6 +37,8 @@ chmod +x t   # Linux
 ```
 localhost:8080
 ```
+You can now browse through the simple web application. At the bottom of each page there's a rendering function name to quickly grasp how Node++ works.
+
 Then Ctrl+C to stop.
 
 
