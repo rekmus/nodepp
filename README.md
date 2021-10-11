@@ -1,5 +1,27 @@
 # Node++
 
+## Getting Started
+
+1. Compilation script:
+
+```
+src/m
+```
+
+2. Quick test:
+
+```
+src/t
+```
+
+3. Browser:
+
+```
+localhost:8080
+```
+
+## If you came accross Silgy
+
 This is a [Silgy](https://github.com/silgy/silgy)'s successor.
 
 Among new features you'll find:
