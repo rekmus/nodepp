@@ -135,22 +135,6 @@ static struct {
     };
 
 
-/* hosts */
-
-#ifdef NPP_MULTI_HOST
-static struct {
-    char host[NPP_MAX_HOST_LEN+1];
-    char res[256];
-    char resmin[256];
-    char snippets[256];
-    bool index_present;
-    } M_hosts[NPP_MAX_HOSTS] = {
-        {"", "res", "resmin", "snippets", FALSE}
-    };
-
-static int      M_hosts_cnt=1;              /* main host always present */
-#endif  /* NPP_MULTI_HOST */
-
 static char     *M_pidfile;                 /* pid file name */
 
 #ifdef _WIN32   /* Windows */
@@ -3412,11 +3396,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
                     if ( 0==strcmp(M_stat[i].name, "index.html") )
                     {
                         int j;
-                        for ( j=1; j<M_hosts_cnt; ++j )
+                        for ( j=1; j<G_hosts_cnt; ++j )
                         {
-                            if ( 0==strcmp(M_hosts[j].host, host) )
+                            if ( 0==strcmp(G_hosts[j].host, host) )
                             {
-                                M_hosts[j].index_present = FALSE;
+                                G_hosts[j].index_present = FALSE;
                                 break;
                             }
                         }
@@ -3693,11 +3677,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
                     if ( 0==strcmp(M_stat[i].name, "index.html") )
                     {
                         int j;
-                        for ( j=1; j<M_hosts_cnt; ++j )
+                        for ( j=1; j<G_hosts_cnt; ++j )
                         {
-                            if ( 0==strcmp(M_hosts[j].host, host) )
+                            if ( 0==strcmp(G_hosts[j].host, host) )
                             {
-                                M_hosts[j].index_present = TRUE;
+                                G_hosts[j].index_present = TRUE;
                                 break;
                             }
                         }
@@ -3809,23 +3793,23 @@ static bool read_resources(bool first_scan)
 
     int i;
 
-    for ( i=1; i<M_hosts_cnt; ++i )
+    for ( i=1; i<G_hosts_cnt; ++i )
     {
-        if ( M_hosts[i].res[0] && !read_files(M_hosts[i].host, M_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
+        if ( G_hosts[i].res[0] && !read_files(G_hosts[i].host, G_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
         {
-            ERR("reading %s's res failed", M_hosts[i].host);
+            ERR("reading %s's res failed", G_hosts[i].host);
             return FALSE;
         }
 
-        if ( M_hosts[i].resmin[0] && !read_files(M_hosts[i].host, M_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
+        if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
-            ERR("reading %s's resmin failed", M_hosts[i].host);
+            ERR("reading %s's resmin failed", G_hosts[i].host);
             return FALSE;
         }
 
-        if ( M_hosts[i].snippets[0] && !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, first_scan, NULL) )
+        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, first_scan, NULL) )
         {
-            ERR("reading %s's snippets failed", M_hosts[i].host);
+            ERR("reading %s's snippets failed", G_hosts[i].host);
             return FALSE;
         }
     }
@@ -5369,9 +5353,9 @@ static int parse_req(int ci, int len)
 #ifdef NPP_MULTI_HOST
 #ifndef NPP_DONT_NORMALIZE_HOST
 
-    for ( i=0; i<M_hosts_cnt; ++i )
+    for ( i=0; i<G_hosts_cnt; ++i )
     {
-        if ( HOST(M_hosts[i].host) )
+        if ( HOST(G_hosts[i].host) )
         {
             G_connections[ci].host_id = i;
             break;
@@ -5388,7 +5372,7 @@ static int parse_req(int ci, int len)
     if ( !G_connections[ci].uri[0] && REQ_GET )
     {
 #ifdef NPP_MULTI_HOST
-        if ( (!G_connections[ci].host_id && G_index_present) || M_hosts[G_connections[ci].host_id].index_present )
+        if ( (!G_connections[ci].host_id && G_index_present) || G_hosts[G_connections[ci].host_id].index_present )
 #else
         if ( G_index_present )
 #endif
@@ -6927,32 +6911,6 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
         WAR("Couldn't execute %s", command);
 
     WAR("IP %s blacklisted", value);
-}
-
-
-/* --------------------------------------------------------------------------
-   Add a host and assign resource directories
--------------------------------------------------------------------------- */
-bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
-{
-#ifdef NPP_MULTI_HOST
-
-    if ( M_hosts_cnt >= NPP_MAX_HOSTS ) return FALSE;
-
-    COPY(M_hosts[M_hosts_cnt].host, npp_upper(host), NPP_MAX_HOST_LEN);
-
-    if ( res )
-        COPY(M_hosts[M_hosts_cnt].res, res, 255);
-    if ( resmin )
-        COPY(M_hosts[M_hosts_cnt].resmin, resmin, 255);
-    if ( snippets )
-        COPY(M_hosts[M_hosts_cnt].snippets, snippets, 255);
-
-    ++M_hosts_cnt;
-
-#endif  /* NPP_MULTI_HOST */
-
-    return TRUE;
 }
 
 

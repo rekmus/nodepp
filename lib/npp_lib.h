@@ -559,6 +559,7 @@ extern "C" {
     int  npp_b64_decode(unsigned char *dst, const char* src);
     char *npp_json_escape_string(const char *src);
 #ifndef NPP_CLIENT  /* web app only */
+    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
     void npp_random(char *dest, int len);
     void npp_notify_admin(const char *msg);
     void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);

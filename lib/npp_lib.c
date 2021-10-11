@@ -66,6 +66,12 @@ char        G_dbName[128]="";
 char        G_dbUser[128]="";
 char        G_dbPassword[128]="";
 
+/* hosts */
+#ifdef NPP_MULTI_HOST
+npp_host_t  G_hosts[NPP_MAX_HOSTS]={"", "res", "resmin", "snippets", FALSE};
+int         G_hosts_cnt=1;
+#endif
+
 /* messages */
 npp_message_t G_messages[NPP_MAX_MESSAGES]={0};
 int         G_next_msg=0;
@@ -2225,6 +2231,32 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 
 
 #ifndef NPP_CLIENT
+/* --------------------------------------------------------------------------
+   Add a host and assign resource directories
+-------------------------------------------------------------------------- */
+bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
+{
+#ifdef NPP_MULTI_HOST
+
+    if ( G_hosts_cnt >= NPP_MAX_HOSTS ) return FALSE;
+
+    COPY(G_hosts[G_hosts_cnt].host, npp_upper(host), NPP_MAX_HOST_LEN);
+
+    if ( res )
+        COPY(G_hosts[G_hosts_cnt].res, res, 255);
+    if ( resmin )
+        COPY(G_hosts[G_hosts_cnt].resmin, resmin, 255);
+    if ( snippets )
+        COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
+
+    ++G_hosts_cnt;
+
+#endif  /* NPP_MULTI_HOST */
+
+    return TRUE;
+}
+
+
 /* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */

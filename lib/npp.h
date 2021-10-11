@@ -600,7 +600,7 @@ typedef char                            bool;
 #endif
 
 #ifndef NPP_MAX_HOSTS
-#define NPP_MAX_HOSTS                       15              /* M_hosts size for NPP_MULTI_HOST */
+#define NPP_MAX_HOSTS                       15              /* G_hosts size for NPP_MULTI_HOST */
 #endif
 
 #ifndef NPP_MAX_PAYLOAD_SIZE
@@ -1093,6 +1093,17 @@ typedef struct {
     char    month;
     char    day;
 } date_t;
+
+
+/* hosts */
+
+static struct {
+    char host[NPP_MAX_HOST_LEN+1];
+    char res[256];
+    char resmin[256];
+    char snippets[256];
+    bool index_present;
+} npp_host_t;
 
 
 /* user session */
@@ -1630,6 +1641,12 @@ extern char         G_last_modified[32];                        /* response head
 extern bool         G_initialized;                              /* is server initialization complete? */
 extern char         *G_strm;                                    /* for STRM macro */
 
+/* hosts */
+#ifdef NPP_MULTI_HOST
+extern npp_host_t   G_hosts[NPP_MAX_HOSTS];
+extern int          G_hosts_cnt;
+#endif
+
 /* messages */
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
 extern int          G_next_msg;
@@ -1717,7 +1734,6 @@ extern "C" {
 
     void npp_set_auth_level(const char *path, char level);
     void npp_add_to_static_res(const char *name, const char *src);
-    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
 
     /* public internal */
 

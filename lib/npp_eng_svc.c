@@ -222,14 +222,14 @@ int main(int argc, char *argv[])
 
     int i;
 
-/*    for ( i=1; i<M_hosts_cnt; ++i )
+    for ( i=1; i<G_hosts_cnt; ++i )
     {
-        if ( M_hosts[i].snippets[0] && !npp_lib_read_snippets(M_hosts[i].host, M_hosts[i].snippets, TRUE, NULL) )
+        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, TRUE, NULL) )
         {
-            ERR("reading %s's snippets failed", M_hosts[i].host);
+            ERR("reading %s's snippets failed", G_hosts[i].host);
             return EXIT_FAILURE;
         }
-    }*/
+    }
 
 #endif  /* NPP_MULTI_HOST */
 
