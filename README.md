@@ -2,25 +2,45 @@
 
 ## Getting Started
 
-1. Compilation script:
+1. Install g++ (Linux) or MinGW (Windows)
 
 ```
-src/m
+sudo yum install gcc-c++    # RH
+sudo apt-get install g++    # Ubuntu
 ```
 
-2. Quick test:
+2. Install OpenSSL
 
 ```
-src/t
+sudo yum install openssl-devel    # RH
+sudo apt-get install libssl-dev   # Ubuntu
+
 ```
 
-3. Browser:
+3. Compilation script:
+
+```
+cd src
+chmod +x m   # Linux
+./m
+```
+
+4. Quick test:
+
+```
+chmod +x t   # Linux
+./t
+```
+
+5. Browser:
 
 ```
 localhost:8080
 ```
+Then Ctrl+C to stop.
 
-## If you came accross Silgy
+
+## If you came across Silgy before
 
 This is a [Silgy](https://github.com/silgy/silgy)'s successor.
 
