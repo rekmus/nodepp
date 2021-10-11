@@ -97,7 +97,7 @@ Static parts of rendered content, i.e. HTML snippets.
 
 ## If you came across Silgy before
 
-This is a [Silgy](https://github.com/silgy/silgy)'s successor.
+Node++ is a [Silgy](https://github.com/silgy/silgy)'s successor.
 
 Among new features you'll find:
 
