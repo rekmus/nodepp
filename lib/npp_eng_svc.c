@@ -123,7 +123,11 @@ int main(int argc, char *argv[])
     /* ------------------------------------------------------------------- */
 
     if ( !npp_read_param_int("logLevel", &G_logLevel) )
-        G_logLevel = 3;  /* info */
+        G_logLevel = 3;   /* info */
+
+#ifdef NPP_DEBUG
+        G_logLevel = 4;   /* debug */
+#endif
 
     if ( !npp_read_param_int("logToStdout", &G_logToStdout) )
         G_logToStdout = 0;

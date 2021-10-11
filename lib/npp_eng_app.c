@@ -2022,7 +2022,7 @@ static void set_state_sec(int ci, int bytes)
 -------------------------------------------------------------------------- */
 static void read_conf()
 {
-    bool    conf_read=FALSE;
+    bool conf_read=FALSE;
 
     /* set defaults */
 
@@ -2084,6 +2084,9 @@ static void read_conf()
         npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
         npp_read_param_int("test", &G_test);
     }
+#ifdef NPP_DEBUG
+    G_logLevel = 4;   /* debug */
+#endif
 }
 
 
@@ -4017,7 +4020,7 @@ static void process_req(int ci)
     }
     else
     {
-        DDBG("Request authorized");
+        DDBG("Request authorized or authorization not required");
         ret = OK;
     }
 
@@ -5057,6 +5060,17 @@ static void reset_conn(int ci, char new_state)
     G_connections[ci].async_err_code = OK;
 #endif
 
+    /* reset flags */
+
+    if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )
+        G_connections[ci].flags = NPP_CONN_FLAG_SECURE;
+    else
+        G_connections[ci].flags = (char)0;
+
+    G_connections[ci].expect100 = FALSE;
+
+    /* last activity */
+
     if ( new_state == CONN_STATE_CONNECTED )
     {
 #ifdef NPP_FD_MON_POLL
@@ -5065,9 +5079,6 @@ static void reset_conn(int ci, char new_state)
         G_connections[ci].last_activity = G_now;
         if ( IS_SESSION ) SESSION.last_activity = G_now;
     }
-
-    G_connections[ci].flags = (char)0;
-    G_connections[ci].expect100 = FALSE;
 }
 
 
