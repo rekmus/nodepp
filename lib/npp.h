@@ -111,19 +111,6 @@ typedef char                            bool;
 #endif
 
 
-/* pure C string type */
-
-typedef char str1k[1024];
-typedef char str2k[1024*2];
-typedef char str4k[1024*4];
-typedef char str8k[1024*8];
-typedef char str16k[1024*16];
-typedef char str32k[1024*32];
-typedef char str64k[1024*64];
-typedef char str128k[1024*128];
-typedef char str256k[1024*256];
-
-
 /* basics */
 
 #define OK                              0

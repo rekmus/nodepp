@@ -4026,18 +4026,28 @@ static void process_req(int ci)
 
     /* anonymous session check */
 
-    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && G_connections[ci].method[0]!='H' && !LOGGED )    /* anonymous user session required */
+    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[ci].method[0]!='H' && !LOGGED )    /* anonymous session required */
 #else   /* NPP_USERS NOT defined */
-    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && !REQ_BOT && G_connections[ci].method[0]!='H' )
+    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[ci].method[0]!='H' )
 #endif  /* NPP_USERS */
     {
         DDBG("At least anonymous session is required");
 
-        if ( !G_connections[ci].cookie_in_a[0] || !a_usession_ok(ci) )       /* valid anonymous sesid cookie not present */
+#ifndef NPP_START_SESSIONS_FOR_BOTS
+
+        DDBG("Don't start session if bot");
+
+        if ( !REQ_BOT )
         {
-            ret = npp_eng_session_start(ci, NULL);
-            fresh_session = TRUE;
+#endif
+            if ( !G_connections[ci].cookie_in_a[0] || !a_usession_ok(ci) )       /* valid anonymous sesid cookie not present */
+            {
+                ret = npp_eng_session_start(ci, NULL);
+                fresh_session = TRUE;
+            }
+#ifndef NPP_START_SESSIONS_FOR_BOTS
         }
+#endif
     }
 
     /* ------------------------------------------------------------------------ */
