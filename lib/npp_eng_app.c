@@ -2622,7 +2622,7 @@ static bool init(int argc, char **argv)
         strcpy(G_req_queue_name, ASYNC_REQ_QUEUE);
         strcpy(G_res_queue_name, ASYNC_RES_QUEUE);
     }
-#endif
+#endif  /* NPP_ASYNC_ID */
 
     struct mq_attr attr={0};
 

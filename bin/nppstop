@@ -1,7 +1,5 @@
 #!/bin/sh
 
-export NPP_DIR=/home/ec2-user/live
-
 # ---------------------------------------------------------------------
 
 echo "Stopping Node++ App..."
