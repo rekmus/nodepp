@@ -5046,6 +5046,7 @@ static void reset_conn(int ci, char new_state)
 //    G_connections[ci].keep_content = FALSE;
 //    G_connections[ci].accept_deflate = FALSE;
 #ifdef NPP_MULTI_HOST
+    G_connections[ci].host_normalized[0] = EOS;
     G_connections[ci].host_id = 0;
 #endif
 
@@ -5351,7 +5352,7 @@ static int parse_req(int ci, int len)
     /* determine whether main host has been requested */
 
 #ifdef NPP_MULTI_HOST
-#ifndef NPP_DONT_NORMALIZE_HOST
+//#ifndef NPP_DONT_NORMALIZE_HOST
 
     for ( i=0; i<G_hosts_cnt; ++i )
     {
@@ -5362,7 +5363,7 @@ static int parse_req(int ci, int len)
         }
     }
 
-#endif  /* NPP_DONT_NORMALIZE_HOST */
+//#endif  /* NPP_DONT_NORMALIZE_HOST */
 #endif  /* NPP_MULTI_HOST */
 
     /* Serve index if present --------------------------------------- */
@@ -5891,7 +5892,8 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 #endif
         COPY(G_connections[ci].host, value, NPP_MAX_HOST_LEN);
 
-#ifndef NPP_DONT_NORMALIZE_HOST
+//#ifndef NPP_DONT_NORMALIZE_HOST
+#ifdef NPP_MULTI_HOST
 
         DDBG("Host before normalization [%s]", G_connections[ci].host);
         /* normalize for comparisons */
@@ -5948,7 +5950,8 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         DDBG("host_normalized [%s]", G_connections[ci].host_normalized);
 
-#endif  /* NPP_DONT_NORMALIZE_HOST */
+#endif  /* NPP_MULTI_HOST */
+//#endif  /* NPP_DONT_NORMALIZE_HOST */
     }
     else if ( 0==strcmp(ulabel, "USER-AGENT") )
     {
@@ -6690,6 +6693,10 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
     req.hdr.clen = G_connections[ci].clen;
     strcpy(req.hdr.in_cookie, G_connections[ci].in_cookie);
     strcpy(req.hdr.host, G_connections[ci].host);
+#ifdef NPP_MULTI_HOST
+    strcpy(req.hdr.host_normalized, G_connections[ci].host_normalized);
+    req.hdr.host_id = G_connections[ci].host_id;
+#endif
     strcpy(req.hdr.app_name, G_connections[ci].app_name);
     strcpy(req.hdr.lang, G_connections[ci].lang);
     req.hdr.in_ctype = G_connections[ci].in_ctype;

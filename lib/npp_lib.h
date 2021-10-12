@@ -671,8 +671,8 @@ extern "C" {
     char *npp_lib_fmt_int(int ci, long long in_val);
     bool npp_csrft_ok(int ci);
     bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path);
-    char *npp_get_snippet(const char *name);
-    unsigned npp_get_snippet_len(const char *name);
+    char *npp_get_snippet(int ci, const char *name);
+    unsigned npp_get_snippet_len(int ci, const char *name);
     void npp_out_snippet(int ci, const char *name);
     void npp_out_snippet_md(int ci, const char *name);
 #endif  /* NPP_CLIENT */

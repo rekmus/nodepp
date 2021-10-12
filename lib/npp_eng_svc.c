@@ -395,6 +395,10 @@ int main(int argc, char *argv[])
             G_connections[0].clen = G_svc_req.hdr.clen;
             strcpy(G_connections[0].in_cookie, G_svc_req.hdr.in_cookie);
             strcpy(G_connections[0].host, G_svc_req.hdr.host);
+#ifdef NPP_MULTI_HOST
+            strcpy(G_connections[0].host_normalized, G_svc_req.hdr.host_normalized);
+            G_connections[0].host_id = G_svc_req.hdr.host_id;
+#endif
             strcpy(G_connections[0].app_name, G_svc_req.hdr.app_name);
             strcpy(G_connections[0].lang, G_svc_req.hdr.lang);
             G_connections[0].in_ctype = G_svc_req.hdr.in_ctype;

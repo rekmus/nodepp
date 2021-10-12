@@ -2054,7 +2054,7 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
 /* --------------------------------------------------------------------------
    Get snippet index
 -------------------------------------------------------------------------- */
-static int get_snippet_idx(const char *name)
+static int get_snippet_idx(int ci, const char *name)
 {
     int i;
 
@@ -2094,9 +2094,9 @@ static int get_snippet_idx(const char *name)
 /* --------------------------------------------------------------------------
    Get snippet
 -------------------------------------------------------------------------- */
-char *npp_get_snippet(const char *name)
+char *npp_get_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(name);
+    int i = get_snippet_idx(ci, name);
 
     if ( i != -1 )
         return G_snippets[i].data;
@@ -2108,9 +2108,9 @@ char *npp_get_snippet(const char *name)
 /* --------------------------------------------------------------------------
    Get snippet length
 -------------------------------------------------------------------------- */
-unsigned npp_get_snippet_len(const char *name)
+unsigned npp_get_snippet_len(int ci, const char *name)
 {
-    int i = get_snippet_idx(name);
+    int i = get_snippet_idx(ci, name);
 
     if ( i != -1 )
         return G_snippets[i].len;
@@ -2124,7 +2124,7 @@ unsigned npp_get_snippet_len(const char *name)
 -------------------------------------------------------------------------- */
 void npp_out_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(name);
+    int i = get_snippet_idx(ci, name);
 
     if ( i != -1 )
         OUT_BIN(G_snippets[i].data, G_snippets[i].len);
@@ -2136,7 +2136,7 @@ void npp_out_snippet(int ci, const char *name)
 -------------------------------------------------------------------------- */
 void npp_out_snippet_md(int ci, const char *name)
 {
-    int i = get_snippet_idx(name);
+    int i = get_snippet_idx(ci, name);
 
     if ( i != -1 )
     {

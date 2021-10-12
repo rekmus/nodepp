@@ -1193,6 +1193,10 @@ typedef struct {
     unsigned clen;
     char     in_cookie[NPP_MAX_VALUE_LEN+1];
     char     host[NPP_MAX_HOST_LEN+1];
+#ifdef NPP_MULTI_HOST
+    char     host_normalized[NPP_MAX_HOST_LEN+1];
+    int      host_id;
+#endif
     char     app_name[NPP_APP_NAME_LEN+1];
     char     lang[NPP_LANG_LEN+1];
     char     in_ctype;
@@ -1374,6 +1378,10 @@ typedef struct {                            /* request details for npp_svc */
     char     in_cookie[NPP_MAX_VALUE_LEN+1];
     unsigned in_data_allocated;
     char     host[NPP_MAX_HOST_LEN+1];
+#ifdef NPP_MULTI_HOST
+    char     host_normalized[NPP_MAX_HOST_LEN+1];
+    int      host_id;
+#endif
     char     app_name[NPP_APP_NAME_LEN+1];
     char     lang[NPP_LANG_LEN+1];
     char     formats;
@@ -1457,7 +1465,10 @@ typedef struct {
     char     cookie_in_a[NPP_SESSID_LEN+1];         /* anonymous */
     char     cookie_in_l[NPP_SESSID_LEN+1];         /* logged in */
     char     host[NPP_MAX_HOST_LEN+1];
+#ifdef NPP_MULTI_HOST
     char     host_normalized[NPP_MAX_HOST_LEN+1];
+    int      host_id;
+#endif
     char     app_name[NPP_APP_NAME_LEN+1];
     char     lang[NPP_LANG_LEN+1];
     char     formats;                               /* date & numbers format */
@@ -1467,9 +1478,6 @@ typedef struct {
     char     boundary[NPP_MAX_BOUNDARY_LEN+1];      /* for POST multipart/form-data type */
     char     authorization[NPP_MAX_VALUE_LEN+1];    /* Authorization header */
 //    bool     accept_deflate;
-#ifdef NPP_MULTI_HOST
-    int      host_id;
-#endif
     /* POST data */
     char     *in_data;                          /* POST data */
     /* what goes out */
