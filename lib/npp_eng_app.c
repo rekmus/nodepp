@@ -205,7 +205,6 @@ static void http2_add_frame(int ci, unsigned char type);
 #endif  /* NPP_HTTP2 */
 static void set_state(int ci, int bytes);
 static void set_state_sec(int ci, int bytes);
-static void read_conf(void);
 static void respond_to_expect(int ci);
 static void log_proc_time(int ci);
 static void log_request(int ci);
@@ -2004,7 +2003,7 @@ static void set_state_sec(int ci, int bytes)
 /* --------------------------------------------------------------------------
    Read & parse conf file and set global parameters
 -------------------------------------------------------------------------- */
-static void read_conf()
+static void read_conf(bool first)
 {
     INF("Reading configuration...");
 
@@ -2012,26 +2011,29 @@ static void read_conf()
 
     /* set defaults */
 
-    G_logLevel = 3;
-    G_logToStdout = 0;
-    G_logCombined = 0;
-    G_httpPort = 80;
-    G_httpsPort = 443;
-    G_certFile[0] = EOS;
-    G_certChainFile[0] = EOS;
-    G_keyFile[0] = EOS;
-    G_dbHost[0] = EOS;
-    G_dbPort = 0;
-    G_dbName[0] = EOS;
-    G_dbUser[0] = EOS;
-    G_dbPassword[0] = EOS;
-    G_usersRequireActivation = 0;
-    G_blockedIPList[0] = EOS;
-    G_whiteList[0] = EOS;
-    G_ASYNCId = -1;
-    G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
-    G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
-    G_test = 0;
+    if ( first )
+    {
+        G_logLevel = 3;
+        G_logToStdout = 0;
+        G_logCombined = 0;
+        G_httpPort = 80;
+        G_httpsPort = 443;
+        G_certFile[0] = EOS;
+        G_certChainFile[0] = EOS;
+        G_keyFile[0] = EOS;
+        G_dbHost[0] = EOS;
+        G_dbPort = 0;
+        G_dbName[0] = EOS;
+        G_dbUser[0] = EOS;
+        G_dbPassword[0] = EOS;
+        G_usersRequireActivation = 0;
+        G_blockedIPList[0] = EOS;
+        G_whiteList[0] = EOS;
+        G_ASYNCId = -1;
+        G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
+        G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
+        G_test = 0;
+    }
 
     /* get the conf file path & name */
 
@@ -2052,8 +2054,25 @@ static void read_conf()
         npp_read_param_int("logLevel", &G_logLevel);
         npp_read_param_int("logToStdout", &G_logToStdout);
         npp_read_param_int("logCombined", &G_logCombined);
-        npp_read_param_int("httpPort", &G_httpPort);
-        npp_read_param_int("httpsPort", &G_httpsPort);
+
+        if ( first )
+        {
+            npp_read_param_int("httpPort", &G_httpPort);
+            npp_read_param_int("httpsPort", &G_httpsPort);
+        }
+        else    /* can't change it online */
+        {
+            int tmp_httpPort, tmp_httpsPort;
+
+            npp_read_param_int("httpPort", &tmp_httpPort);
+            npp_read_param_int("httpsPort", &tmp_httpsPort);
+
+            if ( tmp_httpPort != G_httpPort || tmp_httpsPort != G_httpsPort )
+            {
+                WAR("Changing listening ports requires server restart");
+            }
+        }
+
         npp_read_param_str("certFile", G_certFile);
         npp_read_param_str("certChainFile", G_certChainFile);
         npp_read_param_str("keyFile", G_keyFile);
@@ -2072,7 +2091,7 @@ static void read_conf()
     }
     else
     {
-        WAR("Couldn't read npp.conf -- using defaults");
+        WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
     }
 
 #ifdef NPP_DEBUG
@@ -2224,7 +2243,7 @@ static bool init(int argc, char **argv)
 
     /* read the config file or set defaults */
 
-    read_conf();
+    read_conf(TRUE);
 
     /* command line arguments */
 
@@ -4059,7 +4078,7 @@ static void process_req(int ci)
 #endif  /* NPP_SET_TZ */
                 if ( REQ("npp_load_conf") && 0==strcmp(G_connections[ci].ip, "127.0.0.1") )
                 {
-                    read_conf();
+                    read_conf(FALSE);
                 }
                 else
                 {
