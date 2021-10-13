@@ -1415,7 +1415,7 @@ typedef struct {
 #endif  /* _WIN32 */
 //    bool     secure;                            /* https? */
     char     ip[INET_ADDRSTRLEN];               /* client IP */
-    char     pip[INET_ADDRSTRLEN];              /* proxy IP */
+//    char     pip[INET_ADDRSTRLEN];              /* proxy IP */
     char     in[NPP_IN_BUFSIZE];                /* the whole incoming request */
     char     method[NPP_METHOD_LEN+1];          /* HTTP method */
     unsigned was_read;                          /* request bytes read so far */

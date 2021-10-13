@@ -2006,6 +2006,8 @@ static void set_state_sec(int ci, int bytes)
 -------------------------------------------------------------------------- */
 static void read_conf()
 {
+    INF("Reading configuration...");
+
     bool conf_read=FALSE;
 
     /* set defaults */
@@ -2068,6 +2070,11 @@ static void read_conf()
         npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
         npp_read_param_int("test", &G_test);
     }
+    else
+    {
+        WAR("Couldn't read npp.conf -- using defaults");
+    }
+
 #ifdef NPP_DEBUG
     G_logLevel = 4;   /* debug */
 #endif
@@ -2828,7 +2835,7 @@ static void accept_http()
                 G_connections_hwm = G_connections_cnt;
 
             strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
-            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
+//            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
 
             DDBG("Changing state to CONN_STATE_CONNECTED");
             G_connections[i].conn_state = CONN_STATE_CONNECTED;
@@ -2995,7 +3002,7 @@ static void accept_https()
                 M_pollfds[G_connections[i].pi].events = POLLOUT;
 #endif
             strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
-            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
+//            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
 
             DDBG("Changing state to CONN_STATE_ACCEPTING");
             G_connections[i].conn_state = CONN_STATE_ACCEPTING;
@@ -4048,9 +4055,19 @@ static void process_req(int ci)
                     npp_set_tz(ci);
             }
             else
+            {
 #endif  /* NPP_SET_TZ */
-
-                npp_app_main(ci);         /* main application called here */
+                if ( REQ("npp_load_conf") && 0==strcmp(G_connections[ci].ip, "127.0.0.1") )
+                {
+                    read_conf();
+                }
+                else
+                {
+                    npp_app_main(ci);         /* main application called here */
+                }
+#ifdef NPP_SET_TZ
+            }
+#endif
         }
     }
 
@@ -6089,27 +6106,6 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     {
         DBG("Client wants to upgrade to HTTPS");
         G_connections[ci].flags |= NPP_CONN_FLAG_UPGRADE_TO_HTTPS;
-    }
-    else if ( 0==strcmp(ulabel, "X-FORWARDED-FOR") )    /* keep first IP as client IP */
-    {
-        /* it can be 'unknown' */
-
-        char tmp[INET_ADDRSTRLEN+1];
-        int len = strlen(value);
-        i = 0;
-
-        while ( i<len && (value[i]=='.' || isdigit(value[i])) && i<INET_ADDRSTRLEN )
-        {
-            tmp[i] = value[i];
-            ++i;
-        }
-
-        tmp[i] = EOS;
-
-        DBG("%s's value: [%s]", label, tmp);
-
-        if ( strlen(tmp) > 6 )
-            strcpy(G_connections[ci].ip, tmp);
     }
     else if ( 0==strcmp(ulabel, "CONTENT-LENGTH") )
     {
