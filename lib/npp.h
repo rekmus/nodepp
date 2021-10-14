@@ -1106,7 +1106,7 @@ typedef struct {
 } npp_host_t;
 
 
-/* user session */
+/* engine session data */
 
 typedef struct {
     /* id */

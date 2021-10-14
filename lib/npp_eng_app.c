@@ -2067,7 +2067,8 @@ static void read_conf(bool first)
             npp_read_param_int("httpPort", &tmp_httpPort);
             npp_read_param_int("httpsPort", &tmp_httpsPort);
 
-            if ( tmp_httpPort != G_httpPort || tmp_httpsPort != G_httpsPort )
+            if ( tmp_httpPort != G_httpPort
+                    || tmp_httpsPort != G_httpsPort )
             {
                 WAR("Changing listening ports requires server restart");
             }
@@ -2076,15 +2077,69 @@ static void read_conf(bool first)
         npp_read_param_str("certFile", G_certFile);
         npp_read_param_str("certChainFile", G_certChainFile);
         npp_read_param_str("keyFile", G_keyFile);
-        npp_read_param_str("dbHost", G_dbHost);
-        npp_read_param_int("dbPort", &G_dbPort);
-        npp_read_param_str("dbName", G_dbName);
-        npp_read_param_str("dbUser", G_dbUser);
-        npp_read_param_str("dbPassword", G_dbPassword);
+
+        if ( first )
+        {
+            npp_read_param_str("dbHost", G_dbHost);
+            npp_read_param_int("dbPort", &G_dbPort);
+            npp_read_param_str("dbName", G_dbName);
+            npp_read_param_str("dbUser", G_dbUser);
+            npp_read_param_str("dbPassword", G_dbPassword);
+        }
+        else    /* reconnect MySQL if changed */
+        {
+            char tmp_dbHost[128]="";
+            int  tmp_dbPort=0;
+            char tmp_dbName[128]="";
+            char tmp_dbUser[128]="";
+            char tmp_dbPassword[128]="";
+
+            npp_read_param_str("dbHost", tmp_dbHost);
+            npp_read_param_int("dbPort", &tmp_dbPort);
+            npp_read_param_str("dbName", tmp_dbName);
+            npp_read_param_str("dbUser", tmp_dbUser);
+            npp_read_param_str("dbPassword", tmp_dbPassword);
+
+            if ( strcmp(tmp_dbHost, G_dbHost) != 0
+                    || tmp_dbPort != G_dbPort
+                    || strcmp(tmp_dbName, G_dbName) != 0
+                    || strcmp(tmp_dbUser, G_dbUser) != 0
+                    || strcmp(tmp_dbPassword, G_dbPassword) != 0 )
+            {
+                strcpy(G_dbHost, tmp_dbHost);
+                G_dbPort = tmp_dbPort;
+                strcpy(G_dbName, tmp_dbName);
+                strcpy(G_dbUser, tmp_dbUser);
+                strcpy(G_dbPassword, tmp_dbPassword);
+#ifdef NPP_MYSQL
+                npp_close_db();
+
+                if ( !npp_open_db() )
+                    WAR("Couldn't connect to the database");
+#endif  /* NPP_MYSQL */
+            }
+        }
+
         npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
         npp_read_param_str("blockedIPList", G_blockedIPList);
         npp_read_param_str("whiteList", G_whiteList);
-        npp_read_param_int("ASYNCId", &G_ASYNCId);
+
+        if ( first )
+        {
+            npp_read_param_int("ASYNCId", &G_ASYNCId);
+        }
+        else    /* can't change it online */
+        {
+            int tmp_ASYNCId;
+
+            npp_read_param_int("ASYNCId", &tmp_ASYNCId);
+
+            if ( tmp_ASYNCId != G_ASYNCId )
+            {
+                WAR("Changing ASYNCId requires server restart");
+            }
+        }
+
         npp_read_param_int("ASYNCDefTimeout", &G_ASYNCDefTimeout);
         npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
         npp_read_param_int("test", &G_test);
@@ -2095,8 +2150,12 @@ static void read_conf(bool first)
     }
 
 #ifdef NPP_DEBUG
-    G_logLevel = 4;   /* debug */
-#endif
+    if ( G_logLevel < 4 )
+    {
+        G_logLevel = 4;   /* debug */
+        DBG("NPP_DEBUG -- logLevel changed to 4");
+    }
+#endif  /* NPP_DEBUG */
 }
 
 
@@ -4068,7 +4127,7 @@ static void process_req(int ci)
         if ( !G_connections[ci].location[0] )    /* if not redirection */
         {
 #ifdef NPP_SET_TZ
-            if ( REQ("npp_set_tz") )    /* set time zone for the session */
+            if ( REQ("npp_set_tz") && REQ_POST )    /* set time zone for the session */
             {
                 if ( IS_SESSION && !SESSION.tz_set )
                     npp_set_tz(ci);
@@ -4076,14 +4135,14 @@ static void process_req(int ci)
             else
             {
 #endif  /* NPP_SET_TZ */
-                if ( REQ("npp_load_conf") && 0==strcmp(G_connections[ci].ip, "127.0.0.1") )
+#ifdef NPP_ENABLE_RELOAD_CONF
+                if ( REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1") )
                 {
                     read_conf(FALSE);
                 }
                 else
-                {
+#endif  /* NPP_ENABLE_RELOAD_CONF */
                     npp_app_main(ci);         /* main application called here */
-                }
 #ifdef NPP_SET_TZ
             }
 #endif
