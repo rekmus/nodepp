@@ -122,6 +122,12 @@ typedef char                            bool;
 
 /* these can be useful in npp_app.h */
 
+#define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99.99% cases */
+#define MAX_LONG_URI_VAL_LEN            65535           /* max long value length received in URI -- 64 KiB - 1 B */
+
+#define NPP_QSBUF                       MAX_URI_VAL_LEN+1
+#define NPP_QSBUF_TEXT                  MAX_LONG_URI_VAL_LEN+1
+
 #define NPP_LOGIN_LEN                   30
 #define NPP_EMAIL_LEN                   120
 #define NPP_UNAME_LEN                   120
@@ -157,6 +163,15 @@ typedef char                            bool;
 #endif
 
 
+
+/* Query String Value */
+
+typedef char                            QSVAL[NPP_QSBUF];
+typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
+
+
+
+/* application settings */
 
 #include "npp_app.h"
 
@@ -222,11 +237,6 @@ typedef char                            bool;
 #include <mysqld_error.h>
 #endif
 
-
-#define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99.99% cases */
-#define MAX_LONG_URI_VAL_LEN            65535           /* max long value length received in URI -- 64 kB - 1 B */
-
-#define NPP_QSBUF                       MAX_URI_VAL_LEN+1
 
 #define NPP_APP_NAME_LEN                63
 #define NPP_CONTENT_TYPE_LEN            63

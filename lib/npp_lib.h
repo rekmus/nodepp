@@ -94,22 +94,6 @@
 #define COPY(dst, src, dst_len)         npp_safe_copy(dst, src, dst_len)
 
 
-/* Query String Value */
-
-typedef char                            QSVAL[NPP_QSBUF];
-typedef char                            QSSTR[NPP_QSBUF];
-
-typedef char                            QSVAL1K[1024];
-typedef char                            QSVAL2K[2048];
-typedef char                            QSVAL4K[4096];
-typedef char                            QSVAL8K[8192];
-typedef char                            QSVAL16K[16384];
-typedef char                            QSVAL32K[32768];
-typedef char                            QSVAL64K[65536];
-
-typedef char                            QSVAL_TEXT[65536];
-
-
 /* query string values' retrieval */
 
 #define NPP_ESC_NONE                    '0'

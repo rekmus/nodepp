@@ -105,6 +105,7 @@ http_status_t   M_http_status[]={
         {101, "Switching Protocols"},
         {200, "OK"},
         {201, "Created"},
+        {202, "Accepted"},
         {206, "Partial Content"},
         {301, "Moved Permanently"},
         {302, "Found"},
