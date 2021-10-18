@@ -7693,6 +7693,7 @@ int npp_minify(char *dest, const char *src)
     if ( !(temp2=(char*)malloc(len+1)) )
     {
         ERR("Couldn't allocate %d bytes for npp_minify", len);
+        free(temp1);
         return 0;
     }
 
