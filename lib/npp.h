@@ -1621,7 +1621,7 @@ extern "C" {
 
 /* read from the config file */
 
-extern bool         G_endianness;
+extern int          G_test;
 extern int          G_logLevel;
 extern int          G_logToStdout;
 extern int          G_logCombined;
@@ -1642,10 +1642,10 @@ extern char         G_IPWhiteList[256];
 extern int          G_ASYNCId;
 extern int          G_ASYNCDefTimeout;
 extern int          G_callHTTPTimeout;
-extern int          G_test;
 
 /* end of config params */
 
+extern bool         G_endianness;
 extern int          G_pid;                                      /* pid */
 extern char         G_appdir[256];                              /* application root dir */
 extern int          G_days_up;                                  /* web server's days up */

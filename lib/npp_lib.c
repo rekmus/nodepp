@@ -135,10 +135,6 @@ static char M_random_initialized=0;
 
 static void load_err_messages(void);
 static bool load_strings(void);
-static void minify_1(char *dest, const char *src, int len);
-static int  minify_2(char *dest, const char *src);
-static void get_byteorder32(void);
-static void get_byteorder64(void);
 
 
 /* --------------------------------------------------------------------------
@@ -7482,56 +7478,30 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
 
 /* --------------------------------------------------------------------------
-   Minify CSS/JS -- new version
-   remove all white spaces and new lines unless in quotes
-   also remove // style comments
-   add a space after some keywords
-   return new length
--------------------------------------------------------------------------- */
-int npp_minify(char *dest, const char *src)
-{
-    char *temp;
-
-    unsigned len = strlen(src);
-
-    if ( !(temp=(char*)malloc(len+1)) )
-    {
-        ERR("Couldn't allocate %u bytes for npp_minify", len);
-        return 0;
-    }
-
-    minify_1(temp, src, len);
-
-    int ret = minify_2(dest, temp);
-
-    free(temp);
-
-    return ret;
-}
-
-
-/* --------------------------------------------------------------------------
    First pass -- only remove comments
 -------------------------------------------------------------------------- */
 static void minify_1(char *dest, const char *src, int len)
 {
-    int     i;
-    int     j=0;
-    bool    opensq=FALSE;       /* single quote */
-    bool    opendq=FALSE;       /* double quote */
-    bool    openco=FALSE;       /* comment */
-    bool    opensc=FALSE;       /* star comment */
+    int  i;
+    int  j=0;
+    bool opensq=FALSE;       /* single quote */
+    bool opendq=FALSE;       /* double quote */
+    int  backslashes=0;
+    bool openco=FALSE;       /* comment */
+    bool opensc=FALSE;       /* star comment */
 
     for ( i=0; i<len; ++i )
     {
-        if ( !openco && !opensc && !opensq && src[i]=='"' && (i==0 || (i>0 && src[i-1]!='\\')) )
+        /* odd number of backslashes invalidates the quote */
+
+        if ( !openco && !opensc && !opensq && src[i]=='"' && backslashes%2==0 )
         {
             if ( !opendq )
                 opendq = TRUE;
             else
                 opendq = FALSE;
         }
-        else if ( !openco && !opensc && !opendq && src[i]=='\'' )
+        else if ( !openco && !opensc && !opendq && src[i]=='\'' && backslashes%2==0 )
         {
             if ( !opensq )
                 opensq = TRUE;
@@ -7557,7 +7527,14 @@ static void minify_1(char *dest, const char *src, int len)
         }
 
         if ( !openco && !opensc )       /* unless it's a comment ... */
+        {
             dest[j++] = src[i];
+
+            if ( src[i]=='\\' )
+                ++backslashes;
+            else
+                backslashes = 0;
+        }
     }
 
     dest[j] = EOS;
@@ -7565,31 +7542,82 @@ static void minify_1(char *dest, const char *src, int len)
 
 
 /* --------------------------------------------------------------------------
+   Normalize whitespaces & new line characters
+-------------------------------------------------------------------------- */
+static void minify_2(char *dest, const char *src)
+{
+    bool first=TRUE;
+    bool opensq=FALSE;       /* single quote */
+    bool opendq=FALSE;       /* double quote */
+    int  backslashes=0;
+    char prev_written=' ';
+
+    while ( *src==' ' || *src=='\t' || *src=='\r' || *src=='\n' ) ++src;   /* skip leading whitespaces */
+
+    while ( *src )
+    {
+        /* odd number of backslashes invalidates the quote */
+
+        if ( !opensq && *src=='"' && backslashes%2==0 )
+        {
+            if ( !opendq )
+                opendq = TRUE;
+            else
+                opendq = FALSE;
+        }
+        else if ( !opendq && *src=='\'' && backslashes%2==0 )
+        {
+            if ( !opensq )
+                opensq = TRUE;
+            else
+                opensq = FALSE;
+        }
+
+        if ( *src != '\r' )
+        {
+            if ( *src==' ' || *src=='\n' || *src=='\t' )
+            {
+                if ( prev_written != ' ' )
+                    *dest++ = ' ';
+            }
+            else
+                *dest++ = *src;
+
+            if ( !first )
+                prev_written = *(dest-1);
+
+            first = FALSE;
+        }
+
+        if ( *src=='\\' )
+            ++backslashes;
+        else
+            backslashes = 0;
+
+        ++src;
+    }
+
+    *dest = EOS;
+}
+
+
+/* --------------------------------------------------------------------------
+   Remove excess whitespaces
    Return new length
 -------------------------------------------------------------------------- */
-static int minify_2(char *dest, const char *src)
+static int minify_3(char *dest, const char *src)
 {
-    int     len;
-    int     i;
-    int     j=0;
-    bool    opensq=FALSE;       /* single quote */
-    bool    opendq=FALSE;       /* double quote */
-    bool    openbr=FALSE;       /* curly braces */
-    bool    openwo=FALSE;       /* word */
-    bool    opencc=FALSE;       /* colon */
-    bool    skip_ws=FALSE;      /* skip white spaces */
-    char    word[256]="";
-    int     wi=0;               /* word index */
-    int     backslashes=0;
+    int  len;
+    int  i;
+    int  j=0;
+    bool opensq=FALSE;       /* single quote */
+    bool opendq=FALSE;       /* double quote */
+    int  backslashes=0;
 
     len = strlen(src);
 
     for ( i=0; i<len; ++i )
     {
-        /* 'foo - TRUE */
-        /* \'foo - FALSE */
-        /* \\'foo - TRUE */
-
         /* odd number of backslashes invalidates the quote */
 
         if ( !opensq && src[i]=='"' && backslashes%2==0 )
@@ -7606,80 +7634,87 @@ static int minify_2(char *dest, const char *src)
             else
                 opensq = FALSE;
         }
-        else if ( !opensq && !opendq && !openbr && src[i]=='{' )
+
+        if ( !opensq && !opendq && src[i]==' ' )
         {
-            openbr = TRUE;
-            openwo = FALSE;
-            wi = 0;
-            skip_ws = TRUE;
-        }
-        else if ( !opensq && !opendq && openbr && src[i]=='}' )
-        {
-            openbr = FALSE;
-            openwo = FALSE;
-            wi = 0;
-            skip_ws = TRUE;
-        }
-        else if ( !opensq && !opendq && openbr && !opencc && src[i]==':' )
-        {
-            opencc = TRUE;
-            openwo = FALSE;
-            wi = 0;
-            skip_ws = TRUE;
-        }
-        else if ( !opensq && !opendq && opencc && src[i]==';' )
-        {
-            opencc = FALSE;
-            openwo = FALSE;
-            wi = 0;
-            skip_ws = TRUE;
-        }
-        else if ( !opensq && !opendq && !opencc && !openwo && (isalpha(src[i]) || src[i]=='|' || src[i]=='&') )  /* word is starting */
-        {
-            openwo = TRUE;
-        }
-        else if ( !opensq && !opendq && openwo && !isalnum(src[i]) && src[i]!='_' && src[i]!='|' && src[i]!='&' )   /* end of word */
-        {
-            word[wi] = EOS;
-            if ( 0==strcmp(word, "var")
-                    || 0==strcmp(word, "let")
-                    || (0==strcmp(word, "function") && src[i]!='(')
-                    || (0==strcmp(word, "else") && src[i]!='{')
-                    || 0==strcmp(word, "new")
-                    || 0==strcmp(word, "enum")
-                    || 0==strcmp(word, "const")
-                    || 0==strcmp(word, "import")
-                    || (0==strcmp(word, "return") && src[i]!=';') )
+            if ( src[i-1] != ':' && src[i-1] != ';'
+                    && src[i-1] != '{' && src[i-1] != '}'
+                    && src[i-1] != '=' && src[i-1] != '+' && src[i-1] != ','
+                    && src[i-1] != '(' && src[i-1] != ')'
+                    && src[i+1] != ':' && src[i+1] != ';'
+                    && src[i+1] != '{' && src[i+1] != '}'
+                    && src[i+1] != '=' && src[i+1] != '+' && src[i+1] != ','
+                    && (src[i+1]!='(' || (src[i+1]=='(' && src[i-1]=='d')) && src[i+1] != ')' )
                 dest[j++] = ' ';
-            openwo = FALSE;
-            wi = 0;
-            skip_ws = TRUE;
         }
-
-        if ( opensq || opendq
-                || src[i+1] == '|' || src[i+1] == '&'
-                || (src[i] != ' ' && src[i] != '\t' && src[i] != '\n' && src[i] != '\r')
-                || opencc )
+        else
             dest[j++] = src[i];
-
-        if ( openwo )
-            word[wi++] = src[i];
 
         if ( src[i]=='\\' )
             ++backslashes;
         else
             backslashes = 0;
-
-        if ( skip_ws )
-        {
-            while ( src[i+1] && (src[i+1]==' ' || src[i+1]=='\t' || src[i+1]=='\n' || src[i+1]=='\r') ) ++i;
-            skip_ws = FALSE;
-        }
     }
 
     dest[j] = EOS;
 
     return j;
+}
+
+
+/* --------------------------------------------------------------------------
+   Minify CSS/JS
+   return new length
+-------------------------------------------------------------------------- */
+int npp_minify(char *dest, const char *src)
+{
+    char *temp1;
+
+    int len = strlen(src);
+
+    if ( !(temp1=(char*)malloc(len+1)) )
+    {
+        ERR("Couldn't allocate %d bytes for npp_minify", len);
+        return 0;
+    }
+
+    minify_1(temp1, src, len);          /* remove comments */
+
+#ifdef NPP_DEBUG
+//    npp_log_long(temp1, strlen(temp1), "After minify_1");
+#endif
+
+    /* ------------------------------------------------- */
+
+    char *temp2;
+
+    len = strlen(temp1);
+
+    if ( !(temp2=(char*)malloc(len+1)) )
+    {
+        ERR("Couldn't allocate %d bytes for npp_minify", len);
+        return 0;
+    }
+
+    minify_2(temp2, temp1);             /* normalize whitespaces & new line characters */
+
+    free(temp1);
+
+#ifdef NPP_DEBUG
+//    npp_log_long(temp2, strlen(temp2), "After minify_2");
+#endif
+
+    /* ------------------------------------------------- */
+
+    int ret = minify_3(dest, temp2);    /* remove excess whitespaces */
+
+    free(temp2);
+
+#ifdef NPP_DEBUG
+    npp_log_long(dest, ret, "After minify_3");
+#endif
+
+    return ret;
 }
 
 
