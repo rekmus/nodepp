@@ -2,7 +2,7 @@
 
 ## Getting Started
 
-1. Install GCC (Linux) or MinGW (Windows)
+1. Install GCC
 
 ```
 sudo yum install gcc-c++    # RH
