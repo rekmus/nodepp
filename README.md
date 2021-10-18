@@ -20,14 +20,14 @@ sudo apt-get install libssl-dev   # Ubuntu
 
 ```
 cd src
-chmod +x m   # Linux
+chmod +x m
 ./m
 ```
 
 4. Quick test:
 
 ```
-chmod +x t   # Linux
+chmod +x t
 ./t
 ```
 
