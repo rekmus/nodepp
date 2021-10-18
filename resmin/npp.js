@@ -176,6 +176,6 @@ function set_tz()
 
     let x = new XMLHttpRequest();
 
-    x.open("POST", "/set_tz", true);
+    x.open("POST", "/npp_set_tz", true);
     x.send("tz=" + Intl.DateTimeFormat().resolvedOptions().timeZone + "&tzo=" + dt.getTimezoneOffset());
 }
