@@ -51,14 +51,14 @@
 
 int         G_httpPort=80;
 int         G_httpsPort=443;
-char        G_cipherList[1024]="";
+char        G_cipherList[NPP_CIPHER_LIST_LEN+1]="";
 char        G_certFile[256]="";
 char        G_certChainFile[256]="";
 char        G_keyFile[256]="";
 int         G_usersRequireActivation=0;
-char        G_blockedIPList[256]="";
-char        G_whiteList[256]="";
-int         G_ASYNCId=0;
+char        G_IPBlackList[256]="";
+char        G_IPWhiteList[256]="";
+int         G_ASYNCId=-1;
 int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
 
 /* end of config params */
@@ -307,7 +307,7 @@ int main(int argc, char **argv)
     setsockopt(M_listening_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse_addr, sizeof(reuse_addr));
 #else
     setsockopt(M_listening_fd, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));
-#endif 
+#endif
 
     /* Set socket to non-blocking */
 
@@ -399,7 +399,7 @@ int main(int argc, char **argv)
 
     ALWAYS("\nWaiting for requests...\n");
 
-    log_flush();
+    npp_log_flush();
 
     M_prev_minute = G_ptm->tm_min;
     M_prev_day = G_ptm->tm_mday;
@@ -1105,7 +1105,7 @@ static bool housekeeping()
         /* say something sometimes ... */
         ALWAYS_T("%d open connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
 
-        log_flush();
+        npp_log_flush();
 
 #ifndef NPP_DONT_RESCAN_RES    /* refresh static resources */
         read_resources(FALSE);
@@ -1118,8 +1118,8 @@ static bool housekeeping()
             DDBG("Once a day");
 
             dump_counters();
-            log_finish();
-            if ( !log_start("", G_test) )
+            npp_log_finish();
+            if ( !npp_log_start("", G_test, FALSE) )
             {
                 clean_up();
                 return FALSE;
@@ -1127,10 +1127,10 @@ static bool housekeeping()
 
             set_expiry_dates();
 
-            if ( G_blockedIPList[0] )
+            if ( G_IPBlackList[0] )
                 read_blocked_ips();
 
-            if ( G_whiteList[0] )
+            if ( G_IPWhiteList[0] )
                 read_allowed_ips();
 
             /* copy & reset counters */
@@ -2014,11 +2014,13 @@ static void read_conf(bool first)
 
     if ( first )
     {
+        G_test = 0;
         G_logLevel = 3;
         G_logToStdout = 0;
         G_logCombined = 0;
         G_httpPort = 80;
         G_httpsPort = 443;
+        G_cipherList[0] = EOS;
         G_certFile[0] = EOS;
         G_certChainFile[0] = EOS;
         G_keyFile[0] = EOS;
@@ -2028,12 +2030,11 @@ static void read_conf(bool first)
         G_dbUser[0] = EOS;
         G_dbPassword[0] = EOS;
         G_usersRequireActivation = 0;
-        G_blockedIPList[0] = EOS;
-        G_whiteList[0] = EOS;
+        G_IPBlackList[0] = EOS;
+        G_IPWhiteList[0] = EOS;
         G_ASYNCId = -1;
         G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
         G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
-        G_test = 0;
     }
 
     /* get the conf file path & name */
@@ -2049,12 +2050,51 @@ static void read_conf(bool first)
     {
         conf_read = npp_read_conf("npp.conf");
     }
-    
+
     if ( conf_read )
     {
+        /* test */
+
+        npp_read_param_int("test", &G_test);
+
+        /* logLevel */
+
         npp_read_param_int("logLevel", &G_logLevel);
-        npp_read_param_int("logToStdout", &G_logToStdout);
+
+        /* logToStdout */
+
+        if ( first )
+        {
+            npp_read_param_int("logToStdout", &G_logToStdout);
+        }
+        else    /* npp_reload_conf */
+        {
+            int tmp_logToStdout;
+
+            npp_read_param_int("logToStdout", &tmp_logToStdout);
+
+            if ( tmp_logToStdout != G_logToStdout )
+            {
+                G_logToStdout = tmp_logToStdout;
+
+                if ( G_logToStdout )    /* switch to stdout */
+                {
+                    ALWAYS("Switching log to stdout");
+                    npp_lib_log_switch_to_stdout();
+                }
+                else    /* switch to file */
+                {
+                    ALWAYS("Switching log to a file");
+                    npp_lib_log_switch_to_file();
+                }
+            }
+        }
+
+        /* logCombined */
+
         npp_read_param_int("logCombined", &G_logCombined);
+
+        /* ports */
 
         if ( first )
         {
@@ -2075,9 +2115,47 @@ static void read_conf(bool first)
             }
         }
 
-        npp_read_param_str("certFile", G_certFile);
-        npp_read_param_str("certChainFile", G_certChainFile);
-        npp_read_param_str("keyFile", G_keyFile);
+        /* SSL */
+
+#ifdef NPP_HTTPS
+        if ( first )
+        {
+            npp_read_param_str("cipherList", G_cipherList);
+            npp_read_param_str("certFile", G_certFile);
+            npp_read_param_str("certChainFile", G_certChainFile);
+            npp_read_param_str("keyFile", G_keyFile);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_cipherList[NPP_CIPHER_LIST_LEN+1]="";
+            char tmp_certFile[256]="";
+            char tmp_certChainFile[256]="";
+            char tmp_keyFile[256]="";
+
+            npp_read_param_str("cipherList", tmp_cipherList);
+            npp_read_param_str("certFile", tmp_certFile);
+            npp_read_param_str("certChainFile", tmp_certChainFile);
+            npp_read_param_str("keyFile", tmp_keyFile);
+
+            if ( strcmp(tmp_cipherList, G_cipherList) != 0
+                    || strcmp(tmp_certFile, G_certFile) != 0
+                    || strcmp(tmp_certChainFile, G_certChainFile) != 0
+                    || strcmp(tmp_keyFile, G_keyFile) != 0 )
+            {
+                strcpy(G_cipherList, tmp_cipherList);
+                strcpy(G_certFile, tmp_certFile);
+                strcpy(G_certChainFile, tmp_certChainFile);
+                strcpy(G_keyFile, tmp_keyFile);
+
+                SSL_CTX_free(M_ssl_ctx);
+                EVP_cleanup();
+
+                init_ssl();
+            }
+        }
+#endif
+
+        /* database */
 
         if ( first )
         {
@@ -2121,10 +2199,53 @@ static void read_conf(bool first)
             }
         }
 
-        npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
-        npp_read_param_str("blockedIPList", G_blockedIPList);
-        npp_read_param_str("whiteList", G_whiteList);
+        /* usersRequireActivation */
 
+#ifdef NPP_USERS
+        npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
+#endif
+
+        /* IPBlackList */
+
+        if ( first )
+        {
+            npp_read_param_str("IPBlackList", G_IPBlackList);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_IPBlackList[256]="";
+
+            npp_read_param_str("IPBlackList", tmp_IPBlackList);
+
+            if ( strcmp(tmp_IPBlackList, G_IPBlackList) != 0 )
+            {
+                strcpy(G_IPBlackList, tmp_IPBlackList);
+                read_blocked_ips();
+            }
+        }
+
+        /* IPWhiteList */
+
+        if ( first )
+        {
+            npp_read_param_str("IPWhiteList", G_IPWhiteList);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_IPWhiteList[256]="";
+
+            npp_read_param_str("IPWhiteList", tmp_IPWhiteList);
+
+            if ( strcmp(tmp_IPWhiteList, G_IPWhiteList) != 0 )
+            {
+                strcpy(G_IPWhiteList, tmp_IPWhiteList);
+                read_allowed_ips();
+            }
+        }
+
+        /* ASYNC */
+
+#ifdef NPP_ASYNC
         if ( first )
         {
             npp_read_param_int("ASYNCId", &G_ASYNCId);
@@ -2142,8 +2263,11 @@ static void read_conf(bool first)
         }
 
         npp_read_param_int("ASYNCDefTimeout", &G_ASYNCDefTimeout);
+#endif  /* NPP_ASYNC */
+
+        /* CALL_HTTP */
+
         npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
-        npp_read_param_int("test", &G_test);
     }
     else
     {
@@ -2154,7 +2278,7 @@ static void read_conf(bool first)
     if ( G_logLevel < 4 )
     {
         G_logLevel = 4;   /* debug */
-        DBG("NPP_DEBUG -- logLevel changed to 4");
+        DBG("logLevel changed to 4 because of NPP_DEBUG");
     }
 #endif  /* NPP_DEBUG */
 }
@@ -2318,7 +2442,7 @@ static bool init(int argc, char **argv)
     char exec_name[256];
     npp_get_exec_name(exec_name, argv[0]);
 
-    if ( !log_start("", G_test) )
+    if ( !npp_log_start("", G_test, FALSE) )
         return FALSE;
 
     ALWAYS("Starting program");
@@ -2356,7 +2480,7 @@ static bool init(int argc, char **argv)
 
     /* pid file ---------------------------------------------------------- */
 
-    if ( !(M_pidfile=lib_create_pid_file("npp_app")) )
+    if ( !(M_pidfile=npp_lib_create_pid_file("npp_app")) )
         return FALSE;
 
     /* empty static resources list */
@@ -2877,7 +3001,7 @@ static void accept_http()
     inet_ntop(AF_INET, &(cli_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
 #endif
 
-    if ( G_blockedIPList[0] && ip_blocked(remote_addr) )
+    if ( G_IPBlackList[0] && ip_blocked(remote_addr) )
     {
         ++G_cnts_today.blocked;
 #ifdef _WIN32   /* Windows */
@@ -2888,7 +3012,7 @@ static void accept_http()
         return;
     }
 
-    if ( G_whiteList[0] && !ip_allowed(remote_addr) )
+    if ( G_IPWhiteList[0] && !ip_allowed(remote_addr) )
     {
 #ifdef _WIN32   /* Windows */
         closesocket(connection);
@@ -2988,7 +3112,7 @@ static void accept_https()
     inet_ntop(AF_INET, &(cli_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
 #endif
 
-    if ( G_blockedIPList[0] && ip_blocked(remote_addr) )
+    if ( G_IPBlackList[0] && ip_blocked(remote_addr) )
     {
         ++G_cnts_today.blocked;
 #ifdef _WIN32   /* Windows */
@@ -2999,7 +3123,7 @@ static void accept_https()
         return;
     }
 
-    if ( G_whiteList[0] && !ip_allowed(remote_addr) )
+    if ( G_IPWhiteList[0] && !ip_allowed(remote_addr) )
     {
 #ifdef _WIN32   /* Windows */
         closesocket(connection);
@@ -3123,26 +3247,26 @@ static void read_blocked_ips()
     char    now_comment=0;
     char    value[INET_ADDRSTRLEN];
 
-    if ( G_blockedIPList[0] == EOS ) return;
+    G_blacklist_cnt = 0;
+
+    if ( G_IPBlackList[0] == EOS ) return;
 
     INF("Updating blocked IPs list");
 
     /* open the file */
 
-    if ( G_blockedIPList[0] == '/' )    /* full path */
-        strcpy(fname, G_blockedIPList);
+    if ( G_IPBlackList[0] == '/' )    /* full path */
+        strcpy(fname, G_IPBlackList);
     else if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, G_blockedIPList);
+        sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
     else
-        strcpy(fname, G_blockedIPList);
+        strcpy(fname, G_IPBlackList);
 
     if ( NULL == (h_file=fopen(fname, "r")) )
     {
         WAR("Couldn't open %s", fname);
         return;
     }
-
-    G_blacklist_cnt = 0;
 
     /* parse the file */
 
@@ -3248,26 +3372,26 @@ static void read_allowed_ips()
     char    now_comment=0;
     char    value[64]="";
 
-    if ( G_whiteList[0] == EOS ) return;
+    G_whitelist_cnt = 0;
+
+    if ( G_IPWhiteList[0] == EOS ) return;
 
     INF("Updating whitelist");
 
     /* open the file */
 
-    if ( G_whiteList[0] == '/' )    /* full path */
-        strcpy(fname, G_whiteList);
+    if ( G_IPWhiteList[0] == '/' )    /* full path */
+        strcpy(fname, G_IPWhiteList);
     else if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, G_whiteList);
+        sprintf(fname, "%s/bin/%s", G_appdir, G_IPWhiteList);
     else
-        strcpy(fname, G_whiteList);
+        strcpy(fname, G_IPWhiteList);
 
     if ( NULL == (h_file=fopen(fname, "r")) )
     {
         WAR("Couldn't open %s", fname);
         return;
     }
-
-    G_whitelist_cnt = 0;
 
     /* parse the file */
 
@@ -4003,7 +4127,7 @@ static void process_req(int ci)
 
 #ifdef NPP_DEBUG
     if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].in_data )
-        log_long(G_connections[ci].in_data, G_connections[ci].was_read, "Payload");
+        npp_log_long(G_connections[ci].in_data, G_connections[ci].was_read, "Payload");
 #endif
 
     /* ------------------------------------------------------------------------ */
@@ -4848,7 +4972,7 @@ static              bool first=TRUE;
 #if NPP_OUT_HEADER_BUFSIZE-1 <= NPP_MAX_LOG_STR_LEN
         DBG("\nResponse header:\n\n[%s]\n", out_header);
 #else
-        log_long(out_header, G_connections[ci].out_hlen, "\nResponse header");
+        npp_log_long(out_header, G_connections[ci].out_hlen, "\nResponse header");
 #endif  /* NPP_OUT_HEADER_BUFSIZE-1 <= NPP_MAX_LOG_STR_LEN */
 
     /* ----------------------------------------------------------------- */
@@ -4868,7 +4992,7 @@ static              bool first=TRUE;
             && G_connections[ci].static_res==NPP_NOT_STATIC
             && !compressed
             && (G_connections[ci].ctype==NPP_CONTENT_TYPE_TEXT || G_connections[ci].ctype==NPP_CONTENT_TYPE_JSON) )
-        log_long(G_connections[ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[ci].clen, "Content to send");
+        npp_log_long(G_connections[ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[ci].clen, "Content to send");
 #endif  /* NPP_DEBUG */
 
     /* ----------------------------------------------------------------- */
@@ -5232,7 +5356,7 @@ static int parse_req(int ci, int len)
 
     DDBG("hlen = %d", hlen);
 
-    log_long(G_connections[ci].in, hlen, "Incoming buffer");     /* NPP_IN_BUFSIZE > NPP_MAX_LOG_STR_LEN! */
+    npp_log_long(G_connections[ci].in, hlen, "Incoming buffer");     /* NPP_IN_BUFSIZE > NPP_MAX_LOG_STR_LEN! */
 
     ++hlen;     /* HTTP header length including first of the last new line characters to simplify parsing algorithm in the third 'for' loop below */
 
@@ -5891,8 +6015,8 @@ static const uint8_t base64url_dec_table[128] =
     0xFF, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
     0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 };
-  
-  
+
+
 /* --------------------------------------------------------------------------
    Decode base64url encoded string
    Return binary length
@@ -5904,7 +6028,7 @@ static int base64url_decode(unsigned char *dst, const char *src)
     int i;
     int n=0;
     unsigned char *p=dst;
- 
+
     for ( i=0; src[i]; ++i )
     {
         c = src[i];
@@ -5932,7 +6056,7 @@ static int base64url_decode(unsigned char *dst, const char *src)
             return 0;
         }
     }
-  
+
     /* treat the last block */
 
     int len = strlen(src);
@@ -6495,13 +6619,13 @@ static bool init_ssl()
        Last update: 2019-04-08
        Qualys says Forward Secrecy isn't enabled
     */
-//    char ciphers[1024]="ECDH+AESGCM:ECDH+CHACHA20:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:RSA+AESGCM:RSA+AES:!aNULL:!MD5:!DSS";
+//    char ciphers[NPP_CIPHER_LIST_LEN+1]="ECDH+AESGCM:ECDH+CHACHA20:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:RSA+AESGCM:RSA+AES:!aNULL:!MD5:!DSS";
 
     /*
        https://www.digicert.com/ssl-support/ssl-enabling-perfect-forward-secrecy.htm
        Last update: 2019-04-18
     */
-    char ciphers[1024]="EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4";
+    char ciphers[NPP_CIPHER_LIST_LEN+1]="EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4";
 
     DBG("init_ssl");
 
@@ -6816,7 +6940,7 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
             if ( !M_async_shm )
             {
-                if ( (M_async_shm=lib_shm_create(NPP_MAX_PAYLOAD_SIZE, 0)) == NULL )
+                if ( (M_async_shm=npp_lib_shm_create(NPP_MAX_PAYLOAD_SIZE, 0)) == NULL )
                 {
                     ERR("Couldn't create SHM");
                     return;
@@ -6961,7 +7085,7 @@ void npp_add_to_static_res(const char *name, const char *src)
 -------------------------------------------------------------------------- */
 void npp_eng_block_ip(const char *value, bool autoblocked)
 {
-    if ( G_blockedIPList[0] == EOS ) return;
+    if ( G_IPBlackList[0] == EOS ) return;
 
     if ( G_blacklist_cnt > NPP_MAX_BLACKLIST-1 )
     {
@@ -6980,12 +7104,12 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
 
     strcpy(G_blacklist[G_blacklist_cnt++], value);
 
-    if ( G_blockedIPList[0] == '/' )    /* full path */
-        strcpy(fname, G_blockedIPList);
+    if ( G_IPBlackList[0] == '/' )    /* full path */
+        strcpy(fname, G_IPBlackList);
     else if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, G_blockedIPList);
+        sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
     else
-        strcpy(fname, G_blockedIPList);
+        strcpy(fname, G_IPBlackList);
 
     sprintf(command, "echo \"%s\t# %sblocked on %s\" >> %s", value, autoblocked?"auto":"", DT_NOW_GMT, fname);
 

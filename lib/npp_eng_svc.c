@@ -156,12 +156,12 @@ int main(int argc, char *argv[])
 
     sprintf(logprefix, "s_%d", G_pid);
 
-    if ( !log_start(logprefix, G_test) )
+    if ( !npp_log_start(logprefix, G_test, FALSE) )
         return EXIT_FAILURE;
 
     /* pid file ---------------------------------------------------------- */
 
-    if ( !(M_pidfile=lib_create_pid_file(logprefix)) )
+    if ( !(M_pidfile=npp_lib_create_pid_file(logprefix)) )
         return EXIT_FAILURE;
 
     /* fill the M_random_numbers up */
@@ -327,14 +327,14 @@ int main(int argc, char *argv[])
         if ( mq_receive(G_queue_req, (char*)&G_svc_req, ASYNC_REQ_MSG_SIZE, NULL) != -1 )
         {
             npp_update_time_globals();
-            
+
             /* start new log file every day */
 
             if ( G_ptm->tm_mday != prev_day )
             {
-                log_finish();
+                npp_log_finish();
 
-                if ( !log_start(logprefix, G_test) )
+                if ( !npp_log_start(logprefix, G_test, FALSE) )
                 {
                     clean_up();
                     return EXIT_FAILURE;
@@ -448,7 +448,7 @@ int main(int argc, char *argv[])
 
                     if ( !M_async_shm )
                     {
-                        if ( (M_async_shm=lib_shm_create(NPP_MAX_PAYLOAD_SIZE, 0)) == NULL )
+                        if ( (M_async_shm=npp_lib_shm_create(NPP_MAX_PAYLOAD_SIZE, 0)) == NULL )
                         {
                             ERR("Couldn't attach to SHM");
                             continue;
@@ -481,7 +481,7 @@ int main(int argc, char *argv[])
             memcpy(&G_cnts_today, &G_svc_req.hdr.cnts_today, sizeof(npp_counters_t));
             memcpy(&G_cnts_yesterday, &G_svc_req.hdr.cnts_yesterday, sizeof(npp_counters_t));
             memcpy(&G_cnts_day_before, &G_svc_req.hdr.cnts_day_before, sizeof(npp_counters_t));
-            
+
             G_days_up = G_svc_req.hdr.days_up;
             G_connections_cnt = G_svc_req.hdr.connections_cnt;
             G_connections_hwm = G_svc_req.hdr.connections_hwm;
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
 
             /* ----------------------------------------------------------- */
 
-            log_flush();
+            npp_log_flush();
         }
     }
 

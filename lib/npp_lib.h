@@ -52,11 +52,11 @@
 #define LOG_INF                         (char)3         /* print errors and warnings and info */
 #define LOG_DBG                         (char)4         /* for debug mode -- most detailed */
 
-#define ALWAYS(str, ...)                log_write(LOG_ALWAYS, str, ##__VA_ARGS__)
-#define ERR(str, ...)                   log_write(LOG_ERR, str, ##__VA_ARGS__)
-#define WAR(str, ...)                   log_write(LOG_WAR, str, ##__VA_ARGS__)
-#define INF(str, ...)                   log_write(LOG_INF, str, ##__VA_ARGS__)
-#define DBG(str, ...)                   log_write(LOG_DBG, str, ##__VA_ARGS__)
+#define ALWAYS(str, ...)                npp_log_write(LOG_ALWAYS, str, ##__VA_ARGS__)
+#define ERR(str, ...)                   npp_log_write(LOG_ERR, str, ##__VA_ARGS__)
+#define WAR(str, ...)                   npp_log_write(LOG_WAR, str, ##__VA_ARGS__)
+#define INF(str, ...)                   npp_log_write(LOG_INF, str, ##__VA_ARGS__)
+#define DBG(str, ...)                   npp_log_write(LOG_DBG, str, ##__VA_ARGS__)
 
 #ifdef NPP_DEBUG
 #define DDBG                            DBG
@@ -64,11 +64,11 @@
 #define DDBG
 #endif
 
-#define ALWAYS_T(str, ...)              log_write_time(LOG_ALWAYS, str, ##__VA_ARGS__)
-#define ERR_T(str, ...)                 log_write_time(LOG_ERR, str, ##__VA_ARGS__)
-#define WAR_T(str, ...)                 log_write_time(LOG_WAR, str, ##__VA_ARGS__)
-#define INF_T(str, ...)                 log_write_time(LOG_INF, str, ##__VA_ARGS__)
-#define DBG_T(str, ...)                 log_write_time(LOG_DBG, str, ##__VA_ARGS__)
+#define ALWAYS_T(str, ...)              npp_log_write_time(LOG_ALWAYS, str, ##__VA_ARGS__)
+#define ERR_T(str, ...)                 npp_log_write_time(LOG_ERR, str, ##__VA_ARGS__)
+#define WAR_T(str, ...)                 npp_log_write_time(LOG_WAR, str, ##__VA_ARGS__)
+#define INF_T(str, ...)                 npp_log_write_time(LOG_INF, str, ##__VA_ARGS__)
+#define DBG_T(str, ...)                 npp_log_write_time(LOG_DBG, str, ##__VA_ARGS__)
 
 #define LOG_LINE                        "--------------------------------------------------"
 #define LOG_LINE_N                      "--------------------------------------------------\n"
@@ -604,15 +604,17 @@ extern "C" {
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
     int  datetime_cmp(const char *str1, const char *str2);
-    char *lib_create_pid_file(const char *name);
-    char *lib_shm_create(unsigned bytes, int index);
-    void lib_shm_delete(int index);
-    bool log_start(const char *prefix, bool test);
-    void log_write_time(char level, const char *message, ...);
-    void log_write(char level, const char *message, ...);
-    void log_long(const char *str, int len, const char *desc);
-    void log_flush(void);
-    void log_finish(void);
+    char *npp_lib_create_pid_file(const char *name);
+    char *npp_lib_shm_create(unsigned bytes, int index);
+    void npp_lib_shm_delete(int index);
+    bool npp_log_start(const char *prefix, bool test, bool switching);
+    void npp_log_write(char level, const char *message, ...);
+    void npp_log_write_time(char level, const char *message, ...);
+    void npp_log_long(const char *str, int len, const char *desc);
+    void npp_log_flush(void);
+    void npp_lib_log_switch_to_stdout(void);
+    void npp_lib_log_switch_to_file(void);
+    void npp_log_finish(void);
 
 #ifdef _WIN32   /* Windows */
     int getpid(void);

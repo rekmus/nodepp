@@ -55,7 +55,7 @@ static void restart()
     if ( M_watcherLogRestart > 0 )
     {
         G_logLevel = M_watcherLogRestart;
-        log_start("watcher", FALSE);
+        npp_log_start("watcher", FALSE, FALSE);
     }
 
     ALWAYS_T("Restarting...");
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     /* library init ------------------------------------------------------ */
 
     if ( !npp_lib_init() )
-		return EXIT_FAILURE;
+        return EXIT_FAILURE;
 
     npp_sort_messages();
 
@@ -148,8 +148,8 @@ int main(int argc, char *argv[])
 
     /* start log --------------------------------------------------------- */
 
-    if ( !log_start("watcher", FALSE) )
-		return EXIT_FAILURE;
+    if ( !npp_log_start("watcher", FALSE, FALSE) )
+        return EXIT_FAILURE;
 
     /* ------------------------------------------------------------------- */
 
@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
 
     INF_T("npp_watcher ended");
 
-    log_finish();
+    npp_log_finish();
 
     return EXIT_SUCCESS;
 }

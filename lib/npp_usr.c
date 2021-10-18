@@ -332,7 +332,7 @@ int libusr_luses_ok(int ci)
             strcpy(failed_cnt[failed_cnt_next].ip, G_connections[ci].ip);
             failed_cnt[failed_cnt_next].cnt = 1;
             failed_cnt[failed_cnt_next].when = G_now;
-            
+
             if ( failed_cnt_next >= FAILED_LOGIN_CNT_SIZE-1 )    /* last slot was just used -- roll over */
                 failed_cnt_next = 0;
             else
@@ -801,7 +801,7 @@ static int generic_user_activation_email(int ci, int user_id, const char *email,
     return OK;
 }
 
-    
+
 /* --------------------------------------------------------------------------
    Send activation link
 -------------------------------------------------------------------------- */
@@ -810,7 +810,7 @@ static int send_activation_link(int ci, int user_id, const char *email)
     int  ret=OK;
     char linkkey[NPP_PASSWD_RESET_KEY_LEN+1];
     char sql[NPP_SQLBUF];
-    
+
     /* generate the key */
 
     npp_random(linkkey, NPP_PASSWD_RESET_KEY_LEN);
@@ -2321,8 +2321,8 @@ int npp_usr_activate(int ci)
 
     /* verify the key */
 
-	if ( (ret=npp_usr_verify_activation_key(ci, linkkey, &user_id)) != OK )
-		return ret;
+    if ( (ret=npp_usr_verify_activation_key(ci, linkkey, &user_id)) != OK )
+        return ret;
 
     /* everything's OK -- activate user -------------------- */
 
@@ -2588,8 +2588,8 @@ int npp_usr_reset_password(int ci)
 
     /* verify the key */
 
-	if ( (ret=npp_usr_verify_passwd_reset_key(ci, linkkey, &user_id)) != OK )
-		return ret;
+    if ( (ret=npp_usr_verify_passwd_reset_key(ci, linkkey, &user_id)) != OK )
+        return ret;
 
     /* verify that emails match each other */
 

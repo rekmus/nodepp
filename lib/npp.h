@@ -665,6 +665,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CSRFT_LEN                       7               /* CSRF token length */
 #endif
 
+#ifndef NPP_CIPHER_LIST_LEN
+#define NPP_CIPHER_LIST_LEN                 1023            /* cipher list length for SSL (cipherList in npp.conf) */
+#endif
+
 #ifndef NPP_MAX_BOUNDARY_LEN
 #define NPP_MAX_BOUNDARY_LEN                63              /* RFC 2046 mentions 70 characters, however no major HTTP client comes even close to 63 */
 #endif
@@ -1623,7 +1627,7 @@ extern int          G_logToStdout;
 extern int          G_logCombined;
 extern int          G_httpPort;
 extern int          G_httpsPort;
-extern char         G_cipherList[1024];
+extern char         G_cipherList[NPP_CIPHER_LIST_LEN+1];
 extern char         G_certFile[256];
 extern char         G_certChainFile[256];
 extern char         G_keyFile[256];
@@ -1633,8 +1637,8 @@ extern char         G_dbName[128];
 extern char         G_dbUser[128];
 extern char         G_dbPassword[128];
 extern int          G_usersRequireActivation;
-extern char         G_blockedIPList[256];
-extern char         G_whiteList[256];
+extern char         G_IPBlackList[256];
+extern char         G_IPWhiteList[256];
 extern int          G_ASYNCId;
 extern int          G_ASYNCDefTimeout;
 extern int          G_callHTTPTimeout;

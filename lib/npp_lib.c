@@ -199,11 +199,11 @@ void npp_lib_done()
 #ifndef _WIN32
 
     for ( i=0; i<NPP_MAX_SHM_SEGMENTS; ++i )
-        lib_shm_delete(i);
+        npp_lib_shm_delete(i);
 
 #endif  /* _WIN32 */
 
-    log_finish();
+    npp_log_finish();
 }
 
 
@@ -859,7 +859,7 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
     *M_md_dest = EOS;
 
 #ifdef NPP_DEBUG
-    log_long(dest, written, "npp_render_md result");
+    npp_log_long(dest, written, "npp_render_md result");
 #endif
 
     return dest;
@@ -1620,7 +1620,7 @@ static bool init_ssl_client()
 
     DBG("init_ssl (npp_lib)");
 
-    if ( !G_ssl_lib_initialized )
+    if ( !G_ssl_lib_initialized )   /* it might have been initialized by the server */
     {
         DBG("Initializing SSL_lib...");
 
@@ -2419,7 +2419,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int ma
     retbuf[i] = EOS;
 
 #ifdef NPP_DEBUG
-    log_long(retbuf, i, "get_qs_param_raw: retbuf");
+    npp_log_long(retbuf, i, "get_qs_param_raw: retbuf");
 #endif
 
     G_qs_len = i;
@@ -3069,7 +3069,7 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
         strcpy(activity_desc, "all");
         days = 0;
     }
-        
+
     char tmp[256];
 
     if ( days==366 || days==31 )
@@ -4149,10 +4149,10 @@ static int addresses_cnt=0, addresses_last=0;
         if ( server_cert )
         {
             DBG("Got server certificate");
-			X509_NAME *certname;
-			certname = X509_NAME_new();
-			certname = X509_get_subject_name(server_cert);
-			DBG("server_cert [%s]", X509_NAME_oneline(certname, NULL, 0));
+            X509_NAME *certname;
+            certname = X509_NAME_new();
+            certname = X509_get_subject_name(server_cert);
+            DBG("server_cert [%s]", X509_NAME_oneline(certname, NULL, 0));
             X509_free(server_cert);
         }
         else
@@ -4823,7 +4823,7 @@ static char res_content[NPP_JSON_BUFSIZE];
     G_call_http_res_len = content_read;
 
 #ifdef NPP_DEBUG
-    log_long(res_content, content_read, "Content");
+    npp_log_long(res_content, content_read, "Content");
 #endif
 
     /* ------------------------------------------------------------------- */
@@ -5297,10 +5297,10 @@ void date_rec2str(char *str, date_t *rec)
 static bool leap(short year)
 {
     year += 1900;
-    
+
     if ( year % 4 == 0 && ((year % 100) != 0 || (year % 400) == 0) )
         return TRUE;
-    
+
     return FALSE;
 }
 
@@ -6182,7 +6182,7 @@ static char *get_json_closing_bracket(const char *src)
 #ifdef NPP_DEBUG
     int len = strlen(src);
     DBG("get_json_closing_bracket: len = %d", len);
-//    log_long(src, len, "get_json_closing_bracket");
+//    npp_log_long(src, len, "get_json_closing_bracket");
 #endif  /* NPP_DEBUG */
 
     while ( src[i] )
@@ -6234,7 +6234,7 @@ static char *get_json_closing_square_bracket(const char *src)
 #ifdef NPP_DEBUG
     int len = strlen(src);
     DBG("get_json_closing_square_bracket: len = %d", len);
-//    log_long(src, len, "get_json_closing_square_bracket");
+//    npp_log_long(src, len, "get_json_closing_square_bracket");
 #endif  /* NPP_DEBUG */
 
     while ( src[i] )
@@ -6333,7 +6333,7 @@ static char tmp[NPP_JSON_BUFSIZE];
     tmp[len-i] = EOS;
     char debug[64];
     sprintf(debug, "lib_json_from_string level %d", level);
-    log_long(tmp, len, debug);
+    npp_log_long(tmp, len, debug);
     if ( inside_array ) DBG("inside_array");
 #endif  /* NPP_DEBUG */
 
@@ -7881,7 +7881,7 @@ bool npp_read_param_int(const char *param, int *dest)
 /* --------------------------------------------------------------------------
    Create a pid file
 -------------------------------------------------------------------------- */
-char *lib_create_pid_file(const char *name)
+char *npp_lib_create_pid_file(const char *name)
 {
 static char pidfilename[512];
     FILE    *fpid=NULL;
@@ -7982,7 +7982,7 @@ static char pidfilename[512];
 /* --------------------------------------------------------------------------
    Attach to shared memory segment
 -------------------------------------------------------------------------- */
-char *lib_shm_create(unsigned bytes, int index)
+char *npp_lib_shm_create(unsigned bytes, int index)
 {
     char *shm_segptr=NULL;
 
@@ -8037,7 +8037,7 @@ char *lib_shm_create(unsigned bytes, int index)
 /* --------------------------------------------------------------------------
    Delete shared memory segment
 -------------------------------------------------------------------------- */
-void lib_shm_delete(int index)
+void npp_lib_shm_delete(int index)
 {
 #ifndef _WIN32
     if ( M_shmid[index] )
@@ -8053,7 +8053,7 @@ void lib_shm_delete(int index)
 /* --------------------------------------------------------------------------
    Start a log
 -------------------------------------------------------------------------- */
-bool log_start(const char *prefix, bool test)
+bool npp_log_start(const char *prefix, bool test, bool switching)
 {
     char    fprefix[64]="";     /* formatted prefix */
     char    fname[512];         /* file name */
@@ -8061,7 +8061,7 @@ bool log_start(const char *prefix, bool test)
 
     if ( G_logLevel < 1 ) return TRUE;  /* no log */
 
-    if ( G_logToStdout != 1 )   /* log to a file */
+    if ( G_logToStdout < 1 )   /* log to a file */
     {
         if ( M_log_fd != NULL && M_log_fd != stdout ) return TRUE;  /* already started */
 
@@ -8105,20 +8105,54 @@ bool log_start(const char *prefix, bool test)
         }
     }
 
-    fprintf(M_log_fd, LOG_LINE_LONG_N);
-
-    ALWAYS(" %s  Starting %s's log. Node++ version: %s", DT_NOW_GMT, NPP_APP_NAME, NPP_VERSION);
-
-    fprintf(M_log_fd, LOG_LINE_LONG_NN);
+    if ( !switching )
+    {
+        fprintf(M_log_fd, LOG_LINE_LONG_N);
+        ALWAYS(" %s  Starting %s's log. Node++ version: %s", DT_NOW_GMT, NPP_APP_NAME, NPP_VERSION);
+        fprintf(M_log_fd, LOG_LINE_LONG_NN);
+    }
 
     return TRUE;
 }
 
 
 /* --------------------------------------------------------------------------
+   Write to log
+-------------------------------------------------------------------------- */
+void npp_log_write(char level, const char *message, ...)
+{
+    if ( level > G_logLevel ) return;
+
+    if ( LOG_ERR == level )
+        fprintf(M_log_fd, "ERROR: ");
+    else if ( LOG_WAR == level )
+        fprintf(M_log_fd, "WARNING: ");
+
+    /* compile message with arguments into buffer */
+
+    va_list plist;
+    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
+
+    va_start(plist, message);
+    vsprintf(buffer, message, plist);
+    va_end(plist);
+
+    /* write to the log file */
+
+    fprintf(M_log_fd, "%s\n", buffer);
+
+#ifdef NPP_DEBUG
+    fflush(M_log_fd);
+#else
+    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
+#endif
+}
+
+
+/* --------------------------------------------------------------------------
    Write to log with date/time
 -------------------------------------------------------------------------- */
-void log_write_time(char level, const char *message, ...)
+void npp_log_write_time(char level, const char *message, ...)
 {
     if ( level > G_logLevel ) return;
 
@@ -8153,43 +8187,10 @@ void log_write_time(char level, const char *message, ...)
 
 
 /* --------------------------------------------------------------------------
-   Write to log
--------------------------------------------------------------------------- */
-void log_write(char level, const char *message, ...)
-{
-    if ( level > G_logLevel ) return;
-
-    if ( LOG_ERR == level )
-        fprintf(M_log_fd, "ERROR: ");
-    else if ( LOG_WAR == level )
-        fprintf(M_log_fd, "WARNING: ");
-
-    /* compile message with arguments into buffer */
-
-    va_list plist;
-    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
-
-    va_start(plist, message);
-    vsprintf(buffer, message, plist);
-    va_end(plist);
-
-    /* write to the log file */
-
-    fprintf(M_log_fd, "%s\n", buffer);
-
-#ifdef NPP_DEBUG
-    fflush(M_log_fd);
-#else
-    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
-#endif
-}
-
-
-/* --------------------------------------------------------------------------
    Write looong message to a log or --
    its first (NPP_MAX_LOG_STR_LEN-50) part if it's longer
 -------------------------------------------------------------------------- */
-void log_long(const char *message, int len, const char *desc)
+void npp_log_long(const char *message, int len, const char *desc)
 {
     if ( G_logLevel < LOG_DBG ) return;
 
@@ -8213,7 +8214,7 @@ void log_long(const char *message, int len, const char *desc)
 /* --------------------------------------------------------------------------
    Flush log
 -------------------------------------------------------------------------- */
-void log_flush()
+void npp_log_flush()
 {
     if ( M_log_fd != NULL )
         fflush(M_log_fd);
@@ -8221,18 +8222,36 @@ void log_flush()
 
 
 /* --------------------------------------------------------------------------
-   Close log
+   Switch log
 -------------------------------------------------------------------------- */
-void log_finish()
+void npp_lib_log_switch_to_stdout()
 {
-    if ( G_logLevel > 0 )
-        ALWAYS_T("Closing log");
-
     if ( M_log_fd != NULL && M_log_fd != stdout )
     {
         fclose(M_log_fd);
         M_log_fd = stdout;
     }
+}
+
+
+/* --------------------------------------------------------------------------
+   Switch log
+-------------------------------------------------------------------------- */
+void npp_lib_log_switch_to_file()
+{
+    npp_log_start("", G_test, TRUE);
+}
+
+
+/* --------------------------------------------------------------------------
+   Close log
+-------------------------------------------------------------------------- */
+void npp_log_finish()
+{
+    if ( G_logLevel > 0 )
+        ALWAYS_T("Closing log");
+
+    npp_lib_log_switch_to_stdout();
 }
 
 
@@ -8313,7 +8332,7 @@ static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
             k += 4;
         }
     }
-	
+
     if ( j )    /* trailing needed */
     {
         if ( j==1 )
