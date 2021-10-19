@@ -557,18 +557,18 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* authorization levels */
 
-#define AUTH_LEVEL_NONE                     0               /* no session */
-#define AUTH_LEVEL_ANONYMOUS                1               /* anonymous session */
-#define AUTH_LEVEL_LOGGED                   2               /* logged in session with lowest authorization level */
-#define AUTH_LEVEL_LOGGEDIN                 2
-#define AUTH_LEVEL_AUTHENTICATED            2
-#define AUTH_LEVEL_USER                     10
-#define AUTH_LEVEL_CUSTOMER                 20
-#define AUTH_LEVEL_STAFF                    30
-#define AUTH_LEVEL_MODERATOR                40
-#define AUTH_LEVEL_ADMIN                    50
-#define AUTH_LEVEL_ROOT                     100
-#define AUTH_LEVEL_NOBODY                   125             /* for resources' whitelisting */
+#define AUTH_LEVEL_NONE                     (char)0         /* no session */
+#define AUTH_LEVEL_ANONYMOUS                (char)1         /* anonymous session */
+#define AUTH_LEVEL_LOGGED                   (char)2         /* logged in session with lowest authorization level */
+#define AUTH_LEVEL_LOGGEDIN                 (char)2
+#define AUTH_LEVEL_AUTHENTICATED            (char)2
+#define AUTH_LEVEL_USER                     (char)10
+#define AUTH_LEVEL_CUSTOMER                 (char)20
+#define AUTH_LEVEL_STAFF                    (char)30
+#define AUTH_LEVEL_MODERATOR                (char)40
+#define AUTH_LEVEL_ADMIN                    (char)50
+#define AUTH_LEVEL_ROOT                     (char)100
+#define AUTH_LEVEL_NOBODY                   (char)125       /* for resources' whitelisting */
 
 #define CUSTOMER                            (SESSION.auth_level==AUTH_LEVEL_CUSTOMER)
 #define STAFF                               (SESSION.auth_level==AUTH_LEVEL_STAFF)
@@ -576,9 +576,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define ADMIN                               (SESSION.auth_level==AUTH_LEVEL_ADMIN)
 #define ROOT                                (SESSION.auth_level==AUTH_LEVEL_ROOT)
 
-#define LOGGED                              SESSION.auth_level>AUTH_LEVEL_ANONYMOUS
-#define LOGGEDIN                            SESSION.auth_level>AUTH_LEVEL_ANONYMOUS
-#define AUTHENTICATED                       SESSION.auth_level>AUTH_LEVEL_ANONYMOUS
+#define LOGGED                              (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
+#define LOGGEDIN                            (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
+#define AUTHENTICATED                       (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define UID                                 SESSION.user_id
 
 

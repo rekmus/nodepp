@@ -4171,7 +4171,7 @@ static void process_req(int ci)
 
     if ( LOGGED )
     {
-        DBG("Connection already authenticated");
+        DBG("Connection already authenticated, si=%d", G_connections[ci].si);
     }
     else if ( G_connections[ci].cookie_in_l[0] )  /* logged in sesid cookie present */
     {
@@ -4267,7 +4267,10 @@ static void process_req(int ci)
                 }
                 else
 #endif  /* NPP_ENABLE_RELOAD_CONF */
+                {
+                    DBG("Calling npp_app_main...");
                     npp_app_main(ci);         /* main application called here */
+                }
 #ifdef NPP_SET_TZ
             }
 #endif
