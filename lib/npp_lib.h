@@ -556,6 +556,7 @@ extern "C" {
     bool strdigits(const char *src);
 
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
+    void npp_bin2hex(char *dst, const unsigned char *src, int len);
     char *npp_today_gmt(void);
     char *npp_render_md(char *dest, const char *src, size_t dest_len);
     void npp_sort_messages(void);

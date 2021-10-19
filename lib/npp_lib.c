@@ -252,6 +252,25 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 }
 
 
+/* --------------------------------------------------------------------------
+   Binary to string
+---------------------------------------------------------------------------*/
+void npp_bin2hex(char *dst, const unsigned char *src, int len)
+{
+    char *d=dst;
+    char hex[4];
+    int i;
+
+    for ( i=0; i<len; ++i )
+    {
+        sprintf(hex, "%02x", src[i]);
+        d = stpcpy(d, hex);
+    }
+
+    *d = EOS;
+}
+
+
 
 
 #ifndef NPP_CLIENT
