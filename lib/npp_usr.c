@@ -397,13 +397,13 @@ int libusr_luses_ok(int ci)
     /* -------------------------------------------------- */
     /* cookie has not expired -- log user in */
 
-    eng_session_data_t us={0};   /* pass user information (in this case id) over to do_login */
+    eng_session_data_t us={0};   /* pass user information (in this case user_id) over to do_login */
 
     us.user_id = atoi(row[1]);
 
     char csrft[NPP_CSRFT_LEN+1];
 
-    if ( row[3] && row[3][0] )   /* from users_logins */
+    if ( row[3] && row[3][0] )   /* csrft from users_logins */
     {
         DBG("Using previous CSRFT [%s]", row[3]);
         strcpy(csrft, row[3]);
@@ -657,11 +657,11 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
 
     DBG("do_login");
 
-    UID = us->user_id;
+    SESSION.user_id = us->user_id;
 
     if ( status == 100 )    /* login from cookie -- we only have a user id from users_logins */
     {
-        sprintf(sql, "SELECT login,email,name,phone,lang,about,group_id,auth_level,status,visits FROM users WHERE id=%d", UID);
+        sprintf(sql, "SELECT login,email,name,phone,lang,about,group_id,auth_level,status,visits FROM users WHERE id=%d", SESSION.user_id);
         DBG("sql: %s", sql);
         mysql_query(G_dbconn, sql);
         result = mysql_store_result(G_dbconn);
@@ -728,6 +728,20 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
             WAR("group_id=%d not found in users_groups", SESSION.group_id);
 
         mysql_free_result(result);
+    }
+
+    /* set formats */
+
+    DBG("SESSION.lang [%s]", SESSION.lang);
+
+    if ( SESSION.lang[0] == EOS && G_connections[ci].lang[0] )  /* user has empty lang in database */
+    {
+        strcpy(SESSION.lang, G_connections[ci].lang);   /* formats should already be set */
+//        SESSION.formats = G_connections[ci].formats;    /* this should not be needed */
+    }
+    else if ( strcmp(SESSION.lang, G_connections[ci].lang) != 0 )   /* user has different lang in db than in req */
+    {
+        npp_lib_set_formats(ci, SESSION.lang);
     }
 
     /* upgrade anonymous session to logged in */
@@ -1328,7 +1342,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     char    email_u[NPP_EMAIL_LEN+1];
     char    name[NPP_UNAME_LEN+1];
     char    phone[NPP_PHONE_LEN+1];
-    QSVAL   lang;
+    char    lang[NPP_LANG_LEN+1];
     char    about[NPP_ABOUT_LEN+1];
     QSVAL   passwd;
     QSVAL   rpasswd;
@@ -1338,6 +1352,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     DBG("create_account");
 
+    /* ------------------------------------------------ */
     /* get the basics */
 
     if ( QS_HTML_ESCAPE("login", tmp) )
@@ -1349,6 +1364,8 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     else
         login[0] = EOS;
 
+    /* ------------------------------------------------ */
+
     if ( QS_HTML_ESCAPE("email", tmp) )
     {
         COPY(email, tmp, NPP_EMAIL_LEN);
@@ -1358,6 +1375,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     else
         email[0] = EOS;
 
+    /* ------------------------------------------------ */
     /* basic verification */
 
 #ifdef NPP_USERS_BY_EMAIL
@@ -1383,6 +1401,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 #endif
     }
 
+    /* ------------------------------------------------ */
     /* regardless of authentication method */
 
     if ( G_usersRequireActivation && !email[0] )
@@ -1391,6 +1410,8 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
         return ERR_EMAIL_EMPTY;
     }
 
+    /* ------------------------------------------------ */
+
     if ( !QS_HTML_ESCAPE("passwd", passwd)
             || !QS_HTML_ESCAPE("rpasswd", rpasswd) )
     {
@@ -1398,6 +1419,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
         return ERR_INVALID_REQUEST;
     }
 
+    /* ------------------------------------------------ */
     /* optional */
 
     if ( QS_HTML_ESCAPE("name", tmp) )
@@ -1409,6 +1431,8 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     else
         name[0] = EOS;
 
+    /* ------------------------------------------------ */
+
     if ( QS_HTML_ESCAPE("phone", tmp) )
     {
         COPY(phone, tmp, NPP_PHONE_LEN);
@@ -1418,17 +1442,25 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     else
         phone[0] = EOS;
 
-    if ( QS_HTML_ESCAPE("lang", lang) )
+    /* ------------------------------------------------ */
+
+    if ( QS_HTML_ESCAPE("lang", tmp) )
     {
-        lang[NPP_LANG_LEN] = EOS;
+        COPY(lang, tmp, NPP_LANG_LEN);
         stp_right(lang);
     }
-    else
-        lang[0] = EOS;
 
-    if ( !lang[0] ) strcpy(lang, G_connections[ci].lang);    /* use current request lang if empty */
+    if ( lang[0] && current_session && IS_SESSION && strcmp(lang, SESSION.lang) != 0 )
+    {
+        strcpy(SESSION.lang, lang);   /* update current session language */
+        npp_lib_set_formats(ci, lang);
+    }
+    else if ( lang[0]==EOS && IS_SESSION && SESSION.lang[0] )
+        strcpy(lang, SESSION.lang);         /* use current session language */
+    else if ( lang[0]==EOS && G_connections[ci].lang[0] )
+        strcpy(lang, G_connections[ci].lang);   /* use current request language */
 
-    if ( current_session && IS_SESSION ) strcpy(SESSION.lang, lang);
+    /* ------------------------------------------------ */
 
     if ( QS_HTML_ESCAPE("about", tmp) )
     {
@@ -1752,7 +1784,7 @@ int npp_usr_save_account(int ci)
     char        email[NPP_EMAIL_LEN+1];
     char        name[NPP_UNAME_LEN+1];
     char        phone[NPP_PHONE_LEN+1];
-    QSVAL       lang;
+    char        lang[NPP_LANG_LEN+1];
     char        about[NPP_ABOUT_LEN+1];
     QSVAL       passwd;
     QSVAL       rpasswd;
@@ -1770,11 +1802,15 @@ int npp_usr_save_account(int ci)
 
     DBG("npp_usr_save_account");
 
+    /* ------------------------------------------------ */
+
     if ( !QS_HTML_ESCAPE("opasswd", opasswd) )
     {
         WAR("Invalid request (opasswd missing)");
         return ERR_INVALID_REQUEST;
     }
+
+    /* ------------------------------------------------ */
 
     if ( QS_HTML_ESCAPE("login", tmp) )
     {
@@ -1784,6 +1820,8 @@ int npp_usr_save_account(int ci)
     else
         login[0] = EOS;
 
+    /* ------------------------------------------------ */
+
     if ( QS_HTML_ESCAPE("email", tmp) )
     {
         COPY(email, tmp, NPP_EMAIL_LEN);
@@ -1791,6 +1829,8 @@ int npp_usr_save_account(int ci)
     }
     else
         email[0] = EOS;
+
+    /* ------------------------------------------------ */
 
 #ifdef NPP_USERS_BY_EMAIL
     if ( !email[0] )    /* email empty */
@@ -1806,6 +1846,7 @@ int npp_usr_save_account(int ci)
     }
 #endif  /* NPP_USERS_BY_EMAIL */
 
+    /* ------------------------------------------------ */
     /* optional */
 
     if ( !QS_HTML_ESCAPE("passwd", passwd) )
@@ -1813,6 +1854,8 @@ int npp_usr_save_account(int ci)
 
     if ( !QS_HTML_ESCAPE("rpasswd", rpasswd) )
         rpasswd[0] = EOS;
+
+    /* ------------------------------------------------ */
 
     if ( QS_HTML_ESCAPE("name", tmp) )
     {
@@ -1822,6 +1865,8 @@ int npp_usr_save_account(int ci)
     else
         name[0] = EOS;
 
+    /* ------------------------------------------------ */
+
     if ( QS_HTML_ESCAPE("phone", tmp) )
     {
         COPY(phone, tmp, NPP_PHONE_LEN);
@@ -1830,10 +1875,27 @@ int npp_usr_save_account(int ci)
     else
         phone[0] = EOS;
 
-    if ( QS_HTML_ESCAPE("lang", lang) )
+    /* ------------------------------------------------ */
+
+    if ( QS_HTML_ESCAPE("lang", tmp) )
+    {
+        COPY(lang, tmp, NPP_LANG_LEN);
         stp_right(lang);
+    }
     else
         lang[0] = EOS;
+
+    if ( lang[0] && IS_SESSION && strcmp(lang, SESSION.lang) != 0 )
+    {
+        strcpy(SESSION.lang, lang);   /* update current session language */
+        npp_lib_set_formats(ci, lang);
+    }
+    else if ( lang[0]==EOS && IS_SESSION && SESSION.lang[0] )
+        strcpy(lang, SESSION.lang);         /* use current session language */
+    else if ( lang[0]==EOS && G_connections[ci].lang[0] )
+        strcpy(lang, G_connections[ci].lang);   /* use current request language */
+
+    /* ------------------------------------------------ */
 
     if ( QS_HTML_ESCAPE("about", tmp) )
     {
@@ -1843,6 +1905,7 @@ int npp_usr_save_account(int ci)
     else
         about[0] = EOS;
 
+    /* ------------------------------------------------ */
     /* remember form fields */
     /* SESSION.email contains old email */
 
@@ -1852,11 +1915,10 @@ int npp_usr_save_account(int ci)
     strcpy(us_new.email, email);
     strcpy(us_new.name, name);
     strcpy(us_new.phone, phone);
-
-    strncpy(us_new.lang, lang, NPP_LANG_LEN);
-    us_new.lang[NPP_LANG_LEN] = EOS;
+    strcpy(us_new.lang, lang);
     strcpy(us_new.about, about);
 
+    /* ------------------------------------------------ */
     /* basic validation */
 
     plen = strlen(passwd);

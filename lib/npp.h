@@ -991,7 +991,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define ID                              G_connections[ci].id
 #define SESSION                         G_sessions[G_connections[ci].si]
 #define SESSION_DATA                    G_app_session_data[G_connections[ci].si]
-#define IS_SESSION                      G_connections[ci].si
+#define IS_SESSION                      (G_connections[ci].si>0)
 #define HOST(str)                       (0==strcmp(G_connections[ci].host_normalized, npp_upper(str)))
 #define REQ_GET_HEADER(header)          npp_eng_get_header(ci, header)
 

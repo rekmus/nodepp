@@ -225,6 +225,12 @@
 #define NPP_NUMBER_TS_COMMA             0x10
 #define NPP_NUMBER_TS_DOT               0x20
 
+/* set (X0000000) */
+
+#define NPP_FORMATS_SET                 0x80
+
+#define NPP_IS_FORMATS_SET              ((G_connections[ci].formats & NPP_FORMATS_SET) == NPP_FORMATS_SET)
+
 
 
 /* format date */
@@ -627,7 +633,7 @@ extern "C" {
 
 #ifndef NPP_CLIENT  /* web app only */
     void npp_lib_init_random_numbers(void);
-    void npp_lib_set_datetime_formats(int ci);
+    void npp_lib_set_formats(int ci, const char *lang);
     char *npp_get_message(int ci, int code);
     void npp_out_html_header(int ci);
     void npp_out_html_footer(int ci);

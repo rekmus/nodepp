@@ -6335,7 +6335,14 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "ACCEPT-LANGUAGE") )    /* en-US en-GB pl-PL */
     {
-        if ( !IS_SESSION || !SESSION.lang[0] )    /* session data has priority */
+/*        if ( !IS_SESSION )
+            DBG("No session");
+
+        if ( SESSION.lang[0]==EOS )
+            DBG("No lang in session, SESSION.lang [%s]", SESSION.lang);*/
+
+        if ( !IS_SESSION || SESSION.lang[0]==EOS )    /* session data has priority */
+//        if ( !NPP_IS_FORMATS_SET )
         {
             DBG("No session or no language in session, setting formats");
 
@@ -6350,12 +6357,11 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
             DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
 
-            /* for npp_message and npp_lib_get_string if no session */
-
-//            strcpy(G_sessions[0].lang, G_connections[ci].lang);
-
             if ( G_connections[ci].lang[0] )
-                npp_lib_set_datetime_formats(ci);
+            {
+                npp_lib_set_formats(ci, G_connections[ci].lang);
+                strcpy(SESSION.lang, G_connections[ci].lang);
+            }
         }
     }
 #ifdef NPP_HTTP2

@@ -8902,30 +8902,31 @@ static int  since_seed=0;
 
 /* --------------------------------------------------------------------------
    Set date format, decimal & thousand separator
+   for current connection and session
 ---------------------------------------------------------------------------*/
-void npp_lib_set_datetime_formats(int ci)
+void npp_lib_set_formats(int ci, const char *lang)
 {
-    DDBG("npp_lib_set_datetime_formats, lang [%s]", G_connections[ci].lang);
+    DBG("npp_lib_set_formats, lang [%s]", lang);
 
     /* date format */
 
-    if ( 0==strcmp(G_connections[ci].lang, "EN-US") )
+    if ( 0==strcmp(lang, "EN-US") )
         G_connections[ci].formats |= NPP_DATE_US;
-    else if ( 0==strcmp(G_connections[ci].lang, "EN-GB") || 0==strcmp(G_connections[ci].lang, "EN-AU") || 0==strcmp(G_connections[ci].lang, "FR-FR") || 0==strcmp(G_connections[ci].lang, "EN-IE") || 0==strcmp(G_connections[ci].lang, "ES-ES") || 0==strcmp(G_connections[ci].lang, "IT-IT") || 0==strcmp(G_connections[ci].lang, "PT-PT") || 0==strcmp(G_connections[ci].lang, "PT-BR") || 0==strcmp(G_connections[ci].lang, "ES-AR") )
+    else if ( 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "FR-FR") || 0==strcmp(lang, "EN-IE") || 0==strcmp(lang, "ES-ES") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "PT-PT") || 0==strcmp(lang, "PT-BR") || 0==strcmp(lang, "ES-AR") )
         G_connections[ci].formats |= NPP_DATE_GB;
-    else if ( 0==strcmp(G_connections[ci].lang, "PL-PL") || 0==strcmp(G_connections[ci].lang, "RU-RU") || 0==strcmp(G_connections[ci].lang, "DE-CH") || 0==strcmp(G_connections[ci].lang, "FR-CH") )
+    else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "RU-RU") || 0==strcmp(lang, "DE-CH") || 0==strcmp(lang, "FR-CH") )
         G_connections[ci].formats |= NPP_DATE_PL;
 
     /* amount format */
 
-    if ( 0==strcmp(G_connections[ci].lang, "EN-US") || 0==strcmp(G_connections[ci].lang, "EN-GB") || 0==strcmp(G_connections[ci].lang, "EN-AU") || 0==strcmp(G_connections[ci].lang, "TH-TH") )
+    if ( 0==strcmp(lang, "EN-US") || 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "TH-TH") )
     {
 //        M_dsep = '.';
 //        M_tsep = ',';
         G_connections[ci].formats |= NPP_NUMBER_DS_DOT;
         G_connections[ci].formats |= NPP_NUMBER_TS_COMMA;
     }
-    else if ( 0==strcmp(G_connections[ci].lang, "PL-PL") || 0==strcmp(G_connections[ci].lang, "IT-IT") || 0==strcmp(G_connections[ci].lang, "NB-NO") || 0==strcmp(G_connections[ci].lang, "ES-ES") )
+    else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "NB-NO") || 0==strcmp(lang, "ES-ES") )
     {
 //        M_dsep = ',';
 //        M_tsep = '.';
@@ -8936,6 +8937,10 @@ void npp_lib_set_datetime_formats(int ci)
 //        M_dsep = ',';
 //        M_tsep = ' ';
     }
+
+    G_connections[ci].formats |= NPP_FORMATS_SET;
+
+    SESSION.formats = G_connections[ci].formats;
 }
 
 
