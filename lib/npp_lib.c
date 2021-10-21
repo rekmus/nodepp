@@ -2996,18 +2996,13 @@ void npp_lib_send_msg_description(int ci, int code)
     strcpy(cat, get_msg_cat(code));
     strcpy(msg, npp_message(code));
 
-#ifdef NPP_SILGY_COMPATIBILITY
-    #ifdef MSG_FORMAT_JSON
-        OUT("{\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"}", code, cat, msg);
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
-    #else
-        OUT("%d|%s|%s", code, cat, msg);
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
-    #endif
-#else   /* always JSON */
+#ifdef NPP_MSG_DESCRIPTION_PIPES
+    OUT("%d|%s|%s", code, cat, msg);
+    G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
+#else   /* JSON */
     OUT("{\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"}", code, cat, msg);
     G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
-#endif  /* NPP_SILGY_COMPATIBILITY */
+#endif  /* NPP_MSG_DESCRIPTION_PIPES */
 
     RES_KEEP_CONTENT;
 

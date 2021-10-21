@@ -406,6 +406,10 @@
 #define NPP_USERS_BY_LOGIN
 #endif
 
+#ifndef MSG_FORMAT_JSON
+#define NPP_MSG_DESCRIPTION_PIPES
+#endif
+
 #define NPP_MULTI_HOST
 
 #ifndef ASYNC_EXCLUDE_AUS
