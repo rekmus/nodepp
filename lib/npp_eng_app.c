@@ -2459,9 +2459,12 @@ static bool init(int argc, char **argv)
 #endif
 
     ALWAYS("G_appdir [%s]", G_appdir);
+    ALWAYS("");
+    ALWAYS("test = %d", G_test);
     ALWAYS("logLevel = %d", G_logLevel);
     ALWAYS("logToStdout = %d", G_logToStdout);
     ALWAYS("logCombined = %d", G_logCombined);
+
     if ( argc > 1 )
     {
         ALWAYS("--------------------------------------------------------------------");
@@ -2470,13 +2473,13 @@ static bool init(int argc, char **argv)
     }
     else
         ALWAYS("httpPort = %d", G_httpPort);
+
     ALWAYS("httpsPort = %d", G_httpsPort);
     ALWAYS("dbHost [%s]", G_dbHost);
     ALWAYS("dbPort = %d", G_dbPort);
     ALWAYS("dbName [%s]", G_dbName);
     ALWAYS("ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
     ALWAYS("callHTTPTimeout = %d", G_callHTTPTimeout);
-    ALWAYS("test = %d", G_test);
 
     /* pid file ---------------------------------------------------------- */
 
