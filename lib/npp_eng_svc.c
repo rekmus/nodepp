@@ -256,24 +256,24 @@ int main(int argc, char *argv[])
 #ifdef NPP_ASYNC_ID
     if ( G_ASYNCId > -1 )
     {
-        sprintf(G_req_queue_name, "%s_%d__%d", ASYNC_REQ_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
-        sprintf(G_res_queue_name, "%s_%d__%d", ASYNC_RES_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
+        sprintf(G_req_queue_name, "%s_%d__%d", NPP_ASYNC_REQ_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
+        sprintf(G_res_queue_name, "%s_%d__%d", NPP_ASYNC_RES_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
     }
     else
     {
-        sprintf(G_req_queue_name, "%s_%d", ASYNC_REQ_QUEUE, NPP_ASYNC_ID);
-        sprintf(G_res_queue_name, "%s_%d", ASYNC_RES_QUEUE, NPP_ASYNC_ID);
+        sprintf(G_req_queue_name, "%s_%d", NPP_ASYNC_REQ_QUEUE, NPP_ASYNC_ID);
+        sprintf(G_res_queue_name, "%s_%d", NPP_ASYNC_RES_QUEUE, NPP_ASYNC_ID);
     }
 #else
     if ( G_ASYNCId > -1 )
     {
-        sprintf(G_req_queue_name, "%s__%d", ASYNC_REQ_QUEUE, G_ASYNCId);
-        sprintf(G_res_queue_name, "%s__%d", ASYNC_RES_QUEUE, G_ASYNCId);
+        sprintf(G_req_queue_name, "%s__%d", NPP_ASYNC_REQ_QUEUE, G_ASYNCId);
+        sprintf(G_res_queue_name, "%s__%d", NPP_ASYNC_RES_QUEUE, G_ASYNCId);
     }
     else
     {
-        strcpy(G_req_queue_name, ASYNC_REQ_QUEUE);
-        strcpy(G_res_queue_name, ASYNC_RES_QUEUE);
+        strcpy(G_req_queue_name, NPP_ASYNC_REQ_QUEUE);
+        strcpy(G_res_queue_name, NPP_ASYNC_RES_QUEUE);
     }
 #endif  /* NPP_ASYNC_ID */
 
@@ -406,7 +406,7 @@ int main(int argc, char *argv[])
             G_connections[0].status = G_svc_req.hdr.status;
             strcpy(G_connections[0].cust_headers, G_svc_req.hdr.cust_headers);
             G_connections[0].cust_headers_len = G_svc_req.hdr.cust_headers_len;
-            G_connections[0].ctype = G_svc_req.hdr.ctype;
+            G_connections[0].out_ctype = G_svc_req.hdr.out_ctype;
             strcpy(G_connections[0].ctypestr, G_svc_req.hdr.ctypestr);
             strcpy(G_connections[0].cdisp, G_svc_req.hdr.cdisp);
             strcpy(G_connections[0].cookie_out_a, G_svc_req.hdr.cookie_out_a);
@@ -518,7 +518,7 @@ int main(int argc, char *argv[])
                 G_svc_res.hdr.status = G_connections[0].status;
                 strcpy(G_svc_res.hdr.cust_headers, G_connections[0].cust_headers);
                 G_svc_res.hdr.cust_headers_len = G_connections[0].cust_headers_len;
-                G_svc_res.hdr.ctype = G_connections[0].ctype;
+                G_svc_res.hdr.out_ctype = G_connections[0].out_ctype;
                 strcpy(G_svc_res.hdr.ctypestr, G_connections[0].ctypestr);
                 strcpy(G_svc_res.hdr.cdisp, G_connections[0].cdisp);
                 strcpy(G_svc_res.hdr.cookie_out_a, G_connections[0].cookie_out_a);

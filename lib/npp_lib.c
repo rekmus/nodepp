@@ -2913,45 +2913,45 @@ bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
 void npp_lib_set_res_content_type(int ci, const char *str)
 {
     if ( 0==strcmp(str, "text/html; charset=utf-8") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_HTML;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(str, "text/plain") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
     else if ( 0==strcmp(str, "text/css") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_CSS;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_CSS;
     else if ( 0==strcmp(str, "application/javascript") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_JS;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JS;
     else if ( 0==strcmp(str, "image/gif") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_GIF;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_GIF;
     else if ( 0==strcmp(str, "image/jpeg") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_JPG;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JPG;
     else if ( 0==strcmp(str, "image/x-icon") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_ICO;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(str, "image/png") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_PNG;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PNG;
     else if ( 0==strcmp(str, "image/bmp") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_BMP;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_BMP;
     else if ( 0==strcmp(str, "image/svg+xml") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_SVG;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(str, "application/json") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JSON;
     else if ( 0==strcmp(str, "application/pdf") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_PDF;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PDF;
     else if ( 0==strcmp(str, "audio/mpeg") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_AMPEG;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(str, "application/x-msdownload") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_EXE;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(str, "application/zip") )
-        G_connections[ci].ctype = NPP_CONTENT_TYPE_ZIP;
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ZIP;
     else    /* custom */
     {
         if ( 0==strncmp(str, "text/html", 9) )
-            G_connections[ci].ctype = NPP_CONTENT_TYPE_HTML;
+            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
         else if ( 0==strncmp(str, "text/plain", 10) )
-            G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
+            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
         else if ( !str[0] )
-            G_connections[ci].ctype = NPP_CONTENT_TYPE_UNSET;
+            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_UNSET;
         else
-            G_connections[ci].ctype = NPP_CONTENT_TYPE_USER;
+            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_USER;
 
         COPY(G_connections[ci].ctypestr, str, NPP_CONTENT_TYPE_LEN);
     }
@@ -2998,10 +2998,10 @@ void npp_lib_send_msg_description(int ci, int code)
 
 #ifdef NPP_MSG_DESCRIPTION_PIPES
     OUT("%d|%s|%s", code, cat, msg);
-    G_connections[ci].ctype = NPP_CONTENT_TYPE_TEXT;
+    RES_CONTENT_TYPE_TEXT;
 #else   /* JSON */
     OUT("{\"code\":%d,\"category\":\"%s\",\"message\":\"%s\"}", code, cat, msg);
-    G_connections[ci].ctype = NPP_CONTENT_TYPE_JSON;
+    RES_CONTENT_TYPE_JSON;
 #endif  /* NPP_MSG_DESCRIPTION_PIPES */
 
     RES_KEEP_CONTENT;
@@ -5102,22 +5102,16 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Add spaces to make string to have len length
 -------------------------------------------------------------------------- */
-char *npp_add_spaces(const char *src, int len)
+char *npp_add_spaces(const char *src, int new_len)
 {
 static char dst[NPP_LIB_STR_BUF];
-    int     src_len;
-    int     spaces;
-    int     i;
 
-    src_len = strlen(src);
-
-    spaces = len - src_len;
-
-    if ( spaces < 0 ) spaces = 0;
+    int src_len = strlen(src);
 
     strcpy(dst, src);
 
-    for ( i=src_len; i<len; ++i )
+    int i;
+    for ( i=src_len; i<new_len; ++i )
         dst[i] = ' ';
 
     dst[i] = EOS;
@@ -5129,19 +5123,17 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Add leading spaces to make string to have len length
 -------------------------------------------------------------------------- */
-char *npp_add_lspaces(const char *src, int len)
+char *npp_add_lspaces(const char *src, int new_len)
 {
 static char dst[NPP_LIB_STR_BUF];
-    int     src_len;
-    int     spaces;
-    int     i;
 
-    src_len = strlen(src);
+    int src_len = strlen(src);
 
-    spaces = len - src_len;
+    int spaces = new_len - src_len;
 
     if ( spaces < 0 ) spaces = 0;
 
+    int i;
     for ( i=0; i<spaces; ++i )
         dst[i] = ' ';
 

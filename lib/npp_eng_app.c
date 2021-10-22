@@ -958,7 +958,7 @@ int main(int argc, char **argv)
 
                 strcpy(G_connections[res.ci].cust_headers, res.hdr.cust_headers);
                 G_connections[res.ci].cust_headers_len = res.hdr.cust_headers_len;
-                G_connections[res.ci].ctype = res.hdr.ctype;
+                G_connections[res.ci].out_ctype = res.hdr.out_ctype;
                 strcpy(G_connections[res.ci].ctypestr, res.hdr.ctypestr);
                 strcpy(G_connections[res.ci].cdisp, res.hdr.cdisp);
                 strcpy(G_connections[res.ci].cookie_out_a, res.hdr.cookie_out_a);
@@ -2797,24 +2797,24 @@ static bool init(int argc, char **argv)
 #ifdef NPP_ASYNC_ID
     if ( G_ASYNCId > -1 )
     {
-        sprintf(G_req_queue_name, "%s_%d__%d", ASYNC_REQ_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
-        sprintf(G_res_queue_name, "%s_%d__%d", ASYNC_RES_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
+        sprintf(G_req_queue_name, "%s_%d__%d", NPP_ASYNC_REQ_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
+        sprintf(G_res_queue_name, "%s_%d__%d", NPP_ASYNC_RES_QUEUE, NPP_ASYNC_ID, G_ASYNCId);
     }
     else
     {
-        sprintf(G_req_queue_name, "%s_%d", ASYNC_REQ_QUEUE, NPP_ASYNC_ID);
-        sprintf(G_res_queue_name, "%s_%d", ASYNC_RES_QUEUE, NPP_ASYNC_ID);
+        sprintf(G_req_queue_name, "%s_%d", NPP_ASYNC_REQ_QUEUE, NPP_ASYNC_ID);
+        sprintf(G_res_queue_name, "%s_%d", NPP_ASYNC_RES_QUEUE, NPP_ASYNC_ID);
     }
 #else
     if ( G_ASYNCId > -1 )
     {
-        sprintf(G_req_queue_name, "%s__%d", ASYNC_REQ_QUEUE, G_ASYNCId);
-        sprintf(G_res_queue_name, "%s__%d", ASYNC_RES_QUEUE, G_ASYNCId);
+        sprintf(G_req_queue_name, "%s__%d", NPP_ASYNC_REQ_QUEUE, G_ASYNCId);
+        sprintf(G_res_queue_name, "%s__%d", NPP_ASYNC_RES_QUEUE, G_ASYNCId);
     }
     else
     {
-        strcpy(G_req_queue_name, ASYNC_REQ_QUEUE);
-        strcpy(G_res_queue_name, ASYNC_RES_QUEUE);
+        strcpy(G_req_queue_name, NPP_ASYNC_REQ_QUEUE);
+        strcpy(G_res_queue_name, NPP_ASYNC_RES_QUEUE);
     }
 #endif  /* NPP_ASYNC_ID */
 
@@ -4723,14 +4723,14 @@ static void gen_response_header(int ci)
             else    /* static resource */
             {
                 G_connections[ci].clen = M_stat[G_connections[ci].static_res].len;
-                G_connections[ci].ctype = M_stat[G_connections[ci].static_res].type;
+                G_connections[ci].out_ctype = M_stat[G_connections[ci].static_res].type;
             }
 
             /* compress? ------------------------------------------------------------------ */
 
 #ifndef _WIN32  /* in Windows it's just too much headache */
 
-            if ( SHOULD_BE_COMPRESSED(G_connections[ci].clen, G_connections[ci].ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[ci].flags) && !NPP_UA_IE )
+            if ( SHOULD_BE_COMPRESSED(G_connections[ci].clen, G_connections[ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[ci].flags) && !NPP_UA_IE )
             {
                 if ( G_connections[ci].static_res==NPP_NOT_STATIC )
                 {
@@ -4814,9 +4814,9 @@ static              bool first=TRUE;
 #endif
                 PRINT_HTTP_CONTENT_TYPE(G_connections[ci].ctypestr);
         }
-        else if ( G_connections[ci].ctype != NPP_CONTENT_TYPE_UNSET )
+        else if ( G_connections[ci].out_ctype != NPP_CONTENT_TYPE_UNSET )
         {
-            print_content_type(ci, G_connections[ci].ctype);
+            print_content_type(ci, G_connections[ci].out_ctype);
         }
 
         /* Content-Disposition */
@@ -4994,7 +4994,7 @@ static              bool first=TRUE;
             && G_connections[ci].method[0]!='H'
             && G_connections[ci].static_res==NPP_NOT_STATIC
             && !compressed
-            && (G_connections[ci].ctype==NPP_CONTENT_TYPE_TEXT || G_connections[ci].ctype==NPP_CONTENT_TYPE_JSON) )
+            && (G_connections[ci].out_ctype==NPP_CONTENT_TYPE_TEXT || G_connections[ci].out_ctype==NPP_CONTENT_TYPE_JSON) )
         npp_log_long(G_connections[ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[ci].clen, "Content to send");
 #endif  /* NPP_DEBUG */
 
@@ -5255,7 +5255,7 @@ static void reset_conn(int ci, char new_state)
     }
 
     G_connections[ci].static_res = NPP_NOT_STATIC;
-    G_connections[ci].ctype = NPP_CONTENT_TYPE_HTML;
+    G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     G_connections[ci].ctypestr[0] = EOS;
     G_connections[ci].cdisp[0] = EOS;
     G_connections[ci].modified = 0;
@@ -6912,7 +6912,7 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
     req.hdr.status = G_connections[ci].status;
     strcpy(req.hdr.cust_headers, G_connections[ci].cust_headers);
     req.hdr.cust_headers_len = G_connections[ci].cust_headers_len;
-    req.hdr.ctype = G_connections[ci].ctype;
+    req.hdr.out_ctype = G_connections[ci].out_ctype;
     strcpy(req.hdr.ctypestr, G_connections[ci].ctypestr);
     strcpy(req.hdr.cdisp, G_connections[ci].cdisp);
     strcpy(req.hdr.cookie_out_a, G_connections[ci].cookie_out_a);
@@ -7024,7 +7024,7 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
                 M_areqs[j].state = NPP_ASYNC_STATE_SENT;
                 M_areqs[j].sent = G_now;
                 if ( timeout < 0 ) timeout = 0;
-                if ( timeout == 0 || timeout > ASYNC_MAX_TIMEOUT ) timeout = ASYNC_MAX_TIMEOUT;
+                if ( timeout == 0 || timeout > NPP_ASYNC_MAX_TIMEOUT ) timeout = NPP_ASYNC_MAX_TIMEOUT;
                 M_areqs[j].timeout = timeout;
                 req.hdr.ai = j;
                 found = 1;

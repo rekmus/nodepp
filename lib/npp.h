@@ -897,15 +897,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_ASYNC_STATE_FREE            '0'
 #define NPP_ASYNC_STATE_SENT            '1'
 
-#define ASYNC_REQ_QUEUE                 "/npp_req"              /* request queue name */
-#define ASYNC_RES_QUEUE                 "/npp_res"              /* response queue name */
-#define NPP_ASYNC_DEF_TIMEOUT               60                      /* in seconds */
-#define ASYNC_MAX_TIMEOUT               1800                    /* in seconds ==> 30 minutes */
-
-//#define ASYNC_PAYLOAD_MSG               0
-//#define ASYNC_PAYLOAD_SHM               1
-
-#define ASYNC_SHM_SIZE                  NPP_MAX_PAYLOAD_SIZE
+#define NPP_ASYNC_REQ_QUEUE             "/npp_req"              /* request queue name */
+#define NPP_ASYNC_RES_QUEUE             "/npp_res"              /* response queue name */
+#define NPP_ASYNC_DEF_TIMEOUT           60                      /* in seconds */
+#define NPP_ASYNC_MAX_TIMEOUT           1800                    /* in seconds ==> 30 minutes */
 
 #define NPP_SVC_NAME_LEN                63                      /* async service name length */
 
@@ -1050,9 +1045,13 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define RES_CONTENT_TYPE(str)           npp_lib_set_res_content_type(ci, str)
 #define RES_LOCATION(str, ...)          npp_lib_set_res_location(ci, str, ##__VA_ARGS__)
 #define RES_REDIRECT(str, ...)          RES_LOCATION(str, ##__VA_ARGS__)
-#define RES_KEEP_CONTENT                G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_CONTENT
-#define RES_DONT_CACHE                  G_connections[ci].flags |= NPP_CONN_FLAG_DONT_CACHE
+#define RES_KEEP_CONTENT                (G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_CONTENT)
+#define RES_DONT_CACHE                  (G_connections[ci].flags |= NPP_CONN_FLAG_DONT_CACHE)
 #define RES_CONTENT_DISPOSITION(str, ...) npp_lib_set_res_content_disposition(ci, str, ##__VA_ARGS__)
+
+#define RES_CONTENT_TYPE_TEXT           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT)
+#define RES_CONTENT_TYPE_HTML           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML)
+#define RES_CONTENT_TYPE_JSON           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JSON)
 
 #define REDIRECT_TO_LANDING             sprintf(G_connections[ci].location, "%s://%s", NPP_PROTOCOL, G_connections[ci].host)
 
@@ -1178,11 +1177,8 @@ typedef struct {
     int      ci;
     char     service[NPP_SVC_NAME_LEN+1];
     /* pass some request details over */
-//    bool     secure;
     char     ip[INET_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
-//    bool     post;
-//    char     payload_location;
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 1
@@ -1215,11 +1211,10 @@ typedef struct {
     char     lang[NPP_LANG_LEN+1];
     char     in_ctype;
     char     boundary[NPP_MAX_BOUNDARY_LEN+1];
-//    char     want_response;
     int      status;
     char     cust_headers[NPP_CUST_HDR_LEN+1];
     int      cust_headers_len;
-    char     ctype;
+    char     out_ctype;
     char     ctypestr[NPP_CONTENT_TYPE_LEN+1];
     char     cdisp[NPP_CONTENT_DISP_LEN+1];
     char     cookie_out_a[NPP_SESSID_LEN+1];
@@ -1228,9 +1223,6 @@ typedef struct {
     char     cookie_out_l_exp[32];
     char     location[NPP_MAX_URI_LEN+1];
     int      si;
-//    bool     bot;
-//    bool     dont_cache;
-//    bool     keep_content;
     char     flags;
     char     async_flags;
     eng_session_data_t eng_session_data;
@@ -1272,7 +1264,7 @@ typedef struct {
     int      status;
     char     cust_headers[NPP_CUST_HDR_LEN+1];
     int      cust_headers_len;
-    char     ctype;
+    char     out_ctype;
     char     ctypestr[NPP_CONTENT_TYPE_LEN+1];
     char     cdisp[NPP_CONTENT_DISP_LEN+1];
     char     cookie_out_a[NPP_SESSID_LEN+1];
@@ -1280,8 +1272,6 @@ typedef struct {
     char     cookie_out_l[NPP_SESSID_LEN+1];
     char     cookie_out_l_exp[32];
     char     location[NPP_MAX_URI_LEN+1];
-//    bool     dont_cache;
-//    bool     keep_content;
     int      call_http_status;
     unsigned call_http_req_cnt;
     double   call_http_elapsed;
@@ -1363,10 +1353,8 @@ typedef struct {
 
 #ifdef NPP_SVC
 typedef struct {                            /* request details for npp_svc */
-//    bool     secure;
     char     ip[INET_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
-//    bool     post;
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 1
@@ -1405,7 +1393,7 @@ typedef struct {                            /* request details for npp_svc */
     int      status;
     char     cust_headers[NPP_CUST_HDR_LEN+1];
     int      cust_headers_len;
-    char     ctype;
+    char     out_ctype;
     char     ctypestr[NPP_CONTENT_TYPE_LEN+1];
     char     cdisp[NPP_CONTENT_DISP_LEN+1];
     char     cookie_out_a[NPP_SESSID_LEN+1];
@@ -1414,9 +1402,6 @@ typedef struct {                            /* request details for npp_svc */
     char     cookie_out_l_exp[32];
     char     location[NPP_MAX_URI_LEN+1];
     int      si;
-//    bool     bot;
-//    bool     dont_cache;
-//    bool     keep_content;
     char     flags;
 } npp_connection_t;
 #else   /* NPP_APP */
@@ -1427,16 +1412,11 @@ typedef struct {
 #else
     int      fd;                                /* file descriptor */
 #endif  /* _WIN32 */
-//    bool     secure;                            /* https? */
     char     ip[INET_ADDRSTRLEN];               /* client IP */
-//    char     pip[INET_ADDRSTRLEN];              /* proxy IP */
     char     in[NPP_IN_BUFSIZE];                /* the whole incoming request */
     char     method[NPP_METHOD_LEN+1];          /* HTTP method */
     unsigned was_read;                          /* request bytes read so far */
-//    bool     upgrade2https;                     /* Upgrade-Insecure-Requests = 1 */
     /* parsed HTTP request starts here */
-//    bool     head_only;                         /* request method = HEAD */
-//    bool     post;                              /* request method != GET (can contain payload) */
     char     uri[NPP_MAX_URI_LEN+1];            /* requested URI string */
     char     resource[NPP_MAX_RESOURCE_LEN+1];  /* from URI (REQ0) */
 #if NPP_RESOURCE_LEVELS > 1
@@ -1472,7 +1452,6 @@ typedef struct {
 #endif  /* NPP_HTTP2 */
     char     uagent[NPP_MAX_VALUE_LEN+1];           /* user agent string */
     char     ua_type;
-//    bool     keep_alive;
     char     referer[NPP_MAX_VALUE_LEN+1];
     unsigned clen;                                  /* incoming & outgoing content length */
     char     in_cookie[NPP_MAX_VALUE_LEN+1];
@@ -1491,7 +1470,6 @@ typedef struct {
     char     in_ctype;                              /* content type */
     char     boundary[NPP_MAX_BOUNDARY_LEN+1];      /* for POST multipart/form-data type */
     char     authorization[NPP_MAX_VALUE_LEN+1];    /* Authorization header */
-//    bool     accept_deflate;
     /* POST data */
     char     *in_data;                          /* POST data */
     /* what goes out */
@@ -1509,7 +1487,7 @@ typedef struct {
     char     cust_headers[NPP_CUST_HDR_LEN+1];
     int      cust_headers_len;
     unsigned data_sent;                         /* how many content bytes have been sent */
-    char     ctype;                             /* content type */
+    char     out_ctype;                         /* content type */
     char     ctypestr[NPP_CONTENT_TYPE_LEN+1];  /* user (custom) content type */
     char     cdisp[NPP_CONTENT_DISP_LEN+1];     /* content disposition */
     time_t   modified;
@@ -1529,12 +1507,9 @@ typedef struct {
     SSL      *ssl;
 #endif
     int      ssl_err;
-    int      si;                               /* user session index */
+    int      si;                                /* user session index */
     int      static_res;                        /* static resource index in M_stat */
     time_t   last_activity;
-//    bool     bot;
-//    bool     dont_cache;
-//    bool     keep_content;                      /* don't reset already rendered content on error */
 #ifdef NPP_FD_MON_POLL
     int      pi;                                /* pollfds array index */
 #endif

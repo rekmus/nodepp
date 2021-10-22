@@ -430,10 +430,13 @@
 
 #define PROTOCOL                        NPP_PROTOCOL
 
+
+/* OpenSSL */
+
 #define SHA1_DIGEST_SIZE                20
 
 #define libSHA1                         SHA1
-#define Base64encode(src, dst, size)    b64_encode(src, (const unsigned char*)dst, size)
+#define Base64encode(src, dst, size)    npp_b64_encode(src, (const unsigned char*)dst, size)
 
 #include <openssl/md5.h>
 
@@ -504,6 +507,13 @@
 #endif  /* JSON_NO_AUTO_AMPERSANDS */
 
 
+/* functions */
+
+#define upper                           npp_upper
+#define log_long                        npp_log_long
+#define lib_add_spaces                  npp_add_spaces
+#define lib_add_lspaces                 npp_add_lspaces
+
 
 /* API authorization flags */
 
@@ -557,6 +567,7 @@
 #define AUS     SESSION_DATA
 #define p4outp  G_strm
 #define website app_name
+#define ctype   out_ctype
 
 
 #endif  /* NPP_SILGY_H */

@@ -374,6 +374,11 @@
 #define AI_USERS_DAU                        'd'     /* daily active */
 
 
+/* convenience */
+
+#define urlencode                           npp_url_encode
+
+
 
 /* APP-configurable */
 
@@ -523,8 +528,8 @@ extern "C" {
     void npp_update_time_globals(void);
     char *npp_url_encode(const char *src);
     char *npp_filter_strict(const char *src);
-    char *npp_add_spaces(const char *src, int len);
-    char *npp_add_lspaces(const char *src, int len);
+    char *npp_add_spaces(const char *src, int new_len);
+    char *npp_add_lspaces(const char *src, int new_len);
     char *npp_get_file_ext(const char *fname);
     void date_str2rec(const char *str, date_t *rec);
     void date_rec2str(char *str, date_t *rec);
