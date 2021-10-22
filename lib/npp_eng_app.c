@@ -5035,8 +5035,12 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "image/svg+xml");
     else if ( type == NPP_CONTENT_TYPE_JSON )
         strcpy(http_type, "application/json");
+    else if ( type == NPP_CONTENT_TYPE_MD )
+        strcpy(http_type, "text/markdown");
     else if ( type == NPP_CONTENT_TYPE_PDF )
         strcpy(http_type, "application/pdf");
+    else if ( type == NPP_CONTENT_TYPE_XML )
+        strcpy(http_type, "application/xml");
     else if ( type == NPP_CONTENT_TYPE_AMPEG )
         strcpy(http_type, "audio/mpeg");
     else if ( type == NPP_CONTENT_TYPE_EXE )

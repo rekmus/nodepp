@@ -154,6 +154,8 @@
 
 #define RES_HEADER(key, val)            npp_lib_res_header(ci, key, val)
 
+#define RES_CONTENT_TYPE_FROM_FILE_EXTENSION(fname) (G_connections[ci].out_ctype = npp_lib_get_res_type(fname))
+
 
 #define NPP_OPER_CONNECT                '0'
 #define NPP_OPER_READ                   '1'

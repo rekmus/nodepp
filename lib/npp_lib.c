@@ -2934,8 +2934,12 @@ void npp_lib_set_res_content_type(int ci, const char *str)
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(str, "application/json") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JSON;
+    else if ( 0==strcmp(str, "text/markdown") )
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_MD;
     else if ( 0==strcmp(str, "application/pdf") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PDF;
+    else if ( 0==strcmp(str, "application/xml") )
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_XML;
     else if ( 0==strcmp(str, "audio/mpeg") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(str, "application/x-msdownload") )
@@ -5202,11 +5206,9 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_CSS;
     else if ( 0==strcmp(uext, "JS") )
         return NPP_CONTENT_TYPE_JS;
-    else if ( 0==strcmp(uext, "PDF") )
-        return NPP_CONTENT_TYPE_PDF;
     else if ( 0==strcmp(uext, "GIF") )
         return NPP_CONTENT_TYPE_GIF;
-    else if ( 0==strcmp(uext, "JPG") )
+    else if ( 0==strcmp(uext, "JPG") || 0==strcmp(uext, "JPEG") )
         return NPP_CONTENT_TYPE_JPG;
     else if ( 0==strcmp(uext, "ICO") )
         return NPP_CONTENT_TYPE_ICO;
@@ -5216,6 +5218,14 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_BMP;
     else if ( 0==strcmp(uext, "SVG") )
         return NPP_CONTENT_TYPE_SVG;
+    else if ( 0==strcmp(uext, "JSON") )
+        return NPP_CONTENT_TYPE_JSON;
+    else if ( 0==strcmp(uext, "MD") )
+        return NPP_CONTENT_TYPE_MD;
+    else if ( 0==strcmp(uext, "PDF") )
+        return NPP_CONTENT_TYPE_PDF;
+    else if ( 0==strcmp(uext, "XML") )
+        return NPP_CONTENT_TYPE_XML;
     else if ( 0==strcmp(uext, "MP3") )
         return NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(uext, "EXE") )

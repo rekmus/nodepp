@@ -2497,7 +2497,7 @@ int npp_usr_get_avatar(int ci, int user_id)
 
     OUT_BIN(row[1], lengths[1]);
 
-    G_connections[ci].out_ctype = npp_lib_get_res_type(row[0]);
+    RES_CONTENT_TYPE_FROM_FILE_EXTENSION(row[0]);
 
     DBG("File: [%s], size = %ul", row[0], lengths[1]);
 

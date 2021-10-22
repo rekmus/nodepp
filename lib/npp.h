@@ -951,9 +951,11 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_BMP            'b'
 #define NPP_CONTENT_TYPE_SVG            'v'
 //#define NPP_CONTENT_TYPE_JSON           'o'
+#define NPP_CONTENT_TYPE_MD             'm'
 #define NPP_CONTENT_TYPE_PDF            'a'
-#define NPP_CONTENT_TYPE_AMPEG          'm'
-#define NPP_CONTENT_TYPE_EXE            'x'
+#define NPP_CONTENT_TYPE_XML            'x'
+#define NPP_CONTENT_TYPE_AMPEG          '3'     /* mp3 */
+#define NPP_CONTENT_TYPE_EXE            'e'
 #define NPP_CONTENT_TYPE_ZIP            'z'
 
 
