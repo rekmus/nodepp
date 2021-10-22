@@ -2446,40 +2446,6 @@ static bool init(int argc, char **argv)
         return FALSE;
 
     ALWAYS("Starting program");
-    ALWAYS("");
-
-#ifdef __linux__
-    INF("This is Linux");
-    INF("");
-#endif
-
-#ifdef _WIN32
-    INF("This is Windows");
-    INF("");
-#endif
-
-    ALWAYS("G_appdir [%s]", G_appdir);
-    ALWAYS("");
-    ALWAYS("test = %d", G_test);
-    ALWAYS("logLevel = %d", G_logLevel);
-    ALWAYS("logToStdout = %d", G_logToStdout);
-    ALWAYS("logCombined = %d", G_logCombined);
-
-    if ( argc > 1 )
-    {
-        ALWAYS("--------------------------------------------------------------------");
-        WAR("httpPort = %d -- overwritten by a command line argument", G_httpPort);
-        ALWAYS("--------------------------------------------------------------------");
-    }
-    else
-        ALWAYS("httpPort = %d", G_httpPort);
-
-    ALWAYS("httpsPort = %d", G_httpsPort);
-    ALWAYS("dbHost [%s]", G_dbHost);
-    ALWAYS("dbPort = %d", G_dbPort);
-    ALWAYS("dbName [%s]", G_dbName);
-    ALWAYS("ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
-    ALWAYS("callHTTPTimeout = %d", G_callHTTPTimeout);
 
     /* pid file ---------------------------------------------------------- */
 
@@ -2498,11 +2464,22 @@ static bool init(int argc, char **argv)
     ALWAYS("");
     ALWAYS("System:");
     ALWAYS("-------");
-#ifdef NPP_DEBUG
-    // SIZE_MAX is not defined in older GCC!
-//    ALWAYS("              SIZE_MAX = %lu (%lu KiB / %lu MiB)", SIZE_MAX, SIZE_MAX/1024, SIZE_MAX/1024/1024);
+
+#ifdef __linux__
+    ALWAYS("This is Linux");
 #endif
+
+#ifdef _WIN32
+    ALWAYS("This is Windows");
+#endif
+
     npp_get_byteorder();
+
+    ALWAYS("");
+
+#ifdef SIZE_MAX
+    ALWAYS("                SIZE_MAX = %lu", SIZE_MAX);
+#endif
 
     ALWAYS("              FD_SETSIZE = %d", FD_SETSIZE);
     ALWAYS("               SOMAXCONN = %d", SOMAXCONN);
@@ -2636,17 +2613,56 @@ static bool init(int argc, char **argv)
 #endif
     ALWAYS("");
 #endif  /* NPP_USERS */
-    ALWAYS_LINE_LONG;
-    ALWAYS("");
 
 #ifdef NPP_DEBUG
     WAR("NPP_DEBUG is enabled, this file may grow big quickly!");
     ALWAYS("");
 #endif  /* NPP_DEBUG */
 
+    ALWAYS("Configuration:");
+    ALWAYS("--------------");
+    ALWAYS("test = %d", G_test);
+    ALWAYS("logLevel = %d", G_logLevel);
+    ALWAYS("logToStdout = %d", G_logToStdout);
+    ALWAYS("logCombined = %d", G_logCombined);
+
+    if ( argc > 1 )
+    {
+        ALWAYS("--------------------------------------------------------------------");
+        WAR("httpPort = %d -- overwritten by a command line argument", G_httpPort);
+        ALWAYS("--------------------------------------------------------------------");
+    }
+    else
+        ALWAYS("httpPort = %d", G_httpPort);
+
+    ALWAYS("httpsPort = %d", G_httpsPort);
+    ALWAYS("cipherList [%s]", G_cipherList);
+    ALWAYS("certFile [%s]", G_certFile);
+    ALWAYS("certChainFile [%s]", G_certChainFile);
+    ALWAYS("keyFile [%s]", G_keyFile);
+    ALWAYS("dbHost [%s]", G_dbHost);
+    ALWAYS("dbPort = %d", G_dbPort);
+    ALWAYS("dbName [%s]", G_dbName);
+    ALWAYS("usersRequireActivation = %d", G_usersRequireActivation);
+    ALWAYS("IPBlackList [%s]", G_IPBlackList);
+    ALWAYS("IPWhiteList [%s]", G_IPWhiteList);
+    ALWAYS("ASYNCId = %d", G_ASYNCId);
+    ALWAYS("ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
+    ALWAYS("callHTTPTimeout = %d", G_callHTTPTimeout);
+
+    ALWAYS("");
+    ALWAYS_LINE_LONG;
+    ALWAYS("");
+
+    ALWAYS("G_appdir [%s]", G_appdir);
+    ALWAYS("");
+
+
     /* USERS library init */
 
 #ifdef NPP_USERS
+    ALWAYS("Initializing USERS library...");
+
     libusr_init();
 #endif
 
@@ -2669,11 +2685,11 @@ static bool init(int argc, char **argv)
 
 #ifdef NPP_MYSQL
 
-    DBG("Trying npp_open_db...");
+    INF("Opening database...");
 
     if ( !npp_open_db() )
     {
-        ERR("npp_open_db failed");
+        ERR("npp_open_db() failed");
         return FALSE;
     }
 
@@ -2685,15 +2701,19 @@ static bool init(int argc, char **argv)
     /* custom init
        Among others, that may contain generating statics, like css and js */
 
+    INF("Calling npp_app_init()...");
+
     if ( !npp_app_init(argc, argv) )
     {
-        ERR("app_init() failed");
+        ERR("npp_app_init() failed");
         return FALSE;
     }
 
-    DBG("app_init() OK");
+    DBG("npp_app_init() OK");
 
     /* read static resources */
+
+    ALWAYS("Reading static resources...");
 
     if ( !read_resources(TRUE) )
     {
@@ -2703,26 +2723,15 @@ static bool init(int argc, char **argv)
 
     DBG("read_resources() OK");
 
-
-    /* libSHA1 test */
-
-/*    uint8_t sha1_res1[SHA1_DIGEST_SIZE];
-    char    sha1_res2[64];
-
-    DBG("");
-    DBG("Trying libSHA1...\n");
-    DBG("Expected: [A9993E36 4706816A BA3E2571 7850C26C 9CD0D89D]");
-
-    libSHA1((unsigned char*)"abc", 3, sha1_res1);
-
-    digest_to_hex(sha1_res1, sha1_res2);
-    DBG("     Got: [%s]\n", sha1_res2);*/
-
     /* fill the M_random_numbers up */
+
+    INF("Initializing random numbers...");
 
     npp_lib_init_random_numbers();
 
     /* calculate Expires and Last-Modified header fields for static resources */
+
+    INF("Setting Last-Modified value...");
 
 #ifdef _WIN32   /* Windows */
     strftime(G_last_modified, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
@@ -2730,6 +2739,8 @@ static bool init(int argc, char **argv)
     strftime(G_last_modified, 32, "%a, %d %b %Y %T GMT", G_ptm);
 #endif  /* _WIN32 */
     DBG("Now is: %s\n", G_last_modified);
+
+    INF("Setting Expires value...");
 
     set_expiry_dates();
 
@@ -2747,14 +2758,22 @@ static bool init(int argc, char **argv)
     /* initialize SSL connection ----------------------------------------- */
 
 #ifdef NPP_HTTPS
+
+    INF("Initializing SSL...");
+
     if ( !init_ssl() )
     {
-        ERR("init_ssl failed");
+        ERR("init_ssl() failed");
         return FALSE;
     }
+
+    DBG("init_ssl() OK");
+
 #endif  /* NPP_HTTPS */
 
     /* init G_connections array --------------------------------------------------- */
+
+    INF("Initializing connections...");
 
     for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
     {
@@ -2869,6 +2888,8 @@ static bool init(int argc, char **argv)
     INF("");
 
 #endif  /* NPP_ASYNC */
+
+    INF("Sorting messages...");
 
     npp_sort_messages();
 
