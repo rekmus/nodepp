@@ -5099,9 +5099,9 @@ static bool a_session_ok(int ci)
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
 #ifdef NPP_DEBUG
-            DBG("Anonymous session found, si=%d, sessid [%s]", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
+            DBG("Anonymous session found, si=%d, sessid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
 #else
-            DBG("Anonymous session found, si=%d", G_connections[ci].si);
+            DBG("Anonymous session found, si=%d (1)", G_connections[ci].si);
 #endif
             return TRUE;
         }
@@ -5123,9 +5123,9 @@ static bool a_session_ok(int ci)
                     && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
             {
 #ifdef NPP_DEBUG
-                DBG("Anonymous session found, si=%d, sessid [%s]", i, G_sessions[i].sessid);
+                DBG("Anonymous session found, si=%d, sessid [%s] (2)", i, G_sessions[i].sessid);
 #else
-                DBG("Anonymous session found, si=%d", i);
+                DBG("Anonymous session found, si=%d (2)", i);
 #endif
                 G_connections[ci].si = i;
                 return TRUE;
