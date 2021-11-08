@@ -788,7 +788,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 #endif  /* NPP_FD_MON_SELECT */
 
-#define CLOSING_SESSION_CI                  NPP_MAX_CONNECTIONS
+#define NPP_CLOSING_SESSION_CI              NPP_MAX_CONNECTIONS
 
 #define NPP_NOT_CONNECTED                   -1
 
@@ -1125,7 +1125,7 @@ typedef struct {
 
 typedef struct {
     /* id */
-    char    sesid[NPP_SESSID_LEN+1];
+    char    sessid[NPP_SESSID_LEN+1];
     /* connection data */
     char    ip[INET_ADDRSTRLEN];
     char    uagent[NPP_MAX_VALUE_LEN+1];
@@ -1736,7 +1736,7 @@ extern "C" {
 
     /* public internal */
 
-    int  npp_eng_session_start(int ci, const char *sesid);
+    int  npp_eng_session_start(int ci, const char *sessid);
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     void npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_block_ip(const char *value, bool autoblocked);

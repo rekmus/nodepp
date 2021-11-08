@@ -188,7 +188,11 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
 {
     DBG("upgrade_uses");
 
-    DBG("Upgrading anonymous session to authenticated, si=%d, sesid [%s]", G_connections[ci].si, SESSION.sesid);
+#ifdef NPP_DEBUG
+    DBG("Upgrading anonymous session to authenticated, si=%d, sessid [%s]", G_connections[ci].si, SESSION.sessid);
+#else
+    DBG("Upgrading anonymous session to authenticated, si=%d", G_connections[ci].si);
+#endif
 
     SESSION.user_id = us->user_id;
     strcpy(SESSION.login, us->login);
@@ -217,7 +221,7 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
 
 #ifndef NPP_SVC   /* this is for engine only */
 /* --------------------------------------------------------------------------
-   Verify IP & User-Agent against user_id and sesid in G_sessions (logged in users)
+   Verify IP & User-Agent against user_id and sessid in G_sessions (logged in users)
    set user session array index (si) if all ok
 -------------------------------------------------------------------------- */
 int libusr_luses_ok(int ci)
@@ -231,12 +235,16 @@ int libusr_luses_ok(int ci)
 
     if ( IS_SESSION )   /* existing connection */
     {
-        if ( G_sessions[G_connections[ci].si].sesid[0]
+        if ( G_sessions[G_connections[ci].si].sessid[0]
                 && G_sessions[G_connections[ci].si].auth_level>AUTH_LEVEL_ANONYMOUS
-                && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[G_connections[ci].si].sesid)
+                && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[G_connections[ci].si].sessid)
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
-            DBG("Authenticated session found in cache, si=%d, sesid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sesid);
+#ifdef NPP_DEBUG
+            DBG("Authenticated session found in cache, si=%d, sessid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
+#else
+            DBG("Authenticated session found in cache, si=%d (1)", G_connections[ci].si);
+#endif
             return OK;
         }
         else    /* session was closed */
@@ -248,19 +256,27 @@ int libusr_luses_ok(int ci)
     {
         for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
         {
-            if ( G_sessions[i].sesid[0]
+            if ( G_sessions[i].sessid[0]
                     && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS
-                    && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[i].sesid)
+                    && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[i].sessid)
                     && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
             {
-                DBG("Authenticated session found in cache, si=%d, sesid [%s] (2)", i, G_sessions[i].sesid);
+#ifdef NPP_DEBUG
+                DBG("Authenticated session found in cache, si=%d, sessid [%s] (2)", i, G_sessions[i].sessid);
+#else
+                DBG("Authenticated session found in cache, si=%d (2)", i);
+#endif
                 G_connections[ci].si = i;
                 return OK;
             }
         }
     }
 
+#ifdef NPP_DEBUG
     DBG("Authenticated session [%s] not found in cache", G_connections[ci].cookie_in_l);
+#else
+    DBG("Authenticated session not found in cache");
+#endif
 
     /* not found in memory -- try database */
 
@@ -274,8 +290,12 @@ int libusr_luses_ok(int ci)
     char sanlscookie[NPP_SESSID_LEN+1];
     strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
 
-    sprintf(sql, "SELECT uagent, user_id, created, csrft FROM users_logins WHERE sesid = BINARY '%s'", sanlscookie);
+    sprintf(sql, "SELECT uagent, user_id, created, csrft FROM users_logins WHERE sessid = BINARY '%s'", sanlscookie);
+#ifdef NPP_DEBUG
     DBG("sql: %s", sql);
+#else
+    DBG("sql: SELECT uagent, user_id, created, csrft FROM users_logins WHERE sessid = BINARY...");
+#endif
 
     mysql_query(G_dbconn, sql);
 
@@ -354,13 +374,21 @@ int libusr_luses_ok(int ci)
     if ( 0 != strcmp(sanuagent, row[0]) )
     {
         mysql_free_result(result);
-        INF("Different uagent in database for sesid [%s]", sanlscookie);
+#ifdef NPP_DEBUG
+        INF("Different uagent in database for sessid [%s]", sanlscookie);
+#else
+        INF("Different uagent in database");
+#endif
         strcpy(G_connections[ci].cookie_out_l, "x");
         strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
         return ERR_SESSION_EXPIRED;
     }
 
-    DBG("ci=%d, sesid [%s] uagent OK", ci, sanlscookie);
+#ifdef NPP_DEBUG
+    DBG("ci=%d, sessid [%s] uagent OK", ci, sanlscookie);
+#else
+    DBG("ci=%d, uagent OK", ci);
+#endif
 
     /* -------------------------------------------------- */
     /* Verify time. If created more than NPP_USER_KEEP_LOGGED_DAYS ago -- refuse */
@@ -369,11 +397,11 @@ int libusr_luses_ok(int ci)
 
     if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
     {
-        DBG("Removing old authenticated session, si=%d, sesid [%s], created %s from database", G_connections[ci].si, sanlscookie, row[2]);
+        DBG("Removing old authenticated session, si=%d, sessid [%s], created %s from database", G_connections[ci].si, sanlscookie, row[2]);
 
         mysql_free_result(result);
 
-        sprintf(sql, "DELETE FROM users_logins WHERE sesid = BINARY '%s'", sanlscookie);
+        sprintf(sql, "DELETE FROM users_logins WHERE sessid = BINARY '%s'", sanlscookie);
         DBG("sql: %s", sql);
 
         if ( mysql_query(G_dbconn, sql) )
@@ -392,7 +420,11 @@ int libusr_luses_ok(int ci)
         return ERR_SESSION_EXPIRED;
     }
 
-    DBG("ci=%d, sesid [%s] created not too long ago => OK", ci, sanlscookie);
+#ifdef NPP_DEBUG
+    DBG("ci=%d, session [%s] created not too long ago => OK", ci, sanlscookie);
+#else
+    DBG("ci=%d, session created not too long ago => OK", ci);
+#endif
 
     /* -------------------------------------------------- */
     /* cookie has not expired -- log user in */
@@ -405,7 +437,11 @@ int libusr_luses_ok(int ci)
 
     if ( row[3] && row[3][0] )   /* csrft from users_logins */
     {
+#ifdef NPP_DEBUG
         DBG("Using previous CSRFT [%s]", row[3]);
+#else
+        DBG("Using previous CSRFT");
+#endif
         strcpy(csrft, row[3]);
     }
     else
@@ -427,13 +463,19 @@ int libusr_luses_ok(int ci)
     if ( csrft[0] )   /* using previous CSRFT */
         strcpy(SESSION.csrft, csrft);
 
-    /* replace sesid */
+    /* replace sessid */
 
     if ( csrft[0] )
-        sprintf(sql, "UPDATE users_logins SET sesid='%s', last_used='%s' WHERE sesid = BINARY '%s'", SESSION.sesid, DT_NOW_GMT, sanlscookie);
+        sprintf(sql, "UPDATE users_logins SET sessid='%s', last_used='%s' WHERE sessid = BINARY '%s'", SESSION.sessid, DT_NOW_GMT, sanlscookie);
     else
-        sprintf(sql, "UPDATE users_logins SET sesid='%s', csrft='%s', last_used='%s' WHERE sesid = BINARY '%s'", SESSION.sesid, SESSION.csrft, DT_NOW_GMT, sanlscookie);
+        sprintf(sql, "UPDATE users_logins SET sessid='%s', csrft='%s', last_used='%s' WHERE sessid = BINARY '%s'", SESSION.sessid, SESSION.csrft, DT_NOW_GMT, sanlscookie);
+
+#ifdef NPP_DEBUG
     DBG("sql: %s", sql);
+#else
+    DBG("sql: UPDATE users_logins SET sessid=...");
+#endif
+
     if ( mysql_query(G_dbconn, sql) )
     {
         ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
@@ -442,7 +484,7 @@ int libusr_luses_ok(int ci)
 
     /* set cookie */
 
-    strcpy(G_connections[ci].cookie_out_l, SESSION.sesid);
+    strcpy(G_connections[ci].cookie_out_l, SESSION.sessid);
 
     set_ls_cookie_expiration(ci, created);
 
@@ -464,7 +506,7 @@ void libusr_luses_close_timeouted()
 
     for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].last_activity < last_allowed )
+        if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].last_activity < last_allowed )
             libusr_luses_downgrade(i, NPP_NOT_CONNECTED, FALSE);
     }
 }
@@ -484,10 +526,14 @@ void libusr_luses_save_csrft()
 
     for ( i=1; sessions>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS )
+        if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS )
         {
-            sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", G_sessions[i].csrft, G_sessions[i].sesid);
+            sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sessid = BINARY '%s'", G_sessions[i].csrft, G_sessions[i].sessid);
+#ifdef NPP_DEBUG
             DBG("sql: %s", sql);
+#else
+            DBG("sql: UPDATE users_logins SET csrft=...");
+#endif
             if ( mysql_query(G_dbconn, sql) )
                 ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
 
@@ -507,7 +553,11 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
 
     DBG("libusr_luses_downgrade");
 
-    DBG("Downgrading authenticated session to anonymous, si=%d, sesid [%s]", si, G_sessions[si].sesid);
+#ifdef NPP_DEBUG
+    DBG("Downgrading authenticated session to anonymous, si=%d, sessid [%s]", si, G_sessions[si].sessid);
+#else
+    DBG("Downgrading authenticated session to anonymous, si=%d", si);
+#endif
 
     G_sessions[si].user_id = 0;
     G_sessions[si].login[0] = EOS;
@@ -533,16 +583,20 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
         npp_app_user_logout(ci);
     }
     else    /* trick to maintain consistency across npp_app_xxx functions */
-    {       /* that use ci for everything -- even to get user session data */
-        G_connections[CLOSING_SESSION_CI].si = si;
-        npp_app_user_logout(CLOSING_SESSION_CI);
+    {       /* that use ci for everything -- even to get session data */
+        G_connections[NPP_CLOSING_SESSION_CI].si = si;
+        npp_app_user_logout(NPP_CLOSING_SESSION_CI);
     }
 #endif  /* NPP_SVC */
 
     if ( usr_logout )   /* explicit user logout */
     {
-        sprintf(sql, "DELETE FROM users_logins WHERE sesid = BINARY '%s'", G_sessions[si].sesid);
+        sprintf(sql, "DELETE FROM users_logins WHERE sessid = BINARY '%s'", G_sessions[si].sessid);
+#ifdef NPP_DEBUG
         DBG("sql: %s", sql);
+#else
+        DBG("sql: DELETE FROM users_logins WHERE sessid = BINARY...");
+#endif
         if ( mysql_query(G_dbconn, sql) )
             ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
 
@@ -551,13 +605,17 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
             strcpy(G_connections[ci].cookie_out_l, "x");
             strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* in the past => to be removed by browser straight away */
 
-            strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sesid);
+            strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sessid);
         }
     }
     else    /* timeout */
     {
-        sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sesid = BINARY '%s'", G_sessions[si].csrft, G_sessions[si].sesid);
+        sprintf(sql, "UPDATE users_logins SET csrft='%s' WHERE sessid = BINARY '%s'", G_sessions[si].csrft, G_sessions[si].sessid);
+#ifdef NPP_DEBUG
         DBG("sql: %s", sql);
+#else
+        DBG("sql: UPDATE users_logins SET csrft=...");
+#endif
         if ( mysql_query(G_dbconn, sql) )
             ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
     }
@@ -676,7 +734,11 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
         if ( !row )    /* this should never happen */
         {
             mysql_free_result(result);
-            ERR("Cookie sesid [%s] does not match user id=%d", SESSION.sesid, UID);
+#ifdef NPP_DEBUG
+            ERR("Cookie sessid [%s] does not match user id=%d", SESSION.sessid, SESSION.user_id);
+#else
+            ERR("Cookie sessid does not match user id=%d", SESSION.user_id);
+#endif
             return ERR_INVALID_LOGIN;   /* invalid user and/or password */
         }
 
@@ -751,7 +813,7 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
 
     /* update user record */
 
-    sprintf(sql, "UPDATE users SET visits=%d, last_login='%s' WHERE id=%d", visits+1, DT_NOW_GMT, UID);
+    sprintf(sql, "UPDATE users SET visits=%d, last_login='%s' WHERE id=%d", visits+1, DT_NOW_GMT, SESSION.user_id);
     DBG("sql: %s", sql);
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -1167,12 +1229,16 @@ int npp_usr_login(int ci)
         }
     }
 
-    /* use anonymous session if present but refresh sesid  */
+    /* use anonymous session if present but refresh sessid  */
 
     if ( IS_SESSION )
     {
-        npp_random(SESSION.sesid, NPP_SESSID_LEN);
-        DBG("Using current session si=%d, generated new sesid [%s]", G_connections[ci].si, SESSION.sesid);
+        npp_random(SESSION.sessid, NPP_SESSID_LEN);
+#ifdef NPP_DEBUG
+        DBG("Using current session si=%d, generated new sessid [%s]", G_connections[ci].si, SESSION.sessid);
+#else
+        DBG("Using current session si=%d, generated new sessid", G_connections[ci].si);
+#endif
     }
     else    /* no session --> start a new one */
     {
@@ -1184,13 +1250,21 @@ int npp_usr_login(int ci)
 
     /* save new session to users_logins and set the cookie */
 
-    DBG("Saving user session [%s] in users_logins...", SESSION.sesid);
+#ifdef NPP_DEBUG
+    DBG("Saving session [%s] in users_logins...", SESSION.sessid);
+#else
+    DBG("Saving session in users_logins...");
+#endif
 
     char sanuagent[NPP_DB_UAGENT_LEN+1];
     npp_lib_escape_for_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
 
-    sprintf(sql, "INSERT INTO users_logins (sesid,uagent,ip,user_id,csrft,created,last_used) VALUES ('%s','%s','%s',%d,'%s','%s','%s')", SESSION.sesid, sanuagent, G_connections[ci].ip, us.user_id, SESSION.csrft, DT_NOW_GMT, DT_NOW_GMT);
+    sprintf(sql, "INSERT INTO users_logins (sessid,uagent,ip,user_id,csrft,created,last_used) VALUES ('%s','%s','%s',%d,'%s','%s','%s')", SESSION.sessid, sanuagent, G_connections[ci].ip, us.user_id, SESSION.csrft, DT_NOW_GMT, DT_NOW_GMT);
+#ifdef NPP_DEBUG
     DBG("sql: %s", sql);
+#else
+    DBG("sql: INSERT INTO users_logins (sessid,uagent,ip,user_id,csrft,created,last_used) VALUES (...)");
+#endif
     if ( mysql_query(G_dbconn, sql) )
     {
         ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
@@ -1202,7 +1276,7 @@ int npp_usr_login(int ci)
 
     /* set cookie */
 
-    strcpy(G_connections[ci].cookie_out_l, SESSION.sesid);
+    strcpy(G_connections[ci].cookie_out_l, SESSION.sessid);
 
     /* Keep me logged in -- set cookie expiry date */
 
@@ -1521,7 +1595,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     G_new_user_id = mysql_insert_id(G_dbconn);
 
     if ( current_session )
-        UID = G_new_user_id;
+        SESSION.user_id = G_new_user_id;
 
     if ( G_usersRequireActivation )
     {
@@ -1754,8 +1828,8 @@ static char sql[MAX_LONG_URI_VAL_LEN*2];
     sprintf(sanmessage, "From %s\n\n", G_connections[ci].ip);
     COPY(sanmessage+strlen(sanmessage), npp_sql_esc(message), MAX_LONG_URI_VAL_LEN);
 
-    sprintf(sql, "INSERT INTO users_messages (user_id,msg_id,email,message,created) VALUES (%d,%d,'%s','%s','%s')", UID, get_max(ci, "messages")+1, email, sanmessage, DT_NOW_GMT);
-    DBG("sql: INSERT INTO users_messages (user_id,msg_id,email,...) VALUES (%d,get_max(),'%s',...)", UID, email);
+    sprintf(sql, "INSERT INTO users_messages (user_id,msg_id,email,message,created) VALUES (%d,%d,'%s','%s','%s')", SESSION.user_id, get_max(ci, "messages")+1, email, sanmessage, DT_NOW_GMT);
+    DBG("sql: INSERT INTO users_messages (user_id,msg_id,email,...) VALUES (%d,get_max(),'%s',...)", SESSION.user_id, email);
 
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -1994,7 +2068,7 @@ int npp_usr_save_account(int ci)
             return WAR_BEFORE_DELETE;
         else
         {
-            sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_DELETED, UID);
+            sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_DELETED, SESSION.user_id);
             DBG("sql: %s", sql);
             if ( mysql_query(G_dbconn, sql) )
             {
@@ -2012,8 +2086,8 @@ int npp_usr_save_account(int ci)
 
     get_hashes(str1, str2, login, email, plen?passwd:opasswd);
 
-    sprintf(sql, "UPDATE users SET login='%s', email='%s', email_u='%s', name='%s', phone='%s', passwd1='%s', passwd2='%s', lang='%s', about='%s' WHERE id=%d", login, email, npp_upper(email), name, phone, str1, str2, lang, about, UID);
-    DBG("sql: UPDATE users SET login='%s', email='%s', name='%s', phone='%s',... WHERE id=%d", login, email, name, phone, UID);
+    sprintf(sql, "UPDATE users SET login='%s', email='%s', email_u='%s', name='%s', phone='%s', passwd1='%s', passwd2='%s', lang='%s', about='%s' WHERE id=%d", login, email, npp_upper(email), name, phone, str1, str2, lang, about, SESSION.user_id);
+    DBG("sql: UPDATE users SET login='%s', email='%s', name='%s', phone='%s',... WHERE id=%d", login, email, name, phone, SESSION.user_id);
 
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2034,9 +2108,9 @@ int npp_usr_save_account(int ci)
 
     if ( passwd[0] && 0!=strcmp(passwd, opasswd) )
     {
-        DBG("Password change => invalidating all other session tokens");
+        INF("Password change => invalidating all other session tokens");
 
-        sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d AND sesid != BINARY '%s'", UID, SESSION.sesid);
+        sprintf(sql, "DELETE FROM users_logins WHERE user_id = %d AND sessid != BINARY '%s'", SESSION.user_id, SESSION.sessid);
         DBG("sql: %s", sql);
         if ( mysql_query(G_dbconn, sql) )
         {
@@ -2047,7 +2121,7 @@ int npp_usr_save_account(int ci)
         /* downgrade all currently active sessions belonging to this user */
         /* except of the current one */
 
-        npp_eng_session_downgrade_by_uid(UID, ci);
+        npp_eng_session_downgrade_by_uid(SESSION.user_id, ci);
     }
 
     return OK;
@@ -2388,7 +2462,7 @@ int npp_usr_activate(int ci)
 
     /* everything's OK -- activate user -------------------- */
 
-    UID = user_id;
+    SESSION.user_id = user_id;
 
     sprintf(sql, "UPDATE users SET status=%d WHERE id=%d", USER_STATUS_ACTIVE, user_id);
     DBG("sql: %s", sql);
@@ -2595,7 +2669,7 @@ int npp_usr_change_password(int ci)
 
     DBG("Updating users...");
 
-    sprintf(sql, "UPDATE users SET passwd1='%s', passwd2='%s', status=%d WHERE id=%d", str1, str2, USER_STATUS_ACTIVE, UID);
+    sprintf(sql, "UPDATE users SET passwd1='%s', passwd2='%s', status=%d WHERE id=%d", str1, str2, USER_STATUS_ACTIVE, SESSION.user_id);
     DBG("sql: UPDATE users SET passwd1=...");
     if ( mysql_query(G_dbconn, sql) )
     {
@@ -2817,7 +2891,7 @@ int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
 
     if ( ret == ERR_NOT_FOUND )
     {
-        sprintf(sql, "INSERT INTO users_settings (user_id,us_key,us_val) VALUES (%d,'%s','%s')", UID, us_key, us_val);
+        sprintf(sql, "INSERT INTO users_settings (user_id,us_key,us_val) VALUES (%d,'%s','%s')", SESSION.user_id, us_key, us_val);
 
         DBG("sql: %s", sql);
 
@@ -2834,7 +2908,7 @@ int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
     }
     else
     {
-        sprintf(sql, "UPDATE users_settings SET us_val='%s' WHERE user_id=%d AND us_key='%s'", us_val, UID, us_key);
+        sprintf(sql, "UPDATE users_settings SET us_val='%s' WHERE user_id=%d AND us_key='%s'", us_val, SESSION.user_id, us_key);
 
         DBG("sql: %s", sql);
 
@@ -2858,7 +2932,7 @@ int npp_usr_get_str(int ci, const char *us_key, char *us_val)
     MYSQL_RES   *result;
     MYSQL_ROW   row;
 
-    sprintf(sql, "SELECT us_val FROM users_settings WHERE user_id=%d AND us_key='%s'", UID, us_key);
+    sprintf(sql, "SELECT us_val FROM users_settings WHERE user_id=%d AND us_key='%s'", SESSION.user_id, us_key);
 
     DBG("sql: %s", sql);
 
@@ -2929,7 +3003,7 @@ static int get_max(int ci, const char *table)
     /* SESSION.user_id = 0 for anonymous session */
 
     if ( 0==strcmp(table, "messages") )
-        sprintf(sql, "SELECT MAX(msg_id) FROM users_messages WHERE user_id=%d", UID);
+        sprintf(sql, "SELECT MAX(msg_id) FROM users_messages WHERE user_id=%d", SESSION.user_id);
     else
         return 0;
 
@@ -2952,7 +3026,7 @@ static int get_max(int ci, const char *table)
 
     mysql_free_result(result);
 
-    DBG("get_max for user_id=%d  max = %d", UID, max);
+    DBG("get_max for user_id=%d  max = %d", SESSION.user_id, max);
 
     return max;
 }

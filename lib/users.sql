@@ -56,7 +56,7 @@ create table users_settings (
 -- user logins
 
 create table users_logins (
-    sesid char(15) primary key,
+    sessid char(15) primary key,
     uagent varchar(250),
     ip char(15),
     user_id int,

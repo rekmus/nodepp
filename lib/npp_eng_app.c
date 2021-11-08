@@ -225,7 +225,7 @@ static void process_req(int ci);
 static unsigned deflate_data(unsigned char *dest, const unsigned char *src, unsigned src_len);
 static void gen_response_header(int ci);
 static void print_content_type(int ci, char type);
-static bool a_usession_ok(int ci);
+static bool a_session_ok(int ci);
 static void close_old_conn(void);
 static void uses_close_timeouted(void);
 static void close_uses(int si, int ci);
@@ -930,11 +930,11 @@ int main(int argc, char **argv)
                     memcpy(&G_app_session_data[G_connections[res.ci].si], &res.hdr.app_session_data, sizeof(app_session_data_t));
 #endif
                 }
-                else if ( res.hdr.eng_session_data.sesid[0] )   /* session has been started in npp_svc */
+                else if ( res.hdr.eng_session_data.sessid[0] )   /* session has been started in npp_svc */
                 {
                     DBG("New session has been started in npp_svc, adding to G_sessions");
 
-                    if ( npp_eng_session_start(res.ci, res.hdr.eng_session_data.sesid) != OK )
+                    if ( npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid) != OK )
                     {
                         ERR("Couldn't start a session after npp_svc had started it. Your memory model may be too low.");
                     }
@@ -4197,13 +4197,13 @@ static void process_req(int ci)
     {
         DBG("Connection already authenticated, si=%d", G_connections[ci].si);
     }
-    else if ( G_connections[ci].cookie_in_l[0] )  /* logged in sesid cookie present */
+    else if ( G_connections[ci].cookie_in_l[0] )  /* logged in sessid cookie present */
     {
         ret = libusr_luses_ok(ci);     /* is it valid? */
 
-        if ( ret == OK )    /* valid sesid -- user logged in */
+        if ( ret == OK )    /* valid sessid -- user logged in */
             DBG("User logged in from cookie");
-        else if ( ret != ERR_INT_SERVER_ERROR && ret != ERR_SERVER_TOOBUSY )   /* dodged sesid... or session expired */
+        else if ( ret != ERR_INT_SERVER_ERROR && ret != ERR_SERVER_TOOBUSY )   /* dodged sessid... or session expired */
             WAR("Invalid ls cookie");
     }
 
@@ -4258,7 +4258,7 @@ static void process_req(int ci)
         if ( !REQ_BOT )
         {
 #endif
-            if ( !G_connections[ci].cookie_in_a[0] || !a_usession_ok(ci) )       /* valid anonymous sesid cookie not present */
+            if ( !G_connections[ci].cookie_in_a[0] || !a_session_ok(ci) )       /* valid anonymous sessid cookie not present */
             {
                 ret = npp_eng_session_start(ci, NULL);
                 fresh_session = TRUE;
@@ -5084,21 +5084,25 @@ static void print_content_type(int ci, char type)
 
 
 /* --------------------------------------------------------------------------
-   Verify IP & User-Agent against sesid in G_sessions (anonymous users)
+   Verify IP & User-Agent against sessid in G_sessions (anonymous users)
    Return true if session exists
 -------------------------------------------------------------------------- */
-static bool a_usession_ok(int ci)
+static bool a_session_ok(int ci)
 {
-    DBG("a_usession_ok");
+    DBG("a_session_ok");
 
     if ( IS_SESSION )    /* existing connection */
     {
-        if ( G_sessions[G_connections[ci].si].sesid[0]
+        if ( G_sessions[G_connections[ci].si].sessid[0]
                 && G_sessions[G_connections[ci].si].auth_level<AUTH_LEVEL_AUTHENTICATED
-                && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[G_connections[ci].si].sesid)
+                && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[G_connections[ci].si].sessid)
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
-            DBG("Anonymous session found, si=%d, sesid [%s]", G_connections[ci].si, G_sessions[G_connections[ci].si].sesid);
+#ifdef NPP_DEBUG
+            DBG("Anonymous session found, si=%d, sessid [%s]", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
+#else
+            DBG("Anonymous session found, si=%d", G_connections[ci].si);
+#endif
             return TRUE;
         }
         else    /* session was closed -- it should never happen */
@@ -5113,12 +5117,16 @@ static bool a_usession_ok(int ci)
 
         for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
         {
-            if ( G_sessions[i].sesid[0]
+            if ( G_sessions[i].sessid[0]
                     && G_sessions[i].auth_level<AUTH_LEVEL_AUTHENTICATED
-                    && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[i].sesid)
+                    && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[i].sessid)
                     && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
             {
-                DBG("Anonymous session found, si=%d, sesid [%s]", i, G_sessions[i].sesid);
+#ifdef NPP_DEBUG
+                DBG("Anonymous session found, si=%d, sessid [%s]", i, G_sessions[i].sessid);
+#else
+                DBG("Anonymous session found, si=%d", i);
+#endif
                 G_connections[ci].si = i;
                 return TRUE;
             }
@@ -5163,7 +5171,7 @@ static void uses_close_timeouted()
 
     for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level<AUTH_LEVEL_AUTHENTICATED && G_sessions[i].last_activity < last_allowed )
+        if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level<AUTH_LEVEL_AUTHENTICATED && G_sessions[i].last_activity < last_allowed )
             close_uses(i, NPP_NOT_CONNECTED);
     }
 }
@@ -5174,14 +5182,18 @@ static void uses_close_timeouted()
 -------------------------------------------------------------------------- */
 static void close_uses(int si, int ci)
 {
-    DBG("Closing anonymous session, si=%d, sesid [%s]", si, G_sessions[si].sesid);
+#ifdef NPP_DEBUG
+    DBG("Closing anonymous session, si=%d, sessid [%s]", si, G_sessions[si].sessid);
+#else
+    DBG("Closing anonymous session, si=%d", si);
+#endif
 
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
         npp_app_session_done(ci);
     else    /* trick to maintain consistency across npp_app_xxx functions */
     {       /* that use ci for everything -- even to get user session data */
-        G_connections[CLOSING_SESSION_CI].si = si;
-        npp_app_session_done(CLOSING_SESSION_CI);
+        G_connections[NPP_CLOSING_SESSION_CI].si = si;
+        npp_app_session_done(NPP_CLOSING_SESSION_CI);
     }
 
     /* reset session data */
@@ -6264,9 +6276,9 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         if ( strlen(value) < NPP_SESSID_LEN+3 ) return 200;   /* no valid session cookie but request still OK */
 
-        /* parse cookies, set anonymous and / or logged in sesid */
+        /* parse cookies, set anonymous and / or logged in sessid */
 
-        if ( NULL != (p=(char*)strstr(value, "as=")) )   /* anonymous sesid present? */
+        if ( NULL != (p=(char*)strstr(value, "as=")) )   /* anonymous sessid present? */
         {
             p += 3;
             if ( strlen(p) >= NPP_SESSID_LEN )
@@ -6275,7 +6287,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 G_connections[ci].cookie_in_a[NPP_SESSID_LEN] = EOS;
             }
         }
-        if ( NULL != (p=(char*)strstr(value, "ls=")) )   /* logged in sesid present? */
+        if ( NULL != (p=(char*)strstr(value, "ls=")) )   /* logged in sessid present? */
         {
             p += 3;
             if ( strlen(p) >= NPP_SESSID_LEN )
@@ -6776,10 +6788,10 @@ static int current=0;
 /* --------------------------------------------------------------------------
    Start new anonymous user session
 -------------------------------------------------------------------------- */
-int npp_eng_session_start(int ci, const char *sesid)
+int npp_eng_session_start(int ci, const char *sessid)
 {
     int     i;
-    char    new_sesid[NPP_SESSID_LEN+1];
+    char    new_sessid[NPP_SESSID_LEN+1];
 
     DBG("npp_eng_session_start");
 
@@ -6795,27 +6807,31 @@ int npp_eng_session_start(int ci, const char *sesid)
 
     for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
     {
-        if ( G_sessions[i].sesid[0] == EOS )
+        if ( G_sessions[i].sessid[0] == EOS )
         {
             G_connections[ci].si = i;
             break;
         }
     }
 
-    if ( sesid )
+    if ( sessid )
     {
-        strcpy(new_sesid, sesid);
+        strcpy(new_sessid, sessid);
     }
-    else    /* generate sesid */
+    else    /* generate sessid */
     {
-        npp_random(new_sesid, NPP_SESSID_LEN);
+        npp_random(new_sessid, NPP_SESSID_LEN);
     }
 
-    INF("Starting new session for ci=%d, si=%d, sesid [%s]", ci, G_connections[ci].si, new_sesid);
+#ifdef NPP_DEBUG
+    INF("Starting new session for ci=%d, si=%d, sessid [%s]", ci, G_connections[ci].si, new_sessid);
+#else
+    INF("Starting new session for ci=%d, si=%d", ci, G_connections[ci].si);
+#endif
 
     /* add record to G_sessions */
 
-    strcpy(SESSION.sesid, new_sesid);
+    strcpy(SESSION.sessid, new_sessid);
     strcpy(SESSION.ip, G_connections[ci].ip);
     strcpy(SESSION.uagent, G_connections[ci].uagent);
     strcpy(SESSION.referer, G_connections[ci].referer);
@@ -6838,7 +6854,7 @@ int npp_eng_session_start(int ci, const char *sesid)
 
     /* set 'as' cookie */
 
-    strcpy(G_connections[ci].cookie_out_a, new_sesid);
+    strcpy(G_connections[ci].cookie_out_a, new_sessid);
 
     DBG("%d user session(s)", G_sessions_cnt);
 
@@ -6862,7 +6878,7 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
     {
         for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
         {
-            if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].user_id==user_id && 0!=strcmp(G_sessions[i].sesid, SESSION.sesid) )
+            if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].user_id==user_id && 0!=strcmp(G_sessions[i].sessid, SESSION.sessid) )
                 libusr_luses_downgrade(i, NPP_NOT_CONNECTED, FALSE);
         }
     }
@@ -6870,7 +6886,7 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
     {
         for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
         {
-            if ( G_sessions[i].sesid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].user_id==user_id )
+            if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].user_id==user_id )
                 libusr_luses_downgrade(i, NPP_NOT_CONNECTED, FALSE);
         }
     }

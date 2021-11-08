@@ -468,7 +468,7 @@ int main(int argc, char *argv[])
 #ifdef NPP_ASYNC_INCLUDE_SESSION_DATA
             memcpy(&G_app_session_data[1], &G_svc_req.hdr.app_session_data, sizeof(app_session_data_t));
 #endif
-            if ( G_sessions[1].sesid[0] )
+            if ( G_sessions[1].sessid[0] )
                 G_connections[0].si = 1;    /* user session present */
             else
             {
@@ -650,9 +650,9 @@ int main(int argc, char *argv[])
    It is optimistically assumed here that in the meantime NPP_MAX_SESSIONS
    won't be reached in any of the npp_* processes.
 -------------------------------------------------------------------------- */
-int npp_eng_session_start(int ci, const char *sesid)
+int npp_eng_session_start(int ci, const char *sessid)
 {
-    char new_sesid[NPP_SESSID_LEN+1];
+    char new_sessid[NPP_SESSID_LEN+1];
 
     DBG("npp_eng_session_start");
 
@@ -666,11 +666,15 @@ int npp_eng_session_start(int ci, const char *sesid)
 
     G_connections[ci].si = 1;
 
-    npp_random(new_sesid, NPP_SESSID_LEN);
+    npp_random(new_sessid, NPP_SESSID_LEN);
 
-    INF("Starting new session, sesid [%s]", new_sesid);
+#ifdef NPP_DEBUG
+    INF("Starting new session, sessid [%s]", new_sessid);
+#else
+    INF("Starting new session");
+#endif
 
-    strcpy(SESSION.sesid, new_sesid);
+    strcpy(SESSION.sessid, new_sessid);
     strcpy(SESSION.ip, G_connections[ci].ip);
     strcpy(SESSION.uagent, G_connections[ci].uagent);
     strcpy(SESSION.referer, G_connections[ci].referer);
@@ -679,7 +683,7 @@ int npp_eng_session_start(int ci, const char *sesid)
 
     /* set 'as' cookie */
 
-    strcpy(G_connections[ci].cookie_out_a, new_sesid);
+    strcpy(G_connections[ci].cookie_out_a, new_sessid);
 
     DBG("%d user session(s)", G_sessions_cnt);
 
