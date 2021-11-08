@@ -6842,7 +6842,11 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     npp_random(SESSION.csrft, NPP_CSRFT_LEN);
 
-    DBG("New csrft generated [%s]", SESSION.csrft);
+#ifdef NPP_DEBUG
+    DBG("New CSRFT generated [%s]", SESSION.csrft);
+#else
+    DBG("New CSRFT generated");
+#endif
 
     /* custom session init */
 
