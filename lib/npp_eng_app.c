@@ -6770,7 +6770,7 @@ static bool init_ssl()
 /* --------------------------------------------------------------------------
    Set required authorization level for the resource
 -------------------------------------------------------------------------- */
-void npp_set_auth_level(const char *path, char level)
+void npp_require_auth(const char *path, char level)
 {
 static int current=0;
 

@@ -513,6 +513,7 @@
 #define log_long                        npp_log_long
 #define lib_add_spaces                  npp_add_spaces
 #define lib_add_lspaces                 npp_add_lspaces
+#define npp_set_auth_level              npp_require_auth
 
 
 /* API authorization flags */

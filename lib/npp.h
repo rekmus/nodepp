@@ -1731,7 +1731,7 @@ extern "C" {
 
     /* public */
 
-    void npp_set_auth_level(const char *path, char level);
+    void npp_require_auth(const char *path, char level);
     void npp_add_to_static_res(const char *name, const char *src);
 
     /* public internal */
