@@ -282,6 +282,7 @@
 #define CALL_REST_CONTENT_TYPE                      CALL_HTTP_CONTENT_TYPE
 #define CALL_HTTP_STATUS_OK                         (G_call_http_status>=200 && G_call_http_status<=204)
 #define CALL_REST_STATUS_OK                         CALL_HTTP_STATUS_OK
+#define CALL_HTTP_RESPONSE_LEN                      G_call_http_res_len
 
 
 /* JSON */
@@ -384,6 +385,10 @@
 
 /* APP-configurable */
 
+#ifndef CALL_HTTP_MAX_RESPONSE_LEN
+#define CALL_HTTP_MAX_RESPONSE_LEN          1048576 /* 1 MiB */
+#endif
+
 /* JSON */
 
 #ifndef NPP_JSON_KEY_LEN
@@ -395,7 +400,7 @@
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  10      /* in one JSON struct */
+#define NPP_JSON_MAX_ELEMS                  15      /* in one JSON struct */
 #endif
 
 #ifndef NPP_JSON_MAX_LEVELS
@@ -532,6 +537,7 @@ extern "C" {
     char *npp_filter_strict(const char *src);
     char *npp_add_spaces(const char *src, int new_len);
     char *npp_add_lspaces(const char *src, int new_len);
+    char *npp_get_fname_from_path(const char *path);
     char *npp_get_file_ext(const char *fname);
     void date_str2rec(const char *str, date_t *rec);
     void date_rec2str(char *str, date_t *rec);

@@ -112,6 +112,11 @@ static char M_md_list_type;
 static int  M_shmid[NPP_MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
 #endif
 
+#ifdef _WIN32   /* Windows */
+static WSADATA M_wsa;
+static bool M_WSA_initialized=FALSE;
+#endif
+
 static call_http_header_t M_call_http_headers[CALL_HTTP_MAX_HEADERS];
 static int M_call_http_headers_cnt=0;
 #ifdef _WIN32   /* Windows */
@@ -197,6 +202,11 @@ void npp_lib_done()
     for ( i=0; i<NPP_MAX_SHM_SEGMENTS; ++i )
         npp_lib_shm_delete(i);
 
+#endif  /* _WIN32 */
+
+#ifdef _WIN32
+    if ( M_WSA_initialized )
+        WSACleanup();
 #endif  /* _WIN32 */
 
     npp_log_finish();
@@ -3941,6 +3951,23 @@ static int addresses_cnt=0, addresses_last=0;
 
     DBG("call_http_connect [%s:%s]", host, port);
 
+#ifdef _WIN32   /* Windows */
+
+    if ( !M_WSA_initialized )
+    {
+        DBG("Initializing Winsock...");
+
+        if ( WSAStartup(MAKEWORD(2,2), &M_wsa) != 0 )
+        {
+            ERR("WSAStartup failed. Error Code = %d", WSAGetLastError());
+            return FALSE;
+        }
+
+        M_WSA_initialized = TRUE;
+    }
+
+#endif  /* _WIN32 */
+
     struct addrinfo *result=NULL;
 
 #ifndef CALL_HTTP_DONT_CACHE_ADDRINFO
@@ -4469,7 +4496,7 @@ static bool call_http_res_parse(char *res_header, int bytes)
 
     G_call_http_res_len = call_http_res_content_length(u_res_header, bytes);
 
-    if ( G_call_http_res_len > NPP_JSON_BUFSIZE-1 )
+    if ( G_call_http_res_len > CALL_HTTP_MAX_RESPONSE_LEN-1 )
     {
         WAR("Response content is too big (%d)", G_call_http_res_len);
         return FALSE;
@@ -4519,7 +4546,7 @@ static bool  prev_secure=FALSE;
 static bool  connected=FALSE;
 static time_t connected_time=0;
     char     res_header[CALL_HTTP_RES_HEADER_LEN+1];
-static char  buffer[NPP_JSON_BUFSIZE];
+static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
     int      bytes;
     char     *body;
     unsigned content_read=0, buffer_read=0;
@@ -4703,7 +4730,7 @@ static char  buffer[NPP_JSON_BUFSIZE];
     /* at this point we've got something that seems to be a HTTP header,
        possibly with content */
 
-static char res_content[NPP_JSON_BUFSIZE];
+static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
     /* ------------------------------------------------------------------- */
     /* some content may have already been read                             */
@@ -4742,13 +4769,13 @@ static char res_content[NPP_JSON_BUFSIZE];
 
 #ifdef NPP_HTTPS
             if ( secure )
-                bytes = SSL_read(M_call_http_ssl, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1);
+                bytes = SSL_read(M_call_http_ssl, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1);
             else
 #endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1, 0);
+                bytes = recv(M_call_http_socket, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, 0);
 
             if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_content+content_read, NPP_JSON_BUFSIZE-content_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
 
             if ( bytes > 0 )
                 content_read += bytes;
@@ -4805,13 +4832,13 @@ static char res_content[NPP_JSON_BUFSIZE];
 
 #ifdef NPP_HTTPS
             if ( secure )
-                bytes = SSL_read(M_call_http_ssl, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1);
+                bytes = SSL_read(M_call_http_ssl, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1);
             else
 #endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1, 0);
+                bytes = recv(M_call_http_socket, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, 0);
 
             if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, buffer+buffer_read, NPP_JSON_BUFSIZE-buffer_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
 
             if ( bytes > 0 )
                 buffer_read += bytes;
@@ -4825,7 +4852,7 @@ static char res_content[NPP_JSON_BUFSIZE];
             return FALSE;
         }
 
-        content_read = chunked2content(res_content, buffer, buffer_read, NPP_JSON_BUFSIZE);
+        content_read = chunked2content(res_content, buffer, buffer_read, CALL_HTTP_MAX_RESPONSE_LEN);
     }
 
     /* ------------------------------------------------------------------- */
@@ -5148,30 +5175,63 @@ static char dst[NPP_LIB_STR_BUF];
 
 
 /* --------------------------------------------------------------------------
+   Extract file name from path
+-------------------------------------------------------------------------- */
+char *npp_get_fname_from_path(const char *path)
+{
+static char fname[256];
+    char *p;
+
+    DDBG("path: [%s]", path);
+
+    if ( (p=(char*)strrchr(path, '/')) == NULL
+            && (p=(char*)strrchr(path, '\\')) == NULL )   /* no slash */
+    {
+        COPY(fname, path, 255);
+        return fname;
+    }
+
+    if ( p-path == strlen(path)-1 )        /* slash is the last char */
+    {
+        fname[0] = EOS;
+        return fname;
+    }
+
+    ++p;    /* skip slash */
+
+    COPY(fname, p, 255);
+
+    DDBG("fname: [%s]", fname);
+
+    return fname;
+}
+
+
+/* --------------------------------------------------------------------------
    Get the file extension
 -------------------------------------------------------------------------- */
 char *npp_get_file_ext(const char *fname)
 {
 static char ext[64];
-    char *pext=NULL;
+    char *p;
 
     DDBG("name: [%s]", fname);
 
-    if ( (pext=(char*)strrchr(fname, '.')) == NULL )     /* no dot */
+    if ( (p=(char*)strrchr(fname, '.')) == NULL )     /* no dot */
     {
         ext[0] = EOS;
         return ext;
     }
 
-    if ( pext-fname == strlen(fname)-1 )        /* dot is the last char */
+    if ( p-fname == strlen(fname)-1 )        /* dot is the last char */
     {
         ext[0] = EOS;
         return ext;
     }
 
-    ++pext;
+    ++p;    /* skip dot */
 
-    COPY(ext, pext, 63);
+    COPY(ext, p, 63);
 
     DDBG("ext: [%s]", ext);
 
@@ -8301,7 +8361,7 @@ void npp_lib_log_switch_to_file()
 void npp_log_finish()
 {
     if ( G_logLevel > 0 )
-        ALWAYS_T("Closing log");
+        INF_T("Closing log");
 
     npp_lib_log_switch_to_stdout();
 }

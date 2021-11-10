@@ -225,6 +225,16 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif  /* NPP_WATCHER */
 
 
+#ifdef NPP_UPDATE
+#ifdef NPP_MYSQL
+#undef NPP_MYSQL
+#endif
+#ifdef NPP_ICONV
+#undef NPP_ICONV
+#endif
+#endif  /* NPP_UPDATE */
+
+
 
 #ifdef NPP_HTTPS
 #include <openssl/ssl.h>

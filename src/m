@@ -12,28 +12,33 @@ g++ npp_app.cpp \
 -o ../bin/npp_app
 
 
-if [ $? -eq 0 ]
-then
-    echo Making npp_svc...
+echo Making npp_svc...
 
-    g++ npp_svc.cpp \
-    ../lib/npp_eng_svc.c ../lib/npp_lib.c ../lib/npp_usr.c \
-    -D NPP_SVC \
-    -I. -I../lib \
-    -lrt \
-    -s -O3 \
-    -o ../bin/npp_svc
-fi
+g++ npp_svc.cpp \
+../lib/npp_eng_svc.c ../lib/npp_lib.c ../lib/npp_usr.c \
+-D NPP_SVC \
+-I. -I../lib \
+-lrt \
+-s -O3 \
+-o ../bin/npp_svc
 
 
-if [ $? -eq 0 ]
-then
-    echo Making npp_watcher...
+echo Making npp_watcher...
 
-    gcc ../lib/npp_watcher.c \
-    ../lib/npp_lib.c \
-    -D NPP_WATCHER \
-    -I. -I../lib \
-    -s -O3 \
-    -o ../bin/npp_watcher
-fi
+gcc ../lib/npp_watcher.c \
+../lib/npp_lib.c \
+-D NPP_WATCHER \
+-I. -I../lib \
+-s -O3 \
+-o ../bin/npp_watcher
+
+
+echo Making npp_update...
+
+gcc ../lib/npp_update.c \
+../lib/npp_lib.c \
+-D NPP_UPDATE \
+-I. -I../lib \
+-lrt -lz -lcrypto -lssl \
+-s -O3 \
+-o ../bin/npp_update

@@ -181,7 +181,8 @@ static bool         M_popular_robots=FALSE;         /* -''- */
 static bool         M_popular_sw=FALSE;             /* -''- */
 
 #ifdef _WIN32   /* Windows */
-WSADATA             wsa;
+static WSADATA      M_eng_wsa;
+static bool         M_eng_WSA_initialized=FALSE;
 #endif
 
 static bool         M_shutdown=FALSE;
@@ -284,12 +285,14 @@ int main(int argc, char **argv)
 
     DBG("Initializing Winsock...");
 
-    if ( WSAStartup(MAKEWORD(2,2), &wsa) != 0 )
+    if ( WSAStartup(MAKEWORD(2,2), &M_eng_wsa) != 0 )
     {
-        ERR("WSAStartup failed. Error Code = %d", WSAGetLastError());
+        ERR("WSAStartup for Node++ engine failed. Error Code = %d", WSAGetLastError());
         clean_up();
         return EXIT_FAILURE;
     }
+
+    M_eng_WSA_initialized = TRUE;
 
 #endif  /* _WIN32 */
 
@@ -6607,7 +6610,8 @@ static void clean_up()
 #endif  /* NPP_ASYNC */
 
 #ifdef _WIN32   /* Windows */
-    WSACleanup();
+    if ( M_eng_WSA_initialized )
+        WSACleanup();
 #endif  /* _WIN32 */
 
     npp_lib_done();

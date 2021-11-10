@@ -69,7 +69,11 @@ static void restart()
     npp_update_time_globals();
 
     INF_T("Waiting %d second(s)...", M_watcherWait);
+#ifdef _WIN32
+    Sleep(M_watcherWait*1000);
+#else   /* Linux */
     sleep(M_watcherWait);
+#endif
 
     npp_update_time_globals();
 
@@ -180,7 +184,7 @@ int main(int argc, char *argv[])
 
     INF_T("npp_watcher ended");
 
-    npp_log_finish();
+    npp_lib_done();
 
     return EXIT_SUCCESS;
 }
