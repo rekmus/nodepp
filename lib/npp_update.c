@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
     if ( !npp_lib_init() )
         return EXIT_FAILURE;
 
-    G_logLevel = 2;
+    G_logLevel = 1;
 
     DBG("Starting...");
 
