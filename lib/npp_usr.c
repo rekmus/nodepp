@@ -1523,6 +1523,8 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
         COPY(lang, tmp, NPP_LANG_LEN);
         stp_right(lang);
     }
+    else
+        lang[0] = EOS;
 
     if ( lang[0] && current_session && IS_SESSION && strcmp(lang, SESSION.lang) != 0 )
     {
@@ -1584,7 +1586,11 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     sprintf(sql, "INSERT INTO users (id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,auth_level,status,created,visits,ula_cnt) VALUES (0,'%s','%s','%s','%s','%s','%s','%s','%s','%s','%s',%d,%d,'%s',0,0)", login, login_u, email, email_u, name, phone, str1, str2, lang, about, auth_level, status, DT_NOW_GMT);
 
+#ifdef NPP_DEBUG
+    DBG("sql: %s", sql);
+#else
     DBG("sql: INSERT INTO users (id,login,email,name,phone,...) VALUES (0,'%s','%s','%s','%s',...)", login, email, name, phone);
+#endif
 
     if ( mysql_query(G_dbconn, sql) )
     {
