@@ -84,8 +84,8 @@
 #define MAX_ULA_BEFORE_LOCK             1000
 #endif
 
-#ifndef DEF_USER_AUTH_LEVEL
-#define DEF_USER_AUTH_LEVEL             AUTH_LEVEL_USER         /* default user authorization level */
+#ifndef NPP_DEFAULT_USER_AUTH_LEVEL
+#define NPP_DEFAULT_USER_AUTH_LEVEL     AUTH_LEVEL_USER         /* default new user authorization level */
 #endif
 
 #ifndef NPP_USER_ACTIVATION_HOURS

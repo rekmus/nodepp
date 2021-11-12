@@ -713,8 +713,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_MAX_SNIPPETS                    1000            /* max snippets */
 #endif
 
-#ifndef NPP_REQUIRED_AUTH_LEVEL
-#define NPP_REQUIRED_AUTH_LEVEL             AUTH_LEVEL_NONE /* default resource authorization level */
+#ifndef NPP_DEFAULT_REQUIRED_AUTH_LEVEL
+#define NPP_DEFAULT_REQUIRED_AUTH_LEVEL     AUTH_LEVEL_NONE /* default resource authorization level */
 #endif
 
 /* asynchronous calls */

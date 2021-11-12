@@ -749,7 +749,7 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
         strcpy(SESSION.lang, row[4]?row[4]:"");
         strcpy(SESSION.about, row[5]?row[5]:"");
         SESSION.group_id = row[6]?atoi(row[6]):0;
-        SESSION.auth_level = row[7]?atoi(row[7]):DEF_USER_AUTH_LEVEL;
+        SESSION.auth_level = row[7]?atoi(row[7]):NPP_DEFAULT_USER_AUTH_LEVEL;
 
         /* non-session data */
 
@@ -785,7 +785,7 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
         row = mysql_fetch_row(result);
 
         if ( row )
-            SESSION.auth_level = row[2]?atoi(row[2]):DEF_USER_AUTH_LEVEL;
+            SESSION.auth_level = row[2]?atoi(row[2]):NPP_DEFAULT_USER_AUTH_LEVEL;
         else
             WAR("group_id=%d not found in users_groups", SESSION.group_id);
 
@@ -1082,7 +1082,7 @@ int npp_usr_login(int ci)
     strcpy(us.lang, row[7]?row[7]:"");
     strcpy(us.about, row[8]?row[8]:"");
     us.group_id = row[9]?atoi(row[9]):0;
-    us.auth_level = row[10]?atoi(row[10]):DEF_USER_AUTH_LEVEL;
+    us.auth_level = row[10]?atoi(row[10]):NPP_DEFAULT_USER_AUTH_LEVEL;
 
     /* non-session data */
 
@@ -1634,7 +1634,7 @@ int npp_usr_create_account(int ci)
     else
         status = USER_STATUS_ACTIVE;
 
-    return create_account(ci, DEF_USER_AUTH_LEVEL, status, TRUE);
+    return create_account(ci, NPP_DEFAULT_USER_AUTH_LEVEL, status, TRUE);
 }
 
 

@@ -58,6 +58,24 @@
 #define APP_KEYWORDS                    NPP_APP_KEYWORDS
 #endif
 
+#ifdef DEF_RES_AUTH_LEVEL
+#define NPP_DEFAULT_REQUIRED_AUTH_LEVEL DEF_RES_AUTH_LEVEL
+#else
+#define DEF_RES_AUTH_LEVEL              NPP_DEFAULT_REQUIRED_AUTH_LEVEL
+#endif
+
+#ifdef DEF_USER_AUTH_LEVEL
+#define NPP_DEFAULT_USER_AUTH_LEVEL     DEF_USER_AUTH_LEVEL
+#else
+#define DEF_USER_AUTH_LEVEL             NPP_DEFAULT_USER_AUTH_LEVEL
+#endif
+
+#ifdef USES_TIMEOUT
+#define NPP_SESSION_TIMEOUT             USES_TIMEOUT
+#else
+#define USES_TIMEOUT                    NPP_SESSION_TIMEOUT
+#endif
+
 #ifdef APP_ADMIN_EMAIL
 #define NPP_ADMIN_EMAIL                 APP_ADMIN_EMAIL
 #else
@@ -127,9 +145,9 @@
 #endif
 
 #ifdef LUSES_TIMEOUT
-#define NPP_SESSION_TIMEOUT             LUSES_TIMEOUT
+#define NPP_AUTH_SESSION_TIMEOUT        LUSES_TIMEOUT
 #else
-#define LUSES_TIMEOUT                   NPP_SESSION_TIMEOUT
+#define LUSES_TIMEOUT                   NPP_AUTH_SESSION_TIMEOUT
 #endif
 
 #ifdef MEM_TINY
@@ -417,6 +435,11 @@
 #endif
 
 #define PASSWD_RESET_KEY_LEN            NPP_PASSWD_RESET_KEY_LEN
+
+#ifdef USES_SET_TZ
+#define NPP_SET_TZ
+#endif
+
 
 
 /* convenience macros */
