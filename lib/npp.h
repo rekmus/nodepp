@@ -857,6 +857,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 
 
+#define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
+
+
 #define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_TEXT || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_BMP))
 
 
@@ -1420,34 +1423,34 @@ typedef struct {                            /* request details for npp_svc */
 typedef struct {
     /* what comes in */
 #ifdef _WIN32   /* Windows */
-    SOCKET   fd;                                /* file descriptor */
+    SOCKET   fd;                                    /* file descriptor */
 #else
-    int      fd;                                /* file descriptor */
+    int      fd;                                    /* file descriptor */
 #endif  /* _WIN32 */
-    char     ip[INET_ADDRSTRLEN];               /* client IP */
-    char     in[NPP_IN_BUFSIZE];                /* the whole incoming request */
-    char     method[NPP_METHOD_LEN+1];          /* HTTP method */
-    unsigned was_read;                          /* request bytes read so far */
+    char     ip[INET_ADDRSTRLEN];                   /* client IP */
+    char     in[NPP_IN_BUFSIZE];                    /* the whole incoming request */
+    char     method[NPP_METHOD_LEN+1];              /* HTTP method */
+    unsigned was_read;                              /* request bytes read so far */
     /* parsed HTTP request starts here */
-    char     uri[NPP_MAX_URI_LEN+1];            /* requested URI string */
-    char     resource[NPP_MAX_RESOURCE_LEN+1];  /* from URI (REQ0) */
+    char     uri[NPP_MAX_URI_LEN+1];                /* requested URI string */
+    char     resource[NPP_MAX_RESOURCE_LEN+1];      /* from URI (REQ0) */
 #if NPP_RESOURCE_LEVELS > 1
-    char     req1[NPP_MAX_RESOURCE_LEN+1];      /* from URI -- level 1 */
+    char     req1[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 1 */
 #if NPP_RESOURCE_LEVELS > 2
-    char     req2[NPP_MAX_RESOURCE_LEN+1];      /* from URI -- level 2 */
+    char     req2[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 2 */
 #if NPP_RESOURCE_LEVELS > 3
-    char     req3[NPP_MAX_RESOURCE_LEN+1];      /* from URI -- level 3 */
+    char     req3[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 3 */
 #if NPP_RESOURCE_LEVELS > 4
-    char     req4[NPP_MAX_RESOURCE_LEN+1];      /* from URI -- level 4 */
+    char     req4[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 4 */
 #if NPP_RESOURCE_LEVELS > 5
-    char     req5[NPP_MAX_RESOURCE_LEN+1];      /* from URI -- level 5 */
+    char     req5[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
-    char     id[NPP_MAX_RESOURCE_LEN+1];        /* from URI -- last part */
-    char     http_ver[4];                       /* HTTP request version */
+    char     id[NPP_MAX_RESOURCE_LEN+1];            /* from URI -- last part */
+    char     http_ver[4];                           /* HTTP request version */
 #ifdef NPP_HTTP2
     bool     http2_upgrade_in_progress;
     /* settings */
@@ -1463,74 +1466,74 @@ typedef struct {
     unsigned http2_bytes_to_send;
 #endif  /* NPP_HTTP2 */
     char     uagent[NPP_MAX_VALUE_LEN+1];           /* user agent string */
-    char     ua_type;
+    char     ua_type;                               /* user agent type */
     char     referer[NPP_MAX_VALUE_LEN+1];
     unsigned clen;                                  /* incoming & outgoing content length */
-    char     in_cookie[NPP_MAX_VALUE_LEN+1];
-    char     cookie_in_a[NPP_SESSID_LEN+1];         /* anonymous */
-    char     cookie_in_l[NPP_SESSID_LEN+1];         /* logged in */
-    char     host[NPP_MAX_HOST_LEN+1];
+    char     in_cookie[NPP_MAX_VALUE_LEN+1];        /* request cookie */
+    char     cookie_in_a[NPP_SESSID_LEN+1];         /* anonymous sessid from cookie */
+    char     cookie_in_l[NPP_SESSID_LEN+1];         /* logged in sessid from cookie */
+    char     host[NPP_MAX_HOST_LEN+1];              /* request host */
 #ifdef NPP_MULTI_HOST
-    char     host_normalized[NPP_MAX_HOST_LEN+1];
+    char     host_normalized[NPP_MAX_HOST_LEN+1];   /* SLD (second-level domain uppercase) */
     int      host_id;
 #endif
     char     app_name[NPP_APP_NAME_LEN+1];
-    char     lang[NPP_LANG_LEN+1];
+    char     lang[NPP_LANG_LEN+1];                  /* request language */
     char     formats;                               /* date & numbers format */
-    time_t   if_mod_since;
+    time_t   if_mod_since;                          /* request If-Mod-Since */
     char     in_ctypestr[NPP_MAX_VALUE_LEN+1];      /* content type as an original string */
     char     in_ctype;                              /* content type */
     char     boundary[NPP_MAX_BOUNDARY_LEN+1];      /* for POST multipart/form-data type */
     char     authorization[NPP_MAX_VALUE_LEN+1];    /* Authorization header */
     /* POST data */
-    char     *in_data;                          /* POST data */
+    char     *in_data;                              /* POST data */
     /* what goes out */
-    unsigned out_hlen;                          /* outgoing header length */
-    unsigned out_len;                           /* outgoing length (all) */
+    unsigned out_hlen;                              /* outgoing header length */
+    unsigned out_len;                               /* outgoing length (all) */
     char     *out_start;
 #ifdef NPP_OUT_CHECK_REALLOC
-    char     *out_data_alloc;                   /* allocated space for rendered content */
+    char     *out_data_alloc;                       /* allocated space for rendered content */
 #else
     char     out_data_alloc[NPP_OUT_BUFSIZE];
 #endif
-    unsigned out_data_allocated;                /* number of allocated bytes */
-    char     *out_data;                         /* pointer to the data to send */
-    int      status;                            /* HTTP status */
+    unsigned out_data_allocated;                    /* number of allocated bytes */
+    char     *out_data;                             /* pointer to the data to send */
+    int      status;                                /* HTTP status */
     char     cust_headers[NPP_CUST_HDR_LEN+1];
     int      cust_headers_len;
-    unsigned data_sent;                         /* how many content bytes have been sent */
-    char     out_ctype;                         /* content type */
-    char     ctypestr[NPP_CONTENT_TYPE_LEN+1];  /* user (custom) content type */
-    char     cdisp[NPP_CONTENT_DISP_LEN+1];     /* content disposition */
+    unsigned data_sent;                             /* how many content bytes have been sent */
+    char     out_ctype;                             /* content type */
+    char     ctypestr[NPP_CONTENT_TYPE_LEN+1];      /* user (custom) content type */
+    char     cdisp[NPP_CONTENT_DISP_LEN+1];         /* content disposition */
     time_t   modified;
     char     cookie_out_a[NPP_SESSID_LEN+1];
-    char     cookie_out_a_exp[32];              /* cookie expires */
+    char     cookie_out_a_exp[32];                  /* cookie expires */
     char     cookie_out_l[NPP_SESSID_LEN+1];
-    char     cookie_out_l_exp[32];              /* cookie expires */
-    char     location[NPP_MAX_URI_LEN+1];       /* redirection */
+    char     cookie_out_l_exp[32];                  /* cookie expires */
+    char     location[NPP_MAX_URI_LEN+1];           /* redirection */
     /* internal stuff */
-    unsigned req;                               /* request count */
-    struct timespec proc_start;                 /* start processing time */
-    double   elapsed;                           /* processing time in ms */
-    char     conn_state;                        /* connection state (STATE_XXX) */
-    char     *p_header;                         /* current header pointer */
-    char     *p_content;                        /* current content pointer */
+    unsigned req;                                   /* request count */
+    struct timespec proc_start;                     /* start processing time */
+    double   elapsed;                               /* processing time in ms */
+    char     conn_state;                            /* connection state (STATE_XXX) */
+    char     *p_header;                             /* current header pointer */
+    char     *p_content;                            /* current content pointer */
 #ifdef NPP_HTTPS
     SSL      *ssl;
 #endif
     int      ssl_err;
-    int      si;                                /* user session index */
-    int      static_res;                        /* static resource index in M_stat */
+    int      si;                                    /* session index */
+    int      static_res;                            /* static resource index in M_stat */
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
-    int      pi;                                /* pollfds array index */
+    int      pi;                                    /* pollfds array index */
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];
     int      async_err_code;
 #endif
     char     flags;
-    char     required_auth_level;               /* required authorization level */
+    char     required_auth_level;                   /* required authorization level */
     bool     expect100;
 } npp_connection_t;
 #endif  /* NPP_SVC */
