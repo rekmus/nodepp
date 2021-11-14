@@ -32,12 +32,14 @@ Web applications like [Budgeter](https://budgeter.org) or [minishare](https://mi
 ## Simplicity
 
 In [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp):
+
 ```source.c++
 void npp_app_main(int ci)
 {
     OUT("Hello World!");
 }
 ```
+
 Compile with `m` script and run `npp_app` binary (`npp_app.exe` on Windows) ([t script](https://github.com/silgy/nodepp/blob/master/src/t) does just that, to make frequent testing easier). That's it, your application is now listening and waiting for the browser.
 
 
@@ -108,6 +110,10 @@ chmod +x t
 ```
 
 You can now browse through the simple web application. At the bottom of each page there's a rendering function name to quickly grasp how Node++ works.
+
+<div align="center">
+<img src="https://minishare.com/show?p=mbdOLtBE&i=2" width=745/>
+</div>
 
 Press `Ctrl`+`C` to stop.
 
