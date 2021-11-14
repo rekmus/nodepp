@@ -31,7 +31,7 @@ Web applications like [Budgeter](https://budgeter.org) or [minishare](https://mi
 
 ## Simplicity
 
-In npp_app.cpp:
+In [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp):
 ```source.c++
 void npp_app_main(int ci)
 {
@@ -64,6 +64,8 @@ Every project on Earth has them. So you'd better know.
 
 
 ## Getting Started (Linux)
+
+I typically use default [Amazon Linux 2 AMI](https://aws.amazon.com/amazon-linux-2) for my applications. 1GB **t2.micro** instance is more than enough for Node++ application with MySQL server. It qualifies for free 12 month trial and are well balanced and adjusted for AWS hardware they use. Use `RH` command versions below if you want to use this system.
 
 1. Install GCC
 
