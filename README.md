@@ -38,7 +38,7 @@ void npp_app_main(int ci)
     OUT("Hello World!");
 }
 ```
-Compile with `m` script and run `npp_app` binary (`npp_app.exe` on Windows). That's it, your application is now listening on the port 80 :) (If you want different port, add it as a command line argument)
+Compile with `m` script and run `npp_app` binary (`npp_app.exe` on Windows) ([t script](https://github.com/silgy/nodepp/blob/master/src/t) does just that, to make frequent testing easier). That's it, your application is now listening and waiting for the browser.
 
 
 ## Some more details
@@ -69,21 +69,21 @@ I typically use default [Amazon Linux 2 AMI](https://aws.amazon.com/amazon-linux
 
 1. Install GCC
 
-```
+```source.sh
 sudo yum install gcc-c++    # RH
 sudo apt-get install g++    # Ubuntu
 ```
 
 2. Install OpenSSL
 
-```
+```source.sh
 sudo yum install openssl-devel    # RH
 sudo apt-get install libssl-dev   # Ubuntu
 ```
 
 3. Compilation script:
 
-```
+```source.sh
 cd src
 chmod +x m
 ./m
@@ -91,15 +91,15 @@ chmod +x m
 
 4. Quick test (start the app in foreground):
 
-```
+```source.sh
 chmod +x t
 ./t
 ```
 
 5. Browser:
 
-```
-localhost:8080
+```source.sh
+<host>:8080
 ```
 You can now browse through the simple web application. At the bottom of each page there's a rendering function name to quickly grasp how Node++ works.
 
@@ -108,7 +108,7 @@ Press `Ctrl`+`C` to stop.
 
 ## Directory structure
 
-Although not necessary, it's good to have $NPP_DIR set in the environment, pointing to the project directory. Node++ engine always first looks in `$NPP_DIR/<dir>` for the particular file, with `<dir>` being one of the below:
+Although not necessary, it's good to have **$NPP_DIR** set in the environment, pointing to the project directory. Node++ engine always first looks in `$NPP_DIR/<dir>` for the particular file, with `<dir>` being one of the below:
 
 ### `src`
 
