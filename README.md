@@ -81,29 +81,37 @@ sudo yum install openssl-devel    # RH
 sudo apt-get install libssl-dev   # Ubuntu
 ```
 
-3. Compilation script:
+3. Mark scripts as executables:
 
 ```source.sh
 cd src
 chmod +x m
+chmod +x t
+```
+
+4. Compile:
+
+```source.sh
 ./m
 ```
 
-4. Quick test (start the app in foreground):
+5. Quick test (start the app in foreground):
 
 ```source.sh
-chmod +x t
 ./t
 ```
 
-5. Browser:
+6. Browser:
 
 ```source.sh
 <host>:8080
 ```
+
 You can now browse through the simple web application. At the bottom of each page there's a rendering function name to quickly grasp how Node++ works.
 
 Press `Ctrl`+`C` to stop.
+
+If you want to start the application in background, use [nppstart](https://github.com/silgy/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/silgy/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/silgy/nodepp/tree/master/bin).
 
 
 ## Directory structure
