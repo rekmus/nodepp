@@ -2719,7 +2719,7 @@ bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf)
     if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
-            *retbuf = atoi(s);
+            sscanf(s, "%d", retbuf);
 
         return TRUE;
     }
@@ -2738,7 +2738,7 @@ bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf)
     if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
-            *retbuf = (unsigned)strtoul(s, NULL, 10);
+            sscanf(s, "%u", retbuf);
 
         return TRUE;
     }
@@ -2757,7 +2757,7 @@ bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf)
     if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
-            *retbuf = (long)strtoul(s, NULL, 10);
+            sscanf(s, "%ld", retbuf);
 
         return TRUE;
     }
@@ -2815,13 +2815,10 @@ bool npp_lib_qsb(int ci, const char *fieldname, bool *retbuf)
     {
         if ( retbuf )
         {
-            if ( s[0] == 't'
-                    || s[0] == 'T'
-                    || s[0] == '1'
-                    || 0==strcmp(s, "on") )
-                *retbuf = true;
+            if ( NPP_IS_THIS_TRUE(s[0]) || 0==strcmp(s, "on") )
+                *retbuf = TRUE;
             else
-                *retbuf = false;
+                *retbuf = FALSE;
         }
 
         return TRUE;
@@ -7006,6 +7003,8 @@ static char dst[NPP_JSON_STR_LEN+1];
 -------------------------------------------------------------------------- */
 int lib_json_get_int(JSON *json, const char *name, int i)
 {
+    int value;
+
     if ( !name )    /* array elem */
     {
         if ( i >= json->cnt )
@@ -7014,24 +7013,16 @@ int lib_json_get_int(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == NPP_JSON_INTEGER )
-            return atoi(json->rec[i].value);
-        else if ( json->rec[i].type == NPP_JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
-            return (int)strtoul(json->rec[i].value, NULL, 10);
-        else    /* types don't match */
-            return 0;
+        sscanf(json->rec[i].value, "%d", &value);
+        return value;
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == NPP_JSON_INTEGER )
-                return atoi(json->rec[i].value);
-            else if ( json->rec[i].type == NPP_JSON_UNSIGNED && strtoul(json->rec[i].value, NULL, 10) < INT_MAX )
-                return (int)strtoul(json->rec[i].value, NULL, 10);
-
-            return 0;   /* types don't match or couldn't convert */
+            sscanf(json->rec[i].value, "%d", &value);
+            return value;
         }
     }
 
@@ -7044,6 +7035,8 @@ int lib_json_get_int(JSON *json, const char *name, int i)
 -------------------------------------------------------------------------- */
 unsigned lib_json_get_uint(JSON *json, const char *name, int i)
 {
+    unsigned value;
+
     if ( !name )    /* array elem */
     {
         if ( i >= json->cnt )
@@ -7052,42 +7045,16 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == NPP_JSON_UNSIGNED )
-        {
-            return (unsigned)strtoul(json->rec[i].value, NULL, 10);
-        }
-        else if ( json->rec[i].type == NPP_JSON_INTEGER )
-        {
-            int tmp = atoi(json->rec[i].value);
-
-            if ( tmp >= 0 )
-                return (unsigned)tmp;
-            else
-                WAR("lib_json_get_uint value < 0");
-        }
-        else    /* types don't match */
-            return 0;
+        sscanf(json->rec[i].value, "%u", &value);
+        return value;
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == NPP_JSON_UNSIGNED )
-            {
-                return (unsigned)strtoul(json->rec[i].value, NULL, 10);
-            }
-            else if ( json->rec[i].type == NPP_JSON_INTEGER )
-            {
-                int tmp = atoi(json->rec[i].value);
-
-                if ( tmp >= 0 )
-                    return (unsigned)tmp;
-                else
-                    WAR("lib_json_get_uint value < 0");
-            }
-
-            return 0;   /* types don't match or couldn't convert */
+            sscanf(json->rec[i].value, "%u", &value);
+            return value;
         }
     }
 
@@ -7100,6 +7067,8 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
 -------------------------------------------------------------------------- */
 long lib_json_get_long(JSON *json, const char *name, int i)
 {
+    long value;
+
     if ( !name )    /* array elem */
     {
         if ( i >= json->cnt )
@@ -7108,14 +7077,16 @@ long lib_json_get_long(JSON *json, const char *name, int i)
             return 0;
         }
 
-        return (long)strtoul(json->rec[i].value, NULL, 10);
+        sscanf(json->rec[i].value, "%ld", &value);
+        return value;
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            return (long)strtoul(json->rec[i].value, NULL, 10);
+            sscanf(json->rec[i].value, "%ld", &value);
+            return value;
         }
     }
 
@@ -7128,7 +7099,7 @@ long lib_json_get_long(JSON *json, const char *name, int i)
 -------------------------------------------------------------------------- */
 float lib_json_get_float(JSON *json, const char *name, int i)
 {
-    float flo_value;
+    float value;
 
     if ( !name )    /* array elem */
     {
@@ -7138,26 +7109,16 @@ float lib_json_get_float(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == NPP_JSON_FLOAT )
-        {
-            sscanf(json->rec[i].value, "%f", &flo_value);
-            return flo_value;
-        }
-        else    /* types don't match */
-            return 0;
+        sscanf(json->rec[i].value, "%f", &value);
+        return value;
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == NPP_JSON_FLOAT )
-            {
-                sscanf(json->rec[i].value, "%f", &flo_value);
-                return flo_value;
-            }
-
-            return 0;   /* types don't match or couldn't convert */
+            sscanf(json->rec[i].value, "%f", &value);
+            return value;
         }
     }
 
@@ -7170,7 +7131,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
 -------------------------------------------------------------------------- */
 double lib_json_get_double(JSON *json, const char *name, int i)
 {
-    double dbl_value;
+    double value;
 
     if ( !name )    /* array elem */
     {
@@ -7180,26 +7141,16 @@ double lib_json_get_double(JSON *json, const char *name, int i)
             return 0;
         }
 
-        if ( json->rec[i].type == NPP_JSON_FLOAT || json->rec[i].type == NPP_JSON_DOUBLE )
-        {
-            sscanf(json->rec[i].value, "%lf", &dbl_value);
-            return dbl_value;
-        }
-        else    /* types don't match */
-            return 0;
+        sscanf(json->rec[i].value, "%lf", &value);
+        return value;
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == NPP_JSON_FLOAT || json->rec[i].type == NPP_JSON_DOUBLE )
-            {
-                sscanf(json->rec[i].value, "%lf", &dbl_value);
-                return dbl_value;
-            }
-
-            return 0;   /* types don't match or couldn't convert */
+            sscanf(json->rec[i].value, "%lf", &value);
+            return value;
         }
     }
 
@@ -7220,46 +7171,20 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
             return FALSE;
         }
 
-        if ( json->rec[i].type == NPP_JSON_BOOL )
-        {
-            if ( json->rec[i].value[0] == 't' )
-                return TRUE;
-            else
-                return FALSE;
-        }
-        else if ( json->rec[i].type == NPP_JSON_STRING )
-        {
-            if ( 0==strcmp(json->rec[i].value, "true") )
-                return TRUE;
-            else
-                return FALSE;
-        }
-        else    /* types don't match */
-        {
+        if ( NPP_IS_THIS_TRUE(json->rec[i].value[0]) )
+            return TRUE;
+        else
             return FALSE;
-        }
     }
 
     for ( i=0; i<json->cnt; ++i )
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type == NPP_JSON_BOOL )
-            {
-                if ( json->rec[i].value[0] == 't' )
-                    return TRUE;
-                else
-                    return FALSE;
-            }
-            else if ( json->rec[i].type == NPP_JSON_STRING )
-            {
-                if ( 0==strcmp(json->rec[i].value, "true") )
-                    return TRUE;
-                else
-                    return FALSE;
-            }
-
-            return FALSE;   /* types don't match or couldn't convert */
+            if ( NPP_IS_THIS_TRUE(json->rec[i].value[0]) )
+                return TRUE;
+            else
+                return FALSE;
         }
     }
 

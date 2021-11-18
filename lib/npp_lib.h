@@ -173,6 +173,9 @@
 #define NPP_MAX_SHM_SEGMENTS            100
 
 
+#define NPP_IS_THIS_TRUE(c)             (c=='t' || c=='T' || c=='1')
+
+
 #define npp_message(code)               npp_get_message(ci, code)
 #define MSG(code)                       npp_get_message(ci, code)
 #define MSG_CAT_GREEN(code)             npp_is_msg_main_cat(code, MSG_CAT_MESSAGE)
