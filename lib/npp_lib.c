@@ -6899,7 +6899,7 @@ bool lib_json_add_bool(JSON *json, const char *name, bool value, int i)
 -------------------------------------------------------------------------- */
 bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_array, int i)
 {
-    DBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
+    DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
     if ( name )
     {
