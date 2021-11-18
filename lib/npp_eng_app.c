@@ -847,7 +847,7 @@ int main(int argc, char **argv)
                         clock_gettime(MONOTONIC_CLOCK_NAME, &G_connections[i].proc_start);
 #endif
                         /* update visits counter */
-                        if ( !G_connections[i].resource[0] && G_connections[i].status==200 && !NPP_CONN_IS_BOT(G_connections[i].flags) && !G_connections[i].method[0]=='H' && 0==strcmp(G_connections[i].host, NPP_APP_DOMAIN) )
+                        if ( !G_connections[i].resource[0] && G_connections[i].status==200 && !NPP_CONN_IS_BOT(G_connections[i].flags) && G_connections[i].method[0]!='H' && 0==strcmp(G_connections[i].host, NPP_APP_DOMAIN) )
                         {
                             ++G_cnts_today.visits;
 

@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
     }
 
     npp_lib_done();
-    
+
     if ( ret != OK )
         return EXIT_FAILURE;
     

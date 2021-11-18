@@ -3029,6 +3029,8 @@ void npp_lib_send_msg_description(int ci, int code)
 -------------------------------------------------------------------------- */
 static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
 {
+    DDBG("format_counters");
+
     strcpy(s->req, INT(n->req));
     strcpy(s->req_dsk, INT(n->req_dsk));
     strcpy(s->req_tab, INT(n->req_tab));
@@ -6053,7 +6055,7 @@ void lib_json_reset(JSON *json)
 -------------------------------------------------------------------------- */
 static int json_get_i(JSON *json, const char *name)
 {
-    int     i;
+    int i;
 
     for ( i=0; i<json->cnt; ++i )
         if ( 0==strcmp(json->rec[i].name, name) )
@@ -6665,7 +6667,7 @@ static char tmp[NPP_JSON_BUFSIZE];
 void lib_json_log_dbg(JSON *json, const char *name)
 {
     int     i;
-    char    type[32];
+    char    type[64];
 
     DBG_LINE;
 
@@ -6713,7 +6715,7 @@ void lib_json_log_dbg(JSON *json, const char *name)
 void lib_json_log_inf(JSON *json, const char *name)
 {
     int     i;
-    char    type[32];
+    char    type[64];
 
     INF_LINE;
 
@@ -9155,13 +9157,15 @@ static char dest[64];
 ---------------------------------------------------------------------------*/
 char *npp_lib_fmt_int(int ci, long long in_val)
 {
-static char dest[64];
+static char dest[256];
 
     char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
 
     sprintf(in_val_str, "%lld", in_val);
+
+//    DDBG("in_val_str [%s]", in_val_str);
 
     if ( in_val_str[0] == '-' )   /* change to UTF-8 minus sign */
     {
@@ -9172,7 +9176,7 @@ static char dest[64];
 
     int len = strlen(in_val_str);
 
-    char tsep = get_tsep(ci);   /* thousand separator */
+    char tsep = get_tsep(ci);    /* thousand separator */
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
