@@ -6095,7 +6095,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
@@ -6175,13 +6175,13 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
         else if ( json->rec[i].type == NPP_JSON_RECORD )
         {
-            if ( !array || i > 0 )
+            if ( !array )
             {
                 p = stpcpy(p, "\n");
                 p = stpcpy(p, json_indent(level));
@@ -6194,7 +6194,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
         }
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
-            if ( !array || i > 0 )
+            if ( !array )
             {
                 p = stpcpy(p, "\n");
                 p = stpcpy(p, json_indent(level));
