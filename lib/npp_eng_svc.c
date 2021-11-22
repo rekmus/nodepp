@@ -367,10 +367,8 @@ int main(int argc, char *argv[])
 
             /* request details */
 
-//            G_connections[0].secure = G_svc_req.hdr.secure;
             strcpy(G_connections[0].ip, G_svc_req.hdr.ip);
             strcpy(G_connections[0].method, G_svc_req.hdr.method);
-//            G_connections[0].post = G_svc_req.hdr.post;
             strcpy(G_connections[0].uri, G_svc_req.hdr.uri);
             strcpy(G_connections[0].resource, G_svc_req.hdr.resource);
 #if NPP_RESOURCE_LEVELS > 1
@@ -415,18 +413,13 @@ int main(int argc, char *argv[])
             strcpy(G_connections[0].cookie_out_l_exp, G_svc_req.hdr.cookie_out_l_exp);
             strcpy(G_connections[0].location, G_svc_req.hdr.location);
             G_svc_si = G_svc_req.hdr.si;    /* original si */
-//            G_connections[0].bot = G_svc_req.hdr.bot;
-//            G_connections[0].dont_cache = G_svc_req.hdr.dont_cache;
-//            G_connections[0].keep_content = G_svc_req.hdr.keep_content;
             G_connections[0].flags = G_svc_req.hdr.flags;
 
             /* For POST, the payload can be in the data space of the message,
                or -- if it's bigger -- in the shared memory */
 
-//            if ( G_svc_req.hdr.post )
             if ( NPP_CONN_IS_PAYLOAD(G_svc_req.hdr.flags) )
             {
-//                if ( G_svc_req.hdr.payload_location == ASYNC_PAYLOAD_MSG )
                 if ( !NPP_ASYNC_IS_PAYLOAD_IN_SHM(G_svc_req.hdr.async_flags) )
                 {
                     memcpy(G_connections[0].in_data, G_svc_req.data, G_svc_req.hdr.clen+1);
@@ -505,6 +498,8 @@ int main(int argc, char *argv[])
 #endif
             /* ----------------------------------------------------------- */
 
+            DBG("Calling npp_svc_main...");
+
             npp_svc_main(0);
 
             /* ----------------------------------------------------------- */
@@ -526,8 +521,6 @@ int main(int argc, char *argv[])
                 strcpy(G_svc_res.hdr.cookie_out_l, G_connections[0].cookie_out_l);
                 strcpy(G_svc_res.hdr.cookie_out_l_exp, G_connections[0].cookie_out_l_exp);
                 strcpy(G_svc_res.hdr.location, G_connections[0].location);
-//                G_svc_res.hdr.dont_cache = G_connections[0].dont_cache;
-//                G_svc_res.hdr.keep_content = G_connections[0].keep_content;
 
                 G_svc_res.hdr.call_http_status = G_call_http_status;
                 G_svc_res.hdr.call_http_req_cnt = G_call_http_req_cnt;  /* only for this async call */
