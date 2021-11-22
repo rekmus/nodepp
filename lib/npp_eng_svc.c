@@ -485,10 +485,6 @@ int main(int argc, char *argv[])
 
             strcpy(G_last_modified, G_svc_req.hdr.last_modified);
 
-            /* ----------------------------------------------------------- */
-
-            DBG("Processing...");
-
             /* response data */
 
 #ifdef NPP_OUT_CHECK_REALLOC
