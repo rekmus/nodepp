@@ -6595,12 +6595,24 @@ static char tmp[NPP_JSON_BUFSIZE];
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
                 else if ( value[0] == '-' || strtoul(value, NULL, 10) < INT_MAX )
-                    lib_json_add_int(json, NULL, atoi(value), index);
+                {
+                    int num_val;
+                    sscanf(value, "%d", &num_val);
+                    lib_json_add_int(json, NULL, num_val, index);
+                }
                 else    /* unsigned */
-                    lib_json_add_uint(json, NULL, (unsigned)strtoul(value, NULL, 10), index);
+                {
+                    unsigned num_val;
+                    sscanf(value, "%u", &num_val);
+                    lib_json_add_uint(json, NULL, num_val, index);
+                }
 #else   /* Linux */
                 else    /* long */
-                    lib_json_add_long(json, NULL, (long)strtoul(value, NULL, 10), index);
+                {
+                    long num_val;
+                    sscanf(value, "%ld", &num_val);
+                    lib_json_add_long(json, NULL, num_val, index);
+                }
 #endif  /* _WIN32 */
             }
             else    /* not an array */
@@ -6626,12 +6638,24 @@ static char tmp[NPP_JSON_BUFSIZE];
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
                 else if ( value[0] == '-' || strtoul(value, NULL, 10) < INT_MAX )
-                    lib_json_add_int(json, key, atoi(value), -1);
+                {
+                    int num_val;
+                    sscanf(value, "%d", &num_val);
+                    lib_json_add_int(json, key, num_val, -1);
+                }
                 else    /* unsigned */
-                    lib_json_add_uint(json, key, (unsigned)strtoul(value, NULL, 10), -1);
+                {
+                    unsigned num_val;
+                    sscanf(value, "%u", &num_val);
+                    lib_json_add_uint(json, key, num_val, -1);
+                }
 #else   /* Linux */
                 else    /* long */
-                    lib_json_add_long(json, key, (long)strtoul(value, NULL, 10), -1);
+                {
+                    long num_val;
+                    sscanf(value, "%ld", &num_val);
+                    lib_json_add_long(json, key, num_val, -1);
+                }
 #endif  /* _WIN32 */
             }
 
@@ -6649,9 +6673,6 @@ static char tmp[NPP_JSON_BUFSIZE];
             if ( j < NPP_JSON_STR_LEN )
                 value[j++] = src[i];
         }
-
-//        if ( src[i-2]=='}' && !now_value && level==0 )    /* end of JSON */
-//            break;
     }
 
     return TRUE;

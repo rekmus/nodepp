@@ -398,8 +398,18 @@
 #define NPP_JSON_KEY_LEN                    31
 #endif
 
+#if NPP_JSON_KEY_LEN < 1
+#undef NPP_JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                    1       /* it can't be 0 */
+#endif
+
 #ifndef NPP_JSON_STR_LEN
 #define NPP_JSON_STR_LEN                    255
+#endif
+
+#if NPP_JSON_STR_LEN < 31
+#undef NPP_JSON_STR_LEN
+#define NPP_JSON_STR_LEN                    31      /* the memory address as hex must fit in */
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
@@ -416,6 +426,11 @@
 
 #ifndef NPP_JSON_BUFSIZE
 #define NPP_JSON_BUFSIZE                    65568
+#endif
+
+#if NPP_JSON_BUFSIZE < 256
+#undef NPP_JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                    256
 #endif
 
 

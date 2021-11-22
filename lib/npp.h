@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.0.1"
+#define NPP_VERSION                     "1.0.2"
 
 
 #ifndef FALSE
