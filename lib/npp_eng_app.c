@@ -6159,7 +6159,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     if ( 0==strcmp(ulabel, "HOST") )
     {
 #ifdef NPP_BLACKLIST_AUTO_UPDATE
-        if ( check_block_ip(ci, "Host", value) )
+        if ( !NPP_VALID_RELOAD_CONF_REQUEST && check_block_ip(ci, "Host", value) )
             return 404;     /* Forbidden */
 #endif
         COPY(G_connections[ci].host, value, NPP_MAX_HOST_LEN);
