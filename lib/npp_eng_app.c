@@ -2009,7 +2009,7 @@ static void set_state_sec(int ci, int bytes)
 -------------------------------------------------------------------------- */
 static void read_conf(bool first)
 {
-    DBG("Reading configuration...");
+    INF("Reading configuration...");
 
     bool conf_read=FALSE;
 
@@ -2072,7 +2072,7 @@ static void read_conf(bool first)
         }
         else    /* npp_reload_conf */
         {
-            int tmp_logToStdout;
+            int tmp_logToStdout=G_logToStdout;
 
             npp_read_param_int("logToStdout", &tmp_logToStdout);
 
@@ -2106,7 +2106,8 @@ static void read_conf(bool first)
         }
         else    /* can't change it online */
         {
-            int tmp_httpPort, tmp_httpsPort;
+            int tmp_httpPort=G_httpPort;
+            int tmp_httpsPort=G_httpsPort;
 
             npp_read_param_int("httpPort", &tmp_httpPort);
             npp_read_param_int("httpsPort", &tmp_httpsPort);
@@ -2255,7 +2256,7 @@ static void read_conf(bool first)
         }
         else    /* can't change it online */
         {
-            int tmp_ASYNCId;
+            int tmp_ASYNCId=G_ASYNCId;
 
             npp_read_param_int("ASYNCId", &tmp_ASYNCId);
 
