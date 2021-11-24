@@ -969,8 +969,6 @@ int main(int argc, char **argv)
                 strcpy(G_connections[res.ci].cookie_out_l, res.hdr.cookie_out_l);
                 strcpy(G_connections[res.ci].cookie_out_l_exp, res.hdr.cookie_out_l_exp);
                 strcpy(G_connections[res.ci].location, res.hdr.location);
-//                G_connections[res.ci].dont_cache = res.hdr.dont_cache;
-//                G_connections[res.ci].keep_content = res.hdr.keep_content;
 
                 G_connections[res.ci].flags = res.hdr.flags;
 
@@ -1105,6 +1103,11 @@ static bool housekeeping()
 #ifdef NPP_USERS
         if ( G_sessions_cnt ) libusr_luses_close_timeouted();
 #endif
+
+#ifdef NPP_APP_EVERY_MINUTE
+        npp_app_every_minute();
+#endif
+
         /* say something sometimes ... */
         ALWAYS_T("%d open connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
 
@@ -2482,141 +2485,143 @@ static bool init(int argc, char **argv)
     ALWAYS("");
 
 #ifdef SIZE_MAX
-    ALWAYS("                SIZE_MAX = %lu", SIZE_MAX);
+    ALWAYS("                       SIZE_MAX = %lu", SIZE_MAX);
 #endif
 
-    ALWAYS("              FD_SETSIZE = %d", FD_SETSIZE);
-    ALWAYS("               SOMAXCONN = %d", SOMAXCONN);
+    ALWAYS("                     FD_SETSIZE = %d", FD_SETSIZE);
+    ALWAYS("                      SOMAXCONN = %d", SOMAXCONN);
     ALWAYS("");
     ALWAYS("Server:");
     ALWAYS("-------");
-    ALWAYS("                 NPP_DIR = %s", G_appdir);
-    ALWAYS("             NPP_VERSION = %s", NPP_VERSION);
+    ALWAYS("                        NPP_DIR = %s", G_appdir);
+    ALWAYS("                    NPP_VERSION = %s", NPP_VERSION);
 #ifdef NPP_MEM_TINY
-    ALWAYS("            Memory model = NPP_MEM_TINY");
+    ALWAYS("                   Memory model = NPP_MEM_TINY");
 #elif defined NPP_MEM_MEDIUM
-    ALWAYS("            Memory model = NPP_MEM_MEDIUM");
+    ALWAYS("                   Memory model = NPP_MEM_MEDIUM");
 #elif defined NPP_MEM_LARGE
-    ALWAYS("            Memory model = NPP_MEM_LARGE");
+    ALWAYS("                   Memory model = NPP_MEM_LARGE");
 #elif defined NPP_MEM_XLARGE
-    ALWAYS("            Memory model = NPP_MEM_XLARGE");
+    ALWAYS("                   Memory model = NPP_MEM_XLARGE");
 #elif defined NPP_MEM_XXLARGE
-    ALWAYS("            Memory model = NPP_MEM_XXLARGE");
+    ALWAYS("                   Memory model = NPP_MEM_XXLARGE");
 #elif defined NPP_MEM_XXXLARGE
-    ALWAYS("            Memory model = NPP_MEM_XXXLARGE");
+    ALWAYS("                   Memory model = NPP_MEM_XXXLARGE");
 #elif defined NPP_MEM_XXXXLARGE
-    ALWAYS("            Memory model = NPP_MEM_XXXXLARGE");
+    ALWAYS("                   Memory model = NPP_MEM_XXXXLARGE");
 #else   /* NPP_MEM_SMALL -- default */
-    ALWAYS("            Memory model = NPP_MEM_SMALL");
+    ALWAYS("                   Memory model = NPP_MEM_SMALL");
 #endif
-    ALWAYS("     NPP_MAX_CONNECTIONS = %d", NPP_MAX_CONNECTIONS);
-    ALWAYS("        NPP_MAX_SESSIONS = %d", NPP_MAX_SESSIONS);
+    ALWAYS("            NPP_MAX_CONNECTIONS = %d", NPP_MAX_CONNECTIONS);
+    ALWAYS("               NPP_MAX_SESSIONS = %d", NPP_MAX_SESSIONS);
     ALWAYS("");
 #ifdef NPP_FD_MON_SELECT
-    ALWAYS("           FD monitoring = NPP_FD_MON_SELECT");
+    ALWAYS("                  FD monitoring = NPP_FD_MON_SELECT");
 #endif
 #ifdef NPP_FD_MON_POLL
-    ALWAYS("           FD monitoring = NPP_FD_MON_POLL");
+    ALWAYS("                  FD monitoring = NPP_FD_MON_POLL");
 #endif
 #ifdef NPP_FD_MON_EPOLL
-    ALWAYS("           FD monitoring = NPP_FD_MON_EPOLL");
+    ALWAYS("                  FD monitoring = NPP_FD_MON_EPOLL");
 #endif
     ALWAYS("");
-    ALWAYS("  NPP_CONNECTION_TIMEOUT = %d seconds", NPP_CONNECTION_TIMEOUT);
-    ALWAYS("     NPP_SESSION_TIMEOUT = %d seconds", NPP_SESSION_TIMEOUT);
+    ALWAYS("         NPP_CONNECTION_TIMEOUT = %d seconds", NPP_CONNECTION_TIMEOUT);
+    ALWAYS("            NPP_SESSION_TIMEOUT = %d seconds", NPP_SESSION_TIMEOUT);
 #ifdef NPP_USERS
-    ALWAYS("NPP_AUTH_SESSION_TIMEOUT = %d seconds", NPP_AUTH_SESSION_TIMEOUT);
+    ALWAYS("       NPP_AUTH_SESSION_TIMEOUT = %d seconds", NPP_AUTH_SESSION_TIMEOUT);
 #endif
     ALWAYS("");
-    ALWAYS("         NPP_OUT_BUFSIZE = %lu bytes (%lu KiB / %0.2lf MiB)", NPP_OUT_BUFSIZE, NPP_OUT_BUFSIZE/1024, (double)NPP_OUT_BUFSIZE/1024/1024);
+    ALWAYS("                NPP_OUT_BUFSIZE = %lu bytes (%lu KiB / %0.2lf MiB)", NPP_OUT_BUFSIZE, NPP_OUT_BUFSIZE/1024, (double)NPP_OUT_BUFSIZE/1024/1024);
     ALWAYS("");
-    ALWAYS("     G_connections' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_connections), sizeof(G_connections)/1024, (double)sizeof(G_connections)/1024/1024);
-    ALWAYS("        G_sessions' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_sessions), sizeof(G_sessions)/1024, (double)sizeof(G_sessions)/1024/1024);
-    ALWAYS("G_app_session_data' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_app_session_data), sizeof(G_app_session_data)/1024, (double)sizeof(G_app_session_data)/1024/1024);
+    ALWAYS("            G_connections' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_connections), sizeof(G_connections)/1024, (double)sizeof(G_connections)/1024/1024);
+    ALWAYS("               G_sessions' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_sessions), sizeof(G_sessions)/1024, (double)sizeof(G_sessions)/1024/1024);
+    ALWAYS("       G_app_session_data' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_app_session_data), sizeof(G_app_session_data)/1024, (double)sizeof(G_app_session_data)/1024/1024);
     ALWAYS("");
 #ifdef NPP_ASYNC
-    ALWAYS("      ASYNC_REQ_MSG_SIZE = %d bytes", ASYNC_REQ_MSG_SIZE);
-    ALWAYS("      ASYNC req.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_hdr_t), sizeof(async_req_hdr_t)/1024, (double)sizeof(async_req_hdr_t)/1024/1024);
-    ALWAYS("   G_async_req_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
-    ALWAYS("      ASYNC request size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_t), sizeof(async_req_t)/1024, (double)sizeof(async_req_t)/1024/1024);
+    ALWAYS("             ASYNC_REQ_MSG_SIZE = %d bytes", ASYNC_REQ_MSG_SIZE);
+    ALWAYS("             ASYNC req.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_hdr_t), sizeof(async_req_hdr_t)/1024, (double)sizeof(async_req_hdr_t)/1024/1024);
+    ALWAYS("          G_async_req_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
+    ALWAYS("             ASYNC request size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_t), sizeof(async_req_t)/1024, (double)sizeof(async_req_t)/1024/1024);
     ALWAYS("");
-    ALWAYS("      ASYNC_RES_MSG_SIZE = %d bytes", ASYNC_RES_MSG_SIZE);
-    ALWAYS("      ASYNC res.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_hdr_t), sizeof(async_res_hdr_t)/1024, (double)sizeof(async_res_hdr_t)/1024/1024);
-    ALWAYS("   G_async_res_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
-    ALWAYS("     ASYNC response size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_t), sizeof(async_res_t)/1024, (double)sizeof(async_res_t)/1024/1024);
+    ALWAYS("             ASYNC_RES_MSG_SIZE = %d bytes", ASYNC_RES_MSG_SIZE);
+    ALWAYS("             ASYNC res.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_hdr_t), sizeof(async_res_hdr_t)/1024, (double)sizeof(async_res_hdr_t)/1024/1024);
+    ALWAYS("          G_async_res_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
+    ALWAYS("            ASYNC response size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_t), sizeof(async_res_t)/1024, (double)sizeof(async_res_t)/1024/1024);
     ALWAYS("");
 #endif  /* NPP_ASYNC */
 #ifdef NPP_OUT_FAST
-    ALWAYS("             Output type = NPP_OUT_FAST");
+    ALWAYS("                    Output type = NPP_OUT_FAST");
 #endif
 #ifdef NPP_OUT_CHECK
-    ALWAYS("             Output type = NPP_OUT_CHECK");
+    ALWAYS("                    Output type = NPP_OUT_CHECK");
 #endif
 #ifdef NPP_OUT_CHECK_REALLOC
-    ALWAYS("             Output type = NPP_OUT_CHECK_REALLOC");
+    ALWAYS("                    Output type = NPP_OUT_CHECK_REALLOC");
 #endif
 
 #ifdef QS_DEF_SQL_ESCAPE
-    ALWAYS("   Query string security = QS_DEF_SQL_ESCAPE");
+    ALWAYS("          Query string security = QS_DEF_SQL_ESCAPE");
 #endif
 #ifdef QS_DEF_DONT_ESCAPE
-    ALWAYS("   Query string security = QS_DEF_DONT_ESCAPE");
+    ALWAYS("          Query string security = QS_DEF_DONT_ESCAPE");
 #endif
 #ifdef QS_DEF_HTML_ESCAPE
-    ALWAYS("   Query string security = QS_DEF_HTML_ESCAPE");
+    ALWAYS("          Query string security = QS_DEF_HTML_ESCAPE");
 #endif
     ALWAYS("");
     ALWAYS("Program:");
     ALWAYS("--------");
-    ALWAYS("            NPP_APP_NAME = %s", NPP_APP_NAME);
-    ALWAYS("          NPP_APP_DOMAIN = %s", NPP_APP_DOMAIN);
-    ALWAYS("           NPP_LOGIN_URI = %s", NPP_LOGIN_URI);
-    if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_NONE )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_NONE");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ANONYMOUS )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ANONYMOUS");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_LOGGEDIN )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_LOGGEDIN");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_USER )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_USER");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_CUSTOMER )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_CUSTOMER");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_STAFF )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_STAFF");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_MODERATOR )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_MODERATOR");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ADMIN )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ADMIN");
-    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ROOT )
-        ALWAYS(" NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ROOT");
+    ALWAYS("                   NPP_APP_NAME = %s", NPP_APP_NAME);
+    ALWAYS("                 NPP_APP_DOMAIN = %s", NPP_APP_DOMAIN);
+    ALWAYS("                  NPP_LOGIN_URI = %s", NPP_LOGIN_URI);
 
-    ALWAYS("          NPP_SESSID_LEN = %d", NPP_SESSID_LEN);
-    ALWAYS("         NPP_MAX_STATICS = %d", NPP_MAX_STATICS);
-    ALWAYS("        NPP_MAX_MESSAGES = %d", NPP_MAX_MESSAGES);
-    ALWAYS("         NPP_MAX_STRINGS = %d", NPP_MAX_STRINGS);
-    ALWAYS("        NPP_MAX_SNIPPETS = %d", NPP_MAX_SNIPPETS);
-    ALWAYS("     NPP_EXPIRES_STATICS = %d days", NPP_EXPIRES_STATICS);
-    ALWAYS("   NPP_EXPIRES_GENERATED = %d days", NPP_EXPIRES_GENERATED);
+    if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_NONE )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_NONE");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ANONYMOUS )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ANONYMOUS");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_LOGGEDIN )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_LOGGEDIN");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_USER )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_USER");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_CUSTOMER )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_CUSTOMER");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_STAFF )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_STAFF");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_MODERATOR )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_MODERATOR");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ADMIN )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ADMIN");
+    else if ( NPP_DEFAULT_REQUIRED_AUTH_LEVEL == AUTH_LEVEL_ROOT )
+        ALWAYS("NPP_DEFAULT_REQUIRED_AUTH_LEVEL = AUTH_LEVEL_ROOT");
+
+    ALWAYS("                 NPP_SESSID_LEN = %d", NPP_SESSID_LEN);
+    ALWAYS("                NPP_MAX_STATICS = %d", NPP_MAX_STATICS);
+    ALWAYS("               NPP_MAX_MESSAGES = %d", NPP_MAX_MESSAGES);
+    ALWAYS("                NPP_MAX_STRINGS = %d", NPP_MAX_STRINGS);
+    ALWAYS("               NPP_MAX_SNIPPETS = %d", NPP_MAX_SNIPPETS);
+    ALWAYS("            NPP_EXPIRES_STATICS = %d days", NPP_EXPIRES_STATICS);
+    ALWAYS("          NPP_EXPIRES_GENERATED = %d days", NPP_EXPIRES_GENERATED);
 #ifndef _WIN32
-    ALWAYS("   NPP_COMPRESS_TRESHOLD = %d bytes", NPP_COMPRESS_TRESHOLD);
-    ALWAYS("      NPP_COMPRESS_LEVEL = %d", NPP_COMPRESS_LEVEL);
+    ALWAYS("          NPP_COMPRESS_TRESHOLD = %d bytes", NPP_COMPRESS_TRESHOLD);
+    ALWAYS("             NPP_COMPRESS_LEVEL = %d", NPP_COMPRESS_LEVEL);
 #endif
 
 #ifdef NPP_ADMIN_EMAIL
-    ALWAYS("         NPP_ADMIN_EMAIL = %s", NPP_ADMIN_EMAIL);
+    ALWAYS("                NPP_ADMIN_EMAIL = %s", NPP_ADMIN_EMAIL);
 #endif
 #ifdef NPP_CONTACT_EMAIL
-    ALWAYS("       NPP_CONTACT_EMAIL = %s", NPP_CONTACT_EMAIL);
+    ALWAYS("              NPP_CONTACT_EMAIL = %s", NPP_CONTACT_EMAIL);
 #endif
 #ifdef NPP_USERS
     ALWAYS("");
 #ifdef NPP_USERS_BY_EMAIL
-    ALWAYS("   Users' authentication = NPP_USERS_BY_EMAIL");
+    ALWAYS("          Users' authentication = NPP_USERS_BY_EMAIL");
 #else
-    ALWAYS("   Users' authentication = NPP_USERS_BY_LOGIN");
+    ALWAYS("          Users' authentication = NPP_USERS_BY_LOGIN");
 #endif
-    ALWAYS("");
 #endif  /* NPP_USERS */
+
+    ALWAYS("");
 
 #ifdef NPP_DEBUG
     WAR("NPP_DEBUG is enabled, this file may grow big quickly!");
@@ -5308,10 +5313,6 @@ static void reset_conn(int ci, char new_state)
     G_connections[ci].cookie_out_l[0] = EOS;
     G_connections[ci].cookie_out_l_exp[0] = EOS;
     G_connections[ci].location[0] = EOS;
-//    REQ_BOT = FALSE;
-//    G_connections[ci].dont_cache = FALSE;
-//    G_connections[ci].keep_content = FALSE;
-//    G_connections[ci].accept_deflate = FALSE;
 #ifdef NPP_MULTI_HOST
     G_connections[ci].host_normalized[0] = EOS;
     G_connections[ci].host_id = 0;
@@ -6159,9 +6160,13 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     if ( 0==strcmp(ulabel, "HOST") )
     {
 #ifdef NPP_BLACKLIST_AUTO_UPDATE
+#ifdef NPP_ENABLE_RELOAD_CONF
         if ( !NPP_VALID_RELOAD_CONF_REQUEST && check_block_ip(ci, "Host", value) )
-            return 404;     /* Forbidden */
+#else
+        if ( check_block_ip(ci, "Host", value) )
 #endif
+            return 404;     /* Forbidden */
+#endif  /* NPP_BLACKLIST_AUTO_UPDATE */
         COPY(G_connections[ci].host, value, NPP_MAX_HOST_LEN);
 
 #ifdef NPP_MULTI_HOST
@@ -6978,9 +6983,6 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
     strcpy(req.hdr.cookie_out_l_exp, G_connections[ci].cookie_out_l_exp);
     strcpy(req.hdr.location, G_connections[ci].location);
     req.hdr.si = G_connections[ci].si;
-//    req.hdr.bot = G_connections[ci].bot;
-//    req.hdr.dont_cache = G_connections[ci].dont_cache;
-//    req.hdr.keep_content = G_connections[ci].keep_content;
     req.hdr.flags = G_connections[ci].flags;
 
     if ( want_response )

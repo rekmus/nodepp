@@ -524,7 +524,7 @@ typedef struct {
 typedef json_t JSON;
 
 
-/* REST calls */
+/* HTTP calls */
 
 typedef struct {
     char    key[CALL_HTTP_HEADER_KEY_LEN+1];

@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.0.2"
+#define NPP_VERSION                     "1.1.0"
 
 
 #ifndef FALSE
@@ -117,7 +117,9 @@ typedef char                            bool;
 #define SUCCEED                         OK
 #define FAIL                            -1
 
+#ifndef EOS
 #define EOS                             (char)0         /* End Of String */
+#endif
 
 
 /* these can be useful in npp_app.h */
@@ -245,7 +247,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifdef NPP_MYSQL
 #include <mysql.h>
 #include <mysqld_error.h>
+#ifdef __cplusplus
+#include "npp_mysql.h"
 #endif
+#endif  /* NPP_MYSQL */
 
 
 #define NPP_APP_NAME_LEN                63
@@ -590,6 +595,21 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define LOGGEDIN                            (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define AUTHENTICATED                       (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define UID                                 SESSION.user_id
+
+
+/* API authorization flags */
+
+#define AUTH_NONE                           0x00
+#define AUTH_CREATE                         0x01
+#define AUTH_READ                           0x02
+#define AUTH_UPDATE                         0x04
+#define AUTH_DELETE                         0x08
+#define AUTH_FULL                           0xFF
+
+#define IS_AUTH_CREATE(flags)               ((flags & AUTH_CREATE) == AUTH_CREATE)
+#define IS_AUTH_READ(flags)                 ((flags & AUTH_READ) == AUTH_READ)
+#define IS_AUTH_UPDATE(flags)               ((flags & AUTH_UPDATE) == AUTH_UPDATE)
+#define IS_AUTH_DELETE(flags)               ((flags & AUTH_DELETE) == AUTH_DELETE)
 
 
 
@@ -1680,8 +1700,10 @@ extern bool         G_ssl_lib_initialized;
 #endif
 
 #ifdef NPP_MYSQL
+//#ifndef __cplusplus
 extern MYSQL        *G_dbconn;                  /* database connection */
-#endif
+//#endif
+#endif  /* NPP_MYSQL */
 
 /* asynchorous processing */
 #ifndef _WIN32
@@ -1775,6 +1797,9 @@ extern "C" {
     void npp_app_session_done(int ci);
 #ifdef NPP_APP_EVERY_SPARE_SECOND
     void npp_app_every_spare_second(void);
+#endif
+#ifdef NPP_APP_EVERY_MINUTE
+    void npp_app_every_minute(void);
 #endif
 #endif  /* NPP_APP */
 

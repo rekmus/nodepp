@@ -1515,6 +1515,7 @@ static char     dest[NPP_LIB_STR_BUF];
 bool npp_open_db()
 {
 #ifdef NPP_MYSQL
+
     if ( !G_dbName[0] )
     {
         ERR("dbName parameter is required in npp.conf");
@@ -1540,7 +1541,15 @@ bool npp_open_db()
         ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
         return FALSE;
     }
+
+    /* for backward compatibility maintain two db connections for the time being */
+
+#ifdef __cplusplus
+    Cdb::DBOpen(G_dbName, G_dbUser, G_dbPassword);
+#endif
+
 #endif  /* NPP_MYSQL */
+
     return TRUE;
 }
 
@@ -1553,7 +1562,10 @@ void npp_close_db()
 #ifdef NPP_MYSQL
     if ( G_dbconn )
         mysql_close(G_dbconn);
+#ifdef __cplusplus
+    Cdb::DBClose();
 #endif
+#endif  /* NPP_MYSQL */
 }
 
 
