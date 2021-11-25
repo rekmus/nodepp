@@ -1746,7 +1746,7 @@ void npp_out_html_header(int ci)
     OUT("<meta name=\"keywords\" content=\"%s\">", NPP_APP_KEYWORDS);
 #endif
     if ( REQ_MOB )  // if mobile request
-        OUT("<meta name=\"viewport\" content=\"width=device-width\">");
+        OUT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
     OUT("</head>");
     OUT("<body>");
 }
