@@ -13,16 +13,16 @@ What you get with Node++:
 * **Speed** − measured in µ-seconds.
 * **Safety** − nobody can ever see your application logic nor wander through your filesystem nor run scripts. It has build in protection against most popular attacks.
 * **Small memory footprint** − a couple of MB for demo app − can be easily reduced for embedded apps.
-* **Simple coding** − straightforward approach, easy to understand even for a beginner programmer [see Hello Worlds](https://nodepp.org/hello_world).
-* **All-In-One** − no need to install external modules; Node++ source already contains all the logic required to run the application.
+* **Simple coding** − straightforward approach, easy to understand even for a beginner programmer [see Hello World](https://github.com/silgy/nodepp#simplicity).
+* **All-In-One** − no need to install external modules (besides OpenSSL); Node++ source already contains all the logic required to run the application.
 * **Simple deployment / cloud vendor independency** − only one executable file (or files in gateway/services model) to move around.
 * **Low TCO** − ~$3 per month for hosting small web application with MySQL server (AWS t2.micro), not even mentioning planet-friendliness.
 
 Node++ is written in ANSI C in order to support as many platforms as possible and it's C++ compilers compatible. Sample [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp) source module can be C as well as C++ code. Typical application code will look almost the same as in any of the C family language: C++, Java, JavaScript (before it has been destroyed with ES6 and all that arrow functions hell everyone thinks must be used, and hardly anyone really understands). All that could be automated, is automated.
 
-It aims to be All-In-One solution for writing typical web application — traditional HTML rendering model, SPA or mixed. It handles HTTPS, and anonymous and registered user sessions — even with forgotten passwords. Larger applications or those using potentially blocking resources may want to split logic into the set of services talking to the gateway via POSIX queues in an asynchronous manner, using Node++'s [ASYNC](https://github.com/silgy/silgy#async) facility. Macros [CALL_ASYNC](https://github.com/silgy/silgy#void-call_asyncconst-char-service-const-char-data-int-timeout) and [CALL_ASYNC_NR](https://github.com/silgy/silgy#void-call_async_nrconst-char-service-const-char-data) make it as simple as possible.
+It aims to be All-In-One solution for writing typical web application — traditional HTML rendering model, SPA or mixed. It handles HTTPS, and anonymous and registered user sessions — even with forgotten passwords. Larger applications or those using potentially blocking resources may want to split logic into the set of services talking to the gateway via POSIX queues in an asynchronous manner, using Node++'s [ASYNC](https://github.com/silgy/silgy/wiki/Silgy-ASYNC) facility. Macros [CALL_ASYNC](https://github.com/silgy/silgy/wiki/CALL_ASYNC) and [CALL_ASYNC_NR](https://github.com/silgy/silgy/wiki/CALL_ASYNC_NR) make it as simple as possible.
 
-Web applications like [Budgeter](https://budgeter.org) or [minishare](https://minishare.com) based on Node++, fit in free 1GB AWS t2.micro instance, together with MySQL server. Typical processing time (between reading HTTP request and writing response to a socket) on 1 CPU t2.micro is around 100 µs (microseconds). Even with the network latency [it still shows](https://tools.pingdom.com/#!/bu4p3i/https://budgeter.org).
+Web applications like [Budgeter](https://budgeter.org) or [minishare](https://minishare.com) based on Node++, fit in free 1GB AWS t2.micro instance, together with MySQL server. Typical processing time (between reading HTTP request and writing response to a socket) on 1 CPU t2.micro is around 100 µs (microseconds). Even with the network latency [it still shows](https://minishare.com/show?p=PRRizqb2).
   
 <div align="center">
 <img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=418/>
@@ -186,7 +186,7 @@ Among new features you'll find:
 1. Semantic versioning. (DONE in v1.0.0)
 1. Functions, globals and macros naming consistency. (DONE in v1.0.0)
 1. epoll will be added to socket monitoring options.
-1. USERS will be based on the [ORM](https://nodepp.org/mysqldaogen) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
+1. USERS will be based on the [ORM](https://nodepp.org/generators/mysqldao) layer, thus improving speed and safety. There will be easier to integrate new generated ORM classes into NPP projects.
 1. Popular Linux packaging support.
 1. OUT and similar macros will take std::strings as arguments (with C-style strings still supported).
 
