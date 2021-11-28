@@ -127,7 +127,7 @@ If you want to start the application in background, use [nppstart](https://githu
 The three macros below are fundamental to backend programming in Node++:
 
 <div align="center">
-<img src="https://minishare.com/preview?p=4xlHEJwL&i=2" width=1010/>
+<img src="https://minishare.com/show?p=4xlHEJwL&i=2" width=1010/>
 </div>
 
 Complete 4-page application example is included in Github download in [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp).
