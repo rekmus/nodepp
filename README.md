@@ -122,6 +122,17 @@ Press `Ctrl`+`C` to stop.
 If you want to start the application in background, use [nppstart](https://github.com/silgy/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/silgy/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/silgy/nodepp/tree/master/bin).
 
 
+## Basic macros
+
+The three macros below are fundamental to backend programming in Node++:
+
+<div align="center">
+<img src="https://minishare.com/preview?p=4xlHEJwL&i=2" width=1010/>
+</div>
+
+Complete 4-page application example is included in Github download in [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp).
+
+
 ## Directory structure
 
 Although not necessary, it's good to have **$NPP_DIR** set in the environment, pointing to the project directory. Node++ engine always first looks in `$NPP_DIR/<dir>` for the particular file, with `<dir>` being one of the below:
