@@ -128,8 +128,6 @@ If you want to start the application in background, use [nppstart](https://githu
 <img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
 </div>
 
-Complete 4-page application example is included in Github download in [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp).
-
 
 ## Directory structure
 
