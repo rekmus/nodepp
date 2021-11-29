@@ -81,8 +81,8 @@ char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
 #endif  /* _WIN32 */
-int         G_async_req_data_size=ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
-int         G_async_res_data_size=ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
+int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
 
 bool        G_index_present=FALSE;          /* index.html present in res? */
 
@@ -191,7 +191,7 @@ static int          M_prev_day;
 static time_t       M_last_housekeeping=0;
 
 #ifdef NPP_ASYNC
-static areq_t       M_areqs[ASYNC_MAX_REQUESTS]={0}; /* async requests */
+static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
 static unsigned     M_last_call_id=0;               /* counter */
 static char         *M_async_shm=NULL;
 #endif  /* NPP_ASYNC */
@@ -439,7 +439,7 @@ int main(int argc, char **argv)
 #ifdef NPP_ASYNC
         /* release timeout-ed */
 
-        for ( j=0; j<ASYNC_MAX_REQUESTS; ++j )
+        for ( j=0; j<NPP_ASYNC_MAX_REQUESTS; ++j )
         {
             if ( M_areqs[j].state==NPP_ASYNC_STATE_SENT && M_areqs[j].sent < G_now-M_areqs[j].timeout )
             {
@@ -891,9 +891,9 @@ int main(int argc, char **argv)
         async_res_t res;
 #ifdef NPP_DEBUG
         int mq_ret;
-        if ( (mq_ret=mq_receive(G_queue_res, (char*)&res, ASYNC_RES_MSG_SIZE, NULL)) != -1 )    /* there's a response in the queue */
+        if ( (mq_ret=mq_receive(G_queue_res, (char*)&res, NPP_ASYNC_RES_MSG_SIZE, NULL)) != -1 )    /* there's a response in the queue */
 #else
-        if ( mq_receive(G_queue_res, (char*)&res, ASYNC_RES_MSG_SIZE, NULL) != -1 )    /* there's a response in the queue */
+        if ( mq_receive(G_queue_res, (char*)&res, NPP_ASYNC_RES_MSG_SIZE, NULL) != -1 )    /* there's a response in the queue */
 #endif  /* NPP_DEBUG */
         {
 #ifdef NPP_DEBUG
@@ -2538,12 +2538,12 @@ static bool init(int argc, char **argv)
     ALWAYS("       G_app_session_data' size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(G_app_session_data), sizeof(G_app_session_data)/1024, (double)sizeof(G_app_session_data)/1024/1024);
     ALWAYS("");
 #ifdef NPP_ASYNC
-    ALWAYS("             ASYNC_REQ_MSG_SIZE = %d bytes", ASYNC_REQ_MSG_SIZE);
+    ALWAYS("         NPP_ASYNC_REQ_MSG_SIZE = %d bytes", NPP_ASYNC_REQ_MSG_SIZE);
     ALWAYS("             ASYNC req.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_hdr_t), sizeof(async_req_hdr_t)/1024, (double)sizeof(async_req_hdr_t)/1024/1024);
     ALWAYS("          G_async_req_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
     ALWAYS("             ASYNC request size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_t), sizeof(async_req_t)/1024, (double)sizeof(async_req_t)/1024/1024);
     ALWAYS("");
-    ALWAYS("             ASYNC_RES_MSG_SIZE = %d bytes", ASYNC_RES_MSG_SIZE);
+    ALWAYS("         NPP_ASYNC_RES_MSG_SIZE = %d bytes", NPP_ASYNC_RES_MSG_SIZE);
     ALWAYS("             ASYNC res.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_hdr_t), sizeof(async_res_hdr_t)/1024, (double)sizeof(async_res_hdr_t)/1024/1024);
     ALWAYS("          G_async_res_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
     ALWAYS("            ASYNC response size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_t), sizeof(async_res_t)/1024, (double)sizeof(async_res_t)/1024/1024);
@@ -2678,15 +2678,15 @@ static bool init(int argc, char **argv)
     /* ensure the message sizes are sufficient */
 
 #ifdef NPP_ASYNC
-    if ( sizeof(async_req_hdr_t) > ASYNC_REQ_MSG_SIZE )
+    if ( sizeof(async_req_hdr_t) > NPP_ASYNC_REQ_MSG_SIZE )
     {
-        ERR("sizeof(async_req_hdr_t) > ASYNC_REQ_MSG_SIZE, increase APP_ASYNC_REQ_MSG_SIZE");
+        ERR("sizeof(async_req_hdr_t) > NPP_ASYNC_REQ_MSG_SIZE, increase APP_ASYNC_REQ_MSG_SIZE");
         return FALSE;
     }
 
-    if ( sizeof(async_res_hdr_t) > ASYNC_RES_MSG_SIZE )
+    if ( sizeof(async_res_hdr_t) > NPP_ASYNC_RES_MSG_SIZE )
     {
-        ERR("sizeof(async_res_hdr_t) > ASYNC_RES_MSG_SIZE, increase APP_ASYNC_RES_MSG_SIZE");
+        ERR("sizeof(async_res_hdr_t) > NPP_ASYNC_RES_MSG_SIZE, increase APP_ASYNC_RES_MSG_SIZE");
         return FALSE;
     }
 #endif  /* NPP_ASYNC */
@@ -2851,14 +2851,16 @@ static bool init(int argc, char **argv)
 
     struct mq_attr attr={0};
 
-    attr.mq_maxmsg = ASYNC_MQ_MAXMSG;
+    attr.mq_maxmsg = NPP_ASYNC_MQ_MAXMSG;
 
     /* ------------------------------------------------------------------- */
+
+    DBG("Opening G_req_queue_name [%s]", G_req_queue_name);
 
     if ( mq_unlink(G_req_queue_name) == 0 )
         INF("Message queue %s removed from system", G_req_queue_name);
 
-    attr.mq_msgsize = ASYNC_REQ_MSG_SIZE;
+    attr.mq_msgsize = NPP_ASYNC_REQ_MSG_SIZE;
 
     G_queue_req = mq_open(G_req_queue_name, O_WRONLY | O_CREAT | O_NONBLOCK, 0600, &attr);
 
@@ -2872,10 +2874,12 @@ static bool init(int argc, char **argv)
 
     /* ------------------------------------------------------------------- */
 
+    DBG("Opening G_res_queue_name [%s]", G_res_queue_name);
+
     if ( mq_unlink(G_res_queue_name) == 0 )
         INF("Message queue %s removed from system", G_res_queue_name);
 
-    attr.mq_msgsize = ASYNC_RES_MSG_SIZE;   /* larger buffer */
+    attr.mq_msgsize = NPP_ASYNC_RES_MSG_SIZE;   /* larger buffer */
 
     G_queue_res = mq_open(G_res_queue_name, O_RDONLY | O_CREAT | O_NONBLOCK, 0600, &attr);
 
@@ -2889,7 +2893,7 @@ static bool init(int argc, char **argv)
 
     /* ------------------------------------------------------------------- */
 
-    for ( i=0; i<ASYNC_MAX_REQUESTS; ++i )
+    for ( i=0; i<NPP_ASYNC_MAX_REQUESTS; ++i )
         M_areqs[i].state = NPP_ASYNC_STATE_FREE;
 
     M_last_call_id = 0;
@@ -5442,10 +5446,10 @@ static int parse_req(int ci, int len)
             {
                 /* just go ahead */
             }
-//            else if ( 0==strcmp(G_connections[ci].method, "HEAD") )
-//            {
-//                G_connections[ci].head_only = TRUE;  /* respond with the header only */
-//            }
+            else if ( 0==strcmp(G_connections[ci].method, "HEAD") )
+            {
+                /* just go ahead */
+            }
             else
             {
                 WAR("Method [%s] not allowed, ignoring", G_connections[ci].method);
@@ -6915,13 +6919,15 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
 /* --------------------------------------------------------------------------
    Send asynchronous request
 -------------------------------------------------------------------------- */
-void npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size)
+bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size)
 {
 #ifdef NPP_ASYNC
 
+    DDBG("npp_eng_call_async");
+
     async_req_t req;
 
-    if ( M_last_call_id >= 1000000000 ) M_last_call_id = 0;
+    if ( M_last_call_id >= NPP_ASYNC_HIGHEST_CALL_ID ) M_last_call_id = 0;
 
     req.hdr.call_id = ++M_last_call_id;
     req.hdr.ci = ci;
@@ -7000,9 +7006,8 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
             DBG("Payload fits in msg");
 
             memcpy(req.data, G_connections[ci].in_data, G_connections[ci].clen+1);
-//            req.hdr.payload_location = ASYNC_PAYLOAD_MSG;
         }
-        else    /* ASYNC_PAYLOAD_SHM */
+        else    /* shared memory */
         {
             DBG("Payload requires SHM");
 
@@ -7011,24 +7016,36 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
                 if ( (M_async_shm=npp_lib_shm_create(NPP_MAX_PAYLOAD_SIZE, 0)) == NULL )
                 {
                     ERR("Couldn't create SHM");
-                    return;
+                    return FALSE;
                 }
 
-                M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] = 0;
+                /* use the last byte as a simple semaphore */
+
+                M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] = 0;    /* mark it as free */
             }
-
-            /* use the last byte as a simple semaphore */
-
-            while ( M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] )
+            else    /* used before -- make sure it's freed by the npp_svc process */
             {
-                WAR("Waiting for the SHM segment to be freed by npp_svc process");
-                msleep(100);   /* temporarily */
+                int tries=0;
+
+                while ( M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] != 0 && tries < NPP_ASYNC_SHM_ACCESS_TRIES )
+                {
+                    WAR("Waiting for the SHM segment to be freed by npp_svc process");
+                    msleep(100);
+                    ++tries;
+                }
             }
 
-            memcpy(M_async_shm, G_connections[ci].in_data, G_connections[ci].clen+1);
-            M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] = 1;
-//            req.hdr.payload_location = ASYNC_PAYLOAD_SHM;
-            req.hdr.async_flags |= NPP_ASYNC_FLAG_PAYLOAD_IN_SHM;
+            if ( M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] == 0 )   /* free */
+            {
+                memcpy(M_async_shm, G_connections[ci].in_data, G_connections[ci].clen+1);
+                M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] = 1;
+                req.hdr.async_flags |= NPP_ASYNC_FLAG_PAYLOAD_IN_SHM;
+            }
+            else    /* still occupied */
+            {
+                ERR("Couldn't wait any longer for the shared memory segment to be freed by npp_svc. Consider increasing the number of npp_svc processes.");
+                return FALSE;
+            }
         }
     }
 
@@ -7074,7 +7091,7 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
         int j;
 
-        for ( j=0; j<ASYNC_MAX_REQUESTS; ++j )
+        for ( j=0; j<NPP_ASYNC_MAX_REQUESTS; ++j )
         {
             if ( M_areqs[j].state == NPP_ASYNC_STATE_FREE )    /* free slot */
             {
@@ -7105,17 +7122,23 @@ void npp_eng_call_async(int ci, const char *service, const char *data, bool want
         else
         {
             ERR("M_areqs is full");
+            return FALSE;
         }
     }
 
     if ( found || !want_response )
     {
         DBG("Sending a message on behalf of ci=%d, call_id=%u, service [%s]", ci, req.hdr.call_id, req.hdr.service);
-        if ( mq_send(G_queue_req, (char*)&req, ASYNC_REQ_MSG_SIZE, 0) != 0 )
+        if ( mq_send(G_queue_req, (char*)&req, NPP_ASYNC_REQ_MSG_SIZE, 0) != 0 )
+        {
             ERR("mq_send failed, errno = %d (%s)", errno, strerror(errno));
+            return FALSE;
+        }
     }
 
-#endif
+#endif  /* NPP_ASYNC */
+
+    return TRUE;
 }
 
 

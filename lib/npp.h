@@ -739,21 +739,30 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* asynchronous calls */
 
-#ifndef ASYNC_MQ_MAXMSG
-#define ASYNC_MQ_MAXMSG                     10              /* max messages in a message queue */
+#ifndef NPP_ASYNC_MQ_MAXMSG
+#define NPP_ASYNC_MQ_MAXMSG                 10              /* max messages in a message queue */
 #endif
 
-#ifndef ASYNC_MAX_REQUESTS
-#define ASYNC_MAX_REQUESTS                  NPP_MAX_SESSIONS /* max simultaneous async requests */
+#ifndef NPP_ASYNC_MAX_REQUESTS
+#define NPP_ASYNC_MAX_REQUESTS              NPP_MAX_SESSIONS /* max simultaneous async requests */
 #endif
 
-#ifndef ASYNC_REQ_MSG_SIZE
-#define ASYNC_REQ_MSG_SIZE                  8192            /* request message size */
+#ifndef NPP_ASYNC_REQ_MSG_SIZE
+#define NPP_ASYNC_REQ_MSG_SIZE              8192            /* request message size */
 #endif
 
-#ifndef ASYNC_RES_MSG_SIZE
-#define ASYNC_RES_MSG_SIZE                  8192            /* response message size */
+#ifndef NPP_ASYNC_RES_MSG_SIZE
+#define NPP_ASYNC_RES_MSG_SIZE              8192            /* response message size */
 #endif
+
+#ifndef NPP_ASYNC_HIGHEST_CALL_ID
+#define NPP_ASYNC_HIGHEST_CALL_ID           1000000000      /* highest call id before reset */
+#endif
+
+#ifndef NPP_ASYNC_SHM_ACCESS_TRIES
+#define NPP_ASYNC_SHM_ACCESS_TRIES          10              /* how many time try to obtain access to shared memory */
+#endif
+
 
 
 /* memory models' specs */
@@ -1278,7 +1287,7 @@ typedef struct {
 
 typedef struct {
     async_req_hdr_t hdr;
-    char            data[ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t)];
+    char            data[NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t)];
 } async_req_t;
 
 
@@ -1325,7 +1334,7 @@ typedef struct {
     int             ci;
     int             len;
     async_res_hdr_t hdr;
-    char            data[ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4];
+    char            data[NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4];
 } async_res_t;
 
 
@@ -1336,7 +1345,7 @@ typedef struct {
     int      chunk;
     int      ci;
     int      len;
-    char     data[ASYNC_RES_MSG_SIZE-sizeof(int)*4];
+    char     data[NPP_ASYNC_RES_MSG_SIZE-sizeof(int)*4];
 } async_res_data_t;
 
 
@@ -1773,7 +1782,7 @@ extern "C" {
 
     int  npp_eng_session_start(int ci, const char *sessid);
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
-    void npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
+    bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_block_ip(const char *value, bool autoblocked);
     bool npp_eng_is_uri(int ci, const char *uri);
     void npp_eng_out_check(int ci, const char *str);

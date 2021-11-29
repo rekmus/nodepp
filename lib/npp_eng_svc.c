@@ -44,8 +44,8 @@ char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
-int         G_async_req_data_size=ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
-int         G_async_res_data_size=ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
+int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
 int         G_usersRequireActivation=0;
 async_req_t G_svc_req;
 async_res_t G_svc_res;
@@ -277,6 +277,8 @@ int main(int argc, char *argv[])
     }
 #endif  /* NPP_ASYNC_ID */
 
+    DBG("Opening G_req_queue_name [%s]", G_req_queue_name);
+
     G_queue_req = mq_open(G_req_queue_name, O_RDONLY, NULL, NULL);
 
     if ( G_queue_req < 0 )
@@ -287,6 +289,8 @@ int main(int argc, char *argv[])
     }
 
     INF("mq_open of %s OK", G_req_queue_name);
+
+    DBG("Opening G_res_queue_name [%s]", G_res_queue_name);
 
     G_queue_res = mq_open(G_res_queue_name, O_WRONLY, NULL, NULL);
 
@@ -324,7 +328,7 @@ int main(int argc, char *argv[])
         G_call_http_elapsed = 0;
         G_call_http_average = 0;
 
-        if ( mq_receive(G_queue_req, (char*)&G_svc_req, ASYNC_REQ_MSG_SIZE, NULL) != -1 )
+        if ( mq_receive(G_queue_req, (char*)&G_svc_req, NPP_ASYNC_REQ_MSG_SIZE, NULL) != -1 )
         {
             npp_update_time_globals();
 
@@ -359,7 +363,7 @@ int main(int argc, char *argv[])
             else
                 INF_T("%s called (call_id=%u)", G_svc_req.hdr.service, G_svc_req.hdr.call_id);
 
-            memset(&G_svc_res, 0, ASYNC_RES_MSG_SIZE);
+            memset(&G_svc_res, 0, NPP_ASYNC_RES_MSG_SIZE);
 
             G_svc_res.ai = G_svc_req.hdr.ai;
             G_svc_res.ci = G_svc_req.hdr.ci;
@@ -424,7 +428,7 @@ int main(int argc, char *argv[])
                 {
                     memcpy(G_connections[0].in_data, G_svc_req.data, G_svc_req.hdr.clen+1);
                 }
-                else    /* ASYNC_PAYLOAD_SHM */
+                else    /* shared memory */
                 {
                     if ( G_connections[0].in_data_allocated < G_svc_req.hdr.clen+1 )
                     {
@@ -543,7 +547,7 @@ int main(int argc, char *argv[])
 
                 G_svc_res.chunk = ASYNC_CHUNK_FIRST;
 
-                G_async_res_data_size = ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4;
+                G_async_res_data_size = NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4;
 
                 if ( data_len <= G_async_res_data_size )
                 {
@@ -566,14 +570,14 @@ int main(int argc, char *argv[])
                     resd.ai = G_svc_req.hdr.ai;
                     resd.ci = G_svc_req.hdr.ci;
 
-                    G_async_res_data_size = ASYNC_RES_MSG_SIZE-sizeof(int)*4;
+                    G_async_res_data_size = NPP_ASYNC_RES_MSG_SIZE-sizeof(int)*4;
                 }
 
                 /* send first chunk (G_svc_res) */
 
                 DBG("Sending 0-th chunk, chunk data length = %d", G_svc_res.len);
 
-                if ( mq_send(G_queue_res, (char*)&G_svc_res, ASYNC_RES_MSG_SIZE, 0) != 0 )
+                if ( mq_send(G_queue_res, (char*)&G_svc_res, NPP_ASYNC_RES_MSG_SIZE, 0) != 0 )
                     ERR("mq_send failed, errno = %d (%s)", errno, strerror(errno));
 
                 data_sent = G_svc_res.len;
@@ -601,7 +605,7 @@ int main(int argc, char *argv[])
 
                     DBG("Sending %u-th chunk, chunk data length = %d", chunk_num, resd.len);
 
-                    if ( mq_send(G_queue_res, (char*)&resd, ASYNC_RES_MSG_SIZE, 0) != 0 )
+                    if ( mq_send(G_queue_res, (char*)&resd, NPP_ASYNC_RES_MSG_SIZE, 0) != 0 )
                         ERR("mq_send failed, errno = %d (%s)", errno, strerror(errno));
 
                     data_sent += resd.len;
