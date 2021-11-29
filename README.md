@@ -6,7 +6,7 @@ Fast forward to 2018 and my PC has Intel i5 processor and 8 GB of RAM. Everyone 
 
 That's why I've written Node++. I think all the web applications in the world should be written in it. World would be much better off.
 
-In Node++ you just compile and link your logic into one executable that responds immediately to HTTP requests, without creating a new thread or — God forbid — process. No layers, no dependencies, no layers, translations, layers, converters, layers...
+In Node++ you just compile and link your logic into one executable that responds immediately to HTTP requests, without creating a new thread or – God forbid – process. No layers, no dependencies, no layers, translations, layers, converters, layers...
 
 What you get with Node++:
 
@@ -20,7 +20,7 @@ What you get with Node++:
 
 Node++ is written in ANSI C in order to support as many platforms as possible and it's C++ compilers compatible. Sample [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp) source module can be C as well as C++ code. Typical application code will look almost the same as in any of the C family language: C++, Java, JavaScript. All that could be automated, is automated.
 
-It aims to be All-In-One solution for writing typical web application — traditional HTML rendering model, SPA or mixed. It handles HTTPS, and anonymous and registered user sessions — even with forgotten passwords. Larger applications or those using potentially blocking resources may want to split logic into the set of services talking to the gateway via POSIX queues in an asynchronous manner, using Node++'s [ASYNC](https://github.com/silgy/silgy/wiki/Silgy-ASYNC) facility. Macros [CALL_ASYNC](https://github.com/silgy/silgy/wiki/CALL_ASYNC) and [CALL_ASYNC_NR](https://github.com/silgy/silgy/wiki/CALL_ASYNC_NR) make it as simple as possible.
+It aims to be All-In-One solution for writing typical web application – traditional HTML rendering model, SPA or mixed. It handles HTTPS, and anonymous and registered user sessions, including forgotten passwords. Larger applications or those using potentially blocking resources may want to split logic into the set of services talking to the gateway via POSIX queues in an asynchronous manner, using Node++'s [ASYNC](https://github.com/silgy/silgy/wiki/Silgy-ASYNC) facility. Macros [CALL_ASYNC](https://github.com/silgy/silgy/wiki/CALL_ASYNC) and [CALL_ASYNC_NR](https://github.com/silgy/silgy/wiki/CALL_ASYNC_NR) make it as simple as possible.
 
 Web applications like [Budgeter](https://budgeter.org) or [minishare](https://minishare.com) based on Node++, fit in free 1GB AWS t2.micro instance, together with MySQL server. Typical processing time (between reading HTTP request and writing response to a socket) on 1 CPU t2.micro is around 100 µs (microseconds). Even with the network latency [it still shows](https://minishare.com/show?p=PRRizqb2).
   
@@ -62,7 +62,7 @@ Every project on Earth has them. So you'd better know.
 
 4. *Independency*. I try to include everything I think a typical web application may need in Node++ engine. If there are external libraries, I try to use most ubiquitous and generic ones, like i.e. OpenSSL and link statically. Of course you may prefer to add any library you want and/or link dynamically, there's nothing in Node++ that prevents you from doing so.
 
-5. *What does deployment mean?* If you've written your app in Node++, it means copying executable file to production machine which has nothing but operating system installed. OK, add jpegs and css. Oh — wait a minute — you prefer to learn [how to develop on Kubernetes](https://kubernetes.io/blog/2018/05/01/developing-on-kubernetes/) first, because everyone talks so cool about it... Then I can't help you. I'm actually learning it but only because my organization handles tens or hundreds of thousands requests per second, we have money for servers, development teams, admin teams and my boss made me. If you're Google or Amazon then you definitely need to have something. There is also a [hundred or so](https://en.wikipedia.org/wiki/List_of_build_automation_software) of other build automation software. Good luck with choosing the right one. And good luck with paying for the infrastructure. One of my priorities was to make Node++ app not needing this at all.
+5. *What does deployment mean?* If you've written your app in Node++, it means copying executable file to production machine which has nothing but operating system installed. OK, add jpegs and css. Oh – wait a minute – you prefer to learn [how to develop on Kubernetes](https://kubernetes.io/blog/2018/05/01/developing-on-kubernetes/) first, because everyone talks so cool about it... Then I can't help you. I'm actually learning it but only because my organization handles tens or hundreds of thousands requests per second, we have money for servers, development teams, admin teams and my boss made me. If you're Google or Amazon then you definitely need to have something. There is also a [hundred or so](https://en.wikipedia.org/wiki/List_of_build_automation_software) of other build automation software. Good luck with choosing the right one. And good luck with paying for the infrastructure. One of my priorities was to make Node++ app not needing this at all.
 
 
 ## Getting Started (Linux)
@@ -122,12 +122,10 @@ Press `Ctrl`+`C` to stop.
 If you want to start the application in background, use [nppstart](https://github.com/silgy/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/silgy/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/silgy/nodepp/tree/master/bin).
 
 
-## Basic macros
-
-The three macros below are fundamental to backend programming in Node++:
+## Programming
 
 <div align="center">
-<img src="https://minishare.com/show?p=4xlHEJwL&i=2" width=700/>
+<img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
 </div>
 
 Complete 4-page application example is included in Github download in [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp).
@@ -260,20 +258,3 @@ alter table users_logins change sesid sessid char(15);
 If you use USERS module: unless you want to force users to reset their passwords, to keep them in the old format:
 
 1. Define `NPP_SILGY_PASSWORDS` in `npp_app.h`
-
-
-## Ubuntu
-
-Apart from installing GCC, this might be required:
-
-```
-sudo apt-get install libz-dev
-sudo apt-get install libssl-dev
-```
-
-
-## Alpine docker
-
-```
-RUN apk update && apk add build-base zlib-dev openssl-dev
-```
