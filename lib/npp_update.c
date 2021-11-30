@@ -114,7 +114,7 @@ static int check_local_version()
 
 #ifdef _WIN32
 
-    fd = CreateFile(TEXT(npp_h), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    fd = CreateFile(TEXT(npp_h), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if ( fd == INVALID_HANDLE_VALUE )
     {
@@ -432,7 +432,9 @@ int main(int argc, char *argv[])
 
     if ( ret == OK )
     {
-        if ( M_latest_major > M_local_major || M_latest_minor > M_local_minor || M_latest_patch > M_local_patch )
+        if ( M_latest_major > M_local_major
+                || (M_latest_major == M_local_major && M_latest_minor > M_local_minor)
+                || (M_latest_major == M_local_major && M_latest_minor == M_local_minor && M_latest_patch > M_local_patch) )
         {
             if ( M_update )
             {
