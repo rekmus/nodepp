@@ -6259,6 +6259,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             DBG("ua_type = NPP_UA_TYPE_DSK");
         }
 
+#ifndef NPP_DONT_FLAG_BOTS
         if ( !REQ_BOT &&
                 (strstr(uvalue, "BOT")
                 || strstr(uvalue, "SCAN")
@@ -6269,6 +6270,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 || strstr(uvalue, "ZGRAB")
                 || strstr(uvalue, "DOMAINSONO")
                 || strstr(uvalue, "NETCRAFT")
+                || strstr(uvalue, "CENSYS")
                 || 0==strncmp(uvalue, "APPENGINE", 9)
                 || 0==strncmp(uvalue, "NETSYSTEMSRESEARCH", 18)
                 || 0==strncmp(uvalue, "CURL", 4)
@@ -6280,6 +6282,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         {
             G_connections[ci].flags |= NPP_CONN_FLAG_BOT;
         }
+#endif  /* NPP_DONT_FLAG_BOTS */
     }
     else if ( 0==strcmp(ulabel, "CONNECTION") )
     {
@@ -6357,12 +6360,14 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     {
         strcpy(G_connections[ci].authorization, value);
     }
+#ifndef NPP_DONT_FLAG_BOTS
     else if ( 0==strcmp(ulabel, "FROM") )
     {
         strcpy(uvalue, npp_upper(value));
         if ( !REQ_BOT && (strstr(uvalue, "GOOGLEBOT") || strstr(uvalue, "BINGBOT") || strstr(uvalue, "YANDEX") || strstr(uvalue, "CRAWLER")) )
             G_connections[ci].flags |= NPP_CONN_FLAG_BOT;
     }
+#endif  /* NPP_DONT_FLAG_BOTS */
     else if ( 0==strcmp(ulabel, "IF-MODIFIED-SINCE") )
     {
         G_connections[ci].if_mod_since = time_http2epoch(value);

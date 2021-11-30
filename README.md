@@ -122,6 +122,13 @@ Press `Ctrl`+`C` to stop.
 If you want to start the application in background, use [nppstart](https://github.com/silgy/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/silgy/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/silgy/nodepp/tree/master/bin).
 
 
+## Getting Started (Windows)
+
+For Windows setup I prepared two ready-to-use packages, one with MinGW, the second one with matching OpenSSL and MySQL libraries.
+
+Downloads and quick manual is available here: [Windows Setup](https://nodepp.org/docs/windows_setup).
+
+
 ## Programming
 
 <div align="center">
