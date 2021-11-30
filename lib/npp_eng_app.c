@@ -5084,6 +5084,8 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "application/x-msdownload");
     else if ( type == NPP_CONTENT_TYPE_ZIP )
         strcpy(http_type, "application/zip");
+    else if ( type == NPP_CONTENT_TYPE_GZIP )
+        strcpy(http_type, "application/gzip");
     else
         strcpy(http_type, "text/plain");
 

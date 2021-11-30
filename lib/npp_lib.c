@@ -2965,6 +2965,8 @@ void npp_lib_set_res_content_type(int ci, const char *str)
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(str, "application/zip") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ZIP;
+    else if ( 0==strcmp(str, "application/gzip") )
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_GZIP;
     else    /* custom */
     {
         if ( 0==strncmp(str, "text/html", 9) )
@@ -5303,6 +5305,8 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(uext, "ZIP") )
         return NPP_CONTENT_TYPE_ZIP;
+    else if ( 0==strcmp(uext, "GZ") )
+        return NPP_CONTENT_TYPE_GZIP;
 
     return NPP_CONTENT_TYPE_TEXT;
 }

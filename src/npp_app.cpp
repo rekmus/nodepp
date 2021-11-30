@@ -20,8 +20,11 @@ static void header(int ci)
     OUT("<head>");
     OUT("<meta charset=\"UTF-8\">");
     OUT("<title>%s</title>", NPP_APP_NAME);
+#ifdef NPP_APP_DESCRIPTION
+    OUT("<meta name=\"description\" content=\"%s\">", NPP_APP_DESCRIPTION);
+#endif
     if ( REQ_MOB )
-        OUT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        OUT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
     OUT("</head>");
 
     OUT("<body>");

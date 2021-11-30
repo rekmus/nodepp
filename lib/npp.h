@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.1.1"
+#define NPP_VERSION                     "1.1.2"
 
 
 #ifndef FALSE
@@ -999,6 +999,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_AMPEG          '3'     /* mp3 */
 #define NPP_CONTENT_TYPE_EXE            'e'
 #define NPP_CONTENT_TYPE_ZIP            'z'
+#define NPP_CONTENT_TYPE_GZIP           'k'
 
 
 /* request macros */
