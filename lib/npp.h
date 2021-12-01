@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020 Jurek Muszynski
+    Copyright (c) 2020-2021 Jurek Muszynski
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -1216,6 +1216,7 @@ typedef struct {
 /* asynchorous processing */
 
 /* request */
+/* we try hard to stay below default 8 KiB MQ limit */
 
 typedef struct {
     unsigned call_id;

@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020 Jurek Muszynski
+    Copyright (c) 2020-2021 Jurek Muszynski
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -5028,7 +5028,7 @@ static              bool first=TRUE;
 #ifdef NPP_DEBUG     /* low-level tests */
     if ( G_logLevel>=LOG_DBG
             && G_connections[ci].clen > 0
-            && G_connections[ci].method[0]!='H'
+            && G_connections[ci].method[0]!='H'   /* HEAD */
             && G_connections[ci].static_res==NPP_NOT_STATIC
             && !compressed
             && (G_connections[ci].out_ctype==NPP_CONTENT_TYPE_TEXT || G_connections[ci].out_ctype==NPP_CONTENT_TYPE_JSON) )
@@ -6670,7 +6670,7 @@ static void render_page_msg(int ci, int code)
     OUT("<head>");
     OUT("<title>%s</title>", NPP_APP_NAME);
     if ( REQ_MOB )  // if mobile request
-        OUT("<meta name=\"viewport\" content=\"width=device-width\">");
+        OUT("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
     OUT("</head>");
     OUT("<body><p>%s</p></body>", npp_message(code));
     OUT("</html>");
@@ -6944,14 +6944,10 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
     else
         req.hdr.service[0] = EOS;
 
-//    req.hdr.want_response = want_response;
-
     /* G_connections */
 
-//    req.hdr.secure = G_connections[ci].secure;
     strcpy(req.hdr.ip, G_connections[ci].ip);
     strcpy(req.hdr.method, G_connections[ci].method);
-//    req.hdr.post = G_connections[ci].post;
     strcpy(req.hdr.uri, G_connections[ci].uri);
     strcpy(req.hdr.resource, G_connections[ci].resource);
 #if NPP_RESOURCE_LEVELS > 1

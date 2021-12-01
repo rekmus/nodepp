@@ -1,6 +1,61 @@
 #!/bin/sh
 
-export NPP_SVC_PROCESSES=0
+# ------------------------------------------------------------------------------
+#
+#   MIT License
+#
+#   Copyright (c) 2020-2021 Jurek Muszynski
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a copy
+#   of this software and associated documentation files (the "Software"), to deal
+#   in the Software without restriction, including without limitation the rights
+#   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#   copies of the Software, and to permit persons to whom the Software is
+#   furnished to do so, subject to the following conditions:
+#
+#   The above copyright notice and this permission notice shall be included in all
+#   copies or substantial portions of the Software.
+#
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#   SOFTWARE.
+#
+# ------------------------------------------------------------------------------
+#
+#   Node++ startup
+#   nodepp.org
+#
+# ------------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------
+# Environment check
+
+if [[ -z "${NPP_DIR}" ]]
+then
+    if [ -f ./npp_app ]
+    then
+        echo "WARNING: No NPP_DIR variable, setting to parent directory"
+        export NPP_DIR=..
+    else
+        echo "ERROR: No NPP_DIR variable and no npp_app file present in the current directory, couldn't start."
+        echo "Your npp_app should be in \$NPP_DIR/bin"
+        echo "Set the NPP_DIR environment variable like this:"
+        echo ""
+        echo "export NPP_DIR=/path/to/npp_application"
+        echo ""
+        exit 1
+    fi
+fi
+
+if [[ -z "${NPP_SVC_PROCESSES}" ]]
+then
+    export NPP_SVC_PROCESSES=0
+fi
 
 # ---------------------------------------------------------------------
 
@@ -14,11 +69,18 @@ nohup $NPP_DIR/bin/npp_app > /dev/null 2>&1 &
 # ---------------------------------------------------------------------
 # Services
 
-sleep 1  # wait for the ASYNC queues to open
+if [ $NPP_SVC_PROCESSES -ne 0 ]
+then
+    echo "Starting" $NPP_SVC_PROCESSES "svc process(es)..."
 
-for i in `seq 1 $NPP_SVC_PROCESSES`
-do
-    nohup $NPP_DIR/bin/npp_svc > /dev/null 2>&1 &
-done
+    sleep 1  # wait for the ASYNC queues to open
+
+    for i in `seq 1 $NPP_SVC_PROCESSES`
+    do
+        nohup $NPP_DIR/bin/npp_svc > /dev/null 2>&1 &
+    done
+fi
+
+# ---------------------------------------------------------------------
 
 sleep 1  # return to prompt
