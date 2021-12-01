@@ -43,6 +43,13 @@ void npp_app_main(int ci)
 Compile with `m` script and run `npp_app` binary (`npp_app.exe` on Windows) ([t script](https://github.com/silgy/nodepp/blob/master/src/t) does just that, to make frequent testing easier). That's it, your application is now listening and waiting for the browser.
 
 
+## Security
+
+<div align="center">
+<img src="https://minishare.com/show?p=K8GvQDag&i=3" width=745/>
+</div>
+
+
 ## Some more details
 
 Node++ supports HTTPS, anonymous and registered user sessions, binary data upload and rudimentary asynchronous services mechanism using shared memory/POSIX queues (Linux/UNIX).

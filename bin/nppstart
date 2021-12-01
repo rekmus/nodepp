@@ -54,12 +54,33 @@ fi
 
 if [[ -z "${NPP_SVC_PROCESSES}" ]]
 then
-    export NPP_SVC_PROCESSES=0
+    NPP_SVC_PROCESSES=0
 fi
 
 # ---------------------------------------------------------------------
 
 echo "Starting Node++ App..."
+
+# ---------------------------------------------------------------------
+# Increase msgsize_max if necessary
+
+if [ $NPP_SVC_PROCESSES -ne 0 ]   # ASYNC is used
+then
+    # if no $NPP_SVC_MSG_SIZE -- try to read it from npp_app.h
+
+    if [[ -z "${NPP_SVC_MSG_SIZE}" ]] && [ -f $NPP_DIR/src/npp_app.h ]
+    then
+        NPP_SVC_MSG_SIZE=`grep '^#define\s*NPP_ASYNC_REQ_MSG_SIZE' $NPP_DIR/src/npp_app.h | head -1 | awk '{ print $3 }'`
+    fi
+
+    if [[ -z "${NPP_SVC_MSG_SIZE}" ]]
+    then
+        echo "Using default message size"
+    else
+        echo "Setting message size to" $NPP_SVC_MSG_SIZE "bytes"
+        echo $NPP_SVC_MSG_SIZE > /proc/sys/fs/mqueue/msgsize_max
+    fi
+fi
 
 # ---------------------------------------------------------------------
 # Main app
