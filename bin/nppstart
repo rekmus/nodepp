@@ -66,7 +66,7 @@ echo "Starting Node++ App..."
 
 if [ $NPP_SVC_PROCESSES -ne 0 ]   # ASYNC is used
 then
-    # if no $NPP_SVC_MSG_SIZE -- try to read it from npp_app.h
+    # if no $NPP_SVC_MSG_SIZE -- try to read the value from npp_app.h
 
     if [[ -z "${NPP_SVC_MSG_SIZE}" ]] && [ -f $NPP_DIR/src/npp_app.h ]
     then
