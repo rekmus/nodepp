@@ -126,12 +126,12 @@ void npp_app_main(int ci)
         OUT("<h1>%s</h1>", NPP_APP_NAME);
 
         OUT("<p>Please enter your name:</p>");
-        OUT("<form action=\"welcome\"><input name=\"firstname\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
+        OUT("<form action=\"welcome\"><input name=\"name\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
 
-        QSVAL qs_firstname;   // query string value
+        QSVAL qs_name;   // query string value
 
-        if ( QS("firstname", qs_firstname) )    // if present, bid welcome
-            OUT("<p>Welcome %s, my dear friend!</p>", qs_firstname);
+        if ( QS("name", qs_name) )    // if present, bid welcome
+            OUT("<p>Welcome %s, my dear friend!</p>", qs_name);
 
         OUT("<p><a href=\"/\">Back to landing page</a></p>");
 
