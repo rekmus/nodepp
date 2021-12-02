@@ -27,7 +27,7 @@ Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance suffic
 Node++ applications consistently get "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
 
 <div align="center">
-<img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=400/>
+<img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300/>
 </div>
 
 Or – as they now don't publish the percentage – it shows the **complete page load in 67 ms**:
