@@ -48,6 +48,107 @@ Default SSL settings give this result:
 </div>
 
 
+## Programming
+
+## Basic concept
+
+<div align="center">
+<img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
+</div>
+
+### Simplest Hello World
+
+Return static file if present, otherwise "Hello World!".
+
+```source.c++
+void npp_app_main(int ci)
+{
+    OUT("Hello World!");
+}
+```
+
+### Simple HTML with 2 pages
+
+Application, yet without moving parts.
+
+```source.c++
+void npp_app_main(int ci)
+{
+    if ( REQ("") )  // landing page
+    {
+        OUT_HTML_HEADER;
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
+        OUT("<h2>Welcome to my web app!</h2>");
+        OUT_HTML_FOOTER;
+    }
+    else if ( REQ("about") )
+    {
+        OUT_HTML_HEADER;
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
+        OUT("<h2>About</h2>");
+        OUT("<p>Hello World Sample Node++ Web Application</p>");
+        OUT("<p><a href=\"/\">Back to landing page</a></p>");
+        OUT_HTML_FOOTER;
+    }
+    else  // page not found
+    {
+        RES_STATUS(404);
+    }
+}
+```
+
+### Using query string value
+
+Finally some logic. [QS()](https://github.com/silgy/silgy/wiki/QS) will automatically choose between query string or payload, depending on the HTTP request method.
+
+```source.c++
+void npp_app_main(int ci)
+{
+    if ( REQ("") )  // landing page
+    {
+        OUT_HTML_HEADER;
+
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
+        OUT("<h2>Welcome to my web app!</h2>");
+
+        if ( REQ_DSK )
+            OUT("<p>You're on desktop.</p>");
+        else  /* REQ_MOB */
+            OUT("<p>You're on the phone.</p>");
+
+        OUT("<p>Click <a href=\"/welcome\">here</a> to try my welcoming bot.</p>");
+
+        OUT_HTML_FOOTER;
+    }
+    else if ( REQ("welcome") )  // welcoming bot
+    {
+        OUT_HTML_HEADER;
+        OUT("<h1>%s</h1>", NPP_APP_NAME);
+
+        OUT("<p>Please enter your name:</p>");
+        OUT("<form action=\"welcome\"><input name=\"firstname\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
+
+        QSVAL qs_firstname;   // query string value
+
+        if ( QS("firstname", qs_firstname) )    // if present, bid welcome
+            OUT("<p>Welcome %s, my dear friend!</p>", qs_firstname);
+
+        OUT("<p><a href=\"/\">Back to landing page</a></p>");
+
+        OUT_HTML_FOOTER;
+    }
+    else  // page not found
+    {
+        RES_STATUS(404);
+    }
+}
+```
+
+Complete 4-page application example is included in the package (see [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp)).
+
+More examples are available here: [Node++ examples](https://nodepp.org/docs/examples).
+
+
 ## Background
 
 The first [Silgy](https://github.com/silgy/silgy) version I had published on Github, had the following explanation for why I ever started this project:
@@ -72,19 +173,6 @@ What you get with Silgy:
 
 Web applications like [Budgeter](https://budgeter.org) or [minishare](https://minishare.com) based on Silgy, fit in free 1GB AWS t2.micro instance, together with MySQL server. Typical processing time (between reading HTTP request and writing response to a socket) on 1 CPU t2.micro is around 100 µs (microseconds). Even with the network latency [it still shows](https://minishare.com/show?p=PRRizqb2).
   
-
-## Programming
-
-I hope this picture is clear enough to explain the basic Node++ framework usage:
-
-<div align="center">
-<img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
-</div>
-
-Complete 4-page application example is included in the package (see [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp)).
-
-More examples are available here: [Node++ examples](https://nodepp.org/docs/examples).
-
 
 ## Getting Started (Linux)
 
