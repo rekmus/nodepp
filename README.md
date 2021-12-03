@@ -79,6 +79,7 @@ void npp_app_main(int ci)
         OUT_HTML_HEADER;
         OUT("<h1>%s</h1>", NPP_APP_NAME);
         OUT("<h2>Welcome to my web app!</h2>");
+        OUT("<p><a href=\"/about\">About</a></p>");
         OUT_HTML_FOOTER;
     }
     else if ( REQ("about") )
@@ -99,34 +100,47 @@ void npp_app_main(int ci)
 
 ### Using query string value
 
-Finally some logic. [QS()](https://github.com/silgy/silgy/wiki/QS) will automatically choose between query string or payload, depending on the HTTP request method.
+This is a simple 2-pages application demonstrating [QS()](https://github.com/silgy/silgy/wiki/QS) macro usage to get a value provided by client in the query string.
+
+`QS` works with all popular HTTP methods and payload types.
 
 ```source.c++
 void npp_app_main(int ci)
 {
     if ( REQ("") )  // landing page
     {
-        OUT_HTML_HEADER;
+        OUT_HTML_HEADER;    // generic HTML header with opening body tag
 
         OUT("<h1>%s</h1>", NPP_APP_NAME);
+
         OUT("<h2>Welcome to my web app!</h2>");
 
+        /* show client type */
+
         if ( REQ_DSK )
-            OUT("<p>You're on desktop.</p>");
+            OUT("<p>You're on desktop, right?</p>");
+        else if ( REQ_TAB )
+            OUT("<p>You're on tablet, right?</p>");
         else  /* REQ_MOB */
-            OUT("<p>You're on the phone.</p>");
+            OUT("<p>You're on the phone, right?</p>");
+
+        /* link to welcome */
 
         OUT("<p>Click <a href=\"/welcome\">here</a> to try my welcoming bot.</p>");
 
-        OUT_HTML_FOOTER;
+        OUT_HTML_FOOTER;    // body and html closing tags
     }
     else if ( REQ("welcome") )  // welcoming bot
     {
         OUT_HTML_HEADER;
         OUT("<h1>%s</h1>", NPP_APP_NAME);
 
+        /* display form */
+
         OUT("<p>Please enter your name:</p>");
         OUT("<form action=\"welcome\"><input name=\"name\" autofocus> <input type=\"submit\" value=\"Run\"></form>");
+
+        /* try to get the query string value */
 
         QSVAL qs_name;   // query string value
 
