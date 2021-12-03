@@ -27,13 +27,13 @@ Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance suffic
 Node++ applications consistently get "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
 
 <div align="center">
-<img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300/>
+<img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300>
 </div>
 
 Or – as they now don't publish the percentage – it shows the **complete page load in 67 ms**:
 
 <div align="center">
-<img src="https://minishare.com/show?p=PRRizqb2&i=2" width=700/>
+<img src="https://minishare.com/show?p=PRRizqb2&i=2" width=700>
 </div>
 
 
@@ -44,7 +44,7 @@ Node++ has built-in (and enabled by default) protection against most popular att
 Default SSL settings give this result:
 
 <div align="center">
-<img src="https://minishare.com/show?p=K8GvQDag&i=3" width=700/>
+<img src="https://minishare.com/show?p=K8GvQDag&i=3" width=700>
 </div>
 
 
@@ -52,8 +52,8 @@ Default SSL settings give this result:
 
 ### Basic convention
 
-<div align="center" style="margin-bottom:20px;">
-<img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
+<div align="center">
+<img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700>
 </div>
 
 If `resource` is a file present in `res` or `resmin` (i.e. an image or css), it will be served and `npp_app_main()` will not be called.
@@ -239,7 +239,7 @@ cd npp_hello/src
 You can now browse through the simple web application. At the bottom of each page there's a rendering function name to quickly grasp how Node++ works.
 
 <div align="center">
-<img src="https://minishare.com/show?p=mbdOLtBE&i=2" width=745/>
+<img src="https://minishare.com/show?p=mbdOLtBE&i=2" width=745>
 </div>
 
 Press `Ctrl`+`C` to stop.
