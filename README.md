@@ -166,6 +166,13 @@ Complete 4-page application example is included in the package (see [npp_app.cpp
 More examples are available here: [Node++ examples](https://nodepp.org/docs/examples).
 
 
+## Configuration
+
+Configuration file ([bin/npp.conf](https://github.com/silgy/nodepp/blob/master/bin/npp.conf)) contains a handful of settings, starting with logLevel, httpPort, httpsPort, SSL certificate paths, database credentials and so on.
+
+You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/silgy/silgy/wiki/silgy_read_param_str) or [npp_read_param_int()](https://github.com/silgy/silgy/wiki/silgy_read_param_int).
+
+
 ## Background
 
 The first [Silgy](https://github.com/silgy/silgy) version I had published on Github, had the following explanation for why I ever started this project:
