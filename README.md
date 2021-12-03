@@ -50,9 +50,9 @@ Default SSL settings give this result:
 
 ## Programming
 
-## Basic convention
+### Basic convention
 
-<div align="center">
+<div align="center" style="margin-bottom:12px;">
 <img src="https://minishare.com/show?p=4xlHEJwL&i=3" width=700/>
 </div>
 
