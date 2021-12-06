@@ -59,6 +59,7 @@ int         G_usersRequireActivation=0;
 char        G_IPBlackList[256]="";
 char        G_IPWhiteList[256]="";
 int         G_ASYNCId=-1;
+int         G_ASYNCSvcProcesses=0;
 int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
 
 /* end of config params */
@@ -2039,6 +2040,7 @@ static void read_conf(bool first)
         G_IPBlackList[0] = EOS;
         G_IPWhiteList[0] = EOS;
         G_ASYNCId = -1;
+        G_ASYNCSvcProcesses = 0;
         G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
         G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
     }
@@ -2256,16 +2258,19 @@ static void read_conf(bool first)
         if ( first )
         {
             npp_read_param_int("ASYNCId", &G_ASYNCId);
+            npp_read_param_int("ASYNCSvcProcesses", &G_ASYNCSvcProcesses);
         }
         else    /* can't change it online */
         {
             int tmp_ASYNCId=G_ASYNCId;
+            int tmp_ASYNCSvcProcesses=G_ASYNCSvcProcesses;
 
             npp_read_param_int("ASYNCId", &tmp_ASYNCId);
+            npp_read_param_int("ASYNCSvcProcesses", &tmp_ASYNCSvcProcesses);
 
-            if ( tmp_ASYNCId != G_ASYNCId )
+            if ( tmp_ASYNCId != G_ASYNCId || tmp_ASYNCSvcProcesses != G_ASYNCSvcProcesses )
             {
-                WAR("Changing ASYNCId requires server restart");
+                WAR("Changing ASYNCId or ASYNCSvcProcesses requires server restart");
             }
         }
 
@@ -2656,6 +2661,7 @@ static bool init(int argc, char **argv)
     ALWAYS("IPBlackList [%s]", G_IPBlackList);
     ALWAYS("IPWhiteList [%s]", G_IPWhiteList);
     ALWAYS("ASYNCId = %d", G_ASYNCId);
+    ALWAYS("ASYNCSvcProcesses = %d", G_ASYNCSvcProcesses);
     ALWAYS("ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
     ALWAYS("callHTTPTimeout = %d", G_callHTTPTimeout);
 
@@ -2674,22 +2680,6 @@ static bool init(int argc, char **argv)
 
     libusr_init();
 #endif
-
-    /* ensure the message sizes are sufficient */
-
-#ifdef NPP_ASYNC
-    if ( sizeof(async_req_hdr_t) > NPP_ASYNC_REQ_MSG_SIZE )
-    {
-        ERR("sizeof(async_req_hdr_t) > NPP_ASYNC_REQ_MSG_SIZE, increase APP_ASYNC_REQ_MSG_SIZE");
-        return FALSE;
-    }
-
-    if ( sizeof(async_res_hdr_t) > NPP_ASYNC_RES_MSG_SIZE )
-    {
-        ERR("sizeof(async_res_hdr_t) > NPP_ASYNC_RES_MSG_SIZE, increase APP_ASYNC_RES_MSG_SIZE");
-        return FALSE;
-    }
-#endif  /* NPP_ASYNC */
 
 
 #ifdef NPP_MYSQL
@@ -2823,7 +2813,25 @@ static bool init(int argc, char **argv)
     /* ASYNC ------------------------------------------------------------- */
 
 #ifdef NPP_ASYNC
-    ALWAYS("\nOpening message queues...\n");
+
+    ALWAYS("");
+
+    if ( NPP_ASYNC_REQ_MSG_SIZE > 8192 )
+    {
+        ALWAYS("Increasing message size...");
+
+        char cmd[1024];
+
+        sprintf(cmd, "echo %d > /proc/sys/fs/mqueue/msgsize_max", NPP_ASYNC_REQ_MSG_SIZE);
+
+        if ( system(cmd) != EXIT_SUCCESS )
+        {
+            ERR("Couldn't increase msgsize_max");
+            return FALSE;
+        }
+    }
+
+    ALWAYS("Opening message queues...");
 
 #ifdef NPP_ASYNC_ID
     if ( G_ASYNCId > -1 )
@@ -2901,6 +2909,7 @@ static bool init(int argc, char **argv)
     INF("");
 
 #endif  /* NPP_ASYNC */
+
 
     INF("Sorting messages...");
 
@@ -5751,7 +5760,7 @@ static int parse_req(int ci, int len)
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
 
         /* -------------------------------------------------------------- */
-        /* ID for RESTful stuff */
+        /* REQ_ID for RESTful stuff */
 
         char *last_slash = strrchr(G_connections[ci].uri, '/');
 
@@ -5786,7 +5795,7 @@ static int parse_req(int ci, int len)
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
-        DBG("  ID [%s]", G_connections[ci].id);
+        DBG("  REQ_ID [%s]", G_connections[ci].id);
 #endif
         /* -------------------------------------------------------------- */
 

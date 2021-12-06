@@ -1662,6 +1662,7 @@ extern int          G_usersRequireActivation;
 extern char         G_IPBlackList[256];
 extern char         G_IPWhiteList[256];
 extern int          G_ASYNCId;
+extern int          G_ASYNCSvcProcesses;
 extern int          G_ASYNCDefTimeout;
 extern int          G_callHTTPTimeout;
 
