@@ -6379,7 +6379,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "CONTENT-LENGTH") )
     {
-        G_connections[ci].clen = atoi(value);
+        sscanf(value, "%u", &G_connections[ci].clen);
         if ( (!NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen >= NPP_IN_BUFSIZE) || (NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen >= NPP_MAX_PAYLOAD_SIZE-1) )
         {
             ERR("Request too long, clen = %u, sending 413", G_connections[ci].clen);

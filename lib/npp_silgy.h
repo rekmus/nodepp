@@ -25,6 +25,7 @@
 -----------------------------------------------------------------------------
 
     Node++ Web App Engine
+    Silgy compatibility macros
     nodepp.org
 
 -------------------------------------------------------------------------- */
@@ -32,76 +33,96 @@
 #ifndef NPP_SILGY_H
 #define NPP_SILGY_H
 
-
+/*
+#ifdef OLD_MACRO_NAME
+#define NEW_MACRO_NAME                  OLD_MACRO_NAME
+#else   OLD_MACRO_NAME might have been used in app code, so:
+#define OLD_MACRO_NAME                  default value
+#endif
+*/
 
 #ifdef APP_WEBSITE
 #define NPP_APP_NAME                    APP_WEBSITE
 #else
-#define APP_WEBSITE                     NPP_APP_NAME
+#define APP_WEBSITE                     "Node++ Web Application"
 #endif
 
 #ifdef APP_DOMAIN
 #define NPP_APP_DOMAIN                  APP_DOMAIN
 #else
-#define APP_DOMAIN                      NPP_APP_DOMAIN
+#define APP_DOMAIN                      ""
 #endif
 
 #ifdef APP_DESCRIPTION
 #define NPP_APP_DESCRIPTION             APP_DESCRIPTION
-#else
-#define APP_DESCRIPTION                 NPP_APP_DESCRIPTION
 #endif
 
 #ifdef APP_KEYWORDS
 #define NPP_APP_KEYWORDS                APP_KEYWORDS
-#else
-#define APP_KEYWORDS                    NPP_APP_KEYWORDS
 #endif
 
 #ifdef DEF_RES_AUTH_LEVEL
 #define NPP_DEFAULT_REQUIRED_AUTH_LEVEL DEF_RES_AUTH_LEVEL
 #else
-#define DEF_RES_AUTH_LEVEL              NPP_DEFAULT_REQUIRED_AUTH_LEVEL
+#define DEF_RES_AUTH_LEVEL              NPP_AUTH_NONE
 #endif
 
 #ifdef DEF_USER_AUTH_LEVEL
 #define NPP_DEFAULT_USER_AUTH_LEVEL     DEF_USER_AUTH_LEVEL
 #else
-#define DEF_USER_AUTH_LEVEL             NPP_DEFAULT_USER_AUTH_LEVEL
+#define DEF_USER_AUTH_LEVEL             AUTH_LEVEL_USER
 #endif
 
 #ifdef USES_TIMEOUT
 #define NPP_SESSION_TIMEOUT             USES_TIMEOUT
 #else
-#define USES_TIMEOUT                    NPP_SESSION_TIMEOUT
+#define USES_TIMEOUT                    600
 #endif
 
 #ifdef APP_ADMIN_EMAIL
 #define NPP_ADMIN_EMAIL                 APP_ADMIN_EMAIL
-#else
-#define APP_ADMIN_EMAIL                 NPP_ADMIN_EMAIL
 #endif
 
 #ifdef APP_CONTACT_EMAIL
 #define NPP_CONTACT_EMAIL               APP_CONTACT_EMAIL
-#else
-#define APP_CONTACT_EMAIL               NPP_CONTACT_EMAIL
 #endif
 
 #ifdef APP_EMAIL_FROM_USER
 #define NPP_EMAIL_FROM_USER             APP_EMAIL_FROM_USER
 #else
-#define EMAIL_FROM_USER                 NPP_EMAIL_FROM_USER
+#define EMAIL_FROM_USER                 "noreply"
 #endif
 
 #ifdef ALLOW_BEARER_AUTH
 #define NPP_ALLOW_BEARER_AUTH
 #endif
 
+#ifdef ASYNC_MQ_MAXMSG
+#define NPP_ASYNC_MQ_MAXMSG             ASYNC_MQ_MAXMSG
+#else
+#define ASYNC_MQ_MAXMSG                 10
+#endif
+
+#ifdef ASYNC_MAX_REQUESTS
+#define NPP_ASYNC_MAX_REQUESTS          ASYNC_MAX_REQUESTS
+#else
+#define ASYNC_MAX_REQUESTS              10
+#endif
+
+#ifdef ASYNC_REQ_MSG_SIZE
+#define NPP_ASYNC_REQ_MSG_SIZE          ASYNC_REQ_MSG_SIZE
+#else
+#define ASYNC_REQ_MSG_SIZE              8192
+#endif
+
+#ifdef ASYNC_RES_MSG_SIZE
+#define NPP_ASYNC_RES_MSG_SIZE          ASYNC_RES_MSG_SIZE
+#else
+#define ASYNC_RES_MSG_SIZE              8192
+#endif
+
 #ifdef APP_ASYNC_ID
 #define NPP_ASYNC_ID                    APP_ASYNC_ID
-#else
-#define APP_ASYNC_ID                    NPP_ASYNC_ID
 #endif
 
 #ifdef APP_ERROR_PAGE
@@ -111,43 +132,43 @@
 #ifdef APP_LOGIN_URI
 #define NPP_LOGIN_URI                   APP_LOGIN_URI
 #else
-#define APP_LOGIN_URI                   NPP_LOGIN_URI
+#define APP_LOGIN_URI                   "/login"
 #endif
 
 #ifdef APP_MAX_STATICS
 #define NPP_MAX_STATICS                 APP_MAX_STATICS
 #else
-#define MAX_STATICS                     NPP_MAX_STATICS
+#define MAX_STATICS                     1000
 #endif
 
 #ifdef APP_SESID_LEN
 #define NPP_SESSID_LEN                  APP_SESID_LEN
 #else
-#define SESID_LEN                       NPP_SESSID_LEN
+#define SESID_LEN                       15
 #endif
 
 #ifdef COMPRESS_TRESHOLD
 #define NPP_COMPRESS_TRESHOLD           COMPRESS_TRESHOLD
 #else
-#define COMPRESS_TRESHOLD               NPP_COMPRESS_TRESHOLD
+#define COMPRESS_TRESHOLD               500
 #endif
 
 #ifdef COMPRESS_LEVEL
 #define NPP_COMPRESS_LEVEL              COMPRESS_LEVEL
 #else
-#define COMPRESS_LEVEL                  NPP_COMPRESS_LEVEL
+#define COMPRESS_LEVEL                  Z_BEST_SPEED
 #endif
 
 #ifdef CONN_TIMEOUT
 #define NPP_CONNECTION_TIMEOUT          CONN_TIMEOUT
 #else
-#define CONN_TIMEOUT                    NPP_CONNECTION_TIMEOUT
+#define CONN_TIMEOUT                    180
 #endif
 
 #ifdef LUSES_TIMEOUT
 #define NPP_AUTH_SESSION_TIMEOUT        LUSES_TIMEOUT
 #else
-#define LUSES_TIMEOUT                   NPP_AUTH_SESSION_TIMEOUT
+#define LUSES_TIMEOUT                   1800
 #endif
 
 #ifdef MEM_TINY
@@ -207,23 +228,23 @@
 #endif
 
 #ifdef JSON_KEY_LEN
-#define NPP_JSON_KEY_LEN                JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                31
 #endif
 
 #ifdef JSON_VAL_LEN
-#define NPP_JSON_STR_LEN                JSON_VAL_LEN
+#define NPP_JSON_STR_LEN                255
 #endif
 
 #ifdef JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS              JSON_MAX_ELEMS
+#define NPP_JSON_MAX_ELEMS              15
 #endif
 
 #ifdef JSON_MAX_LEVELS
-#define NPP_JSON_MAX_LEVELS             JSON_MAX_LEVELS
+#define NPP_JSON_MAX_LEVELS             4
 #endif
 
 #ifdef JSON_BUFSIZE
-#define NPP_JSON_BUFSIZE                JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                65568
 #endif
 
 #ifdef BLACKLISTAUTOUPDATE
@@ -251,11 +272,11 @@
 #endif
 
 #ifdef EXPIRES_STATICS
-#define NPP_EXPIRES_STATICS             EXPIRES_STATICS
+#define NPP_EXPIRES_STATICS             90
 #endif
 
 #ifdef EXPIRES_GENERATED
-#define NPP_EXPIRES_GENERATED           EXPIRES_GENERATED
+#define NPP_EXPIRES_GENERATED           30
 #endif
 
 #ifdef FD_MON_SELECT
@@ -269,37 +290,37 @@
 #ifdef MAX_BLACKLIST
 #define NPP_MAX_BLACKLIST               MAX_BLACKLIST
 #else
-#define MAX_BLACKLIST                   NPP_MAX_BLACKLIST
+#define MAX_BLACKLIST                   10000
 #endif
 
 #ifdef MAX_MESSAGES
 #define NPP_MAX_MESSAGES                MAX_MESSAGES
 #else
-#define MAX_MESSAGES                    NPP_MAX_MESSAGES
+#define MAX_MESSAGES                    1000
 #endif
 
 #ifdef MAX_STRINGS
 #define NPP_MAX_STRINGS                 MAX_STRINGS
 #else
-#define MAX_STRINGS                     NPP_MAX_STRINGS
+#define MAX_STRINGS                     1000
 #endif
 
 #ifdef MAX_PAYLOAD_SIZE
 #define NPP_MAX_PAYLOAD_SIZE            MAX_PAYLOAD_SIZE
 #else
-#define MAX_PAYLOAD_SIZE                NPP_MAX_PAYLOAD_SIZE
+#define MAX_PAYLOAD_SIZE                16777216
 #endif
 
 #ifdef MAX_WHITELIST
 #define NPP_MAX_WHITELIST               MAX_WHITELIST
 #else
-#define MAX_WHITELIST                   NPP_MAX_WHITELIST
+#define MAX_WHITELIST                   1000
 #endif
 
 #ifdef MAX_HOSTS
 #define NPP_MAX_HOSTS                   MAX_HOSTS
 #else
-#define MAX_HOSTS                       NPP_MAX_HOSTS
+#define MAX_HOSTS                       15
 #endif
 
 #ifdef HSTS_INCLUDE_SUBDOMAINS
@@ -309,13 +330,13 @@
 #ifdef HSTS_MAX_AGE
 #define NPP_HSTS_MAX_AGE                HSTS_MAX_AGE
 #else
-#define HSTS_MAX_AGE                    NPP_HSTS_MAX_AGE
+#define HSTS_MAX_AGE                    31536000
 #endif
 
 #ifdef MAX_RESOURCE_LEN
 #define NPP_MAX_RESOURCE_LEN            MAX_RESOURCE_LEN
 #else
-#define MAX_RESOURCE_LEN                NPP_MAX_RESOURCE_LEN
+#define MAX_RESOURCE_LEN                127
 #endif
 
 #ifdef NO_HSTS
@@ -349,43 +370,43 @@
 #ifdef STR_001
 #define NPP_PEPPER_01                   STR_001
 #else
-#define STR_001                         NPP_PEPPER_01
+#define STR_001                         "abcde"
 #endif
 
 #ifdef STR_002
 #define NPP_PEPPER_02                   STR_002
 #else
-#define STR_002                         NPP_PEPPER_02
+#define STR_002                         "fghij"
 #endif
 
 #ifdef STR_003
 #define NPP_PEPPER_03                   STR_003
 #else
-#define STR_003                         NPP_PEPPER_03
+#define STR_003                         "klmno"
 #endif
 
 #ifdef STR_004
 #define NPP_PEPPER_04                   STR_004
 #else
-#define STR_004                         NPP_PEPPER_04
+#define STR_004                         "pqrst"
 #endif
 
 #ifdef STR_005
 #define NPP_PEPPER_05                   STR_005
 #else
-#define STR_005                         NPP_PEPPER_05
+#define STR_005                         "uvwxy"
 #endif
 
 #ifdef STRINGS_SEP
 #define NPP_STRINGS_SEP                 STRINGS_SEP
 #else
-#define STRINGS_SEP                     NPP_STRINGS_SEP
+#define STRINGS_SEP                     '|'
 #endif
 
 #ifdef TMP_BUFSIZE
 #define NPP_TMP_BUFSIZE                 TMP_BUFSIZE
 #else
-#define TMP_BUFSIZE                     NPP_TMP_BUFSIZE
+#define TMP_BUFSIZE                     131072
 #endif
 
 #ifdef DBMYSQLRECONNECT
@@ -395,25 +416,25 @@
 #ifdef APP_MIN_USERNAME_LEN
 #define NPP_MIN_USERNAME_LEN            APP_MIN_USERNAME_LEN
 #else
-#define MIN_USERNAME_LEN                NPP_MIN_USERNAME_LEN
+#define MIN_USERNAME_LEN                2
 #endif
 
 #ifdef APP_MIN_PASSWD_LEN
 #define NPP_MIN_PASSWORD_LEN            APP_MIN_PASSWD_LEN
 #else
-#define MIN_PASSWORD_LEN                NPP_MIN_PASSWORD_LEN
+#define MIN_PASSWORD_LEN                5
 #endif
 
 #ifdef USER_ACTIVATION_HOURS
 #define NPP_USER_ACTIVATION_HOURS       USER_ACTIVATION_HOURS
 #else
-#define USER_ACTIVATION_HOURS           NPP_USER_ACTIVATION_HOURS
+#define USER_ACTIVATION_HOURS           48
 #endif
 
 #ifdef USER_KEEP_LOGGED_DAYS
 #define NPP_USER_KEEP_LOGGED_DAYS       USER_KEEP_LOGGED_DAYS
 #else
-#define USER_KEEP_LOGGED_DAYS           NPP_USER_KEEP_LOGGED_DAYS
+#define USER_KEEP_LOGGED_DAYS           30
 #endif
 
 #ifdef USERSBYEMAIL
@@ -452,6 +473,8 @@
 #define RES_JSON                        NPP_CONTENT_TYPE_JSON
 
 #define PROTOCOL                        NPP_PROTOCOL
+
+#define ID                              REQ_ID
 
 
 /* OpenSSL */

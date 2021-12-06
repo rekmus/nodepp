@@ -101,7 +101,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.2.0"
+#define NPP_VERSION                     "1.2.1"
 
 
 #ifndef FALSE
@@ -1029,7 +1029,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define REQ3(res)                       (0==strcmp(G_connections[ci].req3, res))
 #define REQ4(res)                       (0==strcmp(G_connections[ci].req4, res))
 #define REQ5(res)                       (0==strcmp(G_connections[ci].req5, res))
-#define ID                              G_connections[ci].id
+#define REQ_ID                          G_connections[ci].id
 #define SESSION                         G_sessions[G_connections[ci].si]
 #define SESSION_DATA                    G_app_session_data[G_connections[ci].si]
 #define IS_SESSION                      (G_connections[ci].si>0)

@@ -7946,7 +7946,9 @@ bool npp_read_param_int(const char *param, int *dest)
 
     if ( npp_read_param_str(param, tmp) )
     {
-        if ( dest ) *dest = atoi(tmp);
+        if ( dest )
+            sscanf(tmp, "%d", dest);
+
         return TRUE;
     }
 
@@ -8547,8 +8549,13 @@ static __int64 startticks, tps=0;
 -------------------------------------------------------------------------- */
 char *stpcpy(char *dest, const char *src)
 {
+#ifdef __cplusplus
+    char *d=dest;
+    const char *s=src;
+#else
     register char *d=dest;
     register const char *s=src;
+#endif
 
     do
         *d++ = *s;
@@ -8563,8 +8570,13 @@ char *stpcpy(char *dest, const char *src)
 -------------------------------------------------------------------------- */
 char *stpncpy(char *dest, const char *src, size_t len)
 {
+#ifdef __cplusplus
+    char *d=dest;
+    const char *s=src;
+#else
     register char *d=dest;
     register const char *s=src;
+#endif
     int count=0;
 
     do
