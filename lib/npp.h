@@ -597,6 +597,12 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define AUTHENTICATED                       (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define UID                                 SESSION.user_id
 
+/* backward compatibility */
+
+#ifdef NPP_DEFAULT_REQUIRED_AUTH_LEVEL
+#define NPP_REQUIRED_AUTH_LEVEL             NPP_DEFAULT_REQUIRED_AUTH_LEVEL
+#endif
+
 
 /* API authorization flags */
 
@@ -734,8 +740,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_MAX_SNIPPETS                    1000            /* max snippets */
 #endif
 
-#ifndef NPP_DEFAULT_REQUIRED_AUTH_LEVEL
-#define NPP_DEFAULT_REQUIRED_AUTH_LEVEL     AUTH_LEVEL_NONE /* default resource authorization level */
+#ifndef NPP_REQUIRED_AUTH_LEVEL
+#define NPP_REQUIRED_AUTH_LEVEL             AUTH_LEVEL_NONE /* default resource authorization level */
 #endif
 
 /* asynchronous calls */
