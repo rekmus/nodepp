@@ -5248,15 +5248,14 @@ static void reset_conn(int ci, char new_state)
 
     G_connections[ci].status = 200;
     G_connections[ci].method[0] = EOS;
-//    G_connections[ci].head_only = FALSE;
-//    G_connections[ci].post = FALSE;
+
     if ( G_connections[ci].in_data )
     {
         free(G_connections[ci].in_data);
         G_connections[ci].in_data = NULL;
     }
+
     G_connections[ci].was_read = 0;
-//    G_connections[ci].upgrade2https = FALSE;
     G_connections[ci].resource[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 1
     G_connections[ci].req1[0] = EOS;
@@ -5274,13 +5273,11 @@ static void reset_conn(int ci, char new_state)
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
     G_connections[ci].id[0] = EOS;
-//    G_connections[ci].http_ver[0] = EOS;
 #ifdef NPP_HTTP2
 //    G_connections[ci].http2_settings[0] = EOS;
 #endif  /* NPP_HTTP2 */
     G_connections[ci].uagent[0] = EOS;
     G_connections[ci].ua_type = NPP_UA_TYPE_DSK;
-//    G_connections[ci].keep_alive = FALSE;
     G_connections[ci].referer[0] = EOS;
     G_connections[ci].clen = 0;
     G_connections[ci].in_cookie[0] = EOS;
