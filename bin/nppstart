@@ -35,7 +35,7 @@
 # ---------------------------------------------------------------------
 # Environment check
 
-if [[ -z "${NPP_DIR}" ]]
+if [ -z $NPP_DIR ]
 then
     if [ -f ./npp_app ]
     then
@@ -66,10 +66,10 @@ nohup $NPP_DIR/bin/npp_app > /dev/null 2>&1 &
 
 if [ -f $NPP_DIR/bin/npp.conf ]
 then
-    NPP_SVC_PROCESSES=`grep '^ASYNCSvcProcesses' $NPP_DIR/bin/npp.conf | head -1 | cut -d '=' -f 2-`
+    NPP_SVC_PROCESSES=`grep '^ASYNCSvcProcesses' $NPP_DIR/bin/npp.conf | head -1 | cut -d '=' -f 2 | sed 's/\r$//'`
 fi
 
-if [[ -z "${NPP_SVC_PROCESSES}" ]]
+if [ -z $NPP_SVC_PROCESSES ]
 then
     NPP_SVC_PROCESSES=0
 fi

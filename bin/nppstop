@@ -35,7 +35,7 @@
 # ---------------------------------------------------------------------
 # Environment check
 
-if [[ -z "${NPP_DIR}" ]]
+if [ -z $NPP_DIR ]
 then
     if [ -f ./npp_app ]
     then
