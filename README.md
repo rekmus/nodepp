@@ -208,20 +208,20 @@ For other distributions see our [cheat sheets](https://nodepp.org/docs).
 
 ```source.sh
 sudo yum install gcc-c++    # RH
-sudo apt-get install g++    # Ubuntu
+sudo apt install g++        # Ubuntu
 ```
 
 2. Get the package
 
 ```source.sh
-wget https://nodepp.org/nodepp_1.2.0.tar.gz
+wget https://nodepp.org/nodepp_1.3.0.tar.gz
 ```
 
 3. Extract the package:
 
 ```source.sh
 mkdir npp_hello
-tar xpzf nodepp_1.2.0.tar.gz -C npp_hello
+tar xpzf nodepp_1.3.0.tar.gz -C npp_hello
 ```
 
 4. Compile:
