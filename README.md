@@ -13,14 +13,14 @@ Node++ library (paired with OpenSSL and optionally MySQL) contains everything th
 
 There is a [RESTful API generator](https://nodepp.org/generators) to generate almost the whole backend code in a few clicks, requiring only an SQL table definition.
 
-Note that the large part of the documentation still points to [Silgy wiki](https://github.com/silgy/silgy/wiki). This is changing as we speak, so to speak...
+Note that the large part of the documentation still points to [Silgy wiki](https://github.com/rekmus/silgy/wiki). This is changing as we speak, so to speak...
 
 
 ## Performance
 
-The last test I've done in 2019 show that Node++ Hello World handles [~20,000 requests per second](https://github.com/silgy/silgy/wiki/Performance-test:-select()-vs-poll()) on a single CPU, free AWS EC2 instance.
+The last test I've done in 2019 show that Node++ Hello World handles [~20,000 requests per second](https://github.com/rekmus/silgy/wiki/Performance-test:-select()-vs-poll()) on a single CPU, free AWS EC2 instance.
 
-In case of using Node++ under heavy load or with external API calls, there's the [ASYNC facility](https://github.com/silgy/silgy/wiki/Silgy-ASYNC) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
+In case of using Node++ under heavy load or with external API calls, there's the [ASYNC facility](https://github.com/rekmus/silgy/wiki/Silgy-ASYNC) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
 
 Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance sufficient to host a fully-fledged web application with a database for thousands of users.
 
@@ -39,7 +39,7 @@ Or – as they now don't publish the percentage – it shows the **complete page
 
 ## Security
 
-Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/silgy/silgy/wiki/CSRFT_OK).
+Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/rekmus/silgy/wiki/CSRFT_OK).
 
 Default SSL settings give this result:
 
@@ -103,7 +103,7 @@ void npp_app_main(int ci)
 
 ### Using query string value
 
-This is a simple 2-pages application demonstrating [QS()](https://github.com/silgy/silgy/wiki/QS) macro usage to get a value provided by client in the query string.
+This is a simple 2-pages application demonstrating [QS()](https://github.com/rekmus/silgy/wiki/QS) macro usage to get a value provided by client in the query string.
 
 `QS` works with all popular HTTP methods and payload types.
 
@@ -161,21 +161,21 @@ void npp_app_main(int ci)
 }
 ```
 
-Complete 4-page application example is included in the package (see [npp_app.cpp](https://github.com/silgy/nodepp/blob/master/src/npp_app.cpp)).
+Complete 4-page application example is included in the package (see [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp)).
 
 More examples are available here: [Node++ examples](https://nodepp.org/docs/examples).
 
 
 ## Configuration
 
-Configuration file ([bin/npp.conf](https://github.com/silgy/nodepp/blob/master/bin/npp.conf)) contains a handful of settings, starting with logLevel, httpPort, httpsPort, SSL certificate paths, database credentials and so on.
+Configuration file ([bin/npp.conf](https://github.com/rekmus/nodepp/blob/master/bin/npp.conf)) contains a handful of settings, starting with logLevel, httpPort, httpsPort, SSL certificate paths, database credentials and so on.
 
-You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/silgy/silgy/wiki/silgy_read_param_str) or [npp_read_param_int()](https://github.com/silgy/silgy/wiki/silgy_read_param_int).
+You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/rekmus/silgy/wiki/silgy_read_param_str) or [npp_read_param_int()](https://github.com/rekmus/silgy/wiki/silgy_read_param_int).
 
 
 ## Background
 
-The first [Silgy](https://github.com/silgy/silgy) version I had published on Github, had the following explanation for why I ever started this project:
+The first [Silgy](https://github.com/rekmus/silgy) version I had published on Github, had the following explanation for why I ever started this project:
 
 In 1995, when I landed my first computer job, my PC had an Intel 286 processor and 1 MB of RAM. Disks had spinning plates, nobody heard of SSD. Our office had Novell file server. And whatever we'd do, programs responded **immediately**.
 
@@ -251,7 +251,7 @@ You can now browse through the simple web application. At the bottom of each pag
 
 Press `Ctrl`+`C` to stop.
 
-If you want to start the application in background, use [nppstart](https://github.com/silgy/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/silgy/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/silgy/nodepp/tree/master/bin).
+If you want to start the application in background, use [nppstart](https://github.com/rekmus/nodepp/blob/master/bin/nppstart) and [nppstop](https://github.com/rekmus/nodepp/blob/master/bin/nppstop) in [bin](https://github.com/rekmus/nodepp/tree/master/bin).
 
 
 ## Getting Started (Windows)
@@ -317,7 +317,7 @@ Static parts of rendered content, i.e. HTML snippets.
 
 # If you've come across Silgy before
 
-Node++ is a [Silgy](https://github.com/silgy/silgy)'s successor.
+Node++ is a [Silgy](https://github.com/rekmus/silgy)'s successor.
 
 
 ## Silgy project migration to Node++ project
