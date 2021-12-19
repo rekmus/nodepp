@@ -13,14 +13,12 @@ Node++ library (paired with OpenSSL and optionally MySQL) contains everything th
 
 There is a [RESTful API generator](https://nodepp.org/generators) to generate almost the whole backend code in a few clicks, requiring only an SQL table definition.
 
-Note that the large part of the documentation still points to [Silgy wiki](https://github.com/rekmus/silgy/wiki). This is changing as we speak, so to speak...
-
 
 ## Performance
 
 The last test I've done in 2019 show that Node++ Hello World handles [~20,000 requests per second](https://github.com/rekmus/silgy/wiki/Performance-test:-select()-vs-poll()) on a single CPU, free AWS EC2 instance.
 
-In case of using Node++ under heavy load or with external API calls, there's the [ASYNC facility](https://github.com/rekmus/silgy/wiki/Silgy-ASYNC) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
+In case of using Node++ under heavy load or with external API calls, there's the [ASYNC facility](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
 
 Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance sufficient to host a fully-fledged web application with a database for thousands of users.
 
@@ -39,7 +37,7 @@ Or – as they now don't publish the percentage – it shows the **complete page
 
 ## Security
 
-Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/rekmus/silgy/wiki/CSRFT_OK).
+Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/rekmus/nodepp/wiki/CSRFT_OK).
 
 Default SSL settings give this result:
 
@@ -103,7 +101,7 @@ void npp_app_main(int ci)
 
 ### Using query string value
 
-This is a simple 2-pages application demonstrating [QS()](https://github.com/rekmus/silgy/wiki/QS) macro usage to get a value provided by client in the query string.
+This is a simple 2-pages application demonstrating [QS()](https://github.com/rekmus/nodepp/wiki/QS) macro usage to get a value provided by client in the query string.
 
 `QS` works with all popular HTTP methods and payload types.
 
@@ -170,7 +168,7 @@ More examples are available here: [Node++ examples](https://nodepp.org/docs/exam
 
 Configuration file ([bin/npp.conf](https://github.com/rekmus/nodepp/blob/master/bin/npp.conf)) contains a handful of settings, starting with logLevel, httpPort, httpsPort, SSL certificate paths, database credentials and so on.
 
-You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/rekmus/silgy/wiki/silgy_read_param_str) or [npp_read_param_int()](https://github.com/rekmus/silgy/wiki/silgy_read_param_int).
+You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/rekmus/nodepp/wiki/npp_read_param_str) or [npp_read_param_int()](https://github.com/rekmus/nodepp/wiki/npp_read_param_int).
 
 
 ## Background
