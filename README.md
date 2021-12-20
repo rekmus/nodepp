@@ -1,6 +1,6 @@
 # Node++
 
-Node++ is an asynchronous HTTP(S) engine and framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/mysqldaogen) (see [live demo](https://nodepp.org/products)).
+Node++ is an asynchronous HTTP(S) engine and framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/mysqldao) (see [live demo](https://nodepp.org/products)).
 
 It can act as:
 
@@ -18,7 +18,7 @@ There is a [RESTful API generator](https://nodepp.org/generators) to generate al
 
 The last test I've done in 2019 show that Node++ Hello World handles [~20,000 requests per second](https://github.com/rekmus/silgy/wiki/Performance-test:-select()-vs-poll()) on a single CPU, free AWS EC2 instance.
 
-In case of using Node++ under heavy load or with external API calls, there's the [ASYNC facility](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
+In case of using Node++ under heavy load or with external API calls, there's a multi-process mode ([ASYNC](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC)) designed to prevent main (npp_app) process blocking. ASYNC allows developer to split (or move) the functionality between gateway and multiple service processes.
 
 Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance sufficient to host a fully-fledged web application with a database for thousands of users.
 
@@ -169,6 +169,37 @@ More examples are available here: [Node++ examples](https://nodepp.org/docs/exam
 Configuration file ([bin/npp.conf](https://github.com/rekmus/nodepp/blob/master/bin/npp.conf)) contains a handful of settings, starting with logLevel, httpPort, httpsPort, SSL certificate paths, database credentials and so on.
 
 You can also add your own and read them in `npp_app_init()` with [npp_read_param_str()](https://github.com/rekmus/nodepp/wiki/npp_read_param_str) or [npp_read_param_int()](https://github.com/rekmus/nodepp/wiki/npp_read_param_int).
+
+
+## Documentation
+
+### [Getting Started on Linux](https://github.com/rekmus/nodepp/wiki/Node++-Hello-World-%E2%80%93-Getting-Started-on-Linux)
+
+### [Getting Started on Windows](https://github.com/rekmus/nodepp/wiki/Node++-Hello-World-%E2%80%93-Getting-Started-on-Windows)
+
+### [Switches and constants](https://github.com/rekmus/nodepp/wiki/Node++-switches-and-constants)
+
+### [Functions and macros](https://github.com/rekmus/nodepp/wiki/Node++-functions-and-macros)
+
+### [Configuration parameters](https://github.com/rekmus/nodepp/wiki/Node++-configuration-parameters)
+
+### [How to enable HTTPS](https://github.com/rekmus/nodepp/wiki/How-to-enable-HTTPS-in-Node++)
+
+### [Sessions in Node++](https://github.com/rekmus/nodepp/wiki/Sessions-in-Node++)
+
+### [ASYNC](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC)
+
+### [Memory models](https://github.com/rekmus/nodepp/wiki/Node++-memory-models)
+
+### [Multi-language support](https://github.com/rekmus/nodepp/wiki/Node++-multi-language-support)
+
+### [USERS Module](https://github.com/rekmus/nodepp/wiki/USERS-Module)
+
+### [Error codes](https://github.com/rekmus/nodepp/wiki/Node++-error-codes)
+
+### [RESTful calls from Node++](https://github.com/rekmus/nodepp/wiki/RESTful-calls-from-Node++)
+
+### [What is npp_watcher](https://github.com/rekmus/nodepp/wiki/What-is-npp_watcher)
 
 
 ## Background
