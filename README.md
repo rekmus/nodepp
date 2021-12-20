@@ -187,7 +187,7 @@ You can also add your own and read them in `npp_app_init()` with [npp_read_param
 
 ### [Sessions in Node++](https://github.com/rekmus/nodepp/wiki/Sessions-in-Node++)
 
-### [ASYNC](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC)
+### [ASYNC (multi-process mode)](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC)
 
 ### [Memory models](https://github.com/rekmus/nodepp/wiki/Node++-memory-models)
 
