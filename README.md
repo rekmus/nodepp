@@ -1,6 +1,6 @@
 # Node++
 
-Node++ is an asynchronous HTTP(S) engine and framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/mysqldao) (see [live demo](https://nodepp.org/products)).
+Node++ is an asynchronous HTTP(S) engine and framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/generators/mysqldao) (see [live demo](https://nodepp.org/products)).
 
 It can act as:
 
