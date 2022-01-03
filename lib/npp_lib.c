@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -68,8 +68,13 @@ char        G_dbPassword[128]="";
 
 /* hosts */
 #ifdef NPP_MULTI_HOST
-npp_host_t  G_hosts[NPP_MAX_HOSTS]={"", "res", "resmin", "snippets", FALSE};
+npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", FALSE}};
 int         G_hosts_cnt=1;
+#endif
+
+#if __GNUC__ < 6
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-braces"
 #endif
 
 /* messages */
@@ -112,6 +117,10 @@ static char M_md_list_type;
 static int  M_shmid[NPP_MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
 #endif
 
+#if __GNUC__ < 6
+#pragma GCC diagnostic pop  /* end of -Wmissing-braces */
+#endif
+
 #ifdef _WIN32   /* Windows */
 static WSADATA M_wsa;
 static bool M_WSA_initialized=FALSE;
@@ -139,7 +148,9 @@ static char M_random_initialized=0;
 
 
 static void load_err_messages(void);
+#ifndef NPP_CLIENT
 static bool load_strings(void);
+#endif
 
 
 /* --------------------------------------------------------------------------
@@ -147,8 +158,6 @@ static bool load_strings(void);
 -------------------------------------------------------------------------- */
 bool npp_lib_init()
 {
-    int i;
-
     DBG("npp_lib_init");
 
     /* G_pid */
@@ -176,13 +185,36 @@ bool npp_lib_init()
     if ( !load_strings() )
         return FALSE;
 
+    int i;
     for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
         strcpy(G_snippets[i].name, "-");
 #endif
 
+    /* read the config file or set defaults */
+
+    npp_lib_read_conf(TRUE);
+
+    /* don't log too much here */
+
+    int conf_logLevel = G_logLevel;
+
+#ifndef NPP_DEBUG
+    G_logLevel = LOG_ERR;
+#endif
+
+    /* init random module */
+
+    npp_lib_init_random_numbers();
+
+    /* ICONV */
+
 #ifdef NPP_ICONV
     setlocale(LC_ALL, "");
 #endif
+
+    /* restore configured log level */
+
+    G_logLevel = conf_logLevel;
 
     return TRUE;
 }
@@ -193,12 +225,11 @@ bool npp_lib_init()
 -------------------------------------------------------------------------- */
 void npp_lib_done()
 {
-    int i;
-
     DBG("npp_lib_done");
 
 #ifndef _WIN32
 
+    int i;
     for ( i=0; i<NPP_MAX_SHM_SEGMENTS; ++i )
         npp_lib_shm_delete(i);
 
@@ -222,7 +253,16 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
     DDBG("npp_safe_copy [%s], dst_len = %d", src, dst_len);
 
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+
     strncpy(dst, src, dst_len+1);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
 
     if ( dst[dst_len] == EOS )
     {
@@ -641,7 +681,7 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
     char tag_b=MD_TAG_NONE;   /* block */
     char tag_i=MD_TAG_NONE;   /* inline */
     int  skip;
-    int  written=0;
+    size_t written=0;
     bool list=FALSE;
     bool escape=FALSE;
 
@@ -686,7 +726,7 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
         written += open_tag(tag_i);
     }
 
-    const char *prev1, *prev2;
+    const char *prev1=src, *prev2=src;  /* init only to keep -Wmaybe-uninitialized off */
 
     while ( *src && written < dest_len-18 )   /* worst case: </code></li></ul> */
     {
@@ -770,10 +810,11 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
         }
         else if ( pos && *src=='-' && *prev1=='-' )   /* convert -- to ndash */
         {
-            M_md_dest = stpcpy(--M_md_dest, "–");
+            M_md_dest--;
+            M_md_dest = stpcpy(M_md_dest, "–");
             written += 3;
         }
-        else if ( *src=='\n' && pos>1 && *prev1==' ' && *prev2==' ' )   /* convert    to <br> */
+        else if ( *src=='\n' && pos>1 && *prev1==' ' && *prev2==' ' )   /* convert trailing double space to <br> */
         {
             M_md_dest -= 2;
             M_md_dest = stpcpy(M_md_dest, "<br>");
@@ -1061,39 +1102,6 @@ void npp_sort_messages()
 
 
 /* --------------------------------------------------------------------------
-   Get error description for user in NPP_STRINGS_LANG
--------------------------------------------------------------------------- */
-static char *lib_get_message_fallback(int code)
-{
-    int l, m;
-
-    /* try in NPP_STRINGS_LANG */
-
-    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
-    {
-        if ( 0==strcmp(G_msg_lang[l].lang, NPP_STRINGS_LANG) )
-        {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
-        }
-    }
-
-    /* try in any language */
-
-    for ( m=0; m<G_next_msg; ++m )
-        if ( G_messages[m].code == code )
-            return G_messages[m].message;
-
-    /* not found */
-
-static char unknown[128];
-    sprintf(unknown, "Unknown code: %d", code);
-    return unknown;
-}
-
-
-/* --------------------------------------------------------------------------
    Get message category
 -------------------------------------------------------------------------- */
 static char *get_msg_cat(int code)
@@ -1175,6 +1183,40 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
 }
 
 
+#ifndef NPP_CLIENT
+/* --------------------------------------------------------------------------
+   Get error description for user in NPP_STRINGS_LANG
+-------------------------------------------------------------------------- */
+static char *lib_get_message_fallback(int code)
+{
+    int l, m;
+
+    /* try in NPP_STRINGS_LANG */
+
+    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
+    {
+        if ( 0==strcmp(G_msg_lang[l].lang, NPP_STRINGS_LANG) )
+        {
+            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
+                if ( G_messages[m].code == code )
+                    return G_messages[m].message;
+        }
+    }
+
+    /* try in any language */
+
+    for ( m=0; m<G_next_msg; ++m )
+        if ( G_messages[m].code == code )
+            return G_messages[m].message;
+
+    /* not found */
+
+static char unknown[128];
+    sprintf(unknown, "Unknown code: %d", code);
+    return unknown;
+}
+
+
 /* --------------------------------------------------------------------------
    Get error description for user
    Pick the user session language if possible
@@ -1182,7 +1224,6 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
 -------------------------------------------------------------------------- */
 char *npp_get_message(int ci, int code)
 {
-#ifndef NPP_CLIENT
 
     if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
         return lib_get_message_fallback(code);
@@ -1217,14 +1258,6 @@ char *npp_get_message(int ci, int code)
     /* fallback */
 
     return lib_get_message_fallback(code);
-
-#else   /* NPP_CLIENT */
-
-static char dummy[16];
-
-    return dummy;
-
-#endif  /* NPP_CLIENT */
 }
 
 
@@ -1236,7 +1269,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
     DBG("parse_and_set_strings, lang [%s]", lang);
 
     const char *p=data;
-    int i, j=0;
+    int  j=0;
     char string_orig[NPP_MAX_STRING_LEN+1];
     char string_in_lang[NPP_MAX_STRING_LEN+1];
     bool now_key=1, now_val=0, now_com=0;
@@ -1316,14 +1349,13 @@ static void parse_and_set_strings(const char *lang, const char *data)
 -------------------------------------------------------------------------- */
 static bool load_strings()
 {
-    int     i, len;
+    int     len;
     char    bindir[NPP_STATIC_PATH_LEN+1];      /* full path to bin */
     char    namewpath[NPP_STATIC_PATH_LEN*2];   /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
     char    *data=NULL;
-    char    lang[8];
 
     DBG("load_strings");
 
@@ -1410,7 +1442,6 @@ void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
     }
 
     strcpy(G_strings[G_next_str].lang, npp_upper(lang));
-//    strcpy(G_strings[G_next_str].string_orig, str);
     strcpy(G_strings[G_next_str].string_upper, npp_upper(str));
     strcpy(G_strings[G_next_str].string_in_lang, str_lang);
 
@@ -1426,8 +1457,6 @@ void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
 -------------------------------------------------------------------------- */
 const char *npp_lib_get_string(int ci, const char *str)
 {
-#ifndef NPP_CLIENT
-
     if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
         return str;
 
@@ -1468,15 +1497,8 @@ const char *npp_lib_get_string(int ci, const char *str)
     /* fallback */
 
     return str;
-
-#else   /* NPP_CLIENT */
-
-static char dummy[16];
-
-    return dummy;
-
-#endif  /* NPP_CLIENT */
 }
+#endif  /* NPP_CLIENT */
 
 
 /* --------------------------------------------------------------------------
@@ -1631,28 +1653,10 @@ void npp_update_time_globals()
 
 #ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
-   Log SSL error
--------------------------------------------------------------------------- */
-static void log_ssl()
-{
-    char buf[256];
-    u_long err;
-
-    while ( (err=ERR_get_error()) != 0 )
-    {
-        ERR_error_string_n(err, buf, sizeof(buf));
-        ERR(buf);
-    }
-}
-#endif  /* NPP_HTTPS */
-
-
-/* --------------------------------------------------------------------------
    Init SSL for a client
 -------------------------------------------------------------------------- */
 static bool init_ssl_client()
 {
-#ifdef NPP_HTTPS
     const SSL_METHOD *method;
 
     DBG("init_ssl (npp_lib)");
@@ -1691,9 +1695,9 @@ static bool init_ssl_client()
     WAR("Ignoring remote server cert errors for HTTP calls");
 //    SSL_CTX_set_verify(M_ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-#endif  /* NPP_HTTPS */
     return TRUE;
 }
+#endif  /* NPP_HTTPS */
 
 
 /* --------------------------------------------------------------------------
@@ -1799,7 +1803,6 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
-    char    *data_tmp=NULL;
     struct stat fstat;
 
 #ifndef _WIN32
@@ -2209,7 +2212,6 @@ void npp_append_script(int ci, const char *fname, bool first)
     }
     OUT("ldscript('%s');", fname);
 }
-#endif  /* NPP_CLIENT */
 
 
 /* --------------------------------------------------------------------------
@@ -2267,7 +2269,6 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 }
 
 
-#ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
@@ -2330,7 +2331,7 @@ static JSON req={0};
 /* --------------------------------------------------------------------------
    Get text value from multipart-form-data
 -------------------------------------------------------------------------- */
-static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, int maxlen)
+static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, size_t maxlen)
 {
     unsigned char *p;
     size_t len;
@@ -2356,7 +2357,7 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
 /* --------------------------------------------------------------------------
    Get the query string value. Return TRUE if found.
 -------------------------------------------------------------------------- */
-static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int maxlen)
+static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t maxlen)
 {
     char *qs, *end;
 
@@ -2448,7 +2449,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int ma
 
     /* copy the value */
 
-    int i=0;
+    size_t i = 0;
 
     while ( *val && *val != '&' && i<maxlen )
         retbuf[i++] = *val++;
@@ -2468,7 +2469,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, int ma
 /* --------------------------------------------------------------------------
    Get incoming request data. TRUE if found.
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type)
+bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, size_t maxlen, char esc_type)
 {
 static char interbuf[65536];
 
@@ -2527,7 +2528,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
     unsigned b;              /* tmp bytes count */
     char     fn[NPP_MAX_LABEL_LEN+1];    /* field name */
     char     *end;
-    size_t  len;
+    size_t   len;
 
     /* Couple of checks to make sure it's properly formatted multipart content */
 
@@ -3056,13 +3057,13 @@ static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
 }
 
 
+#ifdef NPP_MYSQL
+#ifdef NPP_USERS
 /* --------------------------------------------------------------------------
    Users info
 -------------------------------------------------------------------------- */
 static void users_info(int ci, char activity, int rows, admin_info_t ai[], int ai_cnt)
 {
-#ifdef NPP_MYSQL
-#ifdef NPP_USERS
     char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
@@ -3249,10 +3250,9 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
     OUT("</table>");
 
     mysql_free_result(result);
-
+}
 #endif  /* NPP_USERS */
 #endif  /* NPP_MYSQL */
-}
 
 
 /* --------------------------------------------------------------------------
@@ -4040,12 +4040,20 @@ static int addresses_cnt=0, addresses_last=0;
     for ( rp=result; rp!=NULL; rp=rp->ai_next )
     {
         DDBG("Trying socket...");
+
         M_call_http_socket = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (M_call_http_socket == -1) continue;
+
+#ifdef _WIN32
+        if ( M_call_http_socket == INVALID_SOCKET ) continue;
+#else
+        if ( M_call_http_socket == -1 ) continue;
+#endif
+
 #ifdef NPP_DEBUG
         DBG("socket succeeded");
         DBG("elapsed after socket: %.3lf ms", npp_elapsed(start));
 #endif
+
         *timeout_remain = G_callHTTPTimeout - npp_elapsed(start);
         if ( *timeout_remain < 1 ) *timeout_remain = 1;
 
@@ -4422,7 +4430,7 @@ static int call_http_res_content_length(const char *u_res_header, int len)
     if ( len < (p-u_res_header) + 18 ) return -1;
 
     char result_str[8];
-    char i=0;
+    int  i = 0;
 
     p += 17;
 
@@ -4492,7 +4500,7 @@ static bool call_http_res_parse(char *res_header, int bytes)
     }
     else
     {
-        char i=0;
+        int i = 0;
 
         p += 15;
 
@@ -4502,6 +4510,7 @@ static bool call_http_res_parse(char *res_header, int bytes)
         }
 
         G_call_http_content_type[i] = EOS;
+
         DBG("CALL_HTTP content type [%s]", G_call_http_content_type);
     }
 
@@ -4560,14 +4569,11 @@ static bool  connected=FALSE;
 static time_t connected_time=0;
     char     res_header[CALL_HTTP_RES_HEADER_LEN+1];
 static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
-    int      bytes;
+    int      bytes=0;
     char     *body;
     unsigned content_read=0, buffer_read=0;
-    unsigned len, i, j;
+    unsigned len;
     int      timeout_remain = G_callHTTPTimeout;
-#ifdef NPP_HTTPS
-    int      ssl_err;
-#endif  /* NPP_HTTPS */
 
     DBG("npp_call_http [%s] [%s]", method, url);
 
@@ -4776,7 +4782,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
     if ( M_call_http_mode == NPP_TRANSFER_MODE_NORMAL )
     {
-        while ( content_read < G_call_http_res_len && timeout_remain > 1 )   /* read whatever we can within timeout */
+        while ( content_read < (unsigned)G_call_http_res_len && timeout_remain > 1 )   /* read whatever we can within timeout */
         {
             DDBG("trying again (content-length)");
 
@@ -4814,10 +4820,10 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
 #ifdef NPP_DEBUG
             DBG("Has the last chunk been read?");
-            DBG("buffer_read = %d", buffer_read);
+            DBG("buffer_read = %u", buffer_read);
             if ( buffer_read > 5 )
             {
-                int ii;
+                unsigned ii;
                 for ( ii=buffer_read-6; ii<buffer_read; ++ii )
                 {
                     if ( buffer[ii] == '\r' )
@@ -4859,7 +4865,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
         if ( buffer_read < 5 )
         {
-            ERR("buffer_read is only %d, this can't be valid chunked content", buffer_read);
+            ERR("buffer_read is only %u, this can't be valid chunked content", buffer_read);
             call_http_disconnect(bytes);
             connected = FALSE;
             return FALSE;
@@ -5038,6 +5044,7 @@ void npp_log_memory()
 }
 
 
+#ifdef __linux__
 /* --------------------------------------------------------------------------
    For lib_memory
 -------------------------------------------------------------------------- */
@@ -5063,6 +5070,7 @@ static int mem_parse_line(const char* line)
 
     return ret;
 }
+#endif  /* __linux__ */
 
 
 /* --------------------------------------------------------------------------
@@ -5204,7 +5212,7 @@ static char fname[256];
         return fname;
     }
 
-    if ( p-path == strlen(path)-1 )        /* slash is the last char */
+    if ( (unsigned)(p-path) == strlen(path)-1 )        /* slash is the last char */
     {
         fname[0] = EOS;
         return fname;
@@ -5236,7 +5244,7 @@ static char ext[64];
         return ext;
     }
 
-    if ( p-fname == strlen(fname)-1 )        /* dot is the last char */
+    if ( (unsigned)(p-fname) == strlen(fname)-1 )     /* dot is the last char */
     {
         ext[0] = EOS;
         return ext;
@@ -5263,7 +5271,7 @@ char npp_lib_get_res_type(const char *fname)
     if ( (ext=(char*)strrchr(fname, '.')) == NULL )     /* no dot */
         return NPP_CONTENT_TYPE_TEXT;
 
-    if ( ext-fname == strlen(fname)-1 )             /* dot is the last char */
+    if ( (unsigned)(ext-fname) == strlen(fname)-1 )     /* dot is the last char */
         return NPP_CONTENT_TYPE_TEXT;
 
     ++ext;
@@ -5378,6 +5386,7 @@ void date_rec2str(char *str, date_t *rec)
 }
 
 
+#ifdef _WIN32
 /* --------------------------------------------------------------------------
    Is year leap?
 -------------------------------------------------------------------------- */
@@ -5397,7 +5406,7 @@ static bool leap(short year)
 -------------------------------------------------------------------------- */
 static time_t win_timegm(struct tm *t)
 {
-    time_t epoch;
+    time_t epoch=0;
 
     static int days[2][12]={
         {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31},
@@ -5425,6 +5434,7 @@ static time_t win_timegm(struct tm *t)
 
     return epoch;
 }
+#endif  /* _WIN32 */
 
 
 /* --------------------------------------------------------------------------
@@ -5992,27 +6002,6 @@ bool strdigits(const char *src)
 
 
 /* --------------------------------------------------------------------------
-   Copy string without spaces and tabs
----------------------------------------------------------------------------*/
-static char *nospaces(char *dst, const char *src)
-{
-    const char  *p=src;
-    int     i=0;
-
-    while ( *p )
-    {
-        if ( *p != ' ' && *p != '\t' )
-            dst[i++] = *p;
-        ++p;
-    }
-
-    dst[i] = EOS;
-
-    return dst;
-}
-
-
-/* --------------------------------------------------------------------------
    Sleep for n miliseconds
    n must be less than 1 second (< 1000)!
 -------------------------------------------------------------------------- */
@@ -6380,7 +6369,7 @@ bool lib_json_from_string(JSON *json, const char *src, int len, int level)
     char    key[NPP_JSON_KEY_LEN+1];
     char    value[NPP_JSON_STR_LEN+1];
     int     index;
-    char    now_key=0, now_value=0, inside_array=0, type;
+    char    now_key=0, now_value=0, inside_array=0, type=NPP_JSON_STRING;
     float   flo_value;
     double  dbl_value;
 
@@ -6424,7 +6413,7 @@ static char tmp[NPP_JSON_BUFSIZE];
     if ( inside_array ) DBG("inside_array");
 #endif  /* NPP_DEBUG */
 
-    for ( i; i<len; ++i )
+    for ( i=i; i<len; ++i )
     {
         if ( !now_key && !now_value )
         {
@@ -6946,8 +6935,7 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
             if ( json->cnt >= NPP_JSON_MAX_ELEMS ) return FALSE;
             i = json->cnt;
             ++json->cnt;
-            strncpy(json->rec[i].name, name, NPP_JSON_KEY_LEN);
-            json->rec[i].name[NPP_JSON_KEY_LEN] = EOS;
+            COPY(json->rec[i].name, name, NPP_JSON_KEY_LEN);
             json->array = FALSE;
         }
     }
@@ -7957,6 +7945,327 @@ bool npp_read_param_int(const char *param, int *dest)
 
 
 /* --------------------------------------------------------------------------
+   Read & parse conf file and set global parameters
+-------------------------------------------------------------------------- */
+void npp_lib_read_conf(bool first)
+{
+    INF("Reading configuration...");
+
+    bool conf_read=FALSE;
+
+    /* -------------------------------------------------- */
+    /* set defaults */
+
+    if ( first )
+    {
+        G_test = 0;
+        G_logLevel = 3;
+        G_logToStdout = 0;
+        G_logCombined = 0;
+
+#ifdef NPP_APP
+        G_httpPort = 80;
+        G_httpsPort = 443;
+        G_cipherList[0] = EOS;
+        G_certFile[0] = EOS;
+        G_certChainFile[0] = EOS;
+        G_keyFile[0] = EOS;
+#endif
+
+        G_dbHost[0] = EOS;
+        G_dbPort = 0;
+        G_dbName[0] = EOS;
+        G_dbUser[0] = EOS;
+        G_dbPassword[0] = EOS;
+
+#ifdef NPP_USERS
+        G_usersRequireActivation = 0;
+#endif
+
+#ifdef NPP_APP
+        G_IPBlackList[0] = EOS;
+        G_IPWhiteList[0] = EOS;
+#endif
+
+#ifdef NPP_ASYNC
+        G_ASYNCId = -1;
+        G_ASYNCSvcProcesses = 0;
+        G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
+#endif
+
+        G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
+    }
+
+    /* -------------------------------------------------- */
+    /* get the conf file path & name */
+
+    if ( G_appdir[0] )
+    {
+        char conf_path[1024];
+        sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
+        if ( !(conf_read=npp_read_conf(conf_path)) )   /* no config file there */
+            conf_read = npp_read_conf("npp.conf");
+    }
+    else    /* no NPP_DIR -- try current dir */
+    {
+        conf_read = npp_read_conf("npp.conf");
+    }
+
+    if ( conf_read )
+    {
+        /* test */
+
+        npp_read_param_int("test", &G_test);
+
+        /* logLevel */
+
+        npp_read_param_int("logLevel", &G_logLevel);
+
+        /* logToStdout */
+
+        if ( first )
+        {
+            npp_read_param_int("logToStdout", &G_logToStdout);
+        }
+        else    /* npp_reload_conf */
+        {
+            int tmp_logToStdout=G_logToStdout;
+
+            npp_read_param_int("logToStdout", &tmp_logToStdout);
+
+            if ( tmp_logToStdout != G_logToStdout )
+            {
+                G_logToStdout = tmp_logToStdout;
+
+                if ( G_logToStdout )    /* switch to stdout */
+                {
+                    ALWAYS("Switching log to stdout");
+                    npp_lib_log_switch_to_stdout();
+                }
+                else    /* switch to file */
+                {
+                    ALWAYS("Switching log to a file");
+                    npp_lib_log_switch_to_file();
+                }
+            }
+        }
+
+        /* -------------------------------------------------- */
+        /* logCombined */
+
+        npp_read_param_int("logCombined", &G_logCombined);
+
+        /* -------------------------------------------------- */
+        /* ports */
+
+#ifdef NPP_APP
+
+        if ( first )
+        {
+            npp_read_param_int("httpPort", &G_httpPort);
+            npp_read_param_int("httpsPort", &G_httpsPort);
+        }
+        else    /* can't change it online */
+        {
+            int tmp_httpPort=G_httpPort;
+            int tmp_httpsPort=G_httpsPort;
+
+            npp_read_param_int("httpPort", &tmp_httpPort);
+            npp_read_param_int("httpsPort", &tmp_httpsPort);
+
+            if ( tmp_httpPort != G_httpPort
+                    || tmp_httpsPort != G_httpsPort )
+            {
+                WAR("Changing listening ports requires server restart");
+            }
+        }
+
+        /* -------------------------------------------------- */
+        /* SSL */
+
+#ifdef NPP_HTTPS
+        if ( first )
+        {
+            npp_read_param_str("cipherList", G_cipherList);
+            npp_read_param_str("certFile", G_certFile);
+            npp_read_param_str("certChainFile", G_certChainFile);
+            npp_read_param_str("keyFile", G_keyFile);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_cipherList[NPP_CIPHER_LIST_LEN+1]="";
+            char tmp_certFile[256]="";
+            char tmp_certChainFile[256]="";
+            char tmp_keyFile[256]="";
+
+            npp_read_param_str("cipherList", tmp_cipherList);
+            npp_read_param_str("certFile", tmp_certFile);
+            npp_read_param_str("certChainFile", tmp_certChainFile);
+            npp_read_param_str("keyFile", tmp_keyFile);
+
+            if ( strcmp(tmp_cipherList, G_cipherList) != 0
+                    || strcmp(tmp_certFile, G_certFile) != 0
+                    || strcmp(tmp_certChainFile, G_certChainFile) != 0
+                    || strcmp(tmp_keyFile, G_keyFile) != 0 )
+            {
+                strcpy(G_cipherList, tmp_cipherList);
+                strcpy(G_certFile, tmp_certFile);
+                strcpy(G_certChainFile, tmp_certChainFile);
+                strcpy(G_keyFile, tmp_keyFile);
+
+                SSL_CTX_free(M_ssl_ctx);
+                EVP_cleanup();
+
+                npp_eng_init_ssl();
+            }
+        }
+#endif  /* NPP_HTTPS */
+
+#endif  /* NPP_APP */
+
+        /* -------------------------------------------------- */
+        /* database */
+
+        if ( first )
+        {
+            npp_read_param_str("dbHost", G_dbHost);
+            npp_read_param_int("dbPort", &G_dbPort);
+            npp_read_param_str("dbName", G_dbName);
+            npp_read_param_str("dbUser", G_dbUser);
+            npp_read_param_str("dbPassword", G_dbPassword);
+        }
+        else    /* reconnect MySQL if changed */
+        {
+            char tmp_dbHost[128]="";
+            int  tmp_dbPort=0;
+            char tmp_dbName[128]="";
+            char tmp_dbUser[128]="";
+            char tmp_dbPassword[128]="";
+
+            npp_read_param_str("dbHost", tmp_dbHost);
+            npp_read_param_int("dbPort", &tmp_dbPort);
+            npp_read_param_str("dbName", tmp_dbName);
+            npp_read_param_str("dbUser", tmp_dbUser);
+            npp_read_param_str("dbPassword", tmp_dbPassword);
+
+            if ( strcmp(tmp_dbHost, G_dbHost) != 0
+                    || tmp_dbPort != G_dbPort
+                    || strcmp(tmp_dbName, G_dbName) != 0
+                    || strcmp(tmp_dbUser, G_dbUser) != 0
+                    || strcmp(tmp_dbPassword, G_dbPassword) != 0 )
+            {
+                strcpy(G_dbHost, tmp_dbHost);
+                G_dbPort = tmp_dbPort;
+                strcpy(G_dbName, tmp_dbName);
+                strcpy(G_dbUser, tmp_dbUser);
+                strcpy(G_dbPassword, tmp_dbPassword);
+#ifdef NPP_MYSQL
+                npp_close_db();
+
+                if ( !npp_open_db() )
+                    WAR("Couldn't connect to the database");
+#endif  /* NPP_MYSQL */
+            }
+        }
+
+        /* -------------------------------------------------- */
+        /* usersRequireActivation */
+
+#ifdef NPP_USERS
+        npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
+#endif
+
+        /* -------------------------------------------------- */
+        /* IPBlackList */
+
+#ifdef NPP_APP
+
+        if ( first )
+        {
+            npp_read_param_str("IPBlackList", G_IPBlackList);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_IPBlackList[256]="";
+
+            npp_read_param_str("IPBlackList", tmp_IPBlackList);
+
+            if ( strcmp(tmp_IPBlackList, G_IPBlackList) != 0 )
+            {
+                strcpy(G_IPBlackList, tmp_IPBlackList);
+                npp_eng_read_blocked_ips();
+            }
+        }
+
+        /* -------------------------------------------------- */
+        /* IPWhiteList */
+
+        if ( first )
+        {
+            npp_read_param_str("IPWhiteList", G_IPWhiteList);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_IPWhiteList[256]="";
+
+            npp_read_param_str("IPWhiteList", tmp_IPWhiteList);
+
+            if ( strcmp(tmp_IPWhiteList, G_IPWhiteList) != 0 )
+            {
+                strcpy(G_IPWhiteList, tmp_IPWhiteList);
+                npp_eng_read_allowed_ips();
+            }
+        }
+
+#endif  /* NPP_APP */
+
+        /* -------------------------------------------------- */
+        /* ASYNC */
+
+#ifdef NPP_ASYNC
+        if ( first )
+        {
+            npp_read_param_int("ASYNCId", &G_ASYNCId);
+            npp_read_param_int("ASYNCSvcProcesses", &G_ASYNCSvcProcesses);
+        }
+        else    /* can't change it online */
+        {
+            int tmp_ASYNCId=G_ASYNCId;
+            int tmp_ASYNCSvcProcesses=G_ASYNCSvcProcesses;
+
+            npp_read_param_int("ASYNCId", &tmp_ASYNCId);
+            npp_read_param_int("ASYNCSvcProcesses", &tmp_ASYNCSvcProcesses);
+
+            if ( tmp_ASYNCId != G_ASYNCId || tmp_ASYNCSvcProcesses != G_ASYNCSvcProcesses )
+            {
+                WAR("Changing ASYNCId or ASYNCSvcProcesses requires server restart");
+            }
+        }
+
+        npp_read_param_int("ASYNCDefTimeout", &G_ASYNCDefTimeout);
+#endif  /* NPP_ASYNC */
+
+        /* -------------------------------------------------- */
+        /* CALL_HTTP */
+
+        npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
+    }
+    else
+    {
+        WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
+    }
+
+#ifdef NPP_DEBUG
+    if ( G_logLevel < 4 )
+    {
+        G_logLevel = 4;   /* debug */
+        DBG("logLevel changed to 4 because of NPP_DEBUG");
+    }
+#endif  /* NPP_DEBUG */
+}
+
+
+/* --------------------------------------------------------------------------
    Create a pid file
 -------------------------------------------------------------------------- */
 char *npp_lib_create_pid_file(const char *name)
@@ -8376,6 +8685,334 @@ static char dst[NPP_LIB_STR_BUF];
 }
 
 
+/* --------------------------------------------------------------------------
+   Seed rand()
+-------------------------------------------------------------------------- */
+static void seed_rand()
+{
+#define NPP_SEEDS_MEM 256  /* remaining 8 bits & last seeds to remember */
+static char first=1;
+/* make sure at least the last NPP_SEEDS_MEM seeds are unique */
+static unsigned int seeds[NPP_SEEDS_MEM];
+
+    DBG("seed_rand");
+
+    /* generate possibly random, or at least based on some non-deterministic factors, 32-bit integer */
+
+    int time_remainder = (int)G_now % 63 + 1;     /* 6 bits */
+    int mem_remainder = npp_get_memory() % 63 + 1;    /* 6 bits */
+    int pid_remainder;       /* 6 bits */
+    int yesterday_rem;    /* 6 bits */
+
+    if ( first )    /* initial seed */
+    {
+        pid_remainder = G_pid % 63 + 1;
+#ifdef NPP_CLIENT
+        yesterday_rem = 30;
+#else
+        yesterday_rem = G_cnts_yesterday.req % 63 + 1;
+#endif
+    }
+    else    /* subsequent calls */
+    {
+        pid_remainder = rand() % 63 + 1;
+        yesterday_rem = rand() % 63 + 1;
+    }
+
+static int seeded=0;    /* 8 bits */
+
+    unsigned int seed;
+static unsigned int prev_seed=0;
+
+    while ( 1 )
+    {
+        if ( seeded >= NPP_SEEDS_MEM )
+            seeded = 1;
+        else
+            ++seeded;
+
+        seed = pid_remainder * time_remainder * mem_remainder * yesterday_rem * seeded;
+
+        /* check uniqueness in the history */
+
+        char found=0;
+        int i = 0;
+        while ( i < NPP_SEEDS_MEM )
+        {
+            if ( seeds[i++] == seed )
+            {
+                found = 1;
+                break;
+            }
+        }
+
+        if ( found )    /* same seed again */
+        {
+            WAR("seed %u repeated; seeded = %d, i = %d", seed, seeded, i);
+        }
+        else   /* seed not found ==> OK */
+        {
+            /* new seed needs to be at least 10000 apart from the previous one */
+
+            if ( !first && abs((long long)(seed-prev_seed)) < 10000 )
+            {
+                WAR("seed %u too close to the previous one (%u); seeded = %d", seed, prev_seed, seeded);
+            }
+            else    /* everything OK */
+            {
+                seeds[seeded-1] = seed;
+                break;
+            }
+        }
+
+        /* stir it up to avoid endless loop */
+
+        pid_remainder = rand() % 63 + 1;
+        time_remainder = rand() % 63 + 1;
+    }
+
+#ifdef NPP_DEBUG
+    char f[256];
+    npp_lib_fmt_int_generic(f, seed);
+    DBG("seed = %s", f);
+    DBG("");
+#endif  /* NPP_DEBUG */
+
+    prev_seed = seed;
+
+    first = 0;
+
+    srand(seed);
+}
+
+
+/* --------------------------------------------------------------------------
+   Initialize M_random_numbers array
+-------------------------------------------------------------------------- */
+void npp_lib_init_random_numbers()
+{
+    int i;
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    DBG("npp_lib_init_random_numbers");
+
+    seed_rand();
+
+#ifdef __linux__
+    /* On Linux we have access to a hardware-influenced RNG */
+
+    DBG("Trying /dev/urandom...");
+
+    int urandom_fd = open("/dev/urandom", O_RDONLY);
+
+    if ( urandom_fd )
+    {
+        if ( read(urandom_fd, &M_random_numbers, NPP_RANDOM_NUMBERS) < NPP_RANDOM_NUMBERS )
+        {
+            WAR("Couldn't read from /dev/urandom");
+            close(urandom_fd);
+            return;
+        }
+
+        close(urandom_fd);
+
+        INF("M_random_numbers obtained from /dev/urandom");
+    }
+    else
+    {
+        WAR("Couldn't open /dev/urandom");
+
+        /* fallback to old plain rand(), seeded the best we could */
+
+        for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
+            M_random_numbers[i] = rand() % 256;
+
+        INF("M_random_numbers obtained from rand()");
+    }
+
+#else   /* Windows */
+
+    for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
+        M_random_numbers[i] = rand() % 256;
+
+    INF("M_random_numbers obtained from rand()");
+
+#endif
+
+    INF("");
+
+    M_random_initialized = 1;
+
+#ifdef NPP_DEBUG
+
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+    DBG("M_random_numbers distribution visualization");
+    DBG("The square below should be filled fairly randomly and uniformly.");
+    DBG("If it's not, or you can see any regular patterns across the square, your system may be broken or too old to be deemed secure.");
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+
+    /* One square takes two columns, so we can have between 0 and 4 dots per square */
+
+#define SQUARE_ROWS             64
+#define SQUARE_COLS             SQUARE_ROWS*2
+#define SQUARE_IS_EMPTY(x, y)   (dots[y][x*2]==' ' && dots[y][x*2+1]==' ')
+#define SQUARE_HAS_ONE(x, y)    (dots[y][x*2]==' ' && dots[y][x*2+1]=='.')
+#define SQUARE_HAS_TWO(x, y)    (dots[y][x*2]=='.' && dots[y][x*2+1]=='.')
+#define SQUARE_HAS_THREE(x, y)  (dots[y][x*2]=='.' && dots[y][x*2+1]==':')
+#define SQUARE_HAS_FOUR(x, y)   (dots[y][x*2]==':' && dots[y][x*2+1]==':')
+
+#if __GNUC__ < 6
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-braces"
+#endif
+
+    char dots[SQUARE_ROWS][SQUARE_COLS+1]={0};
+
+#if __GNUC__ < 6
+#pragma GCC diagnostic pop
+#endif
+
+    int j;
+
+    for ( i=0; i<SQUARE_ROWS; ++i )
+        for ( j=0; j<SQUARE_COLS; ++j )
+            dots[i][j] = ' ';
+
+    /* we only have SQUARE_ROWS^2 squares with 5 possible values in each of them */
+    /* let only once in divider in */
+
+    int divider = NPP_RANDOM_NUMBERS / (SQUARE_ROWS*SQUARE_ROWS) + 1;
+
+    for ( i=0; i<NPP_RANDOM_NUMBERS-1; i+=2 )
+    {
+        if ( i % divider ) continue;
+
+        int x = M_random_numbers[i] % SQUARE_ROWS;
+        int y = M_random_numbers[i+1] % SQUARE_ROWS;
+
+        if ( SQUARE_IS_EMPTY(x, y) )    /* make it one */
+            dots[y][x*2+1] = '.';
+        else if ( SQUARE_HAS_ONE(x, y) )    /* make it two */
+            dots[y][x*2] = '.';
+        else if ( SQUARE_HAS_TWO(x, y) )    /* make it three */
+            dots[y][x*2+1] = ':';
+        else if ( SQUARE_HAS_THREE(x, y) )  /* make it four */
+            dots[y][x*2] = ':';
+    }
+
+    for ( i=0; i<SQUARE_ROWS; ++i )
+        DBG(dots[i]);
+
+    DBG("--------------------------------------------------------------------------------------------------------------------------------");
+    DBG("");
+    DBG("npp_lib_init_random_numbers took %.3lf ms", npp_elapsed(&start));
+    DBG("");
+
+#endif  /* NPP_DEBUG */
+}
+
+
+/* --------------------------------------------------------------------------
+   Return a random 8-bit number from M_random_numbers
+-------------------------------------------------------------------------- */
+static unsigned char get_random_number()
+{
+    static int i=0;
+
+    if ( M_random_initialized )
+    {
+        if ( i >= NPP_RANDOM_NUMBERS )  /* refill the pool with fresh numbers */
+        {
+            npp_lib_init_random_numbers();
+            i = 0;
+        }
+        return M_random_numbers[i++];
+    }
+    else
+    {
+        WAR("Using get_random_number() before M_random_initialized");
+        return rand() % 256;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Generate random string
+   Generates FIPS-compliant random sequences (tested with Burp)
+-------------------------------------------------------------------------- */
+void npp_random(char *dest, size_t len)
+{
+const char *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+static unsigned since_seed=0;
+    unsigned i;
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+#ifdef NPP_CLIENT
+    if ( since_seed > (G_pid % 246 + 10) )   /* seed every now and then */
+#else
+    if ( since_seed > (G_cnts_today.req % 246 + 10) )   /* seed every now and then */
+#endif
+//    if ( 1 )  /* test */
+    {
+        seed_rand();
+        since_seed = 0;
+    }
+    else
+    {
+        ++since_seed;
+
+        DDBG("since_seed = %u", since_seed);
+    }
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+#endif
+
+    int r;
+
+    for ( i=0; i<len; ++i )
+    {
+        /* source random numbers from two different sets: 'normal' and 'lucky' */
+
+        if ( get_random_number() % 3 == 0 )
+        {
+            DDBG("i=%d lucky", i);
+            r = get_random_number();
+            while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
+        }
+        else
+        {
+            DDBG("i=%d normal", i);
+            r = rand() % 256;
+            while ( r > 247 ) r = rand() % 256;
+        }
+
+        dest[i] = chars[r % 62];
+    }
+
+    dest[i] = EOS;
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+    DBG("npp_random took %.3lf ms", npp_elapsed(&start));
+#endif
+}
 
 
 
@@ -8391,7 +9028,7 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Base64 encode
 -------------------------------------------------------------------------- */
-int npp_b64_encode(char *dst, const unsigned char *src, int len)
+int npp_b64_encode(char *dst, const unsigned char *src, size_t len)
 {
 static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     unsigned int i, j=0, k=0, block[3];
@@ -8577,7 +9214,7 @@ char *stpncpy(char *dest, const char *src, size_t len)
     register char *d=dest;
     register const char *s=src;
 #endif
-    int count=0;
+    size_t count=0;
 
     do
         *d++ = *s;
@@ -8621,318 +9258,6 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 /* ================================================================================================ */
 
 #ifndef NPP_CLIENT
-/* --------------------------------------------------------------------------
-   Return a random 8-bit number from M_random_numbers
--------------------------------------------------------------------------- */
-static unsigned char get_random_number()
-{
-    static int i=0;
-
-    if ( M_random_initialized )
-    {
-        if ( i >= NPP_RANDOM_NUMBERS )  /* refill the pool with fresh numbers */
-        {
-            npp_lib_init_random_numbers();
-            i = 0;
-        }
-        return M_random_numbers[i++];
-    }
-    else
-    {
-        WAR("Using get_random_number() before M_random_initialized");
-        return rand() % 256;
-    }
-}
-
-
-/* --------------------------------------------------------------------------
-   Seed rand()
--------------------------------------------------------------------------- */
-static void seed_rand()
-{
-#define NPP_SEEDS_MEM 256  /* remaining 8 bits & last seeds to remember */
-static char first=1;
-/* make sure at least the last NPP_SEEDS_MEM seeds are unique */
-static unsigned int seeds[NPP_SEEDS_MEM];
-
-    DBG("seed_rand");
-
-    /* generate possibly random, or at least based on some non-deterministic factors, 32-bit integer */
-
-    int time_remainder = (int)G_now % 63 + 1;     /* 6 bits */
-    int mem_remainder = npp_get_memory() % 63 + 1;    /* 6 bits */
-    int pid_remainder;       /* 6 bits */
-    int yesterday_rem;    /* 6 bits */
-
-    if ( first )    /* initial seed */
-    {
-        pid_remainder = G_pid % 63 + 1;
-        yesterday_rem = G_cnts_yesterday.req % 63 + 1;
-    }
-    else    /* subsequent calls */
-    {
-        pid_remainder = rand() % 63 + 1;
-        yesterday_rem = rand() % 63 + 1;
-    }
-
-static int seeded=0;    /* 8 bits */
-
-    unsigned int seed;
-static unsigned int prev_seed=0;
-
-    while ( 1 )
-    {
-        if ( seeded >= NPP_SEEDS_MEM )
-            seeded = 1;
-        else
-            ++seeded;
-
-        seed = pid_remainder * time_remainder * mem_remainder * yesterday_rem * seeded;
-
-        /* check uniqueness in the history */
-
-        char found=0;
-        int i = 0;
-        while ( i < NPP_SEEDS_MEM )
-        {
-            if ( seeds[i++] == seed )
-            {
-                found = 1;
-                break;
-            }
-        }
-
-        if ( found )    /* same seed again */
-        {
-            WAR("seed %u repeated; seeded = %d, i = %d", seed, seeded, i);
-        }
-        else   /* seed not found ==> OK */
-        {
-            /* new seed needs to be at least 10000 apart from the previous one */
-
-            if ( !first && abs((long long)(seed-prev_seed)) < 10000 )
-            {
-                WAR("seed %u too close to the previous one (%u); seeded = %d", seed, prev_seed, seeded);
-            }
-            else    /* everything OK */
-            {
-                seeds[seeded-1] = seed;
-                break;
-            }
-        }
-
-        /* stir it up to avoid endless loop */
-
-        pid_remainder = rand() % 63 + 1;
-        time_remainder = rand() % 63 + 1;
-    }
-
-#ifdef NPP_DEBUG
-    char f[256];
-    npp_lib_fmt_int_generic(f, seed);
-    DBG("seed = %s", f);
-    DBG("");
-#endif  /* NPP_DEBUG */
-
-    prev_seed = seed;
-
-    first = 0;
-
-    srand(seed);
-}
-
-
-/* --------------------------------------------------------------------------
-   Initialize M_random_numbers array
--------------------------------------------------------------------------- */
-void npp_lib_init_random_numbers()
-{
-    int i;
-
-#ifdef NPP_DEBUG
-    struct timespec start;
-#ifdef _WIN32
-    clock_gettime_win(&start);
-#else
-    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
-#endif
-#endif  /* NPP_DEBUG */
-
-    DBG("npp_lib_init_random_numbers");
-
-    seed_rand();
-
-#ifdef __linux__
-    /* On Linux we have access to a hardware-influenced RNG */
-
-    DBG("Trying /dev/urandom...");
-
-    int urandom_fd = open("/dev/urandom", O_RDONLY);
-
-    if ( urandom_fd )
-    {
-        if ( read(urandom_fd, &M_random_numbers, NPP_RANDOM_NUMBERS) < NPP_RANDOM_NUMBERS )
-        {
-            WAR("Couldn't read from /dev/urandom");
-            close(urandom_fd);
-            return;
-        }
-
-        close(urandom_fd);
-
-        INF("M_random_numbers obtained from /dev/urandom");
-    }
-    else
-    {
-        WAR("Couldn't open /dev/urandom");
-
-        /* fallback to old plain rand(), seeded the best we could */
-
-        for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
-            M_random_numbers[i] = rand() % 256;
-
-        INF("M_random_numbers obtained from rand()");
-    }
-
-#else   /* Windows */
-
-    for ( i=0; i<NPP_RANDOM_NUMBERS; ++i )
-        M_random_numbers[i] = rand() % 256;
-
-    INF("M_random_numbers obtained from rand()");
-
-#endif
-
-    INF("");
-
-    M_random_initialized = 1;
-
-#ifdef NPP_DEBUG
-
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-    DBG("M_random_numbers distribution visualization");
-    DBG("The square below should be filled fairly randomly and uniformly.");
-    DBG("If it's not, or you can see any regular patterns across the square, your system may be broken or too old to be deemed secure.");
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-
-    /* One square takes two columns, so we can have between 0 and 4 dots per square */
-
-#define SQUARE_ROWS             64
-#define SQUARE_COLS             SQUARE_ROWS*2
-#define SQUARE_IS_EMPTY(x, y)   (dots[y][x*2]==' ' && dots[y][x*2+1]==' ')
-#define SQUARE_HAS_ONE(x, y)    (dots[y][x*2]==' ' && dots[y][x*2+1]=='.')
-#define SQUARE_HAS_TWO(x, y)    (dots[y][x*2]=='.' && dots[y][x*2+1]=='.')
-#define SQUARE_HAS_THREE(x, y)  (dots[y][x*2]=='.' && dots[y][x*2+1]==':')
-#define SQUARE_HAS_FOUR(x, y)   (dots[y][x*2]==':' && dots[y][x*2+1]==':')
-
-    char dots[SQUARE_ROWS][SQUARE_COLS+1]={0};
-    int j;
-
-    for ( i=0; i<SQUARE_ROWS; ++i )
-        for ( j=0; j<SQUARE_COLS; ++j )
-            dots[i][j] = ' ';
-
-    /* we only have SQUARE_ROWS^2 squares with 5 possible values in each of them */
-    /* let only once in divider in */
-
-    int divider = NPP_RANDOM_NUMBERS / (SQUARE_ROWS*SQUARE_ROWS) + 1;
-
-    for ( i=0; i<NPP_RANDOM_NUMBERS-1; i+=2 )
-    {
-        if ( i % divider ) continue;
-
-        int x = M_random_numbers[i] % SQUARE_ROWS;
-        int y = M_random_numbers[i+1] % SQUARE_ROWS;
-
-        if ( SQUARE_IS_EMPTY(x, y) )    /* make it one */
-            dots[y][x*2+1] = '.';
-        else if ( SQUARE_HAS_ONE(x, y) )    /* make it two */
-            dots[y][x*2] = '.';
-        else if ( SQUARE_HAS_TWO(x, y) )    /* make it three */
-            dots[y][x*2+1] = ':';
-        else if ( SQUARE_HAS_THREE(x, y) )  /* make it four */
-            dots[y][x*2] = ':';
-    }
-
-    for ( i=0; i<SQUARE_ROWS; ++i )
-        DBG(dots[i]);
-
-    DBG("--------------------------------------------------------------------------------------------------------------------------------");
-    DBG("");
-    DBG("npp_lib_init_random_numbers took %.3lf ms", npp_elapsed(&start));
-    DBG("");
-
-#endif  /* NPP_DEBUG */
-}
-
-
-/* --------------------------------------------------------------------------
-   Generate random string
-   Generates FIPS-compliant random sequences (tested with Burp)
--------------------------------------------------------------------------- */
-void npp_random(char *dest, int len)
-{
-const char  *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-static int  since_seed=0;
-    int     i;
-
-#ifdef NPP_DEBUG
-    struct timespec start;
-#ifdef _WIN32
-    clock_gettime_win(&start);
-#else
-    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
-#endif
-#endif  /* NPP_DEBUG */
-
-    if ( since_seed > (G_cnts_today.req % 246 + 10) )  /* seed every now and then */
-//    if ( 1 )  /* test */
-    {
-        seed_rand();
-        since_seed = 0;
-    }
-    else
-    {
-        ++since_seed;
-
-        DDBG("since_seed = %d", since_seed);
-    }
-
-#ifdef NPP_DEBUG
-    DBG_LINE;
-#endif
-
-    int r;
-
-    for ( i=0; i<len; ++i )
-    {
-        /* source random numbers from two different sets: 'normal' and 'lucky' */
-
-        if ( get_random_number() % 3 == 0 )
-        {
-            DDBG("i=%d lucky", i);
-            r = get_random_number();
-            while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
-        }
-        else
-        {
-            DDBG("i=%d normal", i);
-            r = rand() % 256;
-            while ( r > 247 ) r = rand() % 256;
-        }
-
-        dest[i] = chars[r % 62];
-    }
-
-    dest[i] = EOS;
-
-#ifdef NPP_DEBUG
-    DBG_LINE;
-    DBG("npp_random took %.3lf ms", npp_elapsed(&start));
-#endif
-}
-
-
 /* --------------------------------------------------------------------------
    Set date format, decimal & thousand separator
    for current connection and session

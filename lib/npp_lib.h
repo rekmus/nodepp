@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -61,7 +61,7 @@
 #ifdef NPP_DEBUG
 #define DDBG                            DBG
 #else
-#define DDBG
+#define DDBG(str, ...)
 #endif
 
 #define ALWAYS_T(str, ...)              npp_log_write_time(LOG_ALWAYS, str, ##__VA_ARGS__)
@@ -576,12 +576,12 @@ extern "C" {
     bool npp_email(const char *to, const char *subject, const char *message);
     bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len);
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
-    int  npp_b64_encode(char *dst, const unsigned char* src, int len);
+    void npp_random(char *dest, size_t len);
+    int  npp_b64_encode(char *dst, const unsigned char* src, size_t len);
     int  npp_b64_decode(unsigned char *dst, const char* src);
     char *npp_json_escape_string(const char *src);
 #ifndef NPP_CLIENT  /* web app only */
     bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
-    void npp_random(char *dest, int len);
     void npp_notify_admin(const char *msg);
     void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
 #endif  /* NPP_CLIENT */
@@ -642,6 +642,7 @@ extern "C" {
     void date_inc(char *str, int days, int *dow);
     int  date_cmp(const char *str1, const char *str2);
     int  datetime_cmp(const char *str1, const char *str2);
+    void npp_lib_read_conf(bool first);
     char *npp_lib_create_pid_file(const char *name);
     char *npp_lib_shm_create(unsigned bytes, int index);
     void npp_lib_shm_delete(int index);
@@ -653,6 +654,7 @@ extern "C" {
     void npp_lib_log_switch_to_stdout(void);
     void npp_lib_log_switch_to_file(void);
     void npp_log_finish(void);
+    void npp_lib_init_random_numbers(void);
 
 #ifdef _WIN32   /* Windows */
     int getpid(void);
@@ -663,14 +665,13 @@ extern "C" {
 #endif  /* _WIN32 */
 
 #ifndef NPP_CLIENT  /* web app only */
-    void npp_lib_init_random_numbers(void);
     void npp_lib_set_formats(int ci, const char *lang);
     char *npp_get_message(int ci, int code);
     void npp_out_html_header(int ci);
     void npp_out_html_footer(int ci);
     void npp_append_css(int ci, const char *fname, bool first);
     void npp_append_script(int ci, const char *fname, bool first);
-    bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, int maxlen, char esc_type);
+    bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, size_t maxlen, char esc_type);
     unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname);
     bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf);
     bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf);

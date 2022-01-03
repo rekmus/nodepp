@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -87,7 +87,7 @@ static int parse_command_line(int argc, char *argv[])
 static int parse_verstr(const char *str, int *major, int *minor, int *patch)
 {
     sscanf(str, "%d.%d.%d", major, minor, patch);
-    DBG("%d %d %d", *major, *minor, *patch);
+    DDBG("%d %d %d", *major, *minor, *patch);
     return OK;
 }
 
@@ -99,7 +99,7 @@ static int check_local_version()
 {
     int ret=OK;
 
-    DBG("Opening npp.h...");
+    DDBG("Opening npp.h...");
 
     char npp_h[512];
 
@@ -134,11 +134,6 @@ static int check_local_version()
 
     fsize = li_fsize.QuadPart;
 
-//    human_size_t hs;
-//    human_size(fsize, &hs);
-
-//    DBG("File size: %lld bytes (%lld KiB / %d MiB / %d GiB)", fsize, hs.kib, hs.mib, hs.gib);
-
 #else   /* Linux */
 
     if ( NULL == (fd=fopen(npp_h, "r")) )
@@ -152,11 +147,6 @@ static int check_local_version()
     fsize = ftell(fd);
 
     rewind(fd);
-
-//    human_size_t hs;
-//    human_size(fsize, &hs);
-
-//    DBG("File size: %" PRId64 " bytes (%" PRId64 " KiB / %d MiB / %d GiB)", fsize, hs.kib, hs.mib, hs.gib);
 
 #endif
 
@@ -227,7 +217,7 @@ static int check_local_version()
 
     verstr[i] = EOS;
 
-    DBG("verstr [%s]", verstr);
+    DDBG("verstr [%s]", verstr);
 
     /* ---------------------------------------------- */
 
@@ -271,7 +261,7 @@ static int check_latest_version()
 
     data[CALL_HTTP_RESPONSE_LEN] = EOS;
 
-    DBG("data [%s]", data);
+    DDBG("data [%s]", data);
 
     if ( !JSON_FROM_STRING(&M_j, data) )
     {
@@ -342,7 +332,7 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
             return FAIL;
         }
 
-        DBG("CALL_HTTP_RESPONSE_LEN = %d", CALL_HTTP_RESPONSE_LEN);
+        DDBG("CALL_HTTP_RESPONSE_LEN = %d", CALL_HTTP_RESPONSE_LEN);
 
 #ifdef _WIN32
 
@@ -394,9 +384,7 @@ int main(int argc, char *argv[])
     if ( !npp_lib_init() )
         return EXIT_FAILURE;
 
-    G_logLevel = 1;
-
-    DBG("Starting...");
+    G_logLevel = LOG_ERR;
 
     int ret = parse_command_line(argc, argv);
 
@@ -410,8 +398,8 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
-    DBG("M_force_update = %d", M_force_update);
-    DBG("M_update = %d", M_update);
+    DDBG("M_force_update = %d", M_force_update);
+    DDBG("M_update = %d", M_update);
 
     if ( !G_appdir[0] )
     {
@@ -448,10 +436,10 @@ int main(int argc, char *argv[])
                     {
                         int c;
                         while ( (c=getchar()) != '\n') continue;
-                        DBG("c = '%c'", c);
+                        DDBG("c = '%c'", c);
                     }
 
-                    DBG("answer = '%c'", answer);
+                    DDBG("answer = '%c'", answer);
 
                     if ( answer == 'y' || answer == 'Y' )
                         ret = update_lib();

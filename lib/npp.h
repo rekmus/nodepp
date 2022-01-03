@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -101,7 +101,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.3.0"
+#define NPP_VERSION                     "1.4.0"
 
 
 #ifndef FALSE
@@ -1790,9 +1790,14 @@ extern "C" {
 
     /* public internal */
 
+#ifdef NPP_HTTPS
+    bool npp_eng_init_ssl(void);
+#endif
     int  npp_eng_session_start(int ci, const char *sessid);
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
+    void npp_eng_read_blocked_ips(void);
+    void npp_eng_read_allowed_ips(void);
     void npp_eng_block_ip(const char *value, bool autoblocked);
     bool npp_eng_is_uri(int ci, const char *uri);
     void npp_eng_out_check(int ci, const char *str);

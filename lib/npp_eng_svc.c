@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -93,62 +93,10 @@ static void clean_up(void);
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    char config[512];
-
     /* library init ------------------------------------------------------ */
 
     if ( !npp_lib_init() )
         return EXIT_FAILURE;
-
-    /* read the config file or set defaults ------------------------------ */
-
-    char exec_name[256];
-    npp_get_exec_name(exec_name, argv[0]);
-
-    if ( G_appdir[0] )
-    {
-        sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !npp_read_conf(config) )   /* no config file there */
-        {
-            strcpy(config, "npp.conf");
-            npp_read_conf(config);
-        }
-    }
-    else    /* no NPP_DIR -- try current dir */
-    {
-        strcpy(config, "npp.conf");
-        npp_read_conf(config);
-    }
-
-    /* ------------------------------------------------------------------- */
-
-    if ( !npp_read_param_int("logLevel", &G_logLevel) )
-        G_logLevel = 3;   /* info */
-
-#ifdef NPP_DEBUG
-        G_logLevel = 4;   /* debug */
-#endif
-
-    if ( !npp_read_param_int("logToStdout", &G_logToStdout) )
-        G_logToStdout = 0;
-
-    if ( !npp_read_param_int("ASYNCId", &G_ASYNCId) )
-        G_ASYNCId = -1;
-
-    if ( !npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout) )
-        G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
-
-#ifdef NPP_MYSQL
-    npp_read_param_str("dbHost", G_dbHost);
-    npp_read_param_int("dbPort", &G_dbPort);
-    npp_read_param_str("dbName", G_dbName);
-    npp_read_param_str("dbUser", G_dbUser);
-    npp_read_param_str("dbPassword", G_dbPassword);
-#endif  /* NPP_MYSQL */
-
-#ifdef NPP_USERS
-    npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
-#endif  /* NPP_USERS */
 
     /* start log --------------------------------------------------------- */
 
@@ -163,10 +111,6 @@ int main(int argc, char *argv[])
 
     if ( !(M_pidfile=npp_lib_create_pid_file(logprefix)) )
         return EXIT_FAILURE;
-
-    /* fill the M_random_numbers up */
-
-    npp_lib_init_random_numbers();
 
     /* handle signals ---------------------------------------------------- */
 
@@ -549,7 +493,7 @@ int main(int argc, char *argv[])
 
                 G_async_res_data_size = NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4;
 
-                if ( data_len <= G_async_res_data_size )
+                if ( data_len <= (unsigned)G_async_res_data_size )
                 {
                     G_svc_res.len = data_len;
 #ifdef NPP_OUT_CHECK_REALLOC
@@ -590,9 +534,9 @@ int main(int argc, char *argv[])
                 {
                     resd.chunk = ++chunk_num;
 
-                    if ( data_len-data_sent <= G_async_res_data_size )   /* last chunk */
+                    if ( data_len-data_sent <= (unsigned)G_async_res_data_size )   /* last chunk */
                     {
-                        DBG("data_len-data_sent = %d, last chunk...", data_len-data_sent);
+                        DDBG("data_len-data_sent = %u, last chunk...", data_len-data_sent);
                         resd.len = data_len - data_sent;
                         resd.chunk |= ASYNC_CHUNK_LAST;
                     }
@@ -703,7 +647,7 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
 -------------------------------------------------------------------------- */
 void npp_svc_out_check(const char *str)
 {
-    int available = G_async_res_data_size - (G_svc_p_content - G_svc_res.data);
+    size_t available = G_async_res_data_size - (G_svc_p_content - G_svc_res.data);
 
     if ( strlen(str) < available )  /* the whole string will fit */
     {
@@ -722,7 +666,7 @@ void npp_svc_out_check(const char *str)
 -------------------------------------------------------------------------- */
 void npp_svc_out_check_realloc(const char *str)
 {
-    if ( strlen(str) < M_out_data_allocated - (G_svc_p_content - G_svc_out_data) )    /* the whole string will fit */
+    if ( strlen(str) < M_out_data_allocated - (unsigned)(G_svc_p_content-G_svc_out_data) )    /* the whole string will fit */
     {
         G_svc_p_content = stpcpy(G_svc_p_content, str);
     }

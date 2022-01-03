@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -99,33 +99,10 @@ static void restart()
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    char config[512];
-
     /* library init ------------------------------------------------------ */
 
     if ( !npp_lib_init() )
         return EXIT_FAILURE;
-
-    npp_sort_messages();
-
-    G_initialized = 1;
-
-    /* read the config file or set defaults ------------------------------ */
-
-    if ( G_appdir[0] )
-    {
-        sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !npp_read_conf(config) )   /* no config file there */
-        {
-            strcpy(config, "npp.conf");
-            npp_read_conf(config);
-        }
-    }
-    else    /* no NPP_DIR -- try current dir */
-    {
-        strcpy(config, "npp.conf");
-        npp_read_conf(config);
-    }
 
     /* ------------------------------------------------------------------- */
 
@@ -134,9 +111,6 @@ int main(int argc, char *argv[])
 
     if ( !npp_read_param_int("watcherLogToStdout", &G_logToStdout) )
         G_logToStdout = 0;
-
-    if ( !npp_read_param_int("httpPort", &G_httpPort) )
-        G_httpPort = 80;
 
     if ( !npp_read_param_str("watcherStopCmd", M_watcherStopCmd) )
         strcpy(M_watcherStopCmd, STOP_COMMAND);
