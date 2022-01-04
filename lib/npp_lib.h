@@ -189,8 +189,8 @@
 #define OUT_SNIPPET(name)               npp_out_snippet(ci, name)
 #define OUT_SNIPPET_MD(name)            npp_out_snippet_md(ci, name)
 
-#define GET_COOKIE(key, val)            npp_lib_get_cookie(ci, key, val)
-#define SET_COOKIE(key, val, days)      npp_lib_set_cookie(ci, key, val, days)
+#define REQ_COOKIE(key, val)            npp_lib_get_cookie(ci, key, val)
+#define RES_COOKIE(key, val, days)      npp_lib_set_cookie(ci, key, val, days)
 
 #define STR(str)                        npp_lib_get_string(ci, str)
 
@@ -332,10 +332,10 @@
 #define JSON_ADD_BOOL(json, name, val)      lib_json_add_bool(json, name, val, -1)
 #define JSON_ADD_BOOL_A(json, i, val)       lib_json_add_bool(json, NULL, val, i)
 
-#define JSON_ADD_RECORD(json, name, val)    lib_json_add_record(json, name, val, FALSE, -1)
+#define JSON_ADD_RECORD(json, name, val)    lib_json_add_record(json, name, val, FALSE, 0)
 #define JSON_ADD_RECORD_A(json, i ,val)     lib_json_add_record(json, NULL, val, FALSE, i)
 
-#define JSON_ADD_ARRAY(json, name, val)     lib_json_add_record(json, name, val, TRUE, -1)
+#define JSON_ADD_ARRAY(json, name, val)     lib_json_add_record(json, name, val, TRUE, 0)
 #define JSON_ADD_ARRAY_A(json, i, val)      lib_json_add_record(json, NULL, val, TRUE, i)
 
 #define JSON_PRESENT(json, name)            lib_json_present(json, name)
@@ -617,7 +617,7 @@ extern "C" {
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
     char *lib_json_to_string_pretty(JSON *json);
-    bool lib_json_from_string(JSON *json, const char *src, int len, int level);
+    bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned level);
     bool lib_json_add_str(JSON *json, const char *name, const char *value, int i);
     bool lib_json_add_int(JSON *json, const char *name, int value, int i);
     bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i);

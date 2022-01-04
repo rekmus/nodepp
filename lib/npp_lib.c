@@ -158,7 +158,9 @@ static bool load_strings(void);
 -------------------------------------------------------------------------- */
 bool npp_lib_init()
 {
-    DBG("npp_lib_init");
+    /* log file fd */
+
+    M_log_fd = stdout;
 
     /* G_pid */
 
@@ -172,22 +174,23 @@ bool npp_lib_init()
 
     npp_update_time_globals();
 
-    /* log file fd */
-
-    M_log_fd = stdout;
-
-    /* load error messages */
+    /* messages */
 
     load_err_messages();
 
 #ifndef NPP_CLIENT
-    /* load strings */
+
+    /* strings */
+
     if ( !load_strings() )
         return FALSE;
+
+    /* snippets */
 
     int i;
     for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
         strcpy(G_snippets[i].name, "-");
+
 #endif
 
     /* read the config file or set defaults */
@@ -994,8 +997,6 @@ bool npp_csrft_ok(int ci)
 -------------------------------------------------------------------------- */
 static void load_err_messages()
 {
-    DBG("load_err_messages");
-
     npp_add_message(OK,                        "EN-US", "OK");
     npp_add_message(ERR_INVALID_REQUEST,       "EN-US", "Invalid HTTP request");
     npp_add_message(ERR_UNAUTHORIZED,          "EN-US", "Unauthorized");
@@ -2881,7 +2882,7 @@ bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 -------------------------------------------------------------------------- */
 bool npp_lib_get_cookie(int ci, const char *key, char *value)
 {
-    char nkey[128];
+    char nkey[256];
     char *v;
 
     sprintf(nkey, "%s=", key);
@@ -3226,7 +3227,7 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
                 else if ( 0==strcmp(ai[j].type, "float") || 0==strcmp(ai[j].type, "double") )
                 {
                     strcat(ai_td, "<td class=r>");
-                    sscanf(row[j+8], "%f", &ai_double);
+                    sscanf(row[j+8], "%lf", &ai_double);
                     strcat(ai_td, AMT(ai_double));
                 }
                 else    /* string */
@@ -6363,9 +6364,9 @@ static char *get_json_closing_square_bracket(const char *src)
 /* --------------------------------------------------------------------------
    Convert JSON string to Node++ JSON format
 -------------------------------------------------------------------------- */
-bool lib_json_from_string(JSON *json, const char *src, int len, int level)
+bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned level)
 {
-    int     i=0, j=0;
+    unsigned i=0, j=0;
     char    key[NPP_JSON_KEY_LEN+1];
     char    value[NPP_JSON_STR_LEN+1];
     int     index;
@@ -6924,7 +6925,7 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 {
     DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
-    if ( name )
+    if ( name )   /* record */
     {
         DDBG("name [%s]", name);
 
@@ -6950,9 +6951,14 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 
     /* store sub-record address as a text in value */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+
     sprintf(json->rec[i].value, "%p", json_sub);
 
     json->rec[i].type = is_array?NPP_JSON_ARRAY:NPP_JSON_RECORD;
+
+#pragma GCC diagnostic pop
 
     return TRUE;
 }
@@ -8274,7 +8280,8 @@ static char pidfilename[512];
     FILE    *fpid=NULL;
     char    command[1024];
 
-    G_pid = getpid();
+    if ( G_pid == 0 )
+        G_pid = getpid();
 
     if ( G_appdir[0] )
 #ifdef _WIN32   /* Windows */
@@ -8964,7 +8971,7 @@ static unsigned since_seed=0;
 #endif  /* NPP_DEBUG */
 
 #ifdef NPP_CLIENT
-    if ( since_seed > (G_pid % 246 + 10) )   /* seed every now and then */
+    if ( since_seed > (unsigned)(G_pid % 246 + 10) )   /* seed every now and then */
 #else
     if ( since_seed > (G_cnts_today.req % 246 + 10) )   /* seed every now and then */
 #endif
