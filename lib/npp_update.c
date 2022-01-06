@@ -129,6 +129,7 @@ static int check_local_version()
     if ( !GetFileSizeEx(fd, &li_fsize) )
     {
         ERR("Couldn't read npp.h's size");
+        CloseHandle(fd);
         return FAIL;
     }
 
@@ -157,6 +158,11 @@ static int check_local_version()
     if ( !(data=(char*)malloc(fsize+1)) )
     {
         ERR("Couldn't allocate %lld bytes for buffer", fsize+1);
+#ifdef _WIN32
+        CloseHandle(fd);
+#else   /* Linux */
+        fclose(fd);
+#endif
         return FAIL;
     }
 
@@ -169,6 +175,11 @@ static int check_local_version()
     {
         ERR("Couldn't read from npp.h");
         free(data);
+#ifdef _WIN32
+        CloseHandle(fd);
+#else   /* Linux */
+        fclose(fd);
+#endif
         return FAIL;
     }
 
@@ -268,6 +279,8 @@ static int check_latest_version()
         ERR("Couldn't parse response as JSON");
         return FAIL;
     }
+
+    DDBG("parsed pretty: [%s]", JSON_TO_STRING_PRETTY(&M_j));
 
     char verstr[32];
 

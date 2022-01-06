@@ -93,7 +93,7 @@ snippet_t   G_snippets[NPP_MAX_SNIPPETS]={0};
 int         G_snippets_cnt=0;
 
 #ifdef NPP_HTTPS
-bool        G_ssl_lib_initialized=0;
+bool        G_ssl_lib_initialized=FALSE;
 #endif
 
 unsigned    G_call_http_req_cnt=0;
@@ -201,9 +201,9 @@ bool npp_lib_init()
 
     int conf_logLevel = G_logLevel;
 
-#ifndef NPP_DEBUG
+//#ifndef NPP_DEBUG
     G_logLevel = LOG_ERR;
-#endif
+//#endif
 
     /* init random module */
 
@@ -1322,7 +1322,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
 
             now_key = 1;
         }
-        else if ( now_key && *p!='\n' )
+        else if ( now_key )
         {
             string_orig[j++] = *p;
         }
@@ -1660,7 +1660,7 @@ static bool init_ssl_client()
 {
     const SSL_METHOD *method;
 
-    DBG("init_ssl (npp_lib)");
+    DBG("init_ssl_client");
 
     if ( !G_ssl_lib_initialized )   /* it might have been initialized by the server */
     {
@@ -1679,7 +1679,11 @@ static bool init_ssl_client()
 
     method = SSLv23_client_method();    /* negotiate the highest protocol version supported by both the server and the client */
 
+    DDBG("before SSL_CTX_new");
+
     M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
+
+    DDBG("after SSL_CTX_new");
 
     if ( M_ssl_ctx == NULL )
     {
@@ -1689,6 +1693,7 @@ static bool init_ssl_client()
 
 //    const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION;
     const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+
     SSL_CTX_set_options(M_ssl_ctx, flags);
 
     /* temporarily ignore server cert errors */
@@ -2322,7 +2327,7 @@ static JSON req={0};
     if ( !lib_json_present(&req, fieldname) )
         return FALSE;
 
-    strncpy(retbuf, lib_json_get_str(&req, fieldname, -1), maxlen);
+    strncpy(retbuf, lib_json_get_str(&req, fieldname, 0), maxlen);
     retbuf[maxlen] = EOS;
 
     return TRUE;
@@ -2704,12 +2709,6 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
     {
         len = G_connections[ci].clen - (cp - G_connections[ci].in_data) - blen - 8;  /* fast version */
                                                                 /* Note that the file content must come as last! */
-    }
-
-    if ( len < 0 )
-    {
-        WAR("Ooops, something went terribly wrong! Data length = %u", len);
-        return NULL;
     }
 
     /* everything looks good so far */
@@ -3518,7 +3517,7 @@ static bool call_http_parse_url(const char *url, char *host, char *port, char *u
 
         if ( !M_ssl_ctx && !init_ssl_client() )   /* first time */
         {
-            ERR("init_ssl failed");
+            ERR("init_ssl_client failed");
             return FALSE;
         }
 #else
@@ -3705,7 +3704,7 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 /* --------------------------------------------------------------------------
    Finish socket operation with timeout
 -------------------------------------------------------------------------- */
-static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, void *ssl, int level)
+static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
 {
     int             sockerr;
     struct timeval  timeout;
@@ -3816,21 +3815,23 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
 #ifdef NPP_HTTPS
         DDBG("SSL_connect or SSL_shutdown, determining the next step...");
 
-        ssl_err = SSL_get_error((SSL*)ssl, len);
+        DDBG("len = %d", len);
 
-#ifdef NPP_DEBUG
-        DBG("len = %d", len);
-        npp_lib_log_ssl_error(ssl_err);
-#endif  /* NPP_DEBUG */
+        ssl_err = SSL_get_error((SSL*)ssl, len);
 
         if ( ssl_err==SSL_ERROR_WANT_READ )
             return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
         else if ( ssl_err==SSL_ERROR_WANT_WRITE )
             return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
-        else
+        else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
         {
             DBG("SSL_connect or SSL_shutdown error %d", ssl_err);
             return -1;
+        }
+        else
+        {
+            DBG("SSL_connect or SSL_shutdown seems OK");
+            return 1;
         }
 #endif  /* NPP_HTTPS */
     }
@@ -3877,18 +3878,15 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 }
                 else
                 {
-                    ssl_err = SSL_get_error((SSL*)ssl, bytes);
+                    DDBG("bytes = %d", bytes);
 
-#ifdef NPP_DEBUG
-                    DBG("bytes = %d", bytes);
-                    npp_lib_log_ssl_error(ssl_err);
-#endif  /* NPP_DEBUG */
+                    ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_READ )
                         return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_WRITE )
                         return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
-                    else
+                    else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_read error %d", ssl_err);
                         return -1;
@@ -3917,18 +3915,15 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 }
                 else
                 {
-                    ssl_err = SSL_get_error((SSL*)ssl, bytes);
+                    DDBG("bytes = %d", bytes);
 
-#ifdef NPP_DEBUG
-                    DBG("bytes = %d", bytes);
-                    npp_lib_log_ssl_error(ssl_err);
-#endif  /* NPP_DEBUG */
+                    ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_WRITE )
                         return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_READ )
                         return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
-                    else
+                    else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_write error %d", ssl_err);
                         return -1;
@@ -3945,6 +3940,8 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             return -1;
         }
     }
+
+    return 1;
 }
 
 
@@ -4253,22 +4250,26 @@ static void call_http_disconnect(int ssl_ret)
 
             int ret = SSL_shutdown(M_call_http_ssl);
 
+            DDBG("SSL_shutdown returned %d (1)", ret);
+
             if ( ret == 1 )
             {
                 DBG("SSL_shutdown immediate success");
             }
-            else if ( ret == 0 )
+            else if ( ret == 0 )    /* shutdown not finished */
             {
                 DBG("First SSL_shutdown looks fine, trying to complete the bidirectional shutdown handshake...");
 
                 ret = SSL_shutdown(M_call_http_ssl);
+
+                DDBG("SSL_shutdown returned %d (2)", ret);
 
                 if ( ret == 1 )
                     DBG("SSL_shutdown success");
                 else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
                     DBG("SSL_shutdown successful");
                 else
-                    ERR("SSL_shutdown failed");
+                    ERR("SSL_shutdown failed (2)");
             }
             else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
             {
@@ -4276,7 +4277,7 @@ static void call_http_disconnect(int ssl_ret)
             }
             else
             {
-                ERR("SSL_shutdown failed");
+                ERR("SSL_shutdown failed (1)");
             }
         }
 
@@ -4297,19 +4298,19 @@ static void call_http_disconnect(int ssl_ret)
    HTTP call / convert chunked to normal content
    Return number of bytes written to res_content
 -------------------------------------------------------------------------- */
-static int chunked2content(char *res_content, const char *buffer, int src_len, int res_len)
+static int chunked2content(char *res_content, const char *buffer, size_t src_len, size_t res_len)
 {
     char *res=res_content;
     char chunk_size_str[8];
-    int  chunk_size=src_len;
+    unsigned chunk_size=src_len;
     const char *p=buffer;
-    int  was_read=0, written=0;
+    unsigned was_read=0, written=0;
 
     while ( chunk_size > 0 )    /* chunk by chunk */
     {
         /* get the chunk size */
 
-        int i=0;
+        unsigned i = 0;
 
         while ( *p!='\r' && *p!='\n' && i<6 && i<src_len )
             chunk_size_str[i++] = *p++;
@@ -4319,7 +4320,7 @@ static int chunked2content(char *res_content, const char *buffer, int src_len, i
         DDBG("chunk_size_str [%s]", chunk_size_str);
 
         sscanf(chunk_size_str, "%x", &chunk_size);
-        DBG("chunk_size = %d", chunk_size);
+        DBG("chunk_size = %u", chunk_size);
 
         was_read += i;
 
@@ -4328,11 +4329,6 @@ static int chunked2content(char *res_content, const char *buffer, int src_len, i
         if ( chunk_size == 0 )    /* last one */
         {
             DBG("Last chunk");
-            break;
-        }
-        else if ( chunk_size < 0 )
-        {
-            WAR("chunk_size < 0");
             break;
         }
         else if ( chunk_size > res_len-written )
@@ -4957,12 +4953,27 @@ void npp_call_http_disconnect()
 #define SSL_ERROR_WANT_WRITE  (3)
 #define SSL_ERROR_SYSCALL     (5)
 #define SSL_ERROR_ZERO_RETURN (6)
+
+Return TRUE if everything is cool
+
+Why to return TRUE if ssl_err==SSL_ERROR_SYSCALL?
+
+https://www.openssl.org/docs/man1.1.1/man3/SSL_get_error.html
+
+The SSL_ERROR_SYSCALL with errno value of 0 indicates unexpected EOF
+from the peer. This will be properly reported as SSL_ERROR_SSL with
+reason code SSL_R_UNEXPECTED_EOF_WHILE_READING in the OpenSSL 3.0 release
+because it is truly a TLS protocol error to terminate the connection without a SSL_shutdown().
+
+The issue is kept unfixed in OpenSSL 1.1.1 releases because many applications
+which choose to ignore this protocol error depend on the existing way of reporting the error.
+
 -------------------------------------------------------------------------- */
-void npp_lib_log_ssl_error(int ssl_err)
+bool npp_lib_check_ssl_error(int ssl_err)
 {
 #ifdef NPP_HTTPS
 
-    if ( ssl_err != SSL_ERROR_SYSCALL ) return;
+    if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
 
 #ifdef _WIN32   /* Windows */
 
@@ -4981,7 +4992,14 @@ void npp_lib_log_ssl_error(int ssl_err)
 
 #endif  /* _WIN32 */
 
+    if ( sockerr == 0 )
+        return TRUE;
+    else
+        return FALSE;
+
 #endif  /* NPP_HTTPS */
+
+    return TRUE;
 }
 
 
@@ -6409,13 +6427,19 @@ static char tmp[NPP_JSON_BUFSIZE];
     strncpy(tmp, src+i, len-i);
     tmp[len-i] = EOS;
     char debug[64];
-    sprintf(debug, "lib_json_from_string level %d", level);
+    sprintf(debug, "lib_json_from_string level %u", level);
     npp_log_long(tmp, len, debug);
     if ( inside_array ) DBG("inside_array");
 #endif  /* NPP_DEBUG */
 
-    for ( i=i; i<len; ++i )
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+
+    for ( i; i<len; ++i )
     {
+
+#pragma GCC diagnostic pop
+
         if ( !now_key && !now_value )
         {
             while ( i<len && (src[i]==' ' || src[i]=='\t' || src[i]=='\r' || src[i]=='\n') ) ++i;
@@ -6500,7 +6524,7 @@ static char tmp[NPP_JSON_BUFSIZE];
                     if ( inside_array )
                         lib_json_add_record(json, NULL, &json_pool[pool_idx], FALSE, index);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], FALSE, -1);
+                        lib_json_add_record(json, key, &json_pool[pool_idx], FALSE, 0);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_bracket(src+i)) )
@@ -6535,7 +6559,7 @@ static char tmp[NPP_JSON_BUFSIZE];
                     if ( inside_array )
                         lib_json_add_record(json, NULL, &json_pool[pool_idx], TRUE, index);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], TRUE, -1);
+                        lib_json_add_record(json, key, &json_pool[pool_idx], TRUE, 0);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_square_bracket(src+i)) )
@@ -8364,6 +8388,7 @@ static char pidfilename[512];
     if ( fprintf(fpid, "%d", G_pid) < 1 )
     {
         ERR("Couldn't write to pid file, errno = %d (%s)", errno, strerror(errno));
+        fclose(fpid);
         return NULL;
     }
 

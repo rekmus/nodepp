@@ -141,11 +141,7 @@ int main(int argc, char *argv[])
 
     CALL_HTTP_HEADER_SET("User-Agent", "Node++ Watcher Bot");
 
-    if ( CALL_HTTP(NULL, NULL, "GET", url) )
-    {
-        CALL_HTTP_DISCONNECT;
-    }
-    else    /* call unsuccessful */
+    if ( !CALL_HTTP(NULL, NULL, "GET", url) )
     {
         npp_update_time_globals();
         ERR_T("Couldn't connect");

@@ -3098,7 +3098,7 @@ void npp_eng_read_blocked_ips()
 {
     char    fname[1024];
     FILE    *h_file=NULL;
-    char    c;
+    int     c=0;
     int     i=0;
     char    now_value=1;
     char    now_comment=0;
@@ -3920,7 +3920,6 @@ static bool read_files(const char *host, const char *directory, char source, boo
                 if ( NULL == (data_tmp=(char*)malloc(M_stat[i].len)) )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_stat[i].len, M_stat[i].name);
-                    fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
@@ -5323,8 +5322,14 @@ static int parse_req(int ci, int len)
     i += 2;     /* skip " /" */
     int j=0;
 
-    for ( i=i; i<hlen; ++i )   /* URI */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+
+    for ( i; i<hlen; ++i )   /* URI */
     {
+
+#pragma GCC diagnostic pop
+
         if ( G_connections[ci].in[i] != ' ' && G_connections[ci].in[i] != '\t' )
         {
             if ( j < NPP_MAX_URI_LEN )
@@ -5398,8 +5403,14 @@ static int parse_req(int ci, int len)
 
     j = 0;
 
-    for ( i=i; i<hlen; ++i )   /* next lines */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+
+    for ( i; i<hlen; ++i )   /* next lines */
     {
+
+#pragma GCC diagnostic pop
+
         if ( !now_value && (G_connections[ci].in[i] == ' ' || G_connections[ci].in[i] == '\t') )  /* omit whitespaces */
             continue;
 
@@ -6294,7 +6305,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         DDBG("rem = %d", rem);
 
         http2_SETTINGS_pld_t s;
-        unsigned char *p=http2_settings;
+        p = http2_settings;
         int read = 0;
 
         while ( rem >= HTTP2_SETTINGS_PAIR_LEN )

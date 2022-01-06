@@ -480,13 +480,18 @@ int main(int argc, char *argv[])
 #endif
                 /* data */
 
-                async_res_data_t resd;   /* different struct for more data */
                 unsigned data_len, chunk_num=0, data_sent;
+
 #ifdef NPP_OUT_CHECK_REALLOC
+
+                async_res_data_t resd;   /* different struct for more data */
+
                 data_len = G_svc_p_content - G_svc_out_data;
+
 #else
                 data_len = G_svc_p_content - G_svc_res.data;
 #endif
+
                 DBG("data_len = %u", data_len);
 
                 G_svc_res.chunk = ASYNC_CHUNK_FIRST;

@@ -597,6 +597,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define AUTHENTICATED                       (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define UID                                 SESSION.user_id
 
+
 /* backward compatibility */
 
 #ifdef NPP_DEFAULT_REQUIRED_AUTH_LEVEL

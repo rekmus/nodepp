@@ -267,8 +267,8 @@
 
 #define CALL_HTTP_DEFAULT_TIMEOUT                   10000     /* in ms -- to avoid blocking forever */
 
-#define CALL_HTTP(req, res, method, url)            npp_call_http(req, res, method, url, FALSE, TRUE)
-#define CALL_REST(req, res, method, url)            npp_call_http(req, res, method, url, TRUE, TRUE)
+#define CALL_HTTP(req, res, method, url)            npp_call_http(req, res, method, url, FALSE, FALSE)
+#define CALL_REST(req, res, method, url)            npp_call_http(req, res, method, url, TRUE, FALSE)
 
 #ifndef NPP_SILGY_COMPATIBILITY
 #ifndef JSON_NO_AUTO_AMPERSANDS
@@ -605,7 +605,7 @@ extern "C" {
     void npp_call_http_header_unset(const char *key);
     bool npp_call_http(const void *req, void *res, const char *method, const char *url, bool json, bool keep);
     void npp_call_http_disconnect(void);
-    void npp_lib_log_ssl_error(int ssl_err);
+    bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
     char npp_lib_get_res_type(const char *fname);
     void npp_lib_fmt_int_generic(char *stramt, long long in_amt);
