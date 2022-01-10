@@ -254,7 +254,7 @@ void npp_lib_done()
 -------------------------------------------------------------------------- */
 void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
-    DDBG("npp_safe_copy [%s], dst_len = %d", src, dst_len);
+    DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
 
 #if __GNUC__ > 7
 #pragma GCC diagnostic push
@@ -5093,7 +5093,7 @@ static int mem_parse_line(const char* line)
 
 
 /* --------------------------------------------------------------------------
-   Return currently used memory (high water mark) by current process in kB
+   Return currently used memory (high water mark) by current process in KiB
 -------------------------------------------------------------------------- */
 int npp_get_memory()
 {
@@ -6949,9 +6949,9 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 {
     DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
-    if ( name )   /* record */
+    if ( name )   /* named record */
     {
-        DDBG("name [%s]", name);
+        DDBG("named record [%s]", name);
 
         i = json_get_i(json, name);
 
@@ -6964,9 +6964,9 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
             json->array = FALSE;
         }
     }
-    else    /* array */
+    else    /* array element */
     {
-        DDBG("index = %d", i);
+        DDBG("array element %d", i);
 
         if ( i >= NPP_JSON_MAX_ELEMS-1 ) return FALSE;
         json->array = TRUE;
@@ -8609,7 +8609,7 @@ void npp_log_write_time(char level, const char *message, ...)
    Write looong message to a log or --
    its first (NPP_MAX_LOG_STR_LEN-50) part if it's longer
 -------------------------------------------------------------------------- */
-void npp_log_long(const char *message, int len, const char *desc)
+void npp_log_long(const char *message, size_t len, const char *desc)
 {
     if ( G_logLevel < LOG_DBG ) return;
 
@@ -8622,8 +8622,19 @@ void npp_log_long(const char *message, int len, const char *desc)
     }
     else
     {
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
+
         strncpy(buffer, message, NPP_MAX_LOG_STR_LEN-50);
         strcpy(buffer+NPP_MAX_LOG_STR_LEN-50, " (...)");
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
+
     }
 
     DBG("%s:\n\n[%s]\n", desc, buffer);

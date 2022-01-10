@@ -2358,12 +2358,12 @@ static bool init(int argc, char **argv)
 #ifdef NPP_ASYNC
     ALWAYS("         NPP_ASYNC_REQ_MSG_SIZE = %d bytes", NPP_ASYNC_REQ_MSG_SIZE);
     ALWAYS("             ASYNC req.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_hdr_t), sizeof(async_req_hdr_t)/1024, (double)sizeof(async_req_hdr_t)/1024/1024);
-    ALWAYS("          G_async_req_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
+    ALWAYS("          G_async_req_data_size = %d bytes (%d KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
     ALWAYS("             ASYNC request size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_t), sizeof(async_req_t)/1024, (double)sizeof(async_req_t)/1024/1024);
     ALWAYS("");
     ALWAYS("         NPP_ASYNC_RES_MSG_SIZE = %d bytes", NPP_ASYNC_RES_MSG_SIZE);
     ALWAYS("             ASYNC res.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_hdr_t), sizeof(async_res_hdr_t)/1024, (double)sizeof(async_res_hdr_t)/1024/1024);
-    ALWAYS("          G_async_res_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
+    ALWAYS("          G_async_res_data_size = %d bytes (%d KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
     ALWAYS("            ASYNC response size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_t), sizeof(async_res_t)/1024, (double)sizeof(async_res_t)/1024/1024);
     ALWAYS("");
 #endif  /* NPP_ASYNC */

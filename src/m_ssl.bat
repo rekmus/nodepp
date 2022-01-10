@@ -8,7 +8,7 @@ g++ npp_app.cpp ^
 -I . -I ..\lib ^
 -I \usr\include ^
 -L \usr\lib\openssl ^
--lws2_32 -lpsapi -lcrypto -lssl ^
+-lws2_32 -lpsapi -lssl -lcrypto ^
 -s -O3 ^
 -o ..\bin\npp_app ^
 -static
@@ -34,7 +34,7 @@ gcc ..\lib\npp_update.c ^
 -I . -I ..\lib ^
 -I \usr\include ^
 -L \usr\lib\openssl ^
--lws2_32 -lpsapi -lcrypto -lssl ^
+-lws2_32 -lpsapi -lssl -lcrypto ^
 -s -O3 ^
 -o ..\bin\npp_update ^
 -static

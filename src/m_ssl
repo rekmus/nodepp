@@ -7,7 +7,7 @@ g++ npp_app.cpp \
 ../lib/npp_eng_app.c ../lib/npp_lib.c ../lib/npp_mysql.cpp ../lib/npp_usr.c \
 -D NPP_APP \
 -I. -I../lib \
--lrt -lz -lcrypto -lssl \
+-lrt -lz -lssl -lcrypto \
 -s -O3 \
 -o ../bin/npp_app
 
@@ -18,7 +18,7 @@ g++ npp_svc.cpp \
 ../lib/npp_eng_svc.c ../lib/npp_lib.c ../lib/npp_mysql.cpp ../lib/npp_usr.c \
 -D NPP_SVC \
 -I. -I../lib \
--lrt -lcrypto -lssl \
+-lrt -lssl -lcrypto \
 -s -O3 \
 -o ../bin/npp_svc
 
@@ -39,6 +39,6 @@ gcc ../lib/npp_update.c \
 ../lib/npp_lib.c \
 -D NPP_UPDATE \
 -I. -I../lib \
--lcrypto -lssl \
+-lssl -lcrypto \
 -s -O3 \
 -o ../bin/npp_update

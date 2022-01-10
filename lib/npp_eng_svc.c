@@ -40,6 +40,8 @@ char        G_service[NPP_SVC_NAME_LEN+1];
 int         G_error_code=OK;
 int         G_svc_si=0;
 int         G_ASYNCId=-1;
+int         G_ASYNCSvcProcesses=0;
+int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
 char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */

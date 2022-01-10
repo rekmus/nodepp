@@ -649,7 +649,7 @@ extern "C" {
     bool npp_log_start(const char *prefix, bool test, bool switching);
     void npp_log_write(char level, const char *message, ...);
     void npp_log_write_time(char level, const char *message, ...);
-    void npp_log_long(const char *str, int len, const char *desc);
+    void npp_log_long(const char *str, size_t len, const char *desc);
     void npp_log_flush(void);
     void npp_lib_log_switch_to_stdout(void);
     void npp_lib_log_switch_to_file(void);
