@@ -4656,7 +4656,7 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
         }
         else if ( secure && bytes == -1 )
         {
-            bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+            bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, &timeout_remain, M_call_http_ssl, 0);
 
             if ( bytes == -1 )
             {
