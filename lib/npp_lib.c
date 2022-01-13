@@ -4990,7 +4990,7 @@ void npp_call_http_disconnect()
 
 Return TRUE if everything is cool
 
-Why to return TRUE if ssl_err==SSL_ERROR_SYSCALL?
+Why return TRUE if ssl_err==SSL_ERROR_SYSCALL?
 
 https://www.openssl.org/docs/man1.1.1/man3/SSL_get_error.html
 
