@@ -543,7 +543,7 @@ extern "C" {
 
     /* public */
 
-    bool npp_lib_init(void);
+    bool npp_lib_init(bool start_log, const char *log_prefix);
     void npp_lib_done(void);
     void npp_add_message(int code, const char *lang, const char *message, ...);
     bool npp_open_db(void);

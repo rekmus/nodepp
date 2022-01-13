@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 {
     /* library init ------------------------------------------------------ */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(FALSE, NULL) )
         return EXIT_FAILURE;
 
     /* ------------------------------------------------------------------- */

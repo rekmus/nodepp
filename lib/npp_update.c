@@ -394,7 +394,7 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(FALSE, NULL) )
         return EXIT_FAILURE;
 
     G_logLevel = LOG_ERR;

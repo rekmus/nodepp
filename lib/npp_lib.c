@@ -156,7 +156,7 @@ static bool load_strings(void);
 /* --------------------------------------------------------------------------
    Library init
 -------------------------------------------------------------------------- */
-bool npp_lib_init()
+bool npp_lib_init(bool start_log, const char *log_prefix)
 {
     /* log file fd */
 
@@ -197,13 +197,21 @@ bool npp_lib_init()
 
     npp_lib_read_conf(TRUE);
 
-    /* don't log too much here */
+    /* start log */
 
-    int conf_logLevel = G_logLevel;
+    if ( start_log && !npp_log_start(log_prefix, G_test, FALSE) )
+        return FALSE;
+
+    int conf_logLevel;
+
+    if ( !start_log )   /* don't log too much here */
+    {
+        conf_logLevel = G_logLevel;
 
 //#ifndef NPP_DEBUG
-    G_logLevel = LOG_ERR;
+        G_logLevel = LOG_ERR;
 //#endif
+    }
 
     /* init random module */
 
@@ -215,9 +223,19 @@ bool npp_lib_init()
     setlocale(LC_ALL, "");
 #endif
 
+    /* database */
+
+#ifdef NPP_MYSQL
+
+    if ( !npp_open_db() )
+        return FALSE;
+
+#endif  /* NPP_MYSQL */
+
     /* restore configured log level */
 
-    G_logLevel = conf_logLevel;
+    if ( !start_log )
+        G_logLevel = conf_logLevel;
 
     return TRUE;
 }
@@ -229,6 +247,10 @@ bool npp_lib_init()
 void npp_lib_done()
 {
     DBG("npp_lib_done");
+
+#ifdef NPP_MYSQL
+    npp_close_db();
+#endif
 
 #ifndef _WIN32
 
@@ -1537,6 +1559,10 @@ static char     dest[NPP_LIB_STR_BUF];
 -------------------------------------------------------------------------- */
 bool npp_open_db()
 {
+    int ret=TRUE;
+
+    DBG("npp_open_db");
+
 #ifdef NPP_MYSQL
 
     if ( !G_dbName[0] )
@@ -1568,12 +1594,20 @@ bool npp_open_db()
     /* for backward compatibility maintain two db connections for the time being */
 
 #ifdef __cplusplus
-    Cdb::DBOpen(G_dbName, G_dbUser, G_dbPassword);
-#endif
+    try
+    {
+        Cdb::DBOpen(G_dbName, G_dbUser, G_dbPassword);
+    }
+    catch (std::exception& e)
+    {
+        ERR(e.what());
+        ret = FALSE;
+    }
+#endif  /* __cplusplus */
 
 #endif  /* NPP_MYSQL */
 
-    return TRUE;
+    return ret;
 }
 
 
@@ -8485,7 +8519,10 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
         if ( M_log_fd != NULL && M_log_fd != stdout ) return TRUE;  /* already started */
 
         if ( prefix && prefix[0] )
-            sprintf(fprefix, "%s_", prefix);
+        {
+//            if ( strlen(prefix) > 62 ) prefix[62] = EOS;
+            snprintf(fprefix, 62, "%s_", prefix);
+        }
 
         sprintf(fname, "%s%d%02d%02d_%02d%02d", fprefix, G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min);
 

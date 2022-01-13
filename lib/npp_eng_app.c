@@ -2254,8 +2254,10 @@ static bool init(int argc, char **argv)
 
     /* init Node++ library */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(TRUE, NULL) )
         return FALSE;
+
+    ALWAYS("Starting program");
 
     /* command line arguments */
 
@@ -2264,13 +2266,6 @@ static bool init(int argc, char **argv)
         G_httpPort = atoi(argv[1]);
         printf("Will be listening on the port %d...\n", G_httpPort);
     }
-
-    /* start log --------------------------------------------------------- */
-
-    if ( !npp_log_start("", G_test, FALSE) )
-        return FALSE;
-
-    ALWAYS("Starting program");
 
     /* pid file ---------------------------------------------------------- */
 
@@ -2493,21 +2488,6 @@ static bool init(int argc, char **argv)
 
     libusr_init();
 #endif
-
-
-#ifdef NPP_MYSQL
-
-    INF("Opening database...");
-
-    if ( !npp_open_db() )
-    {
-        ERR("npp_open_db() failed");
-        return FALSE;
-    }
-
-    ALWAYS("Database connected");
-
-#endif  /* NPP_MYSQL */
 
 
     /* custom init
@@ -6427,8 +6407,6 @@ static void clean_up()
 #ifdef NPP_USERS
     libusr_luses_save_csrft();
 #endif
-
-    npp_close_db();
 
 #endif  /* NPP_MYSQL */
 

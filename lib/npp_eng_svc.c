@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
 {
     /* library init ------------------------------------------------------ */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(FALSE, NULL) )
         return EXIT_FAILURE;
 
     /* start log --------------------------------------------------------- */
@@ -107,12 +107,18 @@ int main(int argc, char *argv[])
     sprintf(logprefix, "s_%d", G_pid);
 
     if ( !npp_log_start(logprefix, G_test, FALSE) )
+    {
+        npp_lib_done();
         return EXIT_FAILURE;
+    }
 
     /* pid file ---------------------------------------------------------- */
 
     if ( !(M_pidfile=npp_lib_create_pid_file(logprefix)) )
+    {
+        npp_lib_done();
         return EXIT_FAILURE;
+    }
 
     /* handle signals ---------------------------------------------------- */
 
@@ -139,6 +145,7 @@ int main(int argc, char *argv[])
     if ( !(G_connections[0].in_data = (char*)malloc(G_async_req_data_size)) )
     {
         ERR("malloc for G_connections[0].in_data failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -149,6 +156,7 @@ int main(int argc, char *argv[])
     if ( !(G_svc_out_data = (char*)malloc(NPP_OUT_BUFSIZE)) )
     {
         ERR("malloc for G_svc_out_data failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -156,13 +164,16 @@ int main(int argc, char *argv[])
 
 #endif  /* NPP_OUT_CHECK_REALLOC */
 
+
     /* load snippets ----------------------------------------------------- */
 
     if ( !npp_lib_read_snippets("", "snippets", TRUE, NULL) )
     {
         ERR("npp_lib_read_snippets() failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
+
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
 
@@ -173,28 +184,12 @@ int main(int argc, char *argv[])
         if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, TRUE, NULL) )
         {
             ERR("reading %s's snippets failed", G_hosts[i].host);
+            npp_lib_done();
             return EXIT_FAILURE;
         }
     }
 
 #endif  /* NPP_MULTI_HOST */
-
-    /* open database ----------------------------------------------------- */
-
-#ifdef NPP_MYSQL
-
-    DBG("Trying npp_open_db...");
-
-    if ( !npp_open_db() )
-    {
-        ERR("npp_open_db failed");
-        clean_up();
-        return EXIT_FAILURE;
-    }
-
-    ALWAYS("Database connected");
-
-#endif  /* NPP_MYSQL */
 
 
     /* open queues ------------------------------------------------------- */
@@ -230,7 +225,7 @@ int main(int argc, char *argv[])
     if ( G_queue_req < 0 )
     {
         ERR("mq_open for req failed, errno = %d (%s)", errno, strerror(errno));
-        clean_up();
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -759,10 +754,6 @@ static void clean_up()
         if ( system(command) != EXIT_SUCCESS )
             WAR("Couldn't execute %s", command);
     }
-
-#ifdef NPP_MYSQL
-    npp_close_db();
-#endif
 
     if (G_queue_req)
     {
