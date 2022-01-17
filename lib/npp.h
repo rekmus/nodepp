@@ -1675,6 +1675,7 @@ extern int          G_callHTTPTimeout;
 
 /* end of config params */
 
+extern FILE         *G_log_fd;
 extern bool         G_endianness;
 extern int          G_pid;                                      /* pid */
 extern char         G_appdir[256];                              /* application root dir */

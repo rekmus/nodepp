@@ -44,6 +44,15 @@
 #define bswap32(x)                      ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >> 8) | (((x) & 0x0000ff00) << 8) | (((x) & 0x000000ff) << 24))
 
 
+#define NPP_LIB_STR_BUF                 4096
+#define NPP_LIB_STR_CHECK               4092
+
+
+#if __cplusplus >= 201703L  /* C++17 and above */
+    #define NPP_CPP_STRINGS
+#endif  /* C++17 or above only */
+
+
 /* logs */
 
 #define LOG_ALWAYS                      (char)0         /* print always */
@@ -161,10 +170,6 @@
 #define NPP_OPER_READ                   '1'
 #define NPP_OPER_WRITE                  '2'
 #define NPP_OPER_SHUTDOWN               '3'
-
-
-#define NPP_LIB_STR_BUF                 4096
-#define NPP_LIB_STR_CHECK               4092
 
 
 #define NPP_RANDOM_NUMBERS              1024*64
@@ -545,7 +550,9 @@ extern "C" {
 
     bool npp_lib_init(bool start_log, const char *log_prefix);
     void npp_lib_done(void);
+#ifndef NPP_CPP_STRINGS
     void npp_add_message(int code, const char *lang, const char *message, ...);
+#endif
     bool npp_open_db(void);
     void npp_close_db(void);
     bool npp_file_exists(const char *fname);
@@ -595,7 +602,11 @@ extern "C" {
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
     void npp_bin2hex(char *dst, const unsigned char *src, int len);
     char *npp_today_gmt(void);
+#ifdef NPP_CPP_STRINGS
+    char *npp_render_md(char *dest, const std::string& src_, size_t dest_len);
+#else
     char *npp_render_md(char *dest, const char *src, size_t dest_len);
+#endif
     void npp_sort_messages(void);
     bool npp_is_msg_main_cat(int code, const char *cat);
     void npp_lib_add_string(const char *lang, const char *str, const char *str_lang);
@@ -647,8 +658,10 @@ extern "C" {
     char *npp_lib_shm_create(unsigned bytes, int index);
     void npp_lib_shm_delete(int index);
     bool npp_log_start(const char *prefix, bool test, bool switching);
+#ifndef NPP_CPP_STRINGS
     void npp_log_write(char level, const char *message, ...);
     void npp_log_write_time(char level, const char *message, ...);
+#endif
     void npp_log_long(const char *str, size_t len, const char *desc);
     void npp_log_flush(void);
     void npp_lib_log_switch_to_stdout(void);
@@ -705,6 +718,131 @@ extern "C" {
 #ifdef __cplusplus
 }   // extern "C"
 #endif
+
+
+#ifdef NPP_CPP_STRINGS
+
+extern "C" {
+extern bool         G_initialized;
+extern npp_message_t G_messages[NPP_MAX_MESSAGES];
+extern int          G_next_msg;
+extern int          G_logLevel;
+extern FILE         *G_log_fd;
+extern char         G_dt_string_gmt[128];
+}   /* extern "C" */
+
+
+/* --------------------------------------------------------------------------
+   Convert std::string to char*
+-------------------------------------------------------------------------- */
+template<typename T>
+auto cnv_variadic_arg(T&& t)
+{
+    if constexpr(std::is_same<std::remove_cv_t<std::remove_reference_t<T>>, std::string>::value)
+        return std::forward<T>(t).c_str();
+    else
+        return std::forward<T>(t);
+}
+
+
+/* --------------------------------------------------------------------------
+   Write to log
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void npp_log_write(char level, const std::string& message, Args&& ... args)
+{
+    if ( level > G_logLevel ) return;
+
+    if ( LOG_ERR == level )
+        fprintf(G_log_fd, "ERROR: ");
+    else if ( LOG_WAR == level )
+        fprintf(G_log_fd, "WARNING: ");
+
+    /* compile message with arguments into buffer */
+
+    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
+
+    std::snprintf(buffer, NPP_MAX_LOG_STR_LEN+64, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+    /* write to the log file */
+
+    fprintf(G_log_fd, "%s\n", buffer);
+
+#ifdef NPP_DEBUG
+    fflush(G_log_fd);
+#else
+    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(G_log_fd);
+#endif
+}
+
+
+/* --------------------------------------------------------------------------
+   Write to log with date/time
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void npp_log_write_time(char level, const std::string& message, Args&& ... args)
+{
+    if ( level > G_logLevel ) return;
+
+    /* output timestamp */
+
+    fprintf(G_log_fd, "[%s] ", G_dt_string_gmt+11);
+
+    if ( LOG_ERR == level )
+        fprintf(G_log_fd, "ERROR: ");
+    else if ( LOG_WAR == level )
+        fprintf(G_log_fd, "WARNING: ");
+
+    /* compile message with arguments into buffer */
+
+    char buffer[NPP_MAX_LOG_STR_LEN+1+64];
+
+    std::snprintf(buffer, NPP_MAX_LOG_STR_LEN+64, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+    /* write to the log file */
+
+    fprintf(G_log_fd, "%s\n", buffer);
+
+#ifdef NPP_DEBUG
+    fflush(G_log_fd);
+#else
+    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(G_log_fd);
+#endif
+}
+
+
+/* --------------------------------------------------------------------------
+   Add error message
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void npp_add_message(int code, const std::string& lang, const std::string& message, Args&& ... args)
+{
+    if ( G_next_msg >= NPP_MAX_MESSAGES )
+    {
+        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
+        return;
+    }
+
+    /* compile message with arguments into buffer */
+
+    char buffer[NPP_MAX_MESSAGE_LEN+1];
+
+    std::snprintf(buffer, NPP_MAX_MESSAGE_LEN, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+    G_messages[G_next_msg].code = code;
+    if ( lang.c_str() )
+        strcpy(G_messages[G_next_msg].lang, npp_upper(lang.c_str()));
+    strcpy(G_messages[G_next_msg].message, buffer);
+
+    ++G_next_msg;
+
+    /* in case message was added after init */
+
+    if ( G_initialized )
+        npp_sort_messages();
+}
+
+#endif  /* NPP_CPP_STRINGS */
 
 
 #endif  /* NPP_LIB_H */

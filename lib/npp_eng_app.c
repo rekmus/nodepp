@@ -2257,8 +2257,6 @@ static bool init(int argc, char **argv)
     if ( !npp_lib_init(TRUE, NULL) )
         return FALSE;
 
-    ALWAYS("Starting program");
-
     /* command line arguments */
 
     if ( argc > 1 )

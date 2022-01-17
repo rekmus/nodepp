@@ -41,30 +41,31 @@
 
 /* globals (see npp.h for comments) */
 
-bool        G_endianness=ENDIANNESS_LITTLE;
-int         G_logLevel=3;
+int         G_test=0;
+int         G_logLevel=LOG_INF;
 int         G_logToStdout=0;
 int         G_logCombined=0;
-char        G_appdir[256]="..";
 int         G_callHTTPTimeout=CALL_HTTP_DEFAULT_TIMEOUT;
-int         G_test=0;
-int         G_pid=0;
-time_t      G_now=0;
-struct tm   *G_ptm=NULL;
-char        G_dt_string_gmt[128]="";
-char        G_tmp[NPP_TMP_BUFSIZE];
-bool        G_initialized=0;
-char        *G_strm=NULL;
 
 /* database */
-#ifdef NPP_MYSQL
-MYSQL       *G_dbconn=NULL;
-#endif
 char        G_dbHost[128]="";
 int         G_dbPort=0;
 char        G_dbName[128]="";
 char        G_dbUser[128]="";
 char        G_dbPassword[128]="";
+#ifdef NPP_MYSQL
+MYSQL       *G_dbconn=NULL;
+#endif
+
+FILE        *G_log_fd=NULL;
+bool        G_endianness=ENDIANNESS_LITTLE;
+int         G_pid=0;
+char        G_appdir[256]="..";
+char        G_tmp[NPP_TMP_BUFSIZE];
+time_t      G_now=0;
+struct tm   *G_ptm=NULL;
+bool        G_initialized=0;
+char        *G_strm=NULL;
 
 /* hosts */
 #ifdef NPP_MULTI_HOST
@@ -96,6 +97,7 @@ int         G_snippets_cnt=0;
 bool        G_ssl_lib_initialized=FALSE;
 #endif
 
+char        G_dt_string_gmt[128]="";
 unsigned    G_call_http_req_cnt=0;
 double      G_call_http_elapsed=0;
 double      G_call_http_average=0;
@@ -108,7 +110,6 @@ int         G_qs_len=0;
 /* locals */
 
 static char *M_conf=NULL;               /* config file content */
-static FILE *M_log_fd=NULL;             /* log file handle */
 
 static char *M_md_dest;
 static char M_md_list_type;
@@ -160,7 +161,7 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
 {
     /* log file fd */
 
-    M_log_fd = stdout;
+    G_log_fd = stdout;
 
     /* G_pid */
 
@@ -699,8 +700,14 @@ static int close_tag(const char *src, char tag)
 /* --------------------------------------------------------------------------
    Render simplified markdown to HTML
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_render_md(char *dest, const std::string& src_, size_t dest_len)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_render_md(char *dest, const char *src, size_t dest_len)
 {
+#endif
     int  pos=0;    /* source position */
     char tag;
     char tag_b=MD_TAG_NONE;   /* block */
@@ -1039,6 +1046,7 @@ static void load_err_messages()
 }
 
 
+#ifndef NPP_CPP_STRINGS
 /* --------------------------------------------------------------------------
    Add error message
 -------------------------------------------------------------------------- */
@@ -1071,6 +1079,7 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     if ( G_initialized )
         npp_sort_messages();
 }
+#endif  /* NPP_CPP_STRINGS */
 
 
 /* --------------------------------------------------------------------------
@@ -3975,6 +3984,8 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
         }
     }
 
+    DBG("lib_finish_with_timeout reached the end (returning 1)");
+
     return 1;
 }
 
@@ -4095,15 +4106,39 @@ static int addresses_cnt=0, addresses_last=0;
 
         int timeout_tmp = G_callHTTPTimeout/5;
 
+        DDBG("timeout_tmp = %d", timeout_tmp);
+
         /* plain socket connection --------------------------------------- */
+
+#ifdef NPP_DEBUG
+        int finish_res;
+#endif
 
         if ( connect(M_call_http_socket, rp->ai_addr, rp->ai_addrlen) != -1 )
         {
+            DDBG("Immediate connect success");
             break;  /* immediate success */
         }
+#ifdef NPP_DEBUG
+        else if ( (finish_res=lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0)) == 0 )
+#else
         else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
+#endif
         {
+            DDBG("Success within timeout");
             break;  /* success within timeout */
+        }
+        else
+        {
+#ifdef NPP_DEBUG
+            int last_errno = errno;
+#endif
+            ERR("Couldn't connect with lib_finish_with_timeout");
+#ifdef NPP_DEBUG
+            DDBG("finish_res = %d", finish_res);
+            if ( finish_res == -1 )
+                DDBG("errno = %d (%s)", last_errno, strerror(last_errno));
+#endif
         }
 
         close_conn(M_call_http_socket);   /* no cigar */
@@ -7983,7 +8018,10 @@ bool npp_read_param_str(const char *param, char *dest)
 
     dest[i] = EOS;
 
-    DBG("%s [%s]", param, dest);
+    if ( strstr(npp_upper(param), "PASSWORD") )
+        DBG("%s [<...>]", param);
+    else
+        DBG("%s [%s]", param, dest);
 
     return TRUE;
 }
@@ -8023,9 +8061,13 @@ void npp_lib_read_conf(bool first)
     if ( first )
     {
         G_test = 0;
-        G_logLevel = 3;
+        G_logLevel = LOG_INF;
         G_logToStdout = 0;
         G_logCombined = 0;
+
+#ifdef NPP_WATCHER
+        G_httpPort = 80;
+#endif
 
 #ifdef NPP_APP
         G_httpPort = 80;
@@ -8066,12 +8108,17 @@ void npp_lib_read_conf(bool first)
     if ( G_appdir[0] )
     {
         char conf_path[1024];
+
         sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
-        if ( !(conf_read=npp_read_conf(conf_path)) )   /* no config file there */
-            conf_read = npp_read_conf("npp.conf");
+
+        DBG("Trying read %s...", conf_path);
+
+        conf_read = npp_read_conf(conf_path);
     }
-    else    /* no NPP_DIR -- try current dir */
+
+    if ( !conf_read )   /* no NPP_DIR or no npp.conf in bin -- try current dir */
     {
+        WAR("Couldn't read $NPP_DIR/bin/npp.conf -- trying current directory...");
         conf_read = npp_read_conf("npp.conf");
     }
 
@@ -8121,6 +8168,10 @@ void npp_lib_read_conf(bool first)
 
         /* -------------------------------------------------- */
         /* ports */
+
+#ifdef NPP_WATCHER
+        npp_read_param_int("httpPort", &G_httpPort);
+#endif
 
 #ifdef NPP_APP
 
@@ -8516,13 +8567,10 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
 
     if ( G_logToStdout < 1 )   /* log to a file */
     {
-        if ( M_log_fd != NULL && M_log_fd != stdout ) return TRUE;  /* already started */
+        if ( G_log_fd != NULL && G_log_fd != stdout ) return TRUE;  /* already started */
 
         if ( prefix && prefix[0] )
-        {
-//            if ( strlen(prefix) > 62 ) prefix[62] = EOS;
             snprintf(fprefix, 62, "%s_", prefix);
-        }
 
         sprintf(fname, "%s%d%02d%02d_%02d%02d", fprefix, G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min);
 
@@ -8542,9 +8590,9 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
 #else
             sprintf(fffname, "%s/logs/%s", G_appdir, ffname);
 #endif
-            if ( NULL == (M_log_fd=fopen(fffname, "a")) )
+            if ( NULL == (G_log_fd=fopen(fffname, "a")) )
             {
-                if ( NULL == (M_log_fd=fopen(ffname, "a")) )  /* try current dir */
+                if ( NULL == (G_log_fd=fopen(ffname, "a")) )  /* try current dir */
                 {
                     printf("ERROR: Couldn't open log file.\n");
                     return FALSE;
@@ -8553,7 +8601,7 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
         }
         else    /* no NPP_DIR -- try current dir */
         {
-            if ( NULL == (M_log_fd=fopen(ffname, "a")) )
+            if ( NULL == (G_log_fd=fopen(ffname, "a")) )
             {
                 printf("ERROR: Couldn't open log file.\n");
                 return FALSE;
@@ -8563,9 +8611,9 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
 
     if ( !switching )
     {
-        fprintf(M_log_fd, LOG_LINE_LONG_N);
+        fprintf(G_log_fd, LOG_LINE_LONG_N);
         ALWAYS(" %s  Starting %s's log. Node++ version: %s", DT_NOW_GMT, NPP_APP_NAME, NPP_VERSION);
-        fprintf(M_log_fd, LOG_LINE_LONG_NN);
+        fprintf(G_log_fd, LOG_LINE_LONG_NN);
     }
 
     return TRUE;
@@ -8575,32 +8623,33 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
 /* --------------------------------------------------------------------------
    Write to log
 -------------------------------------------------------------------------- */
+#ifndef NPP_CPP_STRINGS
 void npp_log_write(char level, const char *message, ...)
 {
     if ( level > G_logLevel ) return;
 
     if ( LOG_ERR == level )
-        fprintf(M_log_fd, "ERROR: ");
+        fprintf(G_log_fd, "ERROR: ");
     else if ( LOG_WAR == level )
-        fprintf(M_log_fd, "WARNING: ");
+        fprintf(G_log_fd, "WARNING: ");
 
     /* compile message with arguments into buffer */
 
-    va_list plist;
     char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
-    va_start(plist, message);
-    vsprintf(buffer, message, plist);
-    va_end(plist);
+    va_list args;
+    va_start(args, message);
+    vsprintf(buffer, message, args);
+    va_end(args);
 
     /* write to the log file */
 
-    fprintf(M_log_fd, "%s\n", buffer);
+    fprintf(G_log_fd, "%s\n", buffer);
 
 #ifdef NPP_DEBUG
-    fflush(M_log_fd);
+    fflush(G_log_fd);
 #else
-    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
+    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(G_log_fd);
 #endif
 }
 
@@ -8614,32 +8663,33 @@ void npp_log_write_time(char level, const char *message, ...)
 
     /* output timestamp */
 
-    fprintf(M_log_fd, "[%s] ", G_dt_string_gmt+11);
+    fprintf(G_log_fd, "[%s] ", G_dt_string_gmt+11);
 
     if ( LOG_ERR == level )
-        fprintf(M_log_fd, "ERROR: ");
+        fprintf(G_log_fd, "ERROR: ");
     else if ( LOG_WAR == level )
-        fprintf(M_log_fd, "WARNING: ");
+        fprintf(G_log_fd, "WARNING: ");
 
     /* compile message with arguments into buffer */
 
-    va_list plist;
     char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
-    va_start(plist, message);
-    vsprintf(buffer, message, plist);
-    va_end(plist);
+    va_list args;
+    va_start(args, message);
+    vsprintf(buffer, message, args);
+    va_end(args);
 
     /* write to the log file */
 
-    fprintf(M_log_fd, "%s\n", buffer);
+    fprintf(G_log_fd, "%s\n", buffer);
 
 #ifdef NPP_DEBUG
-    fflush(M_log_fd);
+    fflush(G_log_fd);
 #else
-    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(M_log_fd);
+    if ( G_logLevel >= LOG_DBG || level == LOG_ERR ) fflush(G_log_fd);
 #endif
 }
+#endif  /* NPP_CPP_STRINGS */
 
 
 /* --------------------------------------------------------------------------
@@ -8683,8 +8733,8 @@ void npp_log_long(const char *message, size_t len, const char *desc)
 -------------------------------------------------------------------------- */
 void npp_log_flush()
 {
-    if ( M_log_fd != NULL )
-        fflush(M_log_fd);
+    if ( G_log_fd != NULL )
+        fflush(G_log_fd);
 }
 
 
@@ -8693,10 +8743,10 @@ void npp_log_flush()
 -------------------------------------------------------------------------- */
 void npp_lib_log_switch_to_stdout()
 {
-    if ( M_log_fd != NULL && M_log_fd != stdout )
+    if ( G_log_fd != NULL && G_log_fd != stdout )
     {
-        fclose(M_log_fd);
-        M_log_fd = stdout;
+        fclose(G_log_fd);
+        G_log_fd = stdout;
     }
 }
 

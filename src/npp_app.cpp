@@ -35,7 +35,8 @@ static void header(int ci)
     OUT("<style>");
 
     if ( REQ_DSK )
-        OUT("body{margin-left:25px;margin-bottom:40px;}");   /* for desktop only */
+//        OUT("body{margin-left:25px;margin-bottom:40px;}");   /* for desktop only */
+        OUT("body{margin:0 25px 40px 25px;}");   /* for desktop only */
 
     OUT("code{font-size:1.1em;}");
     OUT(".m{font-family:monospace;font-size:1.1em;}");
@@ -87,6 +88,8 @@ static char logo[]="<img src=\"/nodepp.jpg\" alt=\"Logo\" width=\"250\" height=\
     OUT(lnk_performance);
 
     OUT("</div>");  /* end of second row */
+
+    OUT("<hr style=\"margin-bottom:28px;\">");
 }
 
 
@@ -181,9 +184,11 @@ void render_snippets(int ci)
 {
     header(ci);
 
+    OUT("<p>You don't have to wrap all the output in <b class=m>OUT</b> macros.</p>");
+
     OUT_SNIPPET("sample_snippet.html");
 
-    OUT("<p>&nbsp;</p>");
+    OUT("<hr style=\"margin-top:30px;\">");
 
     OUT_SNIPPET_MD("sample_snippet.md");
 
