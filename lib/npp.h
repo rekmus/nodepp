@@ -78,7 +78,6 @@
 #include <sys/ipc.h>
 #include <netdb.h>
 #include <sys/shm.h>
-#include <mqueue.h>
 #endif  /* _WIN32 */
 
 #include <sys/stat.h>
@@ -242,6 +241,11 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifdef NPP_HTTPS
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#endif
+
+
+#ifdef NPP_ASYNC
+#include <mqueue.h>
 #endif
 
 
@@ -1727,14 +1731,14 @@ extern MYSQL        *G_dbconn;                  /* database connection */
 #endif  /* NPP_MYSQL */
 
 /* asynchorous processing */
-#ifndef _WIN32
+#ifdef NPP_ASYNC
 extern char         G_req_queue_name[256];
 extern char         G_res_queue_name[256];
 extern mqd_t        G_queue_req;                /* request queue */
 extern mqd_t        G_queue_res;                /* response queue */
-#endif  /* _WIN32 */
 extern int          G_async_req_data_size;      /* how many bytes are left for data */
 extern int          G_async_res_data_size;      /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
 extern bool         G_index_present;            /* index.html present in res? */

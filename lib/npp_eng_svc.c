@@ -42,12 +42,14 @@ int         G_svc_si=0;
 int         G_ASYNCId=-1;
 int         G_ASYNCSvcProcesses=0;
 int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
+#ifdef NPP_ASYNC
 char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
 int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 int         G_usersRequireActivation=0;
 async_req_t G_svc_req;
 async_res_t G_svc_res;
@@ -77,7 +79,9 @@ char        G_last_modified[32]="";         /* response header field with server
 /* locals */
 
 static char *M_pidfile;                     /* pid file name */
+#ifdef NPP_ASYNC    /* suppress warning */
 static char *M_async_shm=NULL;
+#endif  /* NPP_ASYNC */
 #ifdef NPP_OUT_CHECK_REALLOC
 static unsigned M_out_data_allocated;
 #endif
@@ -141,6 +145,8 @@ int main(int argc, char *argv[])
 
     COPY(G_connections[0].host, NPP_APP_DOMAIN, NPP_MAX_HOST_LEN);
     COPY(G_connections[0].app_name, NPP_APP_NAME, NPP_APP_NAME_LEN);
+
+#ifdef NPP_ASYNC
 
     if ( !(G_connections[0].in_data = (char*)malloc(G_async_req_data_size)) )
     {
@@ -574,6 +580,8 @@ int main(int argc, char *argv[])
         }
     }
 
+#endif  /* NPP_ASYNC */
+
     clean_up();
 
     return EXIT_SUCCESS;
@@ -649,6 +657,7 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
 -------------------------------------------------------------------------- */
 void npp_svc_out_check(const char *str)
 {
+#ifdef NPP_ASYNC
     size_t available = G_async_res_data_size - (G_svc_p_content - G_svc_res.data);
 
     if ( strlen(str) < available )  /* the whole string will fit */
@@ -660,6 +669,7 @@ void npp_svc_out_check(const char *str)
         G_svc_p_content = stpncpy(G_svc_p_content, str, available-1);
         *G_svc_p_content = EOS;
     }
+#endif  /* NPP_ASYNC */
 }
 
 
@@ -755,6 +765,8 @@ static void clean_up()
             WAR("Couldn't execute %s", command);
     }
 
+#ifdef NPP_ASYNC
+
     if (G_queue_req)
     {
         mq_close(G_queue_req);
@@ -765,6 +777,8 @@ static void clean_up()
         mq_close(G_queue_res);
         mq_unlink(G_res_queue_name);
     }
+
+#endif  /* NPP_ASYNC */
 
     npp_lib_done();
 }

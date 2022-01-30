@@ -76,14 +76,14 @@ char        G_last_modified[32]="";
 
 /* asynchorous processing */
 
-#ifndef _WIN32
+#ifdef NPP_ASYNC
 char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
-#endif  /* _WIN32 */
 int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 
 bool        G_index_present=FALSE;          /* index.html present in res? */
 
