@@ -202,6 +202,13 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif  /* _WIN32 */
 
 
+#ifdef __APPLE__
+#ifdef NPP_ASYNC
+#undef NPP_ASYNC
+#endif
+#endif  /* __APPLE__ */
+
+
 /* some executable types can't use or don't need certain modules */
 
 #ifdef NPP_CLIENT
