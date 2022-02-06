@@ -132,7 +132,7 @@ g++ %NPP_M_MODULES_APP% ^
 -D NPP_APP ^
 %NPP_M_INCLUDE% ^
 %NPP_M_LIBS_APP% ^
--s -O3 ^
+-O3 ^
 -o ..\bin\npp_app ^
 -static
 
@@ -146,7 +146,7 @@ if /i "%1"=="all" (
     -D NPP_WATCHER ^
     %NPP_M_INCLUDE% ^
     -lws2_32 -lpsapi ^
-    -s -O3 ^
+    -O3 ^
     -o ..\bin\npp_watcher ^
     -static
 
@@ -158,7 +158,7 @@ if /i "%1"=="all" (
     -D NPP_UPDATE ^
     %NPP_M_INCLUDE% ^
     %NPP_M_LIBS_UPDATE% ^
-    -s -O3 ^
+    -O3 ^
     -o ..\bin\npp_update ^
     -static
 

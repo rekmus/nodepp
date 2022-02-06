@@ -152,7 +152,6 @@ then
 fi
 
 NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lz"
-#NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lrt"
 
 if [ $NPP_VERBOSE -eq 1 ]
 then
@@ -175,7 +174,7 @@ g++ $NPP_M_MODULES_APP \
 -D NPP_APP \
 $NPP_M_INCLUDE \
 $NPP_M_LIBS_APP \
--s -O3 \
+-O3 \
 -o ../bin/npp_app
 
 
@@ -187,7 +186,7 @@ then
     -D NPP_SVC \
     $NPP_M_INCLUDE \
     $NPP_M_LIBS_SVC \
-    -s -O3 \
+    -O3 \
     -o ../bin/npp_svc
 fi
 
@@ -200,7 +199,7 @@ then
     ../lib/npp_lib.c \
     -D NPP_WATCHER \
     $NPP_M_INCLUDE \
-    -s -O3 \
+    -O3 \
     -o ../bin/npp_watcher
 
 
@@ -211,6 +210,6 @@ then
     -D NPP_UPDATE \
     $NPP_M_INCLUDE \
     $NPP_M_LIBS_UPDATE \
-    -s -O3 \
+    -O3 \
     -o ../bin/npp_update
 fi
