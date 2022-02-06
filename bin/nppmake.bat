@@ -37,36 +37,27 @@ set NPP_VERBOSE=0
 if /i "%1"=="v" set NPP_VERBOSE=1
 
 
-echo Checking switches...
-
-if "%NPP_DIR%"=="" (
-    echo ERROR: NPP_DIR needs to be set to find NPP_DIR\src\npp_app.h
-    echo Customize your environment in m.bat
-    exit /b 1
-)
-
-
 rem ----------------------------------------------------------------------------
 rem Determine Node++ modules that are enabled in npp_app.h
 
 set FIRST_TOKEN="x"
 set NPP_HTTPS=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_HTTPS" %NPP_DIR%\src\npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *NPP_HTTPS" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set NPP_HTTPS=1
 
 set FIRST_TOKEN="x"
 set NPP_MYSQL=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_MYSQL" %NPP_DIR%\src\npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *NPP_MYSQL" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set NPP_MYSQL=1
 
 set FIRST_TOKEN="x"
 set NPP_USERS=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_USERS" %NPP_DIR%\src\npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *NPP_USERS" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set NPP_USERS=1
 
 set FIRST_TOKEN="x"
 set NPP_ICONV=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_ICONV" %NPP_DIR%\src\npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *NPP_ICONV" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set NPP_ICONV=1
 
 
@@ -74,6 +65,9 @@ rem ----------------------------------------------------------------------------
 rem APP modules to compile
 
 set "NPP_M_MODULES_APP=npp_app.cpp ..\lib\npp_eng_app.c ..\lib\npp_lib.c"
+
+set "NPP_APP_MODULES="
+for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *NPP_APP_MODULES" npp_app.h') do set NPP_APP_MODULES=%%i
 
 if not "%NPP_APP_MODULES%"=="" (
     set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% %NPP_APP_MODULES%"
@@ -127,7 +121,10 @@ if %NPP_VERBOSE%==1 echo NPP_M_LIBS_UPDATE=%NPP_M_LIBS_UPDATE%
 rem ----------------------------------------------------------------------------
 rem Compile
 
-echo Making npp_app...
+set "NPP_APP_NAME="
+for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *NPP_APP_NAME" npp_app.h') do set NPP_APP_NAME=%%i
+
+echo Making %NPP_APP_NAME%'s npp_app...
 
 g++ %NPP_M_MODULES_APP% ^
 -D NPP_APP ^
@@ -138,25 +135,29 @@ g++ %NPP_M_MODULES_APP% ^
 -static
 
 
-echo Making npp_watcher...
+if /i "%1"=="all" (
 
-gcc ..\lib\npp_watcher.c ^
-..\lib\npp_lib.c ^
--D NPP_WATCHER ^
-%NPP_M_INCLUDE% ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_watcher ^
--static
+    echo Making npp_watcher...
+
+    gcc ..\lib\npp_watcher.c ^
+    ..\lib\npp_lib.c ^
+    -D NPP_WATCHER ^
+    %NPP_M_INCLUDE% ^
+    -lws2_32 -lpsapi ^
+    -s -O3 ^
+    -o ..\bin\npp_watcher ^
+    -static
 
 
-echo Making npp_update...
+    echo Making npp_update...
 
-gcc ..\lib\npp_update.c ^
-..\lib\npp_lib.c ^
--D NPP_UPDATE ^
-%NPP_M_INCLUDE% ^
-%NPP_M_LIBS_UPDATE% ^
--s -O3 ^
--o ..\bin\npp_update ^
--static
+    gcc ..\lib\npp_update.c ^
+    ..\lib\npp_lib.c ^
+    -D NPP_UPDATE ^
+    %NPP_M_INCLUDE% ^
+    %NPP_M_LIBS_UPDATE% ^
+    -s -O3 ^
+    -o ..\bin\npp_update ^
+    -static
+
+)

@@ -40,20 +40,10 @@ then
 fi
 
 
-echo "Checking switches..."
-
-if [ -z $NPP_DIR ]
-then
-    echo "ERROR: NPP_DIR needs to be set to find \$NPP_DIR/src/npp_app.h"
-    echo "Customize your environment in m"
-    exit 1
-fi
-
-
 # ----------------------------------------------------------------------------
 # Determine Node++ modules that are enabled in npp_app.h
 
-NPP_HTTPS=`grep '^#define\s*NPP_HTTPS' $NPP_DIR/src/npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_HTTPS=`grep '^#define\s*NPP_HTTPS' npp_app.h | head -1 | awk '{ print $2 }'`
 if [ "$NPP_HTTPS" = "NPP_HTTPS" ]
 then
     NPP_HTTPS=1
@@ -61,7 +51,7 @@ else
     NPP_HTTPS=0
 fi
 
-NPP_MYSQL=`grep '^#define\s*NPP_MYSQL' $NPP_DIR/src/npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_MYSQL=`grep '^#define\s*NPP_MYSQL' npp_app.h | head -1 | awk '{ print $2 }'`
 if [ "$NPP_MYSQL" = "NPP_MYSQL" ]
 then
     NPP_MYSQL=1
@@ -69,7 +59,7 @@ else
     NPP_MYSQL=0
 fi
 
-NPP_USERS=`grep '^#define\s*NPP_USERS' $NPP_DIR/src/npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_USERS=`grep '^#define\s*NPP_USERS' npp_app.h | head -1 | awk '{ print $2 }'`
 if [ "$NPP_USERS" = "NPP_USERS" ]
 then
     NPP_USERS=1
@@ -77,7 +67,7 @@ else
     NPP_USERS=0
 fi
 
-NPP_ASYNC=`grep '^#define\s*NPP_ASYNC' $NPP_DIR/src/npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_ASYNC=`grep '^#define\s*NPP_ASYNC' npp_app.h | head -1 | awk '{ print $2 }'`
 if [ "$NPP_ASYNC" = "NPP_ASYNC" ]
 then
     NPP_ASYNC=1
@@ -92,13 +82,22 @@ fi
 NPP_M_MODULES_APP="npp_app.cpp ../lib/npp_eng_app.c ../lib/npp_lib.c"
 NPP_M_MODULES_SVC="npp_svc.cpp ../lib/npp_eng_svc.c ../lib/npp_lib.c"
 
-if [ -z $NPP_APP_MODULES ]
+NPP_APP_MODULES=`grep '^#define\s*NPP_APP_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+
+if [ ! -z $NPP_APP_MODULES ]
 then
     NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ${NPP_APP_MODULES}"
 fi
 
-if [ -z $NPP_SVC_MODULES ]
+NPP_SVC_MODULES=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+
+if [ ! -z $NPP_SVC_MODULES ]
 then
+    if [ "$NPP_SVC_MODULES" = "NPP_APP_MODULES" ]
+    then
+        NPP_SVC_MODULES=$NPP_APP_MODULES
+    fi
+
     NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ${NPP_SVC_MODULES}"
 fi
 
@@ -166,7 +165,9 @@ fi
 # ----------------------------------------------------------------------------
 # Compile
 
-echo Making npp_app...
+NPP_APP_NAME=`grep '^#define\s*NPP_APP_NAME' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+
+echo Making ${NPP_APP_NAME}\'s npp_app...
 
 g++ $NPP_M_MODULES_APP \
 -D NPP_APP \
@@ -189,22 +190,25 @@ then
 fi
 
 
-echo Making npp_watcher...
+if [ "$1" = "all" ]
+then
+    echo Making npp_watcher...
 
-gcc ../lib/npp_watcher.c \
-../lib/npp_lib.c \
--D NPP_WATCHER \
-$NPP_M_INCLUDE \
--s -O3 \
--o ../bin/npp_watcher
+    gcc ../lib/npp_watcher.c \
+    ../lib/npp_lib.c \
+    -D NPP_WATCHER \
+    $NPP_M_INCLUDE \
+    -s -O3 \
+    -o ../bin/npp_watcher
 
 
-echo Making npp_update...
+    echo Making npp_update...
 
-gcc ../lib/npp_update.c \
-../lib/npp_lib.c \
--D NPP_UPDATE \
-$NPP_M_INCLUDE \
-$NPP_M_LIBS_UPDATE \
--s -O3 \
--o ../bin/npp_update
+    gcc ../lib/npp_update.c \
+    ../lib/npp_lib.c \
+    -D NPP_UPDATE \
+    $NPP_M_INCLUDE \
+    $NPP_M_LIBS_UPDATE \
+    -s -O3 \
+    -o ../bin/npp_update
+fi

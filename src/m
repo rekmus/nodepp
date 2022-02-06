@@ -1,14 +1,8 @@
 #!/bin/sh
 
 # ----------------------------------------------------------------------------
-#  Set the project-specific compilation environment here
-#  (if differs from your user environment)
+# Set the local compilation environment here
 # ----------------------------------------------------------------------------
-
-# ----------------------------------------------------------------------------
-# Set NPP_DIR as a project directory so that $NPP_DIR/src/npp_app.h can be found
-
-#export NPP_DIR=
 
 
 # ----------------------------------------------------------------------------
@@ -26,18 +20,6 @@
 
 
 # ----------------------------------------------------------------------------
-# Set additional APP modules
-
-#export NPP_APP_MODULES=
-
-
-# ----------------------------------------------------------------------------
-# Set additional SVC modules
-
-#export NPP_SVC_MODULES=
-
-
-# ----------------------------------------------------------------------------
 # Call the main making script (don't change this)
 
-./make_npp
+../bin/nppmake $1
