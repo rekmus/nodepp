@@ -1112,7 +1112,7 @@ static bool housekeeping()
 #endif
 
         /* say something sometimes ... */
-        ALWAYS_T("%d open connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
+        ALWAYS_T("%d connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
 
         npp_log_flush();
 

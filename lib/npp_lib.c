@@ -8018,7 +8018,7 @@ bool npp_read_param_str(const char *param, char *dest)
 
     dest[i] = EOS;
 
-    if ( strstr(npp_upper(param), "PASSWORD") )
+    if ( strstr(npp_upper(param), "PASSWORD") || strstr(npp_upper(param), "PASSWD") )
         DBG("%s [<...>]", param);
     else
         DBG("%s [%s]", param, dest);
@@ -8051,7 +8051,11 @@ bool npp_read_param_int(const char *param, int *dest)
 -------------------------------------------------------------------------- */
 void npp_lib_read_conf(bool first)
 {
+#ifdef NPP_CLIENT
+    DBG("Reading configuration...");
+#else
     INF("Reading configuration...");
+#endif
 
     bool conf_read=FALSE;
 

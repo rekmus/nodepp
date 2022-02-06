@@ -1,36 +1,37 @@
 @echo off
 
-echo Making npp_app...
+rem ----------------------------------------------------------------------------
+rem  Set the project-specific compilation environment here
+rem  (if differs from your user environment)
+rem ----------------------------------------------------------------------------
 
-g++ npp_app.cpp ^
-..\lib\npp_eng_app.c ..\lib\npp_lib.c ..\lib\npp_mysql.cpp ..\lib\npp_usr.c ^
--D NPP_APP ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_app ^
--static
+rem ----------------------------------------------------------------------------
+rem Set NPP_DIR as a project directory so that NPP_DIR\src\npp_app.h can be found
 
-
-echo Making npp_watcher...
-
-gcc ..\lib\npp_watcher.c ^
-..\lib\npp_lib.c ^
--D NPP_WATCHER ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_watcher ^
--static
+rem set NPP_DIR=
 
 
-echo Making npp_update...
+rem ----------------------------------------------------------------------------
+rem Set include path (required for OpenSSL and MySQL)
+rem Example: set CPATH=C:\usr\include;C:\usr\include\mysql
 
-gcc ..\lib\npp_update.c ^
-..\lib\npp_lib.c ^
--D NPP_UPDATE ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_update ^
--static
+rem set CPATH=
+
+
+rem ----------------------------------------------------------------------------
+rem Set library path (required for OpenSSL and MySQL)
+rem Example: set LIBRARY_PATH=C:\usr\lib\openssl;C:\usr\lib\mysql
+
+rem set LIBRARY_PATH=
+
+
+rem ----------------------------------------------------------------------------
+rem Set additional APP modules
+
+rem set NPP_APP_MODULES=
+
+
+rem ----------------------------------------------------------------------------
+rem Call the main making script (don't change this)
+
+call make_npp.bat
