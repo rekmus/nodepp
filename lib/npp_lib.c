@@ -5602,10 +5602,10 @@ struct tm   tm;
 
 //  DBG("%d-%02d-%02d %02d:%02d:%02d", tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 
-#ifdef __linux__
-    epoch = timegm(&tm);
-#else
+#ifdef _WIN32
     epoch = win_timegm(&tm);
+#else
+    epoch = timegm(&tm);
 #endif
 
 #ifdef NPP_DEBUG
