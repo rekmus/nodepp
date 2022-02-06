@@ -27,7 +27,7 @@ rem
 rem ----------------------------------------------------------------------------
 rem
 rem  Compile/make Node++ application on Windows
-rem  This is a generic script -- customize your environment in m.bat
+rem  This is a generic script -- customize your environment in src\m.bat
 rem  nodepp.org
 rem
 rem ----------------------------------------------------------------------------
@@ -124,7 +124,9 @@ rem Compile
 set "NPP_APP_NAME="
 for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *NPP_APP_NAME" npp_app.h') do set NPP_APP_NAME=%%i
 
-echo Making %NPP_APP_NAME%'s npp_app...
+echo Building %NPP_APP_NAME%...
+
+echo Making npp_app...
 
 g++ %NPP_M_MODULES_APP% ^
 -D NPP_APP ^

@@ -27,7 +27,7 @@
 # ------------------------------------------------------------------------------
 #
 #   Compile/make Node++ application on Linux/Unix
-#   This is a generic script -- customize your environment in m
+#   This is a generic script -- customize your environment in src/m
 #   nodepp.org
 #
 # ------------------------------------------------------------------------------
@@ -167,7 +167,9 @@ fi
 
 NPP_APP_NAME=`grep '^#define\s*NPP_APP_NAME' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
 
-echo Making ${NPP_APP_NAME}\'s npp_app...
+echo Building ${NPP_APP_NAME}...
+
+echo Making npp_app...
 
 g++ $NPP_M_MODULES_APP \
 -D NPP_APP \
