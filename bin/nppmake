@@ -151,8 +151,8 @@ then
    NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lmysqlclient"
 fi
 
-NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lrt -lz"
-NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lrt"
+NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lz"
+#NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lrt"
 
 if [ $NPP_VERBOSE -eq 1 ]
 then
