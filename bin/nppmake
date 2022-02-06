@@ -43,7 +43,7 @@ fi
 # ----------------------------------------------------------------------------
 # Determine Node++ modules that are enabled in npp_app.h
 
-NPP_HTTPS=`grep '^#define\s*NPP_HTTPS' npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_HTTPS=`grep '^#define\s*NPP_HTTPS' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 if [ "$NPP_HTTPS" = "NPP_HTTPS" ]
 then
     NPP_HTTPS=1
@@ -51,7 +51,7 @@ else
     NPP_HTTPS=0
 fi
 
-NPP_MYSQL=`grep '^#define\s*NPP_MYSQL' npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_MYSQL=`grep '^#define\s*NPP_MYSQL' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 if [ "$NPP_MYSQL" = "NPP_MYSQL" ]
 then
     NPP_MYSQL=1
@@ -59,7 +59,7 @@ else
     NPP_MYSQL=0
 fi
 
-NPP_USERS=`grep '^#define\s*NPP_USERS' npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_USERS=`grep '^#define\s*NPP_USERS' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 if [ "$NPP_USERS" = "NPP_USERS" ]
 then
     NPP_USERS=1
@@ -67,7 +67,7 @@ else
     NPP_USERS=0
 fi
 
-NPP_ASYNC=`grep '^#define\s*NPP_ASYNC' npp_app.h | head -1 | awk '{ print $2 }'`
+NPP_ASYNC=`grep '^#define\s*NPP_ASYNC' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 if [ "$NPP_ASYNC" = "NPP_ASYNC" ]
 then
     NPP_ASYNC=1
