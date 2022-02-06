@@ -5665,10 +5665,10 @@ struct tm   tm={0};
     tmp[2] = EOS;
     tm.tm_sec = atoi(tmp);
 
-#ifdef __linux__
-    epoch = timegm(&tm);
-#else
+#ifdef _WIN32
     epoch = win_timegm(&tm);
+#else
+    epoch = timegm(&tm);
 #endif
 
     return epoch;
