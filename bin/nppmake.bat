@@ -40,25 +40,13 @@ if /i "%1"=="v" set NPP_VERBOSE=1
 rem ----------------------------------------------------------------------------
 rem Determine Node++ modules that are enabled in npp_app.h
 
-set FIRST_TOKEN="x"
-set NPP_HTTPS=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_HTTPS" npp_app.h') do set FIRST_TOKEN=%%i
-if "%FIRST_TOKEN%"=="#define" set NPP_HTTPS=1
+call :get_presence "NPP_HTTPS" NPP_HTTPS
 
-set FIRST_TOKEN="x"
-set NPP_MYSQL=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_MYSQL" npp_app.h') do set FIRST_TOKEN=%%i
-if "%FIRST_TOKEN%"=="#define" set NPP_MYSQL=1
+call :get_presence "NPP_MYSQL" NPP_MYSQL
 
-set FIRST_TOKEN="x"
-set NPP_USERS=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_USERS" npp_app.h') do set FIRST_TOKEN=%%i
-if "%FIRST_TOKEN%"=="#define" set NPP_USERS=1
+call :get_presence "NPP_USERS" NPP_USERS
 
-set FIRST_TOKEN="x"
-set NPP_ICONV=0
-for /f %%i in ('findstr /r /c:"^#define *NPP_ICONV" npp_app.h') do set FIRST_TOKEN=%%i
-if "%FIRST_TOKEN%"=="#define" set NPP_ICONV=1
+call :get_presence "NPP_ICONV" NPP_ICONV
 
 
 rem ----------------------------------------------------------------------------
@@ -66,8 +54,7 @@ rem APP modules to compile
 
 set "NPP_M_MODULES_APP=npp_app.cpp ..\lib\npp_eng_app.c ..\lib\npp_lib.c"
 
-set "NPP_APP_MODULES="
-for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *NPP_APP_MODULES" npp_app.h') do set NPP_APP_MODULES=%%i
+call :get_quoted_value "NPP_APP_MODULES" NPP_APP_MODULES
 
 if not "%NPP_APP_MODULES%"=="" (
     set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% %NPP_APP_MODULES%"
@@ -121,10 +108,13 @@ if %NPP_VERBOSE%==1 echo NPP_M_LIBS_UPDATE=%NPP_M_LIBS_UPDATE%
 rem ----------------------------------------------------------------------------
 rem Compile
 
-set "NPP_APP_NAME="
-for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *NPP_APP_NAME" npp_app.h') do set NPP_APP_NAME=%%i
+call :get_quoted_value "NPP_APP_NAME" NPP_APP_NAME
 
-echo Building %NPP_APP_NAME%...
+if not "%NPP_APP_NAME%"=="" (
+    echo Building %NPP_APP_NAME%...
+) else (
+    echo Building application...
+)
 
 echo Making npp_app...
 
@@ -163,3 +153,29 @@ if /i "%1"=="all" (
     -static
 
 )
+
+
+goto:eof
+
+
+rem ----------------------------------------------------------------------------
+rem Functions
+
+:get_presence
+set %~2=0
+set FIRST_TOKEN="x"
+for /f %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set FIRST_TOKEN=%%i
+if "%FIRST_TOKEN%"=="#define" set %~2=1
+goto:eof
+
+
+:get_value
+set "%~2="
+for /f tokens^=3 %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set %~2=%%i
+goto:eof
+
+
+:get_quoted_value
+set "%~2="
+for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set %~2=%%i
+goto:eof
