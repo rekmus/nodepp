@@ -84,20 +84,22 @@ NPP_M_MODULES_SVC="npp_svc.cpp ../lib/npp_eng_svc.c ../lib/npp_lib.c"
 
 NPP_APP_MODULES=`grep '^#define\s*NPP_APP_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
 
-if [ ! -z $NPP_APP_MODULES ]
+if [ ! -z "$NPP_APP_MODULES" ]
 then
     NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ${NPP_APP_MODULES}"
 fi
 
-NPP_SVC_MODULES=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+NPP_SVC_MODULES_SAME=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
 
-if [ ! -z $NPP_SVC_MODULES ]
+if [ "$NPP_SVC_MODULES_SAME" = "NPP_APP_MODULES" ]
 then
-    if [ "$NPP_SVC_MODULES" = "NPP_APP_MODULES" ]
-    then
-        NPP_SVC_MODULES=$NPP_APP_MODULES
-    fi
+    NPP_SVC_MODULES=$NPP_APP_MODULES
+else
+    NPP_SVC_MODULES=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+fi
 
+if [ ! -z "$NPP_SVC_MODULES" ]
+then
     NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ${NPP_SVC_MODULES}"
 fi
 
