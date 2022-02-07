@@ -41,39 +41,38 @@ fi
 
 
 # ----------------------------------------------------------------------------
+# Functions
+
+get_presence () {
+    local present=`grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
+
+    if [ "$present" = "$1" ]
+    then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+get_value () {
+    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
+}
+
+get_quoted_value () {
+    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+}
+
+
+# ----------------------------------------------------------------------------
 # Determine Node++ modules that are enabled in npp_app.h
 
-NPP_HTTPS=`grep '^#define\s*NPP_HTTPS' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
-if [ "$NPP_HTTPS" = "NPP_HTTPS" ]
-then
-    NPP_HTTPS=1
-else
-    NPP_HTTPS=0
-fi
+NPP_HTTPS=$(get_presence "NPP_HTTPS")
 
-NPP_MYSQL=`grep '^#define\s*NPP_MYSQL' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
-if [ "$NPP_MYSQL" = "NPP_MYSQL" ]
-then
-    NPP_MYSQL=1
-else
-    NPP_MYSQL=0
-fi
+NPP_MYSQL=$(get_presence "NPP_MYSQL")
 
-NPP_USERS=`grep '^#define\s*NPP_USERS' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
-if [ "$NPP_USERS" = "NPP_USERS" ]
-then
-    NPP_USERS=1
-else
-    NPP_USERS=0
-fi
+NPP_USERS=$(get_presence "NPP_USERS")
 
-NPP_ASYNC=`grep '^#define\s*NPP_ASYNC' npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
-if [ "$NPP_ASYNC" = "NPP_ASYNC" ]
-then
-    NPP_ASYNC=1
-else
-    NPP_ASYNC=0
-fi
+NPP_ASYNC=$(get_presence "NPP_ASYNC")
 
 
 # ----------------------------------------------------------------------------
@@ -82,20 +81,20 @@ fi
 NPP_M_MODULES_APP="npp_app.cpp ../lib/npp_eng_app.c ../lib/npp_lib.c"
 NPP_M_MODULES_SVC="npp_svc.cpp ../lib/npp_eng_svc.c ../lib/npp_lib.c"
 
-NPP_APP_MODULES=`grep '^#define\s*NPP_APP_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+NPP_APP_MODULES=$(get_quoted_value "NPP_APP_MODULES")
 
 if [ ! -z "$NPP_APP_MODULES" ]
 then
     NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ${NPP_APP_MODULES}"
 fi
 
-NPP_SVC_MODULES_SAME=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
+NPP_SVC_MODULES_SAME=$(get_value "NPP_SVC_MODULES")
 
 if [ "$NPP_SVC_MODULES_SAME" = "NPP_APP_MODULES" ]
 then
     NPP_SVC_MODULES=$NPP_APP_MODULES
 else
-    NPP_SVC_MODULES=`grep '^#define\s*NPP_SVC_MODULES' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+    NPP_SVC_MODULES=$(get_quoted_value "NPP_SVC_MODULES")
 fi
 
 if [ ! -z "$NPP_SVC_MODULES" ]
@@ -166,9 +165,14 @@ fi
 # ----------------------------------------------------------------------------
 # Compile
 
-NPP_APP_NAME=`grep '^#define\s*NPP_APP_NAME' npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+NPP_APP_NAME=$(get_quoted_value "NPP_APP_NAME")
 
-echo Building ${NPP_APP_NAME}...
+if [ ! -z "$NPP_APP_NAME" ]
+then
+    echo Building ${NPP_APP_NAME}...
+else
+    echo Building application...
+fi
 
 echo Making npp_app...
 
