@@ -15,7 +15,7 @@
 #define NPP_APP_DESCRIPTION             "Sample Node++ Web Application"
 
 
-/* List of C/C++ modules to compile. They have to be one-liners */
+/* List of additional C/C++ modules to compile. They have to be one-liners */
 
 #define NPP_APP_MODULES                 ""
 #define NPP_SVC_MODULES                 NPP_APP_MODULES

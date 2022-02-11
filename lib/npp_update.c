@@ -64,7 +64,7 @@ static int parse_command_line(int argc, char *argv[])
                 M_force_update = TRUE;
                 break;
             case 't':
-                M_test = TRUE;
+//                M_test = TRUE;
                 break;
             case 'u':
                 M_update = TRUE;
