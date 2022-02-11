@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -76,14 +76,14 @@ char        G_last_modified[32]="";
 
 /* asynchorous processing */
 
-#ifndef _WIN32
+#ifdef NPP_ASYNC
 char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
-#endif  /* _WIN32 */
 int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 
 bool        G_index_present=FALSE;          /* index.html present in res? */
 
@@ -141,15 +141,19 @@ static char     *M_pidfile;                 /* pid file name */
 
 #ifdef _WIN32   /* Windows */
 static SOCKET   M_listening_fd=0;           /* The socket file descriptor for "listening" socket */
-static SOCKET   M_listening_sec_fd=0;       /* The socket file descriptor for secure "listening" socket */
 #else
 static int      M_listening_fd=0;           /* The socket file descriptor for "listening" socket */
-static int      M_listening_sec_fd=0;       /* The socket file descriptor for secure "listening" socket */
 #endif  /* _WIN32 */
 
 #ifdef NPP_HTTPS
+#ifdef _WIN32
+static SOCKET   M_listening_sec_fd=0;       /* The socket file descriptor for secure "listening" socket */
+#else
+static int      M_listening_sec_fd=0;       /* The socket file descriptor for secure "listening" socket */
+#endif  /* _WIN32 */
+
 static SSL_CTX  *M_ssl_ctx;
-#endif
+#endif  /* NPP_HTTPS */
 
 #ifdef NPP_HTTPS
 #define NPP_LISTENING_FDS   2
@@ -207,24 +211,27 @@ static void http2_parse_frame(int ci, int bytes);
 static void http2_add_frame(int ci, unsigned char type);
 #endif  /* NPP_HTTP2 */
 static void set_state(int ci, int bytes);
+#ifdef NPP_HTTPS
 static void set_state_sec(int ci, int bytes);
+#endif
 static void respond_to_expect(int ci);
 static void log_proc_time(int ci);
 static void log_request(int ci);
 static void close_conn(int ci);
 static bool init(int argc, char **argv);
+#ifdef NPP_FD_MON_SELECT
 static void build_fd_sets(void);
+#endif
 static void accept_http();
+#ifdef NPP_HTTPS
 static void accept_https();
-static void read_blocked_ips(void);
+#endif
 static bool ip_blocked(const char *addr);
-static void read_allowed_ips(void);
 static bool ip_allowed(const char *addr);
 static int  first_free_stat(void);
 static bool read_resources(bool first_scan);
 static int  is_static_res(int ci);
 static void process_req(int ci);
-static unsigned deflate_data(unsigned char *dest, const unsigned char *src, unsigned src_len);
 static void gen_response_header(int ci);
 static void print_content_type(int ci, char type);
 static bool a_session_ok(int ci);
@@ -234,13 +241,11 @@ static void close_uses(int si, int ci);
 static void reset_conn(int ci, char new_state);
 static int  parse_req(int ci, int len);
 static int  set_http_req_val(int ci, const char *label, const char *value);
-static bool check_block_ip(int ci, const char *rule, const char *value);
 static char *get_http_descr(int status_code);
 static void dump_counters(void);
 static void clean_up(void);
 static void sigdisp(int sig);
 static void render_page_msg(int ci, int code);
-static bool init_ssl(void);
 
 
 
@@ -250,25 +255,20 @@ static bool init_ssl(void);
 int main(int argc, char **argv)
 {
     struct sockaddr_in serv_addr;
-    unsigned    hit=0;
+//    unsigned    hit=0;
     int         reuse_addr=1;       /* Used so we can re-bind to our port while a previous connection is still in TIME_WAIT state */
+#ifdef NPP_FD_MON_SELECT
     struct timeval timeout;         /* Timeout for select */
+#endif
     int         sockets_ready;      /* Number of sockets ready for I/O */
     int         i=0;
     int         bytes=0;
     int         failed_select_cnt=0;
-    int         j=0;
 #ifdef NPP_DEBUG
     time_t      dbg_last_time0=0;
     time_t      dbg_last_time1=0;
     time_t      dbg_last_time2=0;
     time_t      dbg_last_time3=0;
-    time_t      dbg_last_time4=0;
-    time_t      dbg_last_time5=0;
-    time_t      dbg_last_time6=0;
-    time_t      dbg_last_time7=0;
-    time_t      dbg_last_time8=0;
-    time_t      dbg_last_time9=0;
 #endif  /* NPP_DEBUG */
 
     if ( !init(argc, argv) )
@@ -439,6 +439,8 @@ int main(int argc, char **argv)
 
 #ifdef NPP_ASYNC
         /* release timeout-ed */
+
+        int j;
 
         for ( j=0; j<NPP_ASYNC_MAX_REQUESTS; ++j )
         {
@@ -1110,7 +1112,7 @@ static bool housekeeping()
 #endif
 
         /* say something sometimes ... */
-        ALWAYS_T("%d open connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
+        ALWAYS_T("%d connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
 
         npp_log_flush();
 
@@ -1135,10 +1137,10 @@ static bool housekeeping()
             set_expiry_dates();
 
             if ( G_IPBlackList[0] )
-                read_blocked_ips();
+                npp_eng_read_blocked_ips();
 
             if ( G_IPWhiteList[0] )
-                read_allowed_ips();
+                npp_eng_read_allowed_ips();
 
             /* copy & reset counters */
             memcpy(&G_cnts_day_before, &G_cnts_yesterday, sizeof(npp_counters_t));
@@ -1811,9 +1813,9 @@ static void set_state(int ci, int bytes)
             DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
 
 #ifdef NPP_HTTP2
-            if ( bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
+            if ( (unsigned)bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
 #else
-            if ( bytes < G_connections[ci].out_len )   /* not all have been sent yet */
+            if ( (unsigned)bytes < G_connections[ci].out_len )   /* not all have been sent yet */
 #endif  /* NPP_HTTP2 */
             {
                 DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
@@ -1869,15 +1871,15 @@ static void set_state(int ci, int bytes)
 }
 
 
+#ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
    Set new connection state after read or write for secure connections
 -------------------------------------------------------------------------- */
 static void set_state_sec(int ci, int bytes)
 {
-    int     e;
-    char    ec[256]="";
-#ifdef NPP_HTTPS
-    e = errno;
+    int e = errno;
+
+    char ec[256]="";
 
     DDBG("set_state_sec ci=%d, bytes=%d", ci, bytes);
 
@@ -1959,9 +1961,9 @@ static void set_state_sec(int ci, int bytes)
             DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
 
 #ifdef NPP_HTTP2
-            if ( bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
+            if ( (unsigned)bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
 #else
-            if ( bytes < G_connections[ci].out_len )   /* not all have been sent yet */
+            if ( (unsigned)bytes < G_connections[ci].out_len )   /* not all have been sent yet */
 #endif  /* NPP_HTTP2 */
             {
                 DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
@@ -2004,296 +2006,8 @@ static void set_state_sec(int ci, int bytes)
             close_conn(ci);
         }
     }
+}
 #endif  /* NPP_HTTPS */
-}
-
-
-/* --------------------------------------------------------------------------
-   Read & parse conf file and set global parameters
--------------------------------------------------------------------------- */
-static void read_conf(bool first)
-{
-    INF("Reading configuration...");
-
-    bool conf_read=FALSE;
-
-    /* set defaults */
-
-    if ( first )
-    {
-        G_test = 0;
-        G_logLevel = 3;
-        G_logToStdout = 0;
-        G_logCombined = 0;
-        G_httpPort = 80;
-        G_httpsPort = 443;
-        G_cipherList[0] = EOS;
-        G_certFile[0] = EOS;
-        G_certChainFile[0] = EOS;
-        G_keyFile[0] = EOS;
-        G_dbHost[0] = EOS;
-        G_dbPort = 0;
-        G_dbName[0] = EOS;
-        G_dbUser[0] = EOS;
-        G_dbPassword[0] = EOS;
-        G_usersRequireActivation = 0;
-        G_IPBlackList[0] = EOS;
-        G_IPWhiteList[0] = EOS;
-        G_ASYNCId = -1;
-        G_ASYNCSvcProcesses = 0;
-        G_ASYNCDefTimeout = NPP_ASYNC_DEF_TIMEOUT;
-        G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
-    }
-
-    /* get the conf file path & name */
-
-    if ( G_appdir[0] )
-    {
-        char conf_path[1024];
-        sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
-        if ( !(conf_read=npp_read_conf(conf_path)) )   /* no config file there */
-            conf_read = npp_read_conf("npp.conf");
-    }
-    else    /* no NPP_DIR -- try current dir */
-    {
-        conf_read = npp_read_conf("npp.conf");
-    }
-
-    if ( conf_read )
-    {
-        /* test */
-
-        npp_read_param_int("test", &G_test);
-
-        /* logLevel */
-
-        npp_read_param_int("logLevel", &G_logLevel);
-
-        /* logToStdout */
-
-        if ( first )
-        {
-            npp_read_param_int("logToStdout", &G_logToStdout);
-        }
-        else    /* npp_reload_conf */
-        {
-            int tmp_logToStdout=G_logToStdout;
-
-            npp_read_param_int("logToStdout", &tmp_logToStdout);
-
-            if ( tmp_logToStdout != G_logToStdout )
-            {
-                G_logToStdout = tmp_logToStdout;
-
-                if ( G_logToStdout )    /* switch to stdout */
-                {
-                    ALWAYS("Switching log to stdout");
-                    npp_lib_log_switch_to_stdout();
-                }
-                else    /* switch to file */
-                {
-                    ALWAYS("Switching log to a file");
-                    npp_lib_log_switch_to_file();
-                }
-            }
-        }
-
-        /* logCombined */
-
-        npp_read_param_int("logCombined", &G_logCombined);
-
-        /* ports */
-
-        if ( first )
-        {
-            npp_read_param_int("httpPort", &G_httpPort);
-            npp_read_param_int("httpsPort", &G_httpsPort);
-        }
-        else    /* can't change it online */
-        {
-            int tmp_httpPort=G_httpPort;
-            int tmp_httpsPort=G_httpsPort;
-
-            npp_read_param_int("httpPort", &tmp_httpPort);
-            npp_read_param_int("httpsPort", &tmp_httpsPort);
-
-            if ( tmp_httpPort != G_httpPort
-                    || tmp_httpsPort != G_httpsPort )
-            {
-                WAR("Changing listening ports requires server restart");
-            }
-        }
-
-        /* SSL */
-
-#ifdef NPP_HTTPS
-        if ( first )
-        {
-            npp_read_param_str("cipherList", G_cipherList);
-            npp_read_param_str("certFile", G_certFile);
-            npp_read_param_str("certChainFile", G_certChainFile);
-            npp_read_param_str("keyFile", G_keyFile);
-        }
-        else    /* npp_reload_conf */
-        {
-            char tmp_cipherList[NPP_CIPHER_LIST_LEN+1]="";
-            char tmp_certFile[256]="";
-            char tmp_certChainFile[256]="";
-            char tmp_keyFile[256]="";
-
-            npp_read_param_str("cipherList", tmp_cipherList);
-            npp_read_param_str("certFile", tmp_certFile);
-            npp_read_param_str("certChainFile", tmp_certChainFile);
-            npp_read_param_str("keyFile", tmp_keyFile);
-
-            if ( strcmp(tmp_cipherList, G_cipherList) != 0
-                    || strcmp(tmp_certFile, G_certFile) != 0
-                    || strcmp(tmp_certChainFile, G_certChainFile) != 0
-                    || strcmp(tmp_keyFile, G_keyFile) != 0 )
-            {
-                strcpy(G_cipherList, tmp_cipherList);
-                strcpy(G_certFile, tmp_certFile);
-                strcpy(G_certChainFile, tmp_certChainFile);
-                strcpy(G_keyFile, tmp_keyFile);
-
-                SSL_CTX_free(M_ssl_ctx);
-                EVP_cleanup();
-
-                init_ssl();
-            }
-        }
-#endif
-
-        /* database */
-
-        if ( first )
-        {
-            npp_read_param_str("dbHost", G_dbHost);
-            npp_read_param_int("dbPort", &G_dbPort);
-            npp_read_param_str("dbName", G_dbName);
-            npp_read_param_str("dbUser", G_dbUser);
-            npp_read_param_str("dbPassword", G_dbPassword);
-        }
-        else    /* reconnect MySQL if changed */
-        {
-            char tmp_dbHost[128]="";
-            int  tmp_dbPort=0;
-            char tmp_dbName[128]="";
-            char tmp_dbUser[128]="";
-            char tmp_dbPassword[128]="";
-
-            npp_read_param_str("dbHost", tmp_dbHost);
-            npp_read_param_int("dbPort", &tmp_dbPort);
-            npp_read_param_str("dbName", tmp_dbName);
-            npp_read_param_str("dbUser", tmp_dbUser);
-            npp_read_param_str("dbPassword", tmp_dbPassword);
-
-            if ( strcmp(tmp_dbHost, G_dbHost) != 0
-                    || tmp_dbPort != G_dbPort
-                    || strcmp(tmp_dbName, G_dbName) != 0
-                    || strcmp(tmp_dbUser, G_dbUser) != 0
-                    || strcmp(tmp_dbPassword, G_dbPassword) != 0 )
-            {
-                strcpy(G_dbHost, tmp_dbHost);
-                G_dbPort = tmp_dbPort;
-                strcpy(G_dbName, tmp_dbName);
-                strcpy(G_dbUser, tmp_dbUser);
-                strcpy(G_dbPassword, tmp_dbPassword);
-#ifdef NPP_MYSQL
-                npp_close_db();
-
-                if ( !npp_open_db() )
-                    WAR("Couldn't connect to the database");
-#endif  /* NPP_MYSQL */
-            }
-        }
-
-        /* usersRequireActivation */
-
-#ifdef NPP_USERS
-        npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
-#endif
-
-        /* IPBlackList */
-
-        if ( first )
-        {
-            npp_read_param_str("IPBlackList", G_IPBlackList);
-        }
-        else    /* npp_reload_conf */
-        {
-            char tmp_IPBlackList[256]="";
-
-            npp_read_param_str("IPBlackList", tmp_IPBlackList);
-
-            if ( strcmp(tmp_IPBlackList, G_IPBlackList) != 0 )
-            {
-                strcpy(G_IPBlackList, tmp_IPBlackList);
-                read_blocked_ips();
-            }
-        }
-
-        /* IPWhiteList */
-
-        if ( first )
-        {
-            npp_read_param_str("IPWhiteList", G_IPWhiteList);
-        }
-        else    /* npp_reload_conf */
-        {
-            char tmp_IPWhiteList[256]="";
-
-            npp_read_param_str("IPWhiteList", tmp_IPWhiteList);
-
-            if ( strcmp(tmp_IPWhiteList, G_IPWhiteList) != 0 )
-            {
-                strcpy(G_IPWhiteList, tmp_IPWhiteList);
-                read_allowed_ips();
-            }
-        }
-
-        /* ASYNC */
-
-#ifdef NPP_ASYNC
-        if ( first )
-        {
-            npp_read_param_int("ASYNCId", &G_ASYNCId);
-            npp_read_param_int("ASYNCSvcProcesses", &G_ASYNCSvcProcesses);
-        }
-        else    /* can't change it online */
-        {
-            int tmp_ASYNCId=G_ASYNCId;
-            int tmp_ASYNCSvcProcesses=G_ASYNCSvcProcesses;
-
-            npp_read_param_int("ASYNCId", &tmp_ASYNCId);
-            npp_read_param_int("ASYNCSvcProcesses", &tmp_ASYNCSvcProcesses);
-
-            if ( tmp_ASYNCId != G_ASYNCId || tmp_ASYNCSvcProcesses != G_ASYNCSvcProcesses )
-            {
-                WAR("Changing ASYNCId or ASYNCSvcProcesses requires server restart");
-            }
-        }
-
-        npp_read_param_int("ASYNCDefTimeout", &G_ASYNCDefTimeout);
-#endif  /* NPP_ASYNC */
-
-        /* CALL_HTTP */
-
-        npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout);
-    }
-    else
-    {
-        WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
-    }
-
-#ifdef NPP_DEBUG
-    if ( G_logLevel < 4 )
-    {
-        G_logLevel = 4;   /* debug */
-        DBG("logLevel changed to 4 because of NPP_DEBUG");
-    }
-#endif  /* NPP_DEBUG */
-}
 
 
 /* --------------------------------------------------------------------------
@@ -2406,6 +2120,112 @@ static void close_conn(int ci)
 }
 
 
+#ifdef NPP_HTTPS
+/* --------------------------------------------------------------------------
+   Init SSL for a server
+-------------------------------------------------------------------------- */
+bool npp_eng_init_ssl()
+{
+    const SSL_METHOD *method;
+    /*
+       From Hynek Schlawack's blog:
+       https://hynek.me/articles/hardening-your-web-servers-ssl-ciphers
+       https://www.ssllabs.com/ssltest
+       Last update: 2019-04-08
+       Qualys says Forward Secrecy isn't enabled
+    */
+//    char ciphers[NPP_CIPHER_LIST_LEN+1]="ECDH+AESGCM:ECDH+CHACHA20:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:RSA+AESGCM:RSA+AES:!aNULL:!MD5:!DSS";
+
+    /*
+       https://www.digicert.com/ssl-support/ssl-enabling-perfect-forward-secrecy.htm
+       Last update: 2019-04-18
+    */
+    char ciphers[NPP_CIPHER_LIST_LEN+1]="EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4";
+
+    DBG("npp_eng_init_ssl");
+
+    /* libssl init */
+    SSL_library_init();
+    SSL_load_error_strings();
+
+    /* libcrypto init */
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+
+    G_ssl_lib_initialized = TRUE;
+
+    method = SSLv23_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
+
+    M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
+
+    if ( M_ssl_ctx == NULL )
+    {
+        ERR("SSL_CTX_new failed");
+        return FALSE;
+    }
+
+    const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
+    SSL_CTX_set_options(M_ssl_ctx, flags);
+
+    /* support ECDH using the most appropriate shared curve */
+
+    if ( SSL_CTX_set_ecdh_auto(M_ssl_ctx, 1) <= 0 )
+    {
+        ERR("SSL_CTX_set_ecdh_auto failed");
+        return FALSE;
+    }
+
+    if ( G_cipherList[0] )
+        strcpy(ciphers, G_cipherList);
+
+    ALWAYS("        Using ciphers: [%s]", ciphers);
+
+    SSL_CTX_set_cipher_list(M_ssl_ctx, ciphers);
+
+    /* set the local certificate */
+
+    ALWAYS("    Using certificate: [%s]", G_certFile);
+
+    if ( SSL_CTX_use_certificate_file(M_ssl_ctx, G_certFile, SSL_FILETYPE_PEM) <= 0 )
+    {
+        ERR("SSL_CTX_use_certificate_file failed");
+        return FALSE;
+    }
+
+    if ( G_certChainFile[0] )   /* set the chain file */
+    {
+        ALWAYS("Using cert chain file: [%s]", G_certChainFile);
+
+        if ( SSL_CTX_load_verify_locations(M_ssl_ctx, G_certChainFile, NULL) <= 0 )
+        {
+            ERR("SSL_CTX_load_verify_locations failed");
+            return FALSE;
+        }
+    }
+
+   /* set the private key from KeyFile (may be the same as CertFile) */
+
+    ALWAYS("    Using private key: [%s]", G_keyFile);
+
+    if ( SSL_CTX_use_PrivateKey_file(M_ssl_ctx, G_keyFile, SSL_FILETYPE_PEM) <= 0 )
+    {
+        ERR("SSL_CTX_use_PrivateKey_file failed");
+        return FALSE;
+    }
+
+    /* verify private key */
+
+    if ( !SSL_CTX_check_private_key(M_ssl_ctx) )
+    {
+        ERR("Private key does not match the public certificate");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+#endif  /* NPP_HTTPS */
+
+
 /* --------------------------------------------------------------------------
    Engine init
    Return TRUE if success
@@ -2434,12 +2254,8 @@ static bool init(int argc, char **argv)
 
     /* init Node++ library */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(TRUE, NULL) )
         return FALSE;
-
-    /* read the config file or set defaults */
-
-    read_conf(TRUE);
 
     /* command line arguments */
 
@@ -2448,16 +2264,6 @@ static bool init(int argc, char **argv)
         G_httpPort = atoi(argv[1]);
         printf("Will be listening on the port %d...\n", G_httpPort);
     }
-
-    /* start log --------------------------------------------------------- */
-
-    char exec_name[256];
-    npp_get_exec_name(exec_name, argv[0]);
-
-    if ( !npp_log_start("", G_test, FALSE) )
-        return FALSE;
-
-    ALWAYS("Starting program");
 
     /* pid file ---------------------------------------------------------- */
 
@@ -2545,12 +2351,12 @@ static bool init(int argc, char **argv)
 #ifdef NPP_ASYNC
     ALWAYS("         NPP_ASYNC_REQ_MSG_SIZE = %d bytes", NPP_ASYNC_REQ_MSG_SIZE);
     ALWAYS("             ASYNC req.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_hdr_t), sizeof(async_req_hdr_t)/1024, (double)sizeof(async_req_hdr_t)/1024/1024);
-    ALWAYS("          G_async_req_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
+    ALWAYS("          G_async_req_data_size = %d bytes (%d KiB / %0.2lf MiB)", G_async_req_data_size, G_async_req_data_size/1024, (double)G_async_req_data_size/1024/1024);
     ALWAYS("             ASYNC request size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_req_t), sizeof(async_req_t)/1024, (double)sizeof(async_req_t)/1024/1024);
     ALWAYS("");
     ALWAYS("         NPP_ASYNC_RES_MSG_SIZE = %d bytes", NPP_ASYNC_RES_MSG_SIZE);
     ALWAYS("             ASYNC res.hdr size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_hdr_t), sizeof(async_res_hdr_t)/1024, (double)sizeof(async_res_hdr_t)/1024/1024);
-    ALWAYS("          G_async_res_data_size = %lu bytes (%lu KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
+    ALWAYS("          G_async_res_data_size = %d bytes (%d KiB / %0.2lf MiB)", G_async_res_data_size, G_async_res_data_size/1024, (double)G_async_res_data_size/1024/1024);
     ALWAYS("            ASYNC response size = %lu bytes (%lu KiB / %0.2lf MiB)", sizeof(async_res_t), sizeof(async_res_t)/1024, (double)sizeof(async_res_t)/1024/1024);
     ALWAYS("");
 #endif  /* NPP_ASYNC */
@@ -2682,21 +2488,6 @@ static bool init(int argc, char **argv)
 #endif
 
 
-#ifdef NPP_MYSQL
-
-    INF("Opening database...");
-
-    if ( !npp_open_db() )
-    {
-        ERR("npp_open_db() failed");
-        return FALSE;
-    }
-
-    ALWAYS("Database connected");
-
-#endif  /* NPP_MYSQL */
-
-
     /* custom init
        Among others, that may contain generating statics, like css and js */
 
@@ -2721,12 +2512,6 @@ static bool init(int argc, char **argv)
     }
 
     DBG("read_resources() OK");
-
-    /* fill the M_random_numbers up */
-
-    INF("Initializing random numbers...");
-
-    npp_lib_init_random_numbers();
 
     /* calculate Expires and Last-Modified header fields for static resources */
 
@@ -2760,13 +2545,13 @@ static bool init(int argc, char **argv)
 
     INF("Initializing SSL...");
 
-    if ( !init_ssl() )
+    if ( !npp_eng_init_ssl() )
     {
-        ERR("init_ssl() failed");
+        ERR("npp_eng_init_ssl() failed");
         return FALSE;
     }
 
-    DBG("init_ssl() OK");
+    DBG("npp_eng_init_ssl() OK");
 
 #endif  /* NPP_HTTPS */
 
@@ -2804,11 +2589,11 @@ static bool init(int argc, char **argv)
 
     /* read blocked IPs list --------------------------------------------- */
 
-    read_blocked_ips();
+    npp_eng_read_blocked_ips();
 
     /* read allowed IPs list --------------------------------------------- */
 
-    read_allowed_ips();
+    npp_eng_read_allowed_ips();
 
     /* ASYNC ------------------------------------------------------------- */
 
@@ -2921,6 +2706,7 @@ static bool init(int argc, char **argv)
 }
 
 
+#ifdef NPP_FD_MON_SELECT
 /* --------------------------------------------------------------------------
    Build select list
    This is on the latency critical path
@@ -2928,7 +2714,6 @@ static bool init(int argc, char **argv)
 -------------------------------------------------------------------------- */
 static void build_fd_sets()
 {
-#ifdef NPP_FD_MON_SELECT
     FD_ZERO(&M_readfds);
     FD_ZERO(&M_writefds);
 
@@ -3002,7 +2787,11 @@ static void build_fd_sets()
         }
 #endif
 
+#ifdef _WIN32
+        if ( G_connections[i].fd > (SOCKET)M_highsock )
+#else
         if ( G_connections[i].fd > M_highsock )
+#endif
             M_highsock = G_connections[i].fd;
 
         remain--;
@@ -3011,8 +2800,8 @@ static void build_fd_sets()
     if ( remain )
         DBG_T("remain should be 0 but currently %d", remain);
 #endif
-#endif  /* NPP_FD_MON_SELECT */
 }
+#endif  /* NPP_FD_MON_SELECT */
 
 
 /* --------------------------------------------------------------------------
@@ -3124,13 +2913,13 @@ static void accept_http()
 }
 
 
+#ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
    Handle a brand new connection
    we've got fd and IP here for G_connections array
 -------------------------------------------------------------------------- */
 static void accept_https()
 {
-#ifdef NPP_HTTPS
     int         i;
     int         connection;
     struct sockaddr_in cli_addr;
@@ -3276,18 +3065,18 @@ static void accept_https()
         close(connection);
 #endif  /* _WIN32 */
     }
-#endif
 }
+#endif  /* NPP_HTTPS */
 
 
 /* --------------------------------------------------------------------------
    Read list of blocked IPs from the file
 -------------------------------------------------------------------------- */
-static void read_blocked_ips()
+void npp_eng_read_blocked_ips()
 {
     char    fname[1024];
     FILE    *h_file=NULL;
-    char    c;
+    int     c=0;
     int     i=0;
     char    now_value=1;
     char    now_comment=0;
@@ -3408,7 +3197,7 @@ static bool ip_blocked(const char *addr)
 /* --------------------------------------------------------------------------
    Read whitelist from the file
 -------------------------------------------------------------------------- */
-static void read_allowed_ips()
+void npp_eng_read_allowed_ips()
 {
     char    fname[1024];
     FILE    *h_file=NULL;
@@ -3521,6 +3310,160 @@ static bool ip_allowed(const char *addr)
 
     return FALSE;
 }
+
+
+#ifndef _WIN32
+/* --------------------------------------------------------------------------
+   Compress src into dest, return dest length
+-------------------------------------------------------------------------- */
+static int deflate_data(unsigned char *dest, const unsigned char *src, unsigned src_len)
+{
+    DBG("src_len = %u", src_len);
+
+    z_stream strm={0};
+
+    if ( deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK )
+    {
+        ERR("deflateInit failed");
+        return -1;
+    }
+
+    strm.next_in = (unsigned char*)src;
+    strm.avail_in = src_len;
+    strm.next_out = dest;
+    strm.avail_out = src_len;
+
+    int ret=Z_OK;
+
+//    while ( ret == Z_OK )
+//    {
+//        strm.avail_out = strm.avail_in ? strm.next_in-strm.next_out : (dest+src_len) - strm.next_out;
+        ret = deflate(&strm, Z_FINISH);
+//    }
+
+    if ( ret != Z_STREAM_END )
+    {
+        ERR("ret != Z_STREAM_END");
+        return -1;
+    }
+
+    if ( strm.total_out > src_len )
+    {
+        ERR("strm.total_out > src_len");
+        return -1;
+    }
+
+    unsigned new_len = strm.total_out;
+
+    deflateEnd(&strm);
+
+    if ( ret != Z_STREAM_END )
+    {
+        ERR("ret != Z_STREAM_END");
+        return -1;
+    }
+
+    DBG("new_len = %u", new_len);
+
+    return new_len;
+}
+
+
+/* --------------------------------------------------------------------------
+   Straight from Mark Adler!
+
+   Compress buf[0..len-1] in place into buf[0..*max-1].  *max must be greater
+   than or equal to len.  Return Z_OK on success, Z_BUF_ERROR if *max is not
+   enough output space, Z_MEM_ERROR if there is not enough memory, or
+   Z_STREAM_ERROR if *strm is corrupted (e.g. if it wasn't initialized or if it
+   was inadvertently written over).  If Z_OK is returned, *max is set to the
+   actual size of the output.  If Z_BUF_ERROR is returned, then *max is
+   unchanged and buf[] is filled with *max bytes of uncompressed data (which is
+   not all of it, but as much as would fit).
+
+   Incompressible data will require more output space than len, so max should
+   be sufficiently greater than len to handle that case in order to avoid a
+   Z_BUF_ERROR. To assure that there is enough output space, max should be
+   greater than or equal to the result of deflateBound(strm, len).
+
+   strm is a deflate stream structure that has already been successfully
+   initialized by deflateInit() or deflateInit2().  That structure can be
+   reused across multiple calls to deflate_inplace().  This avoids unnecessary
+   memory allocations and deallocations from the repeated use of deflateInit()
+   and deflateEnd().
+-------------------------------------------------------------------------- */
+static int deflate_inplace(z_stream *strm, unsigned char *buf, unsigned len, unsigned *max)
+{
+    int ret;                    /* return code from deflate functions */
+    unsigned have;              /* number of bytes in temp[] */
+    unsigned char *hold;        /* allocated buffer to hold input data */
+    unsigned char temp[11];     /* must be large enough to hold zlib or gzip
+                                   header (if any) and one more byte -- 11
+                                   works for the worst case here, but if gzip
+                                   encoding is used and a deflateSetHeader()
+                                   call is inserted in this code after the
+                                   deflateReset(), then the 11 needs to be
+                                   increased to accomodate the resulting gzip
+                                   header size plus one */
+
+    /* initialize deflate stream and point to the input data */
+    ret = deflateReset(strm);
+    if (ret != Z_OK)
+        return ret;
+    strm->next_in = buf;
+    strm->avail_in = len;
+
+    /* kick start the process with a temporary output buffer -- this allows
+       deflate to consume a large chunk of input data in order to make room for
+       output data there */
+    if (*max < len)
+        *max = len;
+    strm->next_out = temp;
+    strm->avail_out = sizeof(temp) > *max ? *max : sizeof(temp);
+    ret = deflate(strm, Z_FINISH);
+    if (ret == Z_STREAM_ERROR)
+        return ret;
+
+    /* if we can, copy the temporary output data to the consumed portion of the
+       input buffer, and then continue to write up to the start of the consumed
+       input for as long as possible */
+    have = strm->next_out - temp;
+    if (have <= (strm->avail_in ? len - strm->avail_in : *max)) {
+        memcpy(buf, temp, have);
+        strm->next_out = buf + have;
+        have = 0;
+        while (ret == Z_OK) {
+            strm->avail_out = strm->avail_in ? strm->next_in - strm->next_out :
+                                               (buf + *max) - strm->next_out;
+            ret = deflate(strm, Z_FINISH);
+        }
+        if (ret != Z_BUF_ERROR || strm->avail_in == 0) {
+            *max = strm->next_out - buf;
+            return ret == Z_STREAM_END ? Z_OK : ret;
+        }
+    }
+    /* the output caught up with the input due to insufficiently compressible
+       data -- copy the remaining input data into an allocated buffer and
+       complete the compression from there to the now empty input buffer (this
+       will only occur for long incompressible streams, more than ~20 MB for
+       the default deflate memLevel of 8, or when *max is too small and less
+       than the length of the header plus one byte) */
+    hold = (unsigned char*)strm->zalloc(strm->opaque, strm->avail_in, 1);
+    if (hold == Z_NULL)
+        return Z_MEM_ERROR;
+    memcpy(hold, strm->next_in, strm->avail_in);
+    strm->next_in = hold;
+    if (have) {
+        memcpy(buf, temp, have);
+        strm->next_out = buf + have;
+    }
+    strm->avail_out = (buf + *max) - strm->next_out;
+    ret = deflate(strm, Z_FINISH);
+    strm->zfree(strm->opaque, hold);
+    *max = strm->next_out - buf;
+    return ret == Z_OK ? Z_BUF_ERROR : (ret == Z_STREAM_END ? Z_OK : ret);
+}
+#endif  /* _WIN32 */
 
 
 /* --------------------------------------------------------------------------
@@ -3955,12 +3898,11 @@ static bool read_files(const char *host, const char *directory, char source, boo
                 if ( NULL == (data_tmp=(char*)malloc(M_stat[i].len)) )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_stat[i].len, M_stat[i].name);
-                    fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                unsigned deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, M_stat[i].len);
+                int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, M_stat[i].len);
 
                 if ( deflated_len == -1 )
                 {
@@ -4309,7 +4251,7 @@ static void process_req(int ci)
 #ifdef NPP_ENABLE_RELOAD_CONF
                 if ( NPP_VALID_RELOAD_CONF_REQUEST )
                 {
-                    read_conf(FALSE);
+                    npp_lib_read_conf(FALSE);
                 }
                 else
 #endif  /* NPP_ENABLE_RELOAD_CONF */
@@ -4385,160 +4327,6 @@ static void process_req(int ci)
         RES_DONT_CACHE;
     }
 }
-
-
-#ifndef _WIN32
-/* --------------------------------------------------------------------------
-   Compress src into dest, return dest length
--------------------------------------------------------------------------- */
-static unsigned deflate_data(unsigned char *dest, const unsigned char *src, unsigned src_len)
-{
-    DBG("src_len = %u", src_len);
-
-    z_stream strm={0};
-
-    if ( deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK )
-    {
-        ERR("deflateInit failed");
-        return -1;
-    }
-
-    strm.next_in = (unsigned char*)src;
-    strm.avail_in = src_len;
-    strm.next_out = dest;
-    strm.avail_out = src_len;
-
-    int ret=Z_OK;
-
-//    while ( ret == Z_OK )
-//    {
-//        strm.avail_out = strm.avail_in ? strm.next_in-strm.next_out : (dest+src_len) - strm.next_out;
-        ret = deflate(&strm, Z_FINISH);
-//    }
-
-    if ( ret != Z_STREAM_END )
-    {
-        ERR("ret != Z_STREAM_END");
-        return -1;
-    }
-
-    if ( strm.total_out > src_len )
-    {
-        ERR("strm.total_out > src_len");
-        return -1;
-    }
-
-    unsigned new_len = strm.total_out;
-
-    deflateEnd(&strm);
-
-    if ( ret != Z_STREAM_END )
-    {
-        ERR("ret != Z_STREAM_END");
-        return -1;
-    }
-
-    DBG("new_len = %u", new_len);
-
-    return new_len;
-}
-
-
-/* --------------------------------------------------------------------------
-   Straight from Mark Adler!
-
-   Compress buf[0..len-1] in place into buf[0..*max-1].  *max must be greater
-   than or equal to len.  Return Z_OK on success, Z_BUF_ERROR if *max is not
-   enough output space, Z_MEM_ERROR if there is not enough memory, or
-   Z_STREAM_ERROR if *strm is corrupted (e.g. if it wasn't initialized or if it
-   was inadvertently written over).  If Z_OK is returned, *max is set to the
-   actual size of the output.  If Z_BUF_ERROR is returned, then *max is
-   unchanged and buf[] is filled with *max bytes of uncompressed data (which is
-   not all of it, but as much as would fit).
-
-   Incompressible data will require more output space than len, so max should
-   be sufficiently greater than len to handle that case in order to avoid a
-   Z_BUF_ERROR. To assure that there is enough output space, max should be
-   greater than or equal to the result of deflateBound(strm, len).
-
-   strm is a deflate stream structure that has already been successfully
-   initialized by deflateInit() or deflateInit2().  That structure can be
-   reused across multiple calls to deflate_inplace().  This avoids unnecessary
-   memory allocations and deallocations from the repeated use of deflateInit()
-   and deflateEnd().
--------------------------------------------------------------------------- */
-static int deflate_inplace(z_stream *strm, unsigned char *buf, unsigned len, unsigned *max)
-{
-    int ret;                    /* return code from deflate functions */
-    unsigned have;              /* number of bytes in temp[] */
-    unsigned char *hold;        /* allocated buffer to hold input data */
-    unsigned char temp[11];     /* must be large enough to hold zlib or gzip
-                                   header (if any) and one more byte -- 11
-                                   works for the worst case here, but if gzip
-                                   encoding is used and a deflateSetHeader()
-                                   call is inserted in this code after the
-                                   deflateReset(), then the 11 needs to be
-                                   increased to accomodate the resulting gzip
-                                   header size plus one */
-
-    /* initialize deflate stream and point to the input data */
-    ret = deflateReset(strm);
-    if (ret != Z_OK)
-        return ret;
-    strm->next_in = buf;
-    strm->avail_in = len;
-
-    /* kick start the process with a temporary output buffer -- this allows
-       deflate to consume a large chunk of input data in order to make room for
-       output data there */
-    if (*max < len)
-        *max = len;
-    strm->next_out = temp;
-    strm->avail_out = sizeof(temp) > *max ? *max : sizeof(temp);
-    ret = deflate(strm, Z_FINISH);
-    if (ret == Z_STREAM_ERROR)
-        return ret;
-
-    /* if we can, copy the temporary output data to the consumed portion of the
-       input buffer, and then continue to write up to the start of the consumed
-       input for as long as possible */
-    have = strm->next_out - temp;
-    if (have <= (strm->avail_in ? len - strm->avail_in : *max)) {
-        memcpy(buf, temp, have);
-        strm->next_out = buf + have;
-        have = 0;
-        while (ret == Z_OK) {
-            strm->avail_out = strm->avail_in ? strm->next_in - strm->next_out :
-                                               (buf + *max) - strm->next_out;
-            ret = deflate(strm, Z_FINISH);
-        }
-        if (ret != Z_BUF_ERROR || strm->avail_in == 0) {
-            *max = strm->next_out - buf;
-            return ret == Z_STREAM_END ? Z_OK : ret;
-        }
-    }
-    /* the output caught up with the input due to insufficiently compressible
-       data -- copy the remaining input data into an allocated buffer and
-       complete the compression from there to the now empty input buffer (this
-       will only occur for long incompressible streams, more than ~20 MB for
-       the default deflate memLevel of 8, or when *max is too small and less
-       than the length of the header plus one byte) */
-    hold = (unsigned char*)strm->zalloc(strm->opaque, strm->avail_in, 1);
-    if (hold == Z_NULL)
-        return Z_MEM_ERROR;
-    memcpy(hold, strm->next_in, strm->avail_in);
-    strm->next_in = hold;
-    if (have) {
-        memcpy(buf, temp, have);
-        strm->next_out = buf + have;
-    }
-    strm->avail_out = (buf + *max) - strm->next_out;
-    ret = deflate(strm, Z_FINISH);
-    strm->zfree(strm->opaque, hold);
-    *max = strm->next_out - buf;
-    return ret == Z_OK ? Z_BUF_ERROR : (ret == Z_STREAM_END ? Z_OK : ret);
-}
-#endif  /* _WIN32 */
 
 
 /* --------------------------------------------------------------------------
@@ -5357,6 +5145,43 @@ static void reset_conn(int ci, char new_state)
 }
 
 
+#ifdef NPP_BLACKLIST_AUTO_UPDATE
+/* --------------------------------------------------------------------------
+   Check the rules and block IP if matches
+   Return TRUE if blocked
+   It doesn't really change anything security-wise but just saves bandwidth
+-------------------------------------------------------------------------- */
+static bool check_block_ip(int ci, const char *rule, const char *value)
+{
+    if ( G_test ) return FALSE;    /* don't block for tests */
+
+    if ( (rule[0]=='H' && NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && isdigit(value[0])) /* Host */
+            || (rule[0]=='U' && 0==strcmp(value, "Mozilla/5.0 Jorgee"))     /* User-Agent */
+            || (rule[0]=='R' && 0==strcmp(value, "wp-login.php"))           /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "wp-config.php"))          /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "administrator"))          /* Resource */
+            || (rule[0]=='R' && 0==strncmp(value, "phpmyadmin", 10))        /* Resource */
+            || (rule[0]=='R' && 0==strncmp(value, "phpMyAdmin", 10))        /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "java.php"))               /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "logon.php"))              /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "log.php"))                /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "hell.php"))               /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "shell.php"))              /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "tty.php"))                /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, "cmd.php"))                /* Resource */
+            || (rule[0]=='R' && 0==strcmp(value, ".env"))                   /* Resource */
+            || (rule[0]=='R' && strstr(value, "setup.php")) )               /* Resource */
+    {
+        npp_eng_block_ip(G_connections[ci].ip, TRUE);
+        G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;    /* disconnect */
+        return TRUE;
+    }
+
+    return FALSE;
+}
+#endif  /* NPP_BLACKLIST_AUTO_UPDATE */
+
+
 /* --------------------------------------------------------------------------
    Parse HTTP request
    Return HTTP status code
@@ -5475,8 +5300,14 @@ static int parse_req(int ci, int len)
     i += 2;     /* skip " /" */
     int j=0;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+
     for ( i; i<hlen; ++i )   /* URI */
     {
+
+#pragma GCC diagnostic pop
+
         if ( G_connections[ci].in[i] != ' ' && G_connections[ci].in[i] != '\t' )
         {
             if ( j < NPP_MAX_URI_LEN )
@@ -5540,7 +5371,6 @@ static int parse_req(int ci, int len)
     /* -------------------------------------------------------------- */
     /* parse the rest of the header */
 
-    char flg_data=FALSE;
     char now_label=TRUE;
     char now_value=FALSE;
     char was_cr=FALSE;
@@ -5551,8 +5381,14 @@ static int parse_req(int ci, int len)
 
     j = 0;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
+
     for ( i; i<hlen; ++i )   /* next lines */
     {
+
+#pragma GCC diagnostic pop
+
         if ( !now_value && (G_connections[ci].in[i] == ' ' || G_connections[ci].in[i] == '\t') )  /* omit whitespaces */
             continue;
 
@@ -5700,51 +5536,44 @@ static int parse_req(int ci, int len)
         /* resource (REQ0) */
 
         if ( token )
-            strncpy(G_connections[ci].resource, token, NPP_MAX_RESOURCE_LEN);
+            COPY(G_connections[ci].resource, token, NPP_MAX_RESOURCE_LEN);
         else
-            strncpy(G_connections[ci].resource, uri, NPP_MAX_RESOURCE_LEN);
-
-        G_connections[ci].resource[NPP_MAX_RESOURCE_LEN] = EOS;
+            COPY(G_connections[ci].resource, uri, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 1
         /* REQ1 */
 
         if ( token && (token=strtok(NULL, slash)) )
         {
-            strncpy(G_connections[ci].req1, token, NPP_MAX_RESOURCE_LEN);
-            G_connections[ci].req1[NPP_MAX_RESOURCE_LEN] = EOS;
+            COPY(G_connections[ci].req1, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 2
             /* REQ2 */
 
-            if ( token=strtok(NULL, slash) )
+            if ( (token=strtok(NULL, slash)) )
             {
-                strncpy(G_connections[ci].req2, token, NPP_MAX_RESOURCE_LEN);
-                G_connections[ci].req2[NPP_MAX_RESOURCE_LEN] = EOS;
+                COPY(G_connections[ci].req2, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 3
                 /* REQ3 */
 
-                if ( token=strtok(NULL, slash) )
+                if ( (token=strtok(NULL, slash)) )
                 {
-                    strncpy(G_connections[ci].req3, token, NPP_MAX_RESOURCE_LEN);
-                    G_connections[ci].req3[NPP_MAX_RESOURCE_LEN] = EOS;
+                    COPY(G_connections[ci].req3, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 4
                     /* REQ4 */
 
-                    if ( token=strtok(NULL, slash) )
+                    if ( (token=strtok(NULL, slash)) )
                     {
-                        strncpy(G_connections[ci].req4, token, NPP_MAX_RESOURCE_LEN);
-                        G_connections[ci].req4[NPP_MAX_RESOURCE_LEN] = EOS;
+                        COPY(G_connections[ci].req4, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 5
                         /* REQ5 */
 
-                        if ( token=strtok(NULL, slash) )
+                        if ( (token=strtok(NULL, slash)) )
                         {
-                            strncpy(G_connections[ci].req5, token, NPP_MAX_RESOURCE_LEN);
-                            G_connections[ci].req5[NPP_MAX_RESOURCE_LEN] = EOS;
+                            COPY(G_connections[ci].req5, token, NPP_MAX_RESOURCE_LEN);
                         }
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
                     }
@@ -6032,7 +5861,7 @@ static int parse_req(int ci, int len)
 
         DDBG("Remaining request length (content) = %d", len);
 
-        if ( len > G_connections[ci].clen )
+        if ( (unsigned)len > G_connections[ci].clen )
             return 400;     /* Bad Request */
 
         /* copy so far received POST data from G_connections[ci].in to G_connections[ci].in_data */
@@ -6046,7 +5875,7 @@ static int parse_req(int ci, int len)
         memcpy(G_connections[ci].in_data, p_hend, len);
         G_connections[ci].was_read = len;    /* if POST then was_read applies to data section only! */
 
-        if ( len < G_connections[ci].clen )      /* the whole content not received yet */
+        if ( (unsigned)len < G_connections[ci].clen )      /* the whole content not received yet */
         {                               /* this is the only case when conn_state != received */
             DBG("The whole content not received yet, len=%d", len);
 
@@ -6069,6 +5898,7 @@ static int parse_req(int ci, int len)
 }
 
 
+#ifdef NPP_HTTP2
 static const uint8_t base64url_dec_table[128] =
 {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -6089,7 +5919,7 @@ static const uint8_t base64url_dec_table[128] =
 static int base64url_decode(unsigned char *dst, const char *src)
 {
     uint32_t value=0;
-    char c;
+    int c;
     int i;
     int n=0;
     unsigned char *p=dst;
@@ -6146,6 +5976,7 @@ static int base64url_decode(unsigned char *dst, const char *src)
 
     return n;
 }
+#endif  /* NPP_HTTP2 */
 
 
 /* --------------------------------------------------------------------------
@@ -6271,12 +6102,12 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 || strstr(uvalue, "SCAN")
                 || strstr(uvalue, "CRAWLER")
                 || strstr(uvalue, "SPIDER")
-                || strstr(uvalue, "SURDOTLY")
                 || strstr(uvalue, "BAIDU")
                 || strstr(uvalue, "ZGRAB")
                 || strstr(uvalue, "DOMAINSONO")
                 || strstr(uvalue, "NETCRAFT")
                 || strstr(uvalue, "CENSYS")
+                || strstr(uvalue, "SURDOTLY")
                 || 0==strncmp(uvalue, "APPENGINE", 9)
                 || 0==strncmp(uvalue, "NETSYSTEMSRESEARCH", 18)
                 || 0==strncmp(uvalue, "CURL", 4)
@@ -6351,7 +6182,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         {
             G_connections[ci].in_ctype = NPP_CONTENT_TYPE_MULTIPART;
 
-            if ( p=(char*)strstr(value, "boundary=") )
+            if ( (p=(char*)strstr(value, "boundary=")) != NULL )
             {
                 COPY(G_connections[ci].boundary, p+9, NPP_MAX_BOUNDARY_LEN);
                 DBG("boundary: [%s]", G_connections[ci].boundary);
@@ -6452,7 +6283,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         DDBG("rem = %d", rem);
 
         http2_SETTINGS_pld_t s;
-        unsigned char *p=http2_settings;
+        p = http2_settings;
         int read = 0;
 
         while ( rem >= HTTP2_SETTINGS_PAIR_LEN )
@@ -6497,43 +6328,6 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
 
     return 200;
-}
-
-
-/* --------------------------------------------------------------------------
-   Check the rules and block IP if matches
-   Return TRUE if blocked
-   It doesn't really change anything security-wise but just saves bandwidth
--------------------------------------------------------------------------- */
-static bool check_block_ip(int ci, const char *rule, const char *value)
-{
-    if ( G_test ) return FALSE;    /* don't block for tests */
-
-#ifdef NPP_BLACKLIST_AUTO_UPDATE
-    if ( (rule[0]=='H' && NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && isdigit(value[0])) /* Host */
-            || (rule[0]=='U' && 0==strcmp(value, "Mozilla/5.0 Jorgee"))     /* User-Agent */
-            || (rule[0]=='R' && 0==strcmp(value, "wp-login.php"))           /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "wp-config.php"))          /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "administrator"))          /* Resource */
-            || (rule[0]=='R' && 0==strncmp(value, "phpmyadmin", 10))        /* Resource */
-            || (rule[0]=='R' && 0==strncmp(value, "phpMyAdmin", 10))        /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "java.php"))               /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "logon.php"))              /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "log.php"))                /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "hell.php"))               /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "shell.php"))              /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "tty.php"))                /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, "cmd.php"))                /* Resource */
-            || (rule[0]=='R' && 0==strcmp(value, ".env"))                   /* Resource */
-            || (rule[0]=='R' && strstr(value, "setup.php")) )               /* Resource */
-    {
-        npp_eng_block_ip(G_connections[ci].ip, TRUE);
-        G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;    /* disconnect */
-        return TRUE;
-    }
-#endif
-
-    return FALSE;
 }
 
 
@@ -6612,8 +6406,6 @@ static void clean_up()
     libusr_luses_save_csrft();
 #endif
 
-    npp_close_db();
-
 #endif  /* NPP_MYSQL */
 
 
@@ -6685,109 +6477,7 @@ static void render_page_msg(int ci, int code)
 }
 
 
-/* --------------------------------------------------------------------------
-   Init SSL for a server
--------------------------------------------------------------------------- */
-static bool init_ssl()
-{
-#ifdef NPP_HTTPS
-    const SSL_METHOD *method;
-    /*
-       From Hynek Schlawack's blog:
-       https://hynek.me/articles/hardening-your-web-servers-ssl-ciphers
-       https://www.ssllabs.com/ssltest
-       Last update: 2019-04-08
-       Qualys says Forward Secrecy isn't enabled
-    */
-//    char ciphers[NPP_CIPHER_LIST_LEN+1]="ECDH+AESGCM:ECDH+CHACHA20:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:RSA+AESGCM:RSA+AES:!aNULL:!MD5:!DSS";
 
-    /*
-       https://www.digicert.com/ssl-support/ssl-enabling-perfect-forward-secrecy.htm
-       Last update: 2019-04-18
-    */
-    char ciphers[NPP_CIPHER_LIST_LEN+1]="EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4";
-
-    DBG("init_ssl");
-
-    /* libssl init */
-    SSL_library_init();
-    SSL_load_error_strings();
-
-    /* libcrypto init */
-    OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
-
-    G_ssl_lib_initialized = TRUE;
-
-    method = SSLv23_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
-
-    M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
-
-    if ( M_ssl_ctx == NULL )
-    {
-        ERR("SSL_CTX_new failed");
-        return FALSE;
-    }
-
-    const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
-    SSL_CTX_set_options(M_ssl_ctx, flags);
-
-    /* support ECDH using the most appropriate shared curve */
-
-    if ( SSL_CTX_set_ecdh_auto(M_ssl_ctx, 1) <= 0 )
-    {
-        ERR("SSL_CTX_set_ecdh_auto failed");
-        return FALSE;
-    }
-
-    if ( G_cipherList[0] )
-        strcpy(ciphers, G_cipherList);
-
-    ALWAYS("        Using ciphers: [%s]", ciphers);
-
-    SSL_CTX_set_cipher_list(M_ssl_ctx, ciphers);
-
-    /* set the local certificate */
-
-    ALWAYS("    Using certificate: [%s]", G_certFile);
-
-    if ( SSL_CTX_use_certificate_file(M_ssl_ctx, G_certFile, SSL_FILETYPE_PEM) <= 0 )
-    {
-        ERR("SSL_CTX_use_certificate_file failed");
-        return FALSE;
-    }
-
-    if ( G_certChainFile[0] )   /* set the chain file */
-    {
-        ALWAYS("Using cert chain file: [%s]", G_certChainFile);
-
-        if ( SSL_CTX_load_verify_locations(M_ssl_ctx, G_certChainFile, NULL) <= 0 )
-        {
-            ERR("SSL_CTX_load_verify_locations failed");
-            return FALSE;
-        }
-    }
-
-   /* set the private key from KeyFile (may be the same as CertFile) */
-
-    ALWAYS("    Using private key: [%s]", G_keyFile);
-
-    if ( SSL_CTX_use_PrivateKey_file(M_ssl_ctx, G_keyFile, SSL_FILETYPE_PEM) <= 0 )
-    {
-        ERR("SSL_CTX_use_PrivateKey_file failed");
-        return FALSE;
-    }
-
-    /* verify private key */
-
-    if ( !SSL_CTX_check_private_key(M_ssl_ctx) )
-    {
-        ERR("Private key does not match the public certificate");
-        return FALSE;
-    }
-#endif  /* NPP_HTTPS */
-    return TRUE;
-}
 
 
 
@@ -7154,8 +6844,15 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 /* --------------------------------------------------------------------------
    Set internal (generated) static resource data & size
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_add_to_static_res(const std::string& name_, const std::string& src_)
+{
+    const char *name = name_.c_str();
+    const char *src = src_.c_str();
+#else
 void npp_add_to_static_res(const char *name, const char *src)
 {
+#endif
     int i;
 
     i = first_free_stat();
@@ -7288,7 +6985,7 @@ bool npp_eng_is_uri(int ci, const char *uri)
 -------------------------------------------------------------------------- */
 void npp_eng_out_check(int ci, const char *str)
 {
-    int available = NPP_OUT_BUFSIZE - (G_connections[ci].p_content - G_connections[ci].out_data);
+    size_t available = NPP_OUT_BUFSIZE - (G_connections[ci].p_content - G_connections[ci].out_data);
 
     if ( strlen(str) < available )  /* the whole string will fit */
     {
@@ -7307,7 +7004,7 @@ void npp_eng_out_check(int ci, const char *str)
 -------------------------------------------------------------------------- */
 void npp_eng_out_check_realloc(int ci, const char *str)
 {
-    if ( strlen(str) < G_connections[ci].out_data_allocated - (G_connections[ci].p_content-G_connections[ci].out_data) )    /* the whole string will fit */
+    if ( strlen(str) < G_connections[ci].out_data_allocated - (unsigned)(G_connections[ci].p_content-G_connections[ci].out_data) )    /* the whole string will fit */
     {
         G_connections[ci].p_content = stpcpy(G_connections[ci].p_content, str);
     }

@@ -1,36 +1,25 @@
 @echo off
 
-echo Making npp_app...
-
-g++ npp_app.cpp ^
-..\lib\npp_eng_app.c ..\lib\npp_lib.c ..\lib\npp_mysql.cpp ..\lib\npp_usr.c ^
--D NPP_APP ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_app ^
--static
+rem ----------------------------------------------------------------------------
+rem Set the local compilation environment here
+rem ----------------------------------------------------------------------------
 
 
-echo Making npp_watcher...
+rem ----------------------------------------------------------------------------
+rem Set include path (might be required for OpenSSL and MySQL)
+rem Example: set CPATH=C:\usr\include;C:\usr\include\mysql
 
-gcc ..\lib\npp_watcher.c ^
-..\lib\npp_lib.c ^
--D NPP_WATCHER ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_watcher ^
--static
+rem set CPATH=
 
 
-echo Making npp_update...
+rem ----------------------------------------------------------------------------
+rem Set library path (might be required for OpenSSL and MySQL)
+rem Example: set LIBRARY_PATH=C:\usr\lib\openssl;C:\usr\lib\mysql
 
-gcc ..\lib\npp_update.c ^
-..\lib\npp_lib.c ^
--D NPP_UPDATE ^
--I . -I ..\lib ^
--lws2_32 -lpsapi ^
--s -O3 ^
--o ..\bin\npp_update ^
--static
+rem set LIBRARY_PATH=
+
+
+rem ----------------------------------------------------------------------------
+rem Call the main making script (don't change this)
+
+call ..\bin\nppmake.bat %1

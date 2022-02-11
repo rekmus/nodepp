@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -31,9 +31,9 @@
 
 #include "npp.h"
 
-#ifdef NPP_MYSQL
-
 #ifdef __cplusplus
+
+#ifdef NPP_MYSQL
 
 #include <stdexcept>
 
@@ -101,7 +101,7 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
 
     dbName_ = dbName;
 
-#ifdef DBMYSQLRECONNECT
+#ifdef NPP_MYSQL_RECONNECT
     my_bool reconnect=1;
     mysql_options(dbConn_, MYSQL_OPT_RECONNECT, &reconnect);
 #endif
@@ -45635,7 +45635,7 @@ void Cdb::setInstance(bool *slots)
     }
 
     std::cout << "setInstance error: All available instances have been used.\n";
-    std::cout << "You can increase CDB_MAX_INSTANCES in Cdb.h or reduce number of instances in your client code.\n";
+    std::cout << "You can increase CDB_MAX_INSTANCES in npp_mysql.h or reduce number of instances in your client code.\n";
     std::cout << "Current CDB_MAX_INSTANCES value is " << CDB_MAX_INSTANCES << std::endl;
 
     throw std::runtime_error("setInstance");
@@ -45789,7 +45789,6 @@ void Cdb::set_datetime(MYSQL_TIME *ts, const char *str)
 }
 
 
-#endif  /* __cplusplus */
-
 #endif  /* NPP_MYSQL */
 
+#endif  /* __cplusplus */

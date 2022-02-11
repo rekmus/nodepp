@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -1002,7 +1002,9 @@ int npp_usr_login(int ci)
     int         ret=OK;
 
     QSVAL       login;
+#ifdef NPP_USERS_BY_EMAIL
     QSVAL       email;
+#endif
     QSVAL       passwd;
     QSVAL       keep;
 
@@ -1549,8 +1551,6 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ----------------------------------------------------------------- */
 
-    int plen = strlen(passwd);
-
     if ( QS_HTML_ESCAPE("message", message) && message[0] )
         return ERR_ROBOT;
 
@@ -1873,7 +1873,6 @@ int npp_usr_save_account(int ci)
     QSVAL       uemail_new;
     QSVAL       strdelete;
     QSVAL       strdelconf;
-    QSVAL       save;
     int         plen;
     char        sql[NPP_SQLBUF];
     char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
@@ -2175,7 +2174,11 @@ static char dest[128];
     else if ( email && email[0] )
     {
         int i=0;
-        while ( email[i]!='@' && email[i] && i<100 ) dest[i++] = email[i];
+        while ( email[i]!='@' && email[i] && i<100 )
+        {
+            dest[i] = email[i];
+            ++i;
+        }
         dest[i] = EOS;
     }
     else if ( user_id )
@@ -2222,7 +2225,11 @@ static char dest[128];
                 else if ( db_email && db_email[0] )
                 {
                     int i=0;
-                    while ( db_email[i]!='@' && db_email[i] && i<100 ) dest[i++] = db_email[i];
+                    while ( db_email[i]!='@' && db_email[i] && i<100 )
+                    {
+                        dest[i] = db_email[i];
+                        ++i;
+                    }
                     dest[i] = EOS;
                 }
                 else
@@ -2245,7 +2252,6 @@ static char dest[128];
 int npp_usr_send_passwd_reset_email(int ci)
 {
     QSVAL       email;
-    QSVAL       submit;
     char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
     MYSQL_ROW   row;
@@ -2598,8 +2604,6 @@ int npp_usr_change_password(int ci)
     QSVAL       opasswd;
     QSVAL       passwd;
     QSVAL       rpasswd;
-    QSVAL       submit;
-    int         user_id;
     char        sql[NPP_SQLBUF];
     char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     MYSQL_RES   *result;
@@ -2660,8 +2664,6 @@ int npp_usr_change_password(int ci)
 
     /* new password validation */
 
-    int plen = strlen(passwd);
-
     if ( (ret=npp_usr_password_quality(passwd)) != OK )
         return ret;
     else if ( 0 != strcmp(passwd, rpasswd) )   /* passwords differ */
@@ -2697,7 +2699,6 @@ int npp_usr_reset_password(int ci)
     QSVAL       linkkey;
     QSVAL       passwd;
     QSVAL       rpasswd;
-    QSVAL       submit;
     int         user_id;
     char        sql[NPP_SQLBUF];
     char        str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
@@ -2718,8 +2719,6 @@ int npp_usr_reset_password(int ci)
     stp_right(email);
 
     /* general validation */
-
-    int plen = strlen(passwd);
 
     if ( !valid_email(email) )
         return ERR_EMAIL_FORMAT;

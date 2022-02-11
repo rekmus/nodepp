@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -78,7 +78,6 @@
 #include <sys/ipc.h>
 #include <netdb.h>
 #include <sys/shm.h>
-#include <mqueue.h>
 #endif  /* _WIN32 */
 
 #include <sys/stat.h>
@@ -101,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.3.0"
+#define NPP_VERSION                     "1.4.0"
 
 
 #ifndef FALSE
@@ -179,11 +178,20 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #include "npp_app.h"
 
 
+/* Silgy compatibility */
 
 #ifdef NPP_SILGY_COMPATIBILITY
 #include "npp_silgy.h"
 #endif
 
+
+/* C++ only */
+
+#ifdef NPP_CPP_STRINGS
+#ifndef __cplusplus
+#undef NPP_CPP_STRINGS
+#endif
+#endif
 
 
 /* socket monitoring method */
@@ -201,6 +209,13 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_FD_MON_POLL
 #endif
 #endif  /* _WIN32 */
+
+
+#ifdef __APPLE__
+#ifdef NPP_ASYNC
+#undef NPP_ASYNC
+#endif
+#endif  /* __APPLE__ */
 
 
 /* some executable types can't use or don't need certain modules */
@@ -242,6 +257,11 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifdef NPP_HTTPS
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#endif
+
+
+#ifdef NPP_ASYNC
+#include <mqueue.h>
 #endif
 
 
@@ -597,6 +617,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define AUTHENTICATED                       (SESSION.auth_level>AUTH_LEVEL_ANONYMOUS)
 #define UID                                 SESSION.user_id
 
+
 /* backward compatibility */
 
 #ifdef NPP_DEFAULT_REQUIRED_AUTH_LEVEL
@@ -613,10 +634,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define AUTH_DELETE                         0x08
 #define AUTH_FULL                           0xFF
 
-#define IS_AUTH_CREATE(flags)               ((flags & AUTH_CREATE) == AUTH_CREATE)
-#define IS_AUTH_READ(flags)                 ((flags & AUTH_READ) == AUTH_READ)
-#define IS_AUTH_UPDATE(flags)               ((flags & AUTH_UPDATE) == AUTH_UPDATE)
-#define IS_AUTH_DELETE(flags)               ((flags & AUTH_DELETE) == AUTH_DELETE)
+#define IS_AUTH_CREATE(flags)               (((flags) & AUTH_CREATE) == AUTH_CREATE)
+#define IS_AUTH_READ(flags)                 (((flags) & AUTH_READ) == AUTH_READ)
+#define IS_AUTH_UPDATE(flags)               (((flags) & AUTH_UPDATE) == AUTH_UPDATE)
+#define IS_AUTH_DELETE(flags)               (((flags) & AUTH_DELETE) == AUTH_DELETE)
 
 
 
@@ -819,6 +840,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifndef NPP_TMP_BUFSIZE
 #define NPP_TMP_BUFSIZE                     NPP_OUT_BUFSIZE /* temporary string buffer size */
 #endif
+
+#define NPP_TMP_STR_LEN                     NPP_TMP_BUFSIZE-1
 
 #ifdef NPP_SVC
 #undef NPP_MAX_CONNECTIONS
@@ -1084,6 +1107,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #endif  /* NPP_SVC */
 
+#ifdef NPP_CPP_STRINGS
+    #define OUT(str, ...)                   NPP_CPP_STRINGS_OUT(ci, str, ##__VA_ARGS__)
+#else
 #ifdef _MSC_VER /* Microsoft compiler */
     #define OUT(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), OUTSS(G_tmp))
 #else   /* GCC */
@@ -1091,6 +1117,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
     #define CHOOSE_OUT(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, NAME, ...) NAME          /* single or multiple? */
     #define OUT(...)                        CHOOSE_OUT(__VA_ARGS__, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTSS)(__VA_ARGS__)
 #endif  /* _MSC_VER */
+#endif  /* NPP_CPP_STRINGS */
 
 
 #define RES_STATUS(val)                 npp_lib_set_res_status(ci, val)
@@ -1674,6 +1701,7 @@ extern int          G_callHTTPTimeout;
 
 /* end of config params */
 
+extern FILE         *G_log_fd;
 extern bool         G_endianness;
 extern int          G_pid;                                      /* pid */
 extern char         G_appdir[256];                              /* application root dir */
@@ -1725,14 +1753,14 @@ extern MYSQL        *G_dbconn;                  /* database connection */
 #endif  /* NPP_MYSQL */
 
 /* asynchorous processing */
-#ifndef _WIN32
+#ifdef NPP_ASYNC
 extern char         G_req_queue_name[256];
 extern char         G_res_queue_name[256];
 extern mqd_t        G_queue_req;                /* request queue */
 extern mqd_t        G_queue_res;                /* response queue */
-#endif  /* _WIN32 */
 extern int          G_async_req_data_size;      /* how many bytes are left for data */
 extern int          G_async_res_data_size;      /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
 extern bool         G_index_present;            /* index.html present in res? */
@@ -1786,13 +1814,23 @@ extern "C" {
     /* public */
 
     void npp_require_auth(const char *path, char level);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_add_to_static_res(const std::string& name_, const std::string& src_);
+#else
     void npp_add_to_static_res(const char *name, const char *src);
+#endif
 
     /* public internal */
 
+#ifdef NPP_HTTPS
+    bool npp_eng_init_ssl(void);
+#endif
     int  npp_eng_session_start(int ci, const char *sessid);
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
+    void npp_eng_read_blocked_ips(void);
+    void npp_eng_read_allowed_ips(void);
     void npp_eng_block_ip(const char *value, bool autoblocked);
     bool npp_eng_is_uri(int ci, const char *uri);
     void npp_eng_out_check(int ci, const char *str);

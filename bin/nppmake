@@ -1,0 +1,239 @@
+#!/bin/sh
+
+# ------------------------------------------------------------------------------
+#
+#   MIT License
+#
+#   Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a copy
+#   of this software and associated documentation files (the "Software"), to deal
+#   in the Software without restriction, including without limitation the rights
+#   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#   copies of the Software, and to permit persons to whom the Software is
+#   furnished to do so, subject to the following conditions:
+#
+#   The above copyright notice and this permission notice shall be included in all
+#   copies or substantial portions of the Software.
+#
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#   SOFTWARE.
+#
+# ------------------------------------------------------------------------------
+#
+#   Compile/make Node++ application on Linux/Unix
+#   This is a generic script -- customize your environment in src/m
+#   nodepp.org
+#
+# ------------------------------------------------------------------------------
+
+
+NPP_VERBOSE=0
+if [ "$1" = "v" ] || [ "$1" = "V" ]
+then
+    NPP_VERBOSE=1
+fi
+
+
+# ----------------------------------------------------------------------------
+# Functions
+
+get_presence () {
+    local present=`grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
+
+    if [ "$present" = "$1" ]
+    then
+        echo 1
+    else
+        echo 0
+    fi
+}
+
+get_value () {
+    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
+}
+
+get_quoted_value () {
+    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+}
+
+
+# ----------------------------------------------------------------------------
+# Determine Node++ modules that are enabled in npp_app.h
+
+NPP_HTTPS=$(get_presence "NPP_HTTPS")
+
+NPP_MYSQL=$(get_presence "NPP_MYSQL")
+
+NPP_USERS=$(get_presence "NPP_USERS")
+
+NPP_ASYNC=$(get_presence "NPP_ASYNC")
+
+
+# ----------------------------------------------------------------------------
+# APP & SVC modules to compile
+
+NPP_M_MODULES_APP="npp_app.cpp ../lib/npp_eng_app.c ../lib/npp_lib.c"
+NPP_M_MODULES_SVC="npp_svc.cpp ../lib/npp_eng_svc.c ../lib/npp_lib.c"
+
+NPP_APP_MODULES=$(get_quoted_value "NPP_APP_MODULES")
+
+if [ ! -z "$NPP_APP_MODULES" ]
+then
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ${NPP_APP_MODULES}"
+fi
+
+NPP_SVC_MODULES_SAME=$(get_value "NPP_SVC_MODULES")
+
+if [ "$NPP_SVC_MODULES_SAME" = "NPP_APP_MODULES" ]
+then
+    NPP_SVC_MODULES=$NPP_APP_MODULES
+else
+    NPP_SVC_MODULES=$(get_quoted_value "NPP_SVC_MODULES")
+fi
+
+if [ ! -z "$NPP_SVC_MODULES" ]
+then
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ${NPP_SVC_MODULES}"
+fi
+
+if [ $NPP_MYSQL -eq 1 ]
+then
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ../lib/npp_mysql.cpp"
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ../lib/npp_mysql.cpp"
+fi
+
+if [ $NPP_USERS -eq 1 ]
+then
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ../lib/npp_usr.c"
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ../lib/npp_usr.c"
+fi
+
+if [ $NPP_VERBOSE -eq 1 ]
+then
+    echo "NPP_M_MODULES_APP=${NPP_M_MODULES_APP}"
+    echo "NPP_M_MODULES_SVC=${NPP_M_MODULES_SVC}"
+fi
+
+
+# ----------------------------------------------------------------------------
+# NPP_CPP_STRINGS
+
+NPP_CPP_STRINGS=$(get_presence "NPP_CPP_STRINGS")
+
+if [ $NPP_CPP_STRINGS -eq 1 ]
+then
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} -std=c++17"
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} -std=c++17"
+fi
+
+
+# ----------------------------------------------------------------------------
+# Include paths
+
+NPP_M_INCLUDE="-I. -I../lib"
+
+if [ $NPP_VERBOSE -eq 1 ]
+then
+    echo "NPP_M_INCLUDE=${NPP_M_INCLUDE}"
+fi
+
+
+# ----------------------------------------------------------------------------
+# System and third-party libraries
+
+NPP_M_LIBS_APP=""
+NPP_M_LIBS_SVC=""
+NPP_M_LIBS_UPDATE=""
+
+if [ $NPP_HTTPS -eq 1 ]
+then
+   NPP_M_LIBS_APP="-lssl -lcrypto"
+   NPP_M_LIBS_SVC="-lssl -lcrypto"
+   NPP_M_LIBS_UPDATE="-lssl -lcrypto"
+fi
+
+if [ $NPP_MYSQL -eq 1 ]
+then
+   NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lmysqlclient"
+   NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lmysqlclient"
+fi
+
+NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lz"
+
+if [ $NPP_VERBOSE -eq 1 ]
+then
+    echo "NPP_M_LIBS_APP=${NPP_M_LIBS_APP}"
+    echo "NPP_M_LIBS_SVC=${NPP_M_LIBS_SVC}"
+    echo "NPP_M_LIBS_UPDATE=${NPP_M_LIBS_UPDATE}"
+fi
+
+
+# ----------------------------------------------------------------------------
+# Compile
+
+NPP_APP_NAME=$(get_quoted_value "NPP_APP_NAME")
+
+if [ ! -z "$NPP_APP_NAME" ]
+then
+    echo Building ${NPP_APP_NAME}...
+else
+    echo Building application...
+fi
+
+echo Making npp_app...
+
+g++ $NPP_M_MODULES_APP \
+-D NPP_APP \
+$NPP_M_INCLUDE \
+$NPP_M_LIBS_APP \
+-O3 \
+-o ../bin/npp_app
+
+
+if [ $? -ne 0 ]   # error
+then
+    exit 1
+fi
+
+
+if [ $NPP_ASYNC -eq 1 ]
+then
+    echo Making npp_svc...
+
+    g++ $NPP_M_MODULES_SVC \
+    -D NPP_SVC \
+    $NPP_M_INCLUDE \
+    $NPP_M_LIBS_SVC \
+    -O3 \
+    -o ../bin/npp_svc
+fi
+
+
+if [ "$1" = "all" ]
+then
+    echo Making npp_watcher...
+
+    gcc ../lib/npp_watcher.c \
+    ../lib/npp_lib.c \
+    -D NPP_WATCHER \
+    $NPP_M_INCLUDE \
+    -O3 \
+    -o ../bin/npp_watcher
+
+
+    echo Making npp_update...
+
+    gcc ../lib/npp_update.c \
+    ../lib/npp_lib.c \
+    -D NPP_UPDATE \
+    $NPP_M_INCLUDE \
+    $NPP_M_LIBS_UPDATE \
+    -O3 \
+    -o ../bin/npp_update
+fi

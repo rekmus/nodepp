@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -38,7 +38,7 @@
 #define START_COMMAND       "$NPP_DIR/bin/nppstart"
 
 
-int         G_httpPort;
+int         G_httpPort=80;
 
 
 static char M_watcherStopCmd[256];
@@ -52,10 +52,12 @@ static int  M_watcherLogRestart;
 -------------------------------------------------------------------------- */
 static void restart()
 {
-    if ( M_watcherLogRestart > 0 )
+    if ( M_watcherLogRestart > G_logLevel )
     {
+        int old_level = G_logLevel;
         G_logLevel = M_watcherLogRestart;
-        npp_log_start("watcher", FALSE, FALSE);
+        if ( old_level < 1 )
+            npp_log_start("watcher", FALSE, FALSE);
     }
 
     ALWAYS_T("Restarting...");
@@ -99,33 +101,10 @@ static void restart()
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    char config[512];
-
     /* library init ------------------------------------------------------ */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(FALSE, NULL) )
         return EXIT_FAILURE;
-
-    npp_sort_messages();
-
-    G_initialized = 1;
-
-    /* read the config file or set defaults ------------------------------ */
-
-    if ( G_appdir[0] )
-    {
-        sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !npp_read_conf(config) )   /* no config file there */
-        {
-            strcpy(config, "npp.conf");
-            npp_read_conf(config);
-        }
-    }
-    else    /* no NPP_DIR -- try current dir */
-    {
-        strcpy(config, "npp.conf");
-        npp_read_conf(config);
-    }
 
     /* ------------------------------------------------------------------- */
 
@@ -134,9 +113,6 @@ int main(int argc, char *argv[])
 
     if ( !npp_read_param_int("watcherLogToStdout", &G_logToStdout) )
         G_logToStdout = 0;
-
-    if ( !npp_read_param_int("httpPort", &G_httpPort) )
-        G_httpPort = 80;
 
     if ( !npp_read_param_str("watcherStopCmd", M_watcherStopCmd) )
         strcpy(M_watcherStopCmd, STOP_COMMAND);
@@ -167,11 +143,7 @@ int main(int argc, char *argv[])
 
     CALL_HTTP_HEADER_SET("User-Agent", "Node++ Watcher Bot");
 
-    if ( CALL_HTTP(NULL, NULL, "GET", url) )
-    {
-        CALL_HTTP_DISCONNECT;
-    }
-    else    /* call unsuccessful */
+    if ( !CALL_HTTP(NULL, NULL, "GET", url) )
     {
         npp_update_time_globals();
         ERR_T("Couldn't connect");

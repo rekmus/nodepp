@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2021 Jurek Muszynski
+    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -40,12 +40,16 @@ char        G_service[NPP_SVC_NAME_LEN+1];
 int         G_error_code=OK;
 int         G_svc_si=0;
 int         G_ASYNCId=-1;
+int         G_ASYNCSvcProcesses=0;
+int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
+#ifdef NPP_ASYNC
 char        G_req_queue_name[256]="";
 char        G_res_queue_name[256]="";
 mqd_t       G_queue_req={0};                /* request queue */
 mqd_t       G_queue_res={0};                /* response queue */
 int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t); /* how many bytes are left for data */
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
+#endif  /* NPP_ASYNC */
 int         G_usersRequireActivation=0;
 async_req_t G_svc_req;
 async_res_t G_svc_res;
@@ -75,7 +79,9 @@ char        G_last_modified[32]="";         /* response header field with server
 /* locals */
 
 static char *M_pidfile;                     /* pid file name */
+#ifdef NPP_ASYNC    /* suppress warning */
 static char *M_async_shm=NULL;
+#endif  /* NPP_ASYNC */
 #ifdef NPP_OUT_CHECK_REALLOC
 static unsigned M_out_data_allocated;
 #endif
@@ -93,62 +99,10 @@ static void clean_up(void);
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
 {
-    char config[512];
-
     /* library init ------------------------------------------------------ */
 
-    if ( !npp_lib_init() )
+    if ( !npp_lib_init(FALSE, NULL) )
         return EXIT_FAILURE;
-
-    /* read the config file or set defaults ------------------------------ */
-
-    char exec_name[256];
-    npp_get_exec_name(exec_name, argv[0]);
-
-    if ( G_appdir[0] )
-    {
-        sprintf(config, "%s/bin/npp.conf", G_appdir);
-        if ( !npp_read_conf(config) )   /* no config file there */
-        {
-            strcpy(config, "npp.conf");
-            npp_read_conf(config);
-        }
-    }
-    else    /* no NPP_DIR -- try current dir */
-    {
-        strcpy(config, "npp.conf");
-        npp_read_conf(config);
-    }
-
-    /* ------------------------------------------------------------------- */
-
-    if ( !npp_read_param_int("logLevel", &G_logLevel) )
-        G_logLevel = 3;   /* info */
-
-#ifdef NPP_DEBUG
-        G_logLevel = 4;   /* debug */
-#endif
-
-    if ( !npp_read_param_int("logToStdout", &G_logToStdout) )
-        G_logToStdout = 0;
-
-    if ( !npp_read_param_int("ASYNCId", &G_ASYNCId) )
-        G_ASYNCId = -1;
-
-    if ( !npp_read_param_int("callHTTPTimeout", &G_callHTTPTimeout) )
-        G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
-
-#ifdef NPP_MYSQL
-    npp_read_param_str("dbHost", G_dbHost);
-    npp_read_param_int("dbPort", &G_dbPort);
-    npp_read_param_str("dbName", G_dbName);
-    npp_read_param_str("dbUser", G_dbUser);
-    npp_read_param_str("dbPassword", G_dbPassword);
-#endif  /* NPP_MYSQL */
-
-#ifdef NPP_USERS
-    npp_read_param_int("usersRequireActivation", &G_usersRequireActivation);
-#endif  /* NPP_USERS */
 
     /* start log --------------------------------------------------------- */
 
@@ -157,16 +111,18 @@ int main(int argc, char *argv[])
     sprintf(logprefix, "s_%d", G_pid);
 
     if ( !npp_log_start(logprefix, G_test, FALSE) )
+    {
+        npp_lib_done();
         return EXIT_FAILURE;
+    }
 
     /* pid file ---------------------------------------------------------- */
 
     if ( !(M_pidfile=npp_lib_create_pid_file(logprefix)) )
+    {
+        npp_lib_done();
         return EXIT_FAILURE;
-
-    /* fill the M_random_numbers up */
-
-    npp_lib_init_random_numbers();
+    }
 
     /* handle signals ---------------------------------------------------- */
 
@@ -190,9 +146,12 @@ int main(int argc, char *argv[])
     COPY(G_connections[0].host, NPP_APP_DOMAIN, NPP_MAX_HOST_LEN);
     COPY(G_connections[0].app_name, NPP_APP_NAME, NPP_APP_NAME_LEN);
 
+#ifdef NPP_ASYNC
+
     if ( !(G_connections[0].in_data = (char*)malloc(G_async_req_data_size)) )
     {
         ERR("malloc for G_connections[0].in_data failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -203,6 +162,7 @@ int main(int argc, char *argv[])
     if ( !(G_svc_out_data = (char*)malloc(NPP_OUT_BUFSIZE)) )
     {
         ERR("malloc for G_svc_out_data failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -210,13 +170,16 @@ int main(int argc, char *argv[])
 
 #endif  /* NPP_OUT_CHECK_REALLOC */
 
+
     /* load snippets ----------------------------------------------------- */
 
     if ( !npp_lib_read_snippets("", "snippets", TRUE, NULL) )
     {
         ERR("npp_lib_read_snippets() failed");
+        npp_lib_done();
         return EXIT_FAILURE;
     }
+
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
 
@@ -227,28 +190,12 @@ int main(int argc, char *argv[])
         if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, TRUE, NULL) )
         {
             ERR("reading %s's snippets failed", G_hosts[i].host);
+            npp_lib_done();
             return EXIT_FAILURE;
         }
     }
 
 #endif  /* NPP_MULTI_HOST */
-
-    /* open database ----------------------------------------------------- */
-
-#ifdef NPP_MYSQL
-
-    DBG("Trying npp_open_db...");
-
-    if ( !npp_open_db() )
-    {
-        ERR("npp_open_db failed");
-        clean_up();
-        return EXIT_FAILURE;
-    }
-
-    ALWAYS("Database connected");
-
-#endif  /* NPP_MYSQL */
 
 
     /* open queues ------------------------------------------------------- */
@@ -284,7 +231,7 @@ int main(int argc, char *argv[])
     if ( G_queue_req < 0 )
     {
         ERR("mq_open for req failed, errno = %d (%s)", errno, strerror(errno));
-        clean_up();
+        npp_lib_done();
         return EXIT_FAILURE;
     }
 
@@ -536,20 +483,25 @@ int main(int argc, char *argv[])
 #endif
                 /* data */
 
-                async_res_data_t resd;   /* different struct for more data */
                 unsigned data_len, chunk_num=0, data_sent;
+
 #ifdef NPP_OUT_CHECK_REALLOC
+
+                async_res_data_t resd;   /* different struct for more data */
+
                 data_len = G_svc_p_content - G_svc_out_data;
+
 #else
                 data_len = G_svc_p_content - G_svc_res.data;
 #endif
+
                 DBG("data_len = %u", data_len);
 
                 G_svc_res.chunk = ASYNC_CHUNK_FIRST;
 
                 G_async_res_data_size = NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4;
 
-                if ( data_len <= G_async_res_data_size )
+                if ( data_len <= (unsigned)G_async_res_data_size )
                 {
                     G_svc_res.len = data_len;
 #ifdef NPP_OUT_CHECK_REALLOC
@@ -590,9 +542,9 @@ int main(int argc, char *argv[])
                 {
                     resd.chunk = ++chunk_num;
 
-                    if ( data_len-data_sent <= G_async_res_data_size )   /* last chunk */
+                    if ( data_len-data_sent <= (unsigned)G_async_res_data_size )   /* last chunk */
                     {
-                        DBG("data_len-data_sent = %d, last chunk...", data_len-data_sent);
+                        DDBG("data_len-data_sent = %u, last chunk...", data_len-data_sent);
                         resd.len = data_len - data_sent;
                         resd.chunk |= ASYNC_CHUNK_LAST;
                     }
@@ -627,6 +579,8 @@ int main(int argc, char *argv[])
             npp_log_flush();
         }
     }
+
+#endif  /* NPP_ASYNC */
 
     clean_up();
 
@@ -703,7 +657,8 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
 -------------------------------------------------------------------------- */
 void npp_svc_out_check(const char *str)
 {
-    int available = G_async_res_data_size - (G_svc_p_content - G_svc_res.data);
+#ifdef NPP_ASYNC
+    size_t available = G_async_res_data_size - (G_svc_p_content - G_svc_res.data);
 
     if ( strlen(str) < available )  /* the whole string will fit */
     {
@@ -714,6 +669,7 @@ void npp_svc_out_check(const char *str)
         G_svc_p_content = stpncpy(G_svc_p_content, str, available-1);
         *G_svc_p_content = EOS;
     }
+#endif  /* NPP_ASYNC */
 }
 
 
@@ -722,7 +678,7 @@ void npp_svc_out_check(const char *str)
 -------------------------------------------------------------------------- */
 void npp_svc_out_check_realloc(const char *str)
 {
-    if ( strlen(str) < M_out_data_allocated - (G_svc_p_content - G_svc_out_data) )    /* the whole string will fit */
+    if ( strlen(str) < M_out_data_allocated - (unsigned)(G_svc_p_content-G_svc_out_data) )    /* the whole string will fit */
     {
         G_svc_p_content = stpcpy(G_svc_p_content, str);
     }
@@ -809,9 +765,7 @@ static void clean_up()
             WAR("Couldn't execute %s", command);
     }
 
-#ifdef NPP_MYSQL
-    npp_close_db();
-#endif
+#ifdef NPP_ASYNC
 
     if (G_queue_req)
     {
@@ -823,6 +777,8 @@ static void clean_up()
         mq_close(G_queue_res);
         mq_unlink(G_res_queue_name);
     }
+
+#endif  /* NPP_ASYNC */
 
     npp_lib_done();
 }

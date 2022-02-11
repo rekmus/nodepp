@@ -1,43 +1,25 @@
 #!/bin/sh
 
-
-echo Making npp_app...
-
-g++ npp_app.cpp \
-../lib/npp_eng_app.c ../lib/npp_lib.c ../lib/npp_mysql.cpp ../lib/npp_usr.c \
--D NPP_APP \
--I. -I../lib \
--lrt -lz \
--s -O3 \
--o ../bin/npp_app
+# ----------------------------------------------------------------------------
+# Set the local compilation environment here
+# ----------------------------------------------------------------------------
 
 
-echo Making npp_svc...
+# ----------------------------------------------------------------------------
+# Set include path (might be required for OpenSSL and MySQL)
+# Example: export CPATH=/usr/include/mysql
 
-g++ npp_svc.cpp \
-../lib/npp_eng_svc.c ../lib/npp_lib.c ../lib/npp_mysql.cpp ../lib/npp_usr.c \
--D NPP_SVC \
--I. -I../lib \
--lrt \
--s -O3 \
--o ../bin/npp_svc
+#export CPATH=
 
 
-echo Making npp_watcher...
+# ----------------------------------------------------------------------------
+# Set library path (might be required for OpenSSL and MySQL)
+# Example: export LIBRARY_PATH=/usr/lib64/mysql
 
-gcc ../lib/npp_watcher.c \
-../lib/npp_lib.c \
--D NPP_WATCHER \
--I. -I../lib \
--s -O3 \
--o ../bin/npp_watcher
+#export LIBRARY_PATH=
 
 
-echo Making npp_update...
+# ----------------------------------------------------------------------------
+# Call the main making script (don't change this)
 
-gcc ../lib/npp_update.c \
-../lib/npp_lib.c \
--D NPP_UPDATE \
--I. -I../lib \
--s -O3 \
--o ../bin/npp_update
+../bin/nppmake $1
