@@ -122,6 +122,18 @@ fi
 
 
 # ----------------------------------------------------------------------------
+# NPP_CPP_STRINGS
+
+NPP_CPP_STRINGS=$(get_presence "NPP_CPP_STRINGS")
+
+if [ $NPP_CPP_STRINGS -eq 1 ]
+then
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} -std=c++17"
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} -std=c++17"
+fi
+
+
+# ----------------------------------------------------------------------------
 # Include paths
 
 NPP_M_INCLUDE="-I. -I../lib"
@@ -182,6 +194,12 @@ $NPP_M_INCLUDE \
 $NPP_M_LIBS_APP \
 -O3 \
 -o ../bin/npp_app
+
+
+if [ $? -ne 0 ]   # error
+then
+    exit 1
+fi
 
 
 if [ $NPP_ASYNC -eq 1 ]

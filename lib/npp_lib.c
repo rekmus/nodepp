@@ -275,8 +275,14 @@ void npp_lib_done()
    dst_len is in bytes and excludes terminating 0
    dst_len must be > 0
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_safe_copy(char *dst, const std::string& src_, size_t dst_len)
+{
+    const char *src = src_.c_str();
+#else
 void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
+#endif
     DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
 
 #if __GNUC__ > 7
@@ -967,8 +973,14 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
 /* --------------------------------------------------------------------------
    Encode string for JSON
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_json_escape_string(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_json_escape_string(const char *src)
 {
+#endif
 static char dst[NPP_JSON_STR_LEN*2+1];
     int cnt=0;
 
@@ -1536,8 +1548,14 @@ const char *npp_lib_get_string(int ci, const char *str)
 /* --------------------------------------------------------------------------
    URI encoding
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_url_encode(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_url_encode(const char *src)
 {
+#endif
 static char     dest[NPP_LIB_STR_BUF];
     int         i, j=0;
     const char  hex[]="0123456789ABCDEF";
@@ -1638,8 +1656,14 @@ void npp_close_db()
 /* --------------------------------------------------------------------------
    Return TRUE if file exists and it's readable
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_file_exists(const std::string& fname_)
+{
+    const char *fname = fname_.c_str();
+#else
 bool npp_file_exists(const char *fname)
 {
+#endif
     FILE *f=NULL;
 
     if ( NULL != (f=fopen(fname, "r")) )
@@ -1655,8 +1679,14 @@ bool npp_file_exists(const char *fname)
 /* --------------------------------------------------------------------------
    Get the last part of path
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_get_exec_name(char *dst, const std::string& path_)
+{
+    const char *path = path_.c_str();
+#else
 void npp_get_exec_name(char *dst, const char *path)
 {
+#endif
     const char *p=path;
     const char *pd=NULL;
 
@@ -2229,7 +2259,7 @@ void npp_out_snippet_md(int ci, const char *name)
 
     if ( i != -1 )
     {
-        npp_render_md(G_tmp, G_snippets[i].data, NPP_TMP_BUFSIZE-1);
+        npp_render_md(G_tmp, G_snippets[i].data, NPP_TMP_STR_LEN);
         OUT(G_tmp);
     }
 }
@@ -2321,19 +2351,28 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 /* --------------------------------------------------------------------------
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_)
+{
+    const char *host = host_.c_str();
+    const char *res = res_.c_str();
+    const char *resmin = resmin_.c_str();
+    const char *snippets = snippets_.c_str();
+#else
 bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
 {
+#endif
 #ifdef NPP_MULTI_HOST
 
     if ( G_hosts_cnt >= NPP_MAX_HOSTS ) return FALSE;
 
     COPY(G_hosts[G_hosts_cnt].host, npp_upper(host), NPP_MAX_HOST_LEN);
 
-    if ( res )
+    if ( res && res[0] )
         COPY(G_hosts[G_hosts_cnt].res, res, 255);
-    if ( resmin )
+    if ( resmin && resmin[0] )
         COPY(G_hosts[G_hosts_cnt].resmin, resmin, 255);
-    if ( snippets )
+    if ( snippets && snippets[0] )
         COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
 
     ++G_hosts_cnt;
@@ -3456,8 +3495,15 @@ void npp_call_http_headers_reset()
 /* --------------------------------------------------------------------------
    HTTP call -- set request header value
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_call_http_header_set(const std::string& key_, const std::string& value_)
+{
+    const char *key = key_.c_str();
+    const char *value = value_.c_str();
+#else
 void npp_call_http_header_set(const char *key, const char *value)
 {
+#endif
     int i;
 
     for ( i=0; i<M_call_http_headers_cnt; ++i )
@@ -3491,8 +3537,14 @@ void npp_call_http_header_set(const char *key, const char *value)
 /* --------------------------------------------------------------------------
    HTTP call -- unset request header value
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_call_http_header_unset(const std::string& key_)
+{
+    const char *key = key_.c_str();
+#else
 void npp_call_http_header_unset(const char *key)
 {
+#endif
     int i;
 
     for ( i=0; i<M_call_http_headers_cnt; ++i )
@@ -4622,8 +4674,15 @@ static bool call_http_res_parse(char *res_header, int bytes)
 /* --------------------------------------------------------------------------
    HTTP call
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_call_http(const void *req, void *res, const std::string& method_, const std::string& url_, bool json, bool keep)
+{
+    const char *method = method_.c_str();
+    const char *url = url_.c_str();
+#else
 bool npp_call_http(const void *req, void *res, const char *method, const char *url, bool json, bool keep)
 {
+#endif
     char     host[NPP_MAX_HOST_LEN+1];
     char     port[8];
     bool     secure=FALSE;
@@ -5216,8 +5275,14 @@ struct rusage usage;
 /* --------------------------------------------------------------------------
    Filter everything but basic letters and digits off
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_filter_strict(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_filter_strict(const char *src)
 {
+#endif
 static char dst[NPP_LIB_STR_BUF];
     int     i=0, j=0;
 
@@ -5242,8 +5307,14 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Add spaces to make string to have len length
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_add_spaces(const std::string& src_, int new_len)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_add_spaces(const char *src, int new_len)
 {
+#endif
 static char dst[NPP_LIB_STR_BUF];
 
     int src_len = strlen(src);
@@ -5263,8 +5334,14 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Add leading spaces to make string to have len length
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_add_lspaces(const std::string& src_, int new_len)
+{
+    const char *src = src_.c_str();
+#else
 char *npp_add_lspaces(const char *src, int new_len)
 {
+#endif
 static char dst[NPP_LIB_STR_BUF];
 
     int src_len = strlen(src);
@@ -5286,8 +5363,14 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Extract file name from path
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_get_fname_from_path(const std::string& path_)
+{
+    const char *path = path_.c_str();
+#else
 char *npp_get_fname_from_path(const char *path)
 {
+#endif
 static char fname[256];
     char *p;
 
@@ -5319,8 +5402,14 @@ static char fname[256];
 /* --------------------------------------------------------------------------
    Get the file extension
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_get_file_ext(const std::string& fname_)
+{
+    const char *fname = fname_.c_str();
+#else
 char *npp_get_file_ext(const char *fname)
 {
+#endif
 static char ext[64];
     char *p;
 
@@ -5793,8 +5882,14 @@ void npp_lib_normalize_float(char *str)
 /* --------------------------------------------------------------------------
    SQL-escape string
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_sql_esc(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 char *npp_sql_esc(const char *str)
 {
+#endif
 static char dst[MAX_LONG_URI_VAL_LEN+1];
 
     npp_lib_escape_for_sql(dst, str, MAX_LONG_URI_VAL_LEN);
@@ -5806,8 +5901,14 @@ static char dst[MAX_LONG_URI_VAL_LEN+1];
 /* --------------------------------------------------------------------------
    HTML-escape string
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_html_esc(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 char *npp_html_esc(const char *str)
 {
+#endif
 static char dst[MAX_LONG_URI_VAL_LEN+1];
 
     npp_lib_escape_for_html(dst, str, MAX_LONG_URI_VAL_LEN);
@@ -5947,8 +6048,14 @@ void npp_lib_escape_for_html(char *dst, const char *str, int dst_len)
    ex unsan_noparse
    HTML un-escape string
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_html_unesc(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 char *npp_html_unesc(const char *str)
 {
+#endif
 static char dst[MAX_LONG_URI_VAL_LEN+1];
     int     i=0, j=0;
 
@@ -6037,8 +6144,14 @@ static char dst[MAX_LONG_URI_VAL_LEN+1];
 /* --------------------------------------------------------------------------
    Convert string to uppercase
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_upper(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 char *npp_upper(const char *str)
 {
+#endif
 static char dst[NPP_LIB_STR_BUF];
     int     i;
 
@@ -6451,8 +6564,14 @@ static char *get_json_closing_square_bracket(const char *src)
 /* --------------------------------------------------------------------------
    Convert JSON string to Node++ JSON format
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_from_string(JSON *json, const std::string& src_, size_t len, unsigned level)
+{
+    const char *src = src_.c_str();
+#else
 bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned level)
 {
+#endif
     unsigned i=0, j=0;
     char    key[NPP_JSON_KEY_LEN+1];
     char    value[NPP_JSON_STR_LEN+1];
@@ -7440,8 +7559,16 @@ void npp_get_byteorder()
 /* --------------------------------------------------------------------------
    Send an email
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_email(const std::string& to_, const std::string& subject_, const std::string& message_)
+{
+    const char *to = to_.c_str();
+    const char *subject = subject_.c_str();
+    const char *message = message_.c_str();
+#else
 bool npp_email(const char *to, const char *subject, const char *message)
 {
+#endif
     DBG("Sending email to [%s], subject [%s]", to, subject);
 
 #ifndef _WIN32
@@ -7499,8 +7626,17 @@ bool npp_email(const char *to, const char *subject, const char *message)
 /* --------------------------------------------------------------------------
    Send an email with attachement
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_email_attach(const std::string& to_, const std::string& subject_, const std::string& message_, const std::string& att_name_, const unsigned char *att_data, int att_data_len)
+{
+    const char *to = to_.c_str();
+    const char *subject = subject_.c_str();
+    const char *message = message_.c_str();
+    const char *att_name = att_name_.c_str();
+#else
 bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len)
 {
+#endif
     DBG("Sending email to [%s], subject [%s], with attachement [%s]", to, subject, att_name);
 
 #define NPP_BOUNDARY "nppbndGq7ehJxtz"
@@ -8700,18 +8836,24 @@ void npp_log_write_time(char level, const char *message, ...)
    Write looong message to a log or --
    its first (NPP_MAX_LOG_STR_LEN-50) part if it's longer
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_log_long(const std::string& message_, size_t len, const std::string& desc_)
+{
+    const char *message = message_.c_str();
+    const char *desc = desc_.c_str();
+#else
 void npp_log_long(const char *message, size_t len, const char *desc)
 {
+#endif
     if ( G_logLevel < LOG_DBG ) return;
 
     char buffer[NPP_MAX_LOG_STR_LEN+1];
 
     if ( len < NPP_MAX_LOG_STR_LEN-50 )
     {
-        strncpy(buffer, message, len);
-        buffer[len] = EOS;
+        COPY(buffer, message, len);
     }
-    else
+    else    /* need to truncate */
     {
 
 #if __GNUC__ > 7
@@ -8779,8 +8921,16 @@ void npp_log_finish()
 /* --------------------------------------------------------------------------
    Convert string
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_convert(const std::string& src_, const std::string& cp_from_, const std::string& cp_to_)
+{
+    const char *src = src_.c_str();
+    const char *cp_from = cp_from_.c_str();
+    const char *cp_to = cp_to_.c_str();
+#else
 char *npp_convert(const char *src, const char *cp_from, const char *cp_to)
 {
+#endif
 static char dst[NPP_LIB_STR_BUF];
 
     char *out_buf = dst;
@@ -9208,8 +9358,14 @@ static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 /* --------------------------------------------------------------------------
    Base64 decode
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+int npp_b64_decode(unsigned char *dst, const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
 int npp_b64_decode(unsigned char *dst, const char *src)
 {
+#endif
     unsigned int i=0, k=0, block[4];
     const char *p=src;
 
@@ -9627,13 +9783,19 @@ static char dest[256];
 /* --------------------------------------------------------------------------
    Notify admin via email
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_notify_admin(const std::string& msg_)
+{
+    const char *msg = msg_.c_str();
+#else
 void npp_notify_admin(const char *msg)
 {
+#endif
 #ifdef NPP_ADMIN_EMAIL
 
-    char tag[8];
+    char tag[16];
 
-    npp_random(tag, 7);
+    npp_random(tag, 15);
 
     char message[NPP_MAX_LOG_STR_LEN+1];
 
@@ -9647,6 +9809,7 @@ void npp_notify_admin(const char *msg)
 }
 
 #endif  /* NPP_CLIENT */
+
 
 /* ================================================================================================ */
 /* End of main process (npp_app) only part                                                          */

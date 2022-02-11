@@ -178,11 +178,20 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #include "npp_app.h"
 
 
+/* Silgy compatibility */
 
 #ifdef NPP_SILGY_COMPATIBILITY
 #include "npp_silgy.h"
 #endif
 
+
+/* C++ only */
+
+#ifdef NPP_CPP_STRINGS
+#ifndef __cplusplus
+#undef NPP_CPP_STRINGS
+#endif
+#endif
 
 
 /* socket monitoring method */
@@ -832,6 +841,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_TMP_BUFSIZE                     NPP_OUT_BUFSIZE /* temporary string buffer size */
 #endif
 
+#define NPP_TMP_STR_LEN                     NPP_TMP_BUFSIZE-1
+
 #ifdef NPP_SVC
 #undef NPP_MAX_CONNECTIONS
 #define NPP_MAX_CONNECTIONS                 1               /* G_connections, G_sessions & G_app_session_data still as arrays to keep the same macros */
@@ -1096,6 +1107,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #endif  /* NPP_SVC */
 
+#ifdef NPP_CPP_STRINGS
+    #define OUT(str, ...)                   NPP_CPP_STRINGS_OUT(ci, str, ##__VA_ARGS__)
+#else
 #ifdef _MSC_VER /* Microsoft compiler */
     #define OUT(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), OUTSS(G_tmp))
 #else   /* GCC */
@@ -1103,6 +1117,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
     #define CHOOSE_OUT(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, NAME, ...) NAME          /* single or multiple? */
     #define OUT(...)                        CHOOSE_OUT(__VA_ARGS__, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTM, OUTSS)(__VA_ARGS__)
 #endif  /* _MSC_VER */
+#endif  /* NPP_CPP_STRINGS */
 
 
 #define RES_STATUS(val)                 npp_lib_set_res_status(ci, val)
@@ -1799,7 +1814,12 @@ extern "C" {
     /* public */
 
     void npp_require_auth(const char *path, char level);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_add_to_static_res(const std::string& name_, const std::string& src_);
+#else
     void npp_add_to_static_res(const char *name, const char *src);
+#endif
 
     /* public internal */
 

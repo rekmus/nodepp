@@ -6844,8 +6844,15 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 /* --------------------------------------------------------------------------
    Set internal (generated) static resource data & size
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_add_to_static_res(const std::string& name_, const std::string& src_)
+{
+    const char *name = name_.c_str();
+    const char *src = src_.c_str();
+#else
 void npp_add_to_static_res(const char *name, const char *src)
 {
+#endif
     int i;
 
     i = first_free_stat();

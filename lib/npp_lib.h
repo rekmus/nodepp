@@ -49,7 +49,7 @@
 
 
 #if __cplusplus >= 201703L  /* C++17 and above */
-    #define NPP_CPP_STRINGS
+//    #define NPP_CPP_STRINGS
 #endif  /* C++17 or above only */
 
 
@@ -206,6 +206,9 @@
 
 #define STRMS(str)                      (G_strm = stpcpy(G_strm, str))
 
+#ifdef NPP_CPP_STRINGS
+    #define STRM(str, ...)                   NPP_CPP_STRINGS_STRM(str, ##__VA_ARGS__)
+#else
 #ifdef _MSC_VER /* Microsoft compiler */
     #define STRM(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), STRMS(G_tmp))
 #else   /* GCC */
@@ -213,6 +216,7 @@
     #define CHOOSE_STRM(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, NAME, ...) NAME          /* single or multiple? */
     #define STRM(...)                        CHOOSE_STRM(__VA_ARGS__, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMM, STRMS)(__VA_ARGS__)
 #endif  /* _MSC_VER */
+#endif  /* NPP_CPP_STRINGS */
 
 #define STRM_END                        *G_strm = EOS
 
@@ -478,6 +482,31 @@
 #endif
 
 
+/* overwrite for NPP_UPDATE */
+
+#ifdef NPP_UPDATE
+
+#undef CALL_HTTP_MAX_RESPONSE_LEN
+#define CALL_HTTP_MAX_RESPONSE_LEN          2097152
+
+#undef NPP_JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                    31
+
+#undef NPP_JSON_STR_LEN
+#define NPP_JSON_STR_LEN                    255
+
+#undef NPP_JSON_MAX_ELEMS
+#define NPP_JSON_MAX_ELEMS                  30
+
+#undef NPP_JSON_MAX_LEVELS
+#define NPP_JSON_MAX_LEVELS                 4
+
+#undef NPP_JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                    65568
+
+#endif  /* NPP_UPDATE */
+
+
 
 /* --------------------------------------------------------------------------
    structures
@@ -550,47 +579,150 @@ extern "C" {
 
     bool npp_lib_init(bool start_log, const char *log_prefix);
     void npp_lib_done(void);
+
 #ifndef NPP_CPP_STRINGS
     void npp_add_message(int code, const char *lang, const char *message, ...);
 #endif
+
     bool npp_open_db(void);
     void npp_close_db(void);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_file_exists(const std::string& fname);
+#else
     bool npp_file_exists(const char *fname);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    void npp_get_exec_name(char *dst, const std::string& path);
+#else
     void npp_get_exec_name(char *dst, const char *path);
+#endif
+
     void npp_update_time_globals(void);
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_url_encode(const std::string& src);
+#else
     char *npp_url_encode(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_filter_strict(const std::string& src);
+#else
     char *npp_filter_strict(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_add_spaces(const std::string& src, int new_len);
+#else
     char *npp_add_spaces(const char *src, int new_len);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_add_lspaces(const std::string& src, int new_len);
+#else
     char *npp_add_lspaces(const char *src, int new_len);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_get_fname_from_path(const std::string& path);
+#else
     char *npp_get_fname_from_path(const char *path);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_get_file_ext(const std::string& fname);
+#else
     char *npp_get_file_ext(const char *fname);
+#endif
+
     void date_str2rec(const char *str, date_t *rec);
     void date_rec2str(char *str, date_t *rec);
     time_t time_http2epoch(const char *str);
     time_t time_db2epoch(const char *str);
     char *time_epoch2http(time_t epoch);
     char *time_epoch2db(time_t epoch);
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_sql_esc(const std::string& str);
+#else
     char *npp_sql_esc(const char *str);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_html_esc(const std::string& str);
+#else
     char *npp_html_esc(const char *str);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_html_unesc(const std::string& str);
+#else
     char *npp_html_unesc(const char *str);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_upper(const std::string& str);
+#else
     char *npp_upper(const char *str);
+#endif
+
     double npp_elapsed(struct timespec *start);
     int  npp_get_memory(void);
     void npp_log_memory(void);
-    bool npp_read_conf(const char *file);
     bool npp_read_param_str(const char *param, char *dest);
     bool npp_read_param_int(const char *param, int *dest);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_email(const std::string& to, const std::string& subject, const std::string& message);
+#else
     bool npp_email(const char *to, const char *subject, const char *message);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_email_attach(const std::string& to, const std::string& subject, const std::string& message, const std::string& att_name, const unsigned char *att_data, int att_data_len);
+#else
     bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_convert(const std::string& src, const std::string& cp_from, const std::string& cp_to);
+#else
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
+#endif
+
     void npp_random(char *dest, size_t len);
     int  npp_b64_encode(char *dst, const unsigned char* src, size_t len);
-    int  npp_b64_decode(unsigned char *dst, const char* src);
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_b64_decode(unsigned char *dst, const std::string& src);
+#else
+    int  npp_b64_decode(unsigned char *dst, const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_json_escape_string(const std::string& src);
+#else
     char *npp_json_escape_string(const char *src);
+#endif
+
 #ifndef NPP_CLIENT  /* web app only */
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets);
+#else
     bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    void npp_notify_admin(const std::string& msg);
+#else
     void npp_notify_admin(const char *msg);
+#endif
+
     void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
+
 #endif  /* NPP_CLIENT */
 
     /* public internal */
@@ -598,23 +730,47 @@ extern "C" {
     void msleep(int msec);
     char *stp_right(char *str);
     bool strdigits(const char *src);
+    bool npp_read_conf(const char *file);
 
+#ifdef NPP_CPP_STRINGS
+    void npp_safe_copy(char *dst, const std::string& src, size_t dst_len);
+#else
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
+#endif
+
     void npp_bin2hex(char *dst, const unsigned char *src, int len);
     char *npp_today_gmt(void);
+
 #ifdef NPP_CPP_STRINGS
-    char *npp_render_md(char *dest, const std::string& src_, size_t dest_len);
+    char *npp_render_md(char *dest, const std::string& src, size_t dest_len);
 #else
     char *npp_render_md(char *dest, const char *src, size_t dest_len);
 #endif
+
     void npp_sort_messages(void);
     bool npp_is_msg_main_cat(int code, const char *cat);
     void npp_lib_add_string(const char *lang, const char *str, const char *str_lang);
     void npp_lib_setnonblocking(int sock);
     void npp_call_http_headers_reset(void);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_call_http_header_set(const std::string& key, const std::string& value);
+#else
     void npp_call_http_header_set(const char *key, const char *value);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    void npp_call_http_header_unset(const std::string& key);
+#else
     void npp_call_http_header_unset(const char *key);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_call_http(const void *req, void *res, const std::string& method, const std::string& url, bool json, bool keep);
+#else
     bool npp_call_http(const void *req, void *res, const char *method, const char *url, bool json, bool keep);
+#endif
+
     void npp_call_http_disconnect(void);
     bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
@@ -628,7 +784,13 @@ extern "C" {
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
     char *lib_json_to_string_pretty(JSON *json);
+
+#ifdef NPP_CPP_STRINGS
+    bool lib_json_from_string(JSON *json, const std::string& src, size_t len, unsigned level);
+#else
     bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned level);
+#endif
+
     bool lib_json_add_str(JSON *json, const char *name, const char *value, int i);
     bool lib_json_add_int(JSON *json, const char *name, int value, int i);
     bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i);
@@ -658,11 +820,18 @@ extern "C" {
     char *npp_lib_shm_create(unsigned bytes, int index);
     void npp_lib_shm_delete(int index);
     bool npp_log_start(const char *prefix, bool test, bool switching);
+
 #ifndef NPP_CPP_STRINGS
     void npp_log_write(char level, const char *message, ...);
     void npp_log_write_time(char level, const char *message, ...);
 #endif
-    void npp_log_long(const char *str, size_t len, const char *desc);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_log_long(const std::string& message, size_t len, const std::string& desc);
+#else
+    void npp_log_long(const char *message, size_t len, const char *desc);
+#endif
+
     void npp_log_flush(void);
     void npp_lib_log_switch_to_stdout(void);
     void npp_lib_log_switch_to_file(void);
@@ -697,8 +866,12 @@ extern "C" {
     bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days);
     void npp_lib_set_res_status(int ci, int status);
     void npp_lib_set_res_content_type(int ci, const char *str);
+
+#ifndef NPP_CPP_STRINGS
     void npp_lib_set_res_location(int ci, const char *str, ...);
     void npp_lib_set_res_content_disposition(int ci, const char *str, ...);
+#endif
+
     void npp_lib_send_msg_description(int ci, int code);
     const char *npp_lib_get_string(int ci, const char *str);
     void npp_set_tz(int ci);
@@ -720,10 +893,17 @@ extern "C" {
 #endif
 
 
+
+/* --------------------------------------------------------------------------
+   templates
+-------------------------------------------------------------------------- */
+
 #ifdef NPP_CPP_STRINGS
 
 extern "C" {
+extern char         G_tmp[NPP_TMP_BUFSIZE];
 extern bool         G_initialized;
+extern char         *G_strm;
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
 extern int          G_next_msg;
 extern int          G_logLevel;
@@ -841,6 +1021,66 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
     if ( G_initialized )
         npp_sort_messages();
 }
+
+
+/* --------------------------------------------------------------------------
+   STRM
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void NPP_CPP_STRINGS_STRM(const std::string& str, Args&& ... args)
+{
+    std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+    G_strm = stpcpy(G_strm, G_tmp);
+}
+
+
+
+#ifndef NPP_CLIENT  /* web app only */
+
+extern "C" {
+extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];
+
+void npp_eng_out_check_realloc(int ci, const char *str);
+}   /* extern "C" */
+
+
+/* --------------------------------------------------------------------------
+   OUT
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
+{
+#ifdef NPP_SVC
+    std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+    npp_svc_out_check_realloc(G_tmp);
+#else   /* NPP_APP */
+    std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+    npp_eng_out_check_realloc(ci, G_tmp);
+#endif  /* NPP_SVC */
+}
+
+
+/* --------------------------------------------------------------------------
+   Set location
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
+{
+    std::snprintf(G_connections[ci].location, NPP_MAX_URI_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+}
+
+
+/* --------------------------------------------------------------------------
+   Set response content disposition
+-------------------------------------------------------------------------- */
+template<typename... Args>
+void npp_lib_set_res_content_disposition(int ci, const std::string& str, Args&& ... args)
+{
+    std::snprintf(G_connections[ci].cdisp, NPP_CONTENT_DISP_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+}
+
+#endif  /* NPP_CLIENT */
+
 
 #endif  /* NPP_CPP_STRINGS */
 

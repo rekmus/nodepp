@@ -72,6 +72,16 @@ if %NPP_VERBOSE%==1 echo NPP_M_MODULES_APP=%NPP_M_MODULES_APP%
 
 
 rem ----------------------------------------------------------------------------
+rem NPP_CPP_STRINGS
+
+call :get_presence "NPP_CPP_STRINGS" NPP_CPP_STRINGS
+
+if %NPP_CPP_STRINGS%==1 (
+    set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% -std=c++17"
+)
+
+
+rem ----------------------------------------------------------------------------
 rem Include paths
 
 set "NPP_M_INCLUDE=-I. -I..\lib"
@@ -127,6 +137,9 @@ g++ %NPP_M_MODULES_APP% ^
 -static
 
 
+if %errorlevel% neq 0 goto :eof
+
+
 if /i "%1"=="all" (
 
     echo Making npp_watcher...
@@ -155,7 +168,7 @@ if /i "%1"=="all" (
 )
 
 
-goto:eof
+goto :eof
 
 
 rem ----------------------------------------------------------------------------
@@ -166,16 +179,16 @@ set %~2=0
 set FIRST_TOKEN="x"
 for /f %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set %~2=1
-goto:eof
+goto :eof
 
 
 :get_value
 set "%~2="
 for /f tokens^=3 %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set %~2=%%i
-goto:eof
+goto :eof
 
 
 :get_quoted_value
 set "%~2="
 for /f delims^=^"^ tokens^=2 %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set %~2=%%i
-goto:eof
+goto :eof
