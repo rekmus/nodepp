@@ -7,14 +7,14 @@
 
 # ----------------------------------------------------------------------------
 # Set include path (might be required for OpenSSL and MySQL)
-# Example: export CPATH=/usr/include;/usr/include/mysql
+# Example: export CPATH=/usr/include/mysql
 
 #export CPATH=
 
 
 # ----------------------------------------------------------------------------
 # Set library path (might be required for OpenSSL and MySQL)
-# Example: export LIBRARY_PATH=/usr/lib/openssl;/usr/lib/mysql
+# Example: export LIBRARY_PATH=/usr/lib64/mysql
 
 #export LIBRARY_PATH=
 
