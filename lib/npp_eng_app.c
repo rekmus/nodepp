@@ -627,7 +627,9 @@ int main(int argc, char **argv)
             }
 #endif  /* NPP_FD_MON_POLL */
 #endif  /* NPP_HTTPS */
+#ifndef NPP_FD_MON_EPOLL
             else    /* existing connections have something going on on them ---------------------------------- */
+#endif  /* NPP_FD_MON_EPOLL */
             {
 #ifdef NPP_FD_MON_SELECT
                 for ( i=0; sockets_ready>0 && i<NPP_MAX_CONNECTIONS; ++i )
