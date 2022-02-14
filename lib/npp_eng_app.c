@@ -294,7 +294,7 @@ int main(int argc, char **argv)
     }
 
 #ifdef NPP_FD_MON_EPOLL
-    /* init index */
+    /* init index for sorting */
     for ( i=0; i<NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS; ++i )
         M_epoll_ci[i].fd = INT_MAX;
 #endif  /* NPP_FD_MON_EPOLL */
@@ -656,7 +656,7 @@ int main(int argc, char **argv)
                     {
                         int l;
                         for ( l=0; l<M_epollfds_cnt; ++l )
-                            DBG("ci=%d, epi=%d, M_epollevs[epi].events = %d", M_epoll_ci[l], l, M_epollevs[l].events);
+                            DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[find_epoll_idx(M_epollevs[l].data.fd)].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
                         dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_DEBUG */
@@ -2284,9 +2284,9 @@ static void close_conn(int ci)
 
     M_epoll_ci[find_epoll_idx(G_connections[ci].fd)].fd = INT_MAX;
 
-    M_epollfds_cnt--;
-
     qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
+
+    M_epollfds_cnt--;
 
     struct epoll_event ev;
 
