@@ -2828,7 +2828,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
     unsigned char digest[20];
     int i, j=0;
 
-    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, src);  /* login */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, passwd);  /* login */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
@@ -2840,7 +2840,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     j = 0;
 
-    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, src);  /* email */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, passwd);  /* email */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
