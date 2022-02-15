@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 
     /* start log --------------------------------------------------------- */
 
-    if ( !npp_log_start("watcher", FALSE, FALSE) )
+    if ( G_logLevel && !npp_log_start("watcher", FALSE, FALSE) )
         return EXIT_FAILURE;
 
     /* ------------------------------------------------------------------- */
