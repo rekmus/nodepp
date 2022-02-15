@@ -64,6 +64,17 @@ get_quoted_value () {
 
 
 # ----------------------------------------------------------------------------
+# Determine the OS family
+
+NPP_OS=`grep ID_LIKE /etc/os-release | head -1 | cut -d '=' -f 2`
+
+if [ $NPP_VERBOSE -eq 1 ]
+then
+    echo "NPP_OS=${NPP_OS}"
+fi
+
+
+# ----------------------------------------------------------------------------
 # Determine Node++ modules that are enabled in npp_app.h
 
 NPP_HTTPS=$(get_presence "NPP_HTTPS")
@@ -147,7 +158,7 @@ fi
 # ----------------------------------------------------------------------------
 # System and third-party libraries
 
-if [ $NPP_ASYNC -eq 1 ] && [ -f /etc/lsb-release ]  # ASYNC on Ubuntu
+if [ $NPP_ASYNC -eq 1 ] && [ "$NPP_OS" = "debian" ]
 then
     NPP_M_LIBS_APP="-lrt"
     NPP_M_LIBS_SVC="-lrt"
