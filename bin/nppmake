@@ -147,15 +147,22 @@ fi
 # ----------------------------------------------------------------------------
 # System and third-party libraries
 
-NPP_M_LIBS_APP=""
-NPP_M_LIBS_SVC=""
+if [ $NPP_ASYNC -eq 1 ] && [ -f /etc/lsb-release ]  # ASYNC on Ubuntu
+then
+    NPP_M_LIBS_APP="-lrt"
+    NPP_M_LIBS_SVC="-lrt"
+else
+    NPP_M_LIBS_APP=""
+    NPP_M_LIBS_SVC=""
+fi
+
 NPP_M_LIBS_UPDATE=""
 
 if [ $NPP_HTTPS -eq 1 ]
 then
-   NPP_M_LIBS_APP="-lssl -lcrypto"
-   NPP_M_LIBS_SVC="-lssl -lcrypto"
-   NPP_M_LIBS_UPDATE="-lssl -lcrypto"
+   NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lssl -lcrypto"
+   NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lssl -lcrypto"
+   NPP_M_LIBS_UPDATE="${NPP_M_LIBS_UPDATE} -lssl -lcrypto"
 fi
 
 if [ $NPP_MYSQL -eq 1 ]
