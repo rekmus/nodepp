@@ -480,7 +480,8 @@ int main(int argc, char **argv)
     M_epollfds_cnt = 2;
 #endif
 
-    int epi;     /* epoll loop index */
+    int epi;        /* M_epollevs array index */
+    int epoll_idx;  /* M_epoll_ci array index */
 
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -652,7 +653,12 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_EPOLL
                 for ( epi=0; sockets_ready>0 && epi<M_epollfds_cnt; ++epi )
                 {
-                    i = M_epoll_ci[find_epoll_idx(M_epollevs[epi].data.fd)].ci;   /* find G_connections array index */
+                    epoll_idx = find_epoll_idx(M_epollevs[epi].data.fd);
+
+                    if ( epoll_idx == -1 )
+                        continue;
+                    else
+                        i = M_epoll_ci[epoll_idx].ci;
 #ifdef NPP_DEBUG
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
                     {
@@ -2248,7 +2254,11 @@ static int find_epoll_idx(int fd)
         middle = (first+last) / 2;
     }
 
-    return 0;
+    /* not found -- this should never happen! */
+
+    ERR("epoll event with non-existent fd (%d)", fd);
+
+    return -1;
 }
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -2284,7 +2294,10 @@ static void close_conn(int ci)
 
 #ifdef NPP_FD_MON_EPOLL  /* remove from monitored set */
 
-    M_epoll_ci[find_epoll_idx(G_connections[ci].fd)].fd = INT_MAX;
+    int epoll_idx = find_epoll_idx(G_connections[ci].fd);
+
+    if ( epoll_idx != -1 )
+        M_epoll_ci[epoll_idx].fd = INT_MAX;
 
     qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
 
@@ -5505,7 +5518,7 @@ static int parse_req(int ci, int len)
                 G_connections[ci].method[i] = G_connections[ci].in[i];
             else
             {
-                ERR("Method too long, ignoring");
+                WAR("Method too long, ignoring");
                 return 400;  /* Bad Request */
             }
         }
