@@ -2055,7 +2055,7 @@ static void set_state_sec(int ci, int bytes)
     /* we have no way of knowing if accept finished before reading actual request */
     if ( G_connections[ci].conn_state == CONN_STATE_ACCEPTING || G_connections[ci].conn_state == CONN_STATE_CONNECTED )   /* assume the whole header has been read */
     {
-        DDBG("Changing state to CONN_STATE_READY_FOR_PARSE");
+        DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
         G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
     else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )
@@ -2072,7 +2072,7 @@ static void set_state_sec(int ci, int bytes)
 
             /* ready for processing */
 
-            DDBG("Changing state to CONN_STATE_READY_FOR_PROCESS");
+            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
             G_connections[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
         }
     }
@@ -3084,7 +3084,7 @@ static void accept_http()
             strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
 //            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
 
-            DDBG("Changing state to CONN_STATE_CONNECTED");
+            DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", i);
             G_connections[i].conn_state = CONN_STATE_CONNECTED;
 
             G_connections[i].last_activity = G_now;
@@ -3295,7 +3295,7 @@ static void accept_https()
             strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
 //            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
 
-            DDBG("Changing state to CONN_STATE_ACCEPTING");
+            DDBG("ci=%d, changing state to CONN_STATE_ACCEPTING", i);
             G_connections[i].conn_state = CONN_STATE_ACCEPTING;
 
             G_connections[i].last_activity = G_now;
@@ -5049,7 +5049,7 @@ static              bool first=TRUE;
 
     DBG("Response status: %d", G_connections[ci].status);
 
-    DDBG("ci=%d, Changing state to CONN_STATE_READY_TO_SEND_RESPONSE", ci);
+    DDBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_RESPONSE", ci);
     G_connections[ci].conn_state = CONN_STATE_READY_TO_SEND_RESPONSE;
 
 #ifdef NPP_FD_MON_POLL
@@ -6148,7 +6148,7 @@ static int parse_req(int ci, int len)
         {                               /* this is the only case when conn_state != received */
             DBG("The whole content not received yet, len=%d", len);
 
-            DDBG("Changing state to CONN_STATE_READING_DATA");
+            DDBG("ci=%d, changing state to CONN_STATE_READING_DATA", ci);
             G_connections[ci].conn_state = CONN_STATE_READING_DATA;
 
             return ret;
@@ -7080,7 +7080,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
         {
             /* set request state */
 
-            DDBG("Changing state to CONN_STATE_WAITING_FOR_ASYNC");
+            DDBG("ci=%d, changing state to CONN_STATE_WAITING_FOR_ASYNC", ci);
             G_connections[ci].conn_state = CONN_STATE_WAITING_FOR_ASYNC;
 
 #ifdef NPP_FD_MON_POLL
