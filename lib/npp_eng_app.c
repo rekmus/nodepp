@@ -644,8 +644,10 @@ int main(int argc, char **argv)
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
                     {
                         int l;
+                        DBG_LINE;
                         for ( l=0; l<M_pollfds_cnt; ++l )
                             DBG("ci=%d, pi=%d, M_pollfds[pi].revents = %d", M_poll_ci[l], l, M_pollfds[l].revents);
+                        DBG_LINE;
                         dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_DEBUG */
@@ -663,8 +665,14 @@ int main(int argc, char **argv)
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
                     {
                         int l;
-                        for ( l=0; l<M_epollfds_cnt; ++l )
-                            DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[find_epoll_idx(M_epollevs[l].data.fd)].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                        DBG_LINE;
+                        for ( l=0; l<sockets_ready; ++l )
+                        {
+                            int dbg_epoll_idx = find_epoll_idx(M_epollevs[l].data.fd);
+                            if ( dbg_epoll_idx != -1 )
+                                DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[dbg_epoll_idx].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                        }
+                        DBG_LINE;
                         dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_DEBUG */
@@ -710,7 +718,7 @@ int main(int argc, char **argv)
                         {
                             if ( G_connections[i].conn_state != CONN_STATE_READING_DATA )
                             {
-                                DDBG("Trying SSL_read from fd=%d (ci=%d)", G_connections[i].fd, i);
+                                DDBG("ci=%d, trying SSL_read from fd=%d", i, G_connections[i].fd);
 
                                 bytes = SSL_read(G_connections[i].ssl, G_connections[i].in, NPP_IN_BUFSIZE-1);
 
@@ -733,7 +741,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", i);
-                                DBG("Trying SSL_read %u bytes of POST data from fd=%d (ci=%d)", G_connections[i].clen-G_connections[i].was_read, G_connections[i].fd, i);
+                                DBG("ci=%d, trying SSL_read %u bytes of POST data from fd=%d", i, G_connections[i].clen-G_connections[i].was_read, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_read(G_connections[i].ssl, G_connections[i].in_data+G_connections[i].was_read, G_connections[i].clen-G_connections[i].was_read);
 
@@ -755,7 +763,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_CONNECTED", i);
-                                DBG("Trying read from fd=%d (ci=%d)", G_connections[i].fd, i);
+                                DBG("ci=%d, trying read from fd=%d", i, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = recv(G_connections[i].fd, G_connections[i].in, NPP_IN_BUFSIZE-1, 0);
 
@@ -774,7 +782,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READY_FOR_CLIENT_PREFACE", i);
-                                DBG("Trying read from fd=%d (ci=%d)", G_connections[i].fd, i);
+                                DBG("ci=%d, trying read from fd=%d", i, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = recv(G_connections[i].fd, G_connections[i].in, NPP_IN_BUFSIZE-1, 0);
 
@@ -791,7 +799,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", i);
-                                DBG("Trying to read %u bytes of POST data from fd=%d (ci=%d)", G_connections[i].clen-G_connections[i].was_read, G_connections[i].fd, i);
+                                DBG("ci=%d, trying to read %u bytes of POST data from fd=%d", i, G_connections[i].clen-G_connections[i].was_read, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = recv(G_connections[i].fd, G_connections[i].in_data+G_connections[i].was_read, G_connections[i].clen-G_connections[i].was_read, 0);
 
@@ -839,7 +847,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", i);
-                                DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", G_connections[i].out_len, G_connections[i].fd, i);
+                                DBG("ci=%d, trying SSL_write %u bytes to fd=%d", i, G_connections[i].out_len, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_write(G_connections[i].ssl, G_connections[i].out_start, G_connections[i].out_len);
 
@@ -849,7 +857,7 @@ int main(int argc, char **argv)
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", i);
-                                DBG("Trying SSL_write %u bytes to fd=%d (ci=%d)", G_connections[i].out_len-G_connections[i].data_sent, G_connections[i].fd, i);
+                                DBG("ci=%d, trying SSL_write %u bytes to fd=%d", i, G_connections[i].out_len-G_connections[i].data_sent, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_write(G_connections[i].ssl, G_connections[i].out_start, G_connections[i].out_len);
 
@@ -870,7 +878,7 @@ int main(int argc, char **argv)
                                     http2_add_frame(i, HTTP2_FRAME_TYPE_SETTINGS);
 #ifdef NPP_DEBUG
                                     DBG("ci=%d, Sending SETTINGS frame", i);
-                                    DBG("Trying to write %u bytes to fd=%d (ci=%d)", G_connections[i].http2_bytes_to_send, G_connections[i].fd, i);
+                                    DBG("ci=%d, trying to write %u bytes to fd=%d", i, G_connections[i].http2_bytes_to_send, G_connections[i].fd);
 #endif  /* NPP_DEBUG */
                                     bytes = send(G_connections[i].fd, G_connections[i].http2_frame_start, G_connections[i].http2_bytes_to_send, 0);
 
@@ -888,7 +896,7 @@ int main(int argc, char **argv)
                                     else    /* HTTP/1 */
                                     {
 #endif  /* NPP_HTTP2 */
-                                        DDBG("Trying to write %u bytes to fd=%d (ci=%d)", G_connections[i].out_len, G_connections[i].fd, i);
+                                        DDBG("ci=%d, trying to write %u bytes to fd=%d", i, G_connections[i].out_len, G_connections[i].fd);
 
                                         bytes = send(G_connections[i].fd, G_connections[i].out_start, G_connections[i].out_len, 0);
 #ifdef NPP_HTTP2
@@ -912,7 +920,7 @@ int main(int argc, char **argv)
                                 else
                                 {
 #endif  /* NPP_HTTP2 */
-                                    DDBG("Trying to write %u bytes to fd=%d (ci=%d)", G_connections[i].out_len-G_connections[i].data_sent, G_connections[i].fd, i);
+                                    DDBG("ci=%d, trying to write %u bytes to fd=%d", i, G_connections[i].out_len-G_connections[i].data_sent, G_connections[i].fd);
 
                                     bytes = send(G_connections[i].fd, G_connections[i].out_start+G_connections[i].data_sent, G_connections[i].out_len-G_connections[i].data_sent, 0);
 #ifdef NPP_HTTP2
@@ -1297,7 +1305,7 @@ static bool housekeeping()
 -------------------------------------------------------------------------- */
 static void http2_check_client_preface(int ci)
 {
-    DDBG("http2_check_client_preface ci=%d", ci);
+    DDBG("ci=%d, http2_check_client_preface", ci);
 
     if ( strcmp(G_connections[ci].in, HTTP2_CLIENT_PREFACE) == 0 )
     {
@@ -1395,7 +1403,7 @@ int http2_24nbo_2_machine(const char *nbo_number)
 -------------------------------------------------------------------------- */
 static void http2_parse_frame(int ci, int bytes)
 {
-    DDBG("http2_parse_frame ci=%d, bytes=%d", ci, bytes);
+    DDBG("ci=%d, http2_parse_frame, bytes=%d", ci, bytes);
 
 //    http2_frame_hdr_t hdr;
     char hdr[HTTP2_FRAME_HDR_LEN]={0};
@@ -1436,7 +1444,7 @@ static void http2_parse_frame(int ci, int bytes)
 -------------------------------------------------------------------------- */
 static void http2_add_frame(int ci, unsigned char type)
 {
-    DDBG("http2_add_frame ci=%d, type [%s]", ci, http2_get_frame_type(type));
+    DDBG("ci=%d, http2_add_frame, type [%s]", ci, http2_get_frame_type(type));
 
     /* frame data */
     /* we're trying to avoid unnecessary copying */
@@ -1870,7 +1878,7 @@ static void http2_hdr_server(int ci)
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes)
 {
-    DDBG("set_state ci=%d, bytes=%d", ci, bytes);
+    DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
 
     if ( bytes <= 0 )
     {
@@ -2003,7 +2011,7 @@ static void set_state_sec(int ci, int bytes)
 
     char ec[256]="";
 
-    DDBG("set_state_sec ci=%d, bytes=%d", ci, bytes);
+    DDBG("ci=%d, set_state_sec, bytes=%d", ci, bytes);
 
     G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
 
@@ -2268,7 +2276,7 @@ static int find_epoll_idx(int fd)
 -------------------------------------------------------------------------- */
 static void close_conn(int ci)
 {
-    DDBG("Closing connection ci=%d, fd=%d", ci, G_connections[ci].fd);
+    DDBG("ci=%d, close_conn, fd=%d", ci, G_connections[ci].fd);
 
 #ifdef NPP_HTTPS
     if ( G_connections[ci].ssl )
@@ -4354,7 +4362,7 @@ static void process_req(int ci)
 {
     int ret=OK;
 
-    DBG("process_req, ci=%d", ci);
+    DBG("ci=%d, process_req", ci);
 
     /* ------------------------------------------------------------------------ */
 
@@ -4583,7 +4591,7 @@ static void gen_response_header(int ci)
     bool compressed=FALSE;
 #endif
 
-    DBG("gen_response_header, ci=%d", ci);
+    DBG("ci=%d, gen_response_header", ci);
 
     char out_header[NPP_OUT_HEADER_BUFSIZE];
     G_connections[ci].p_header = out_header;
@@ -5282,7 +5290,7 @@ static void reset_conn(int ci, char new_state)
 {
 #ifdef NPP_DEBUG
     if ( G_initialized )
-        DBG("Resetting connection ci=%d, fd=%d, new state == %s\n", ci, G_connections[ci].fd, new_state==CONN_STATE_CONNECTED?"CONN_STATE_CONNECTED":"CONN_STATE_DISCONNECTED");
+        DBG("ci=%d, reset_conn, fd=%d, new state == %s\n", ci, G_connections[ci].fd, new_state==CONN_STATE_CONNECTED?"CONN_STATE_CONNECTED":"CONN_STATE_DISCONNECTED");
 #endif
 
     G_connections[ci].conn_state = new_state;
@@ -5460,11 +5468,11 @@ static int parse_req(int ci, int len)
 
     -------------------------------------------- */
 
-    DBG("parse_req, ci=%d", ci);
+    DBG("ci=%d, parse_req", ci);
 
     G_connections[ci].req = ++G_cnts_today.req;    /* for reporting processing time at the end */
 
-    DBG("\n------------------------------------------------\n %s  Request %u\n------------------------------------------------\n", DT_NOW_GMT, G_connections[ci].req);
+    DBG("\n--------------------------------------------------\n %s  Request %u\n--------------------------------------------------\n", DT_NOW_GMT, G_connections[ci].req);
 
 //  if ( G_connections[ci].conn_state != STATE_SENDING ) /* ignore Range requests for now */
 //      G_connections[ci].conn_state = STATE_RECEIVED;   /* by default */
@@ -6806,9 +6814,9 @@ int npp_eng_session_start(int ci, const char *sessid)
     }
 
 #ifdef NPP_DEBUG
-    INF("Starting new session for ci=%d, si=%d, sessid [%s]", ci, G_connections[ci].si, new_sessid);
+    INF("ci=%d, starting new session, si=%d, sessid [%s]", ci, G_connections[ci].si, new_sessid);
 #else
-    INF("Starting new session for ci=%d, si=%d", ci, G_connections[ci].si);
+    INF("ci=%d, starting new session, si=%d", ci, G_connections[ci].si);
 #endif
 
     /* add record to G_sessions */

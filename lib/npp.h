@@ -122,6 +122,13 @@ typedef char                            bool;
 #endif
 
 
+#ifdef __linux__
+#define MONOTONIC_CLOCK_NAME            CLOCK_MONOTONIC_RAW
+#else
+#define MONOTONIC_CLOCK_NAME            CLOCK_MONOTONIC
+#endif
+
+
 /* these can be useful in npp_app.h */
 
 #define MAX_URI_VAL_LEN                 255             /* max value length received in URI -- sufficient for 99.99% cases */
@@ -904,14 +911,6 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #define NPP_ASYNC_IS_WANT_RESPONSE(flags)    ((flags & NPP_ASYNC_FLAG_WANT_RESPONSE) == NPP_ASYNC_FLAG_WANT_RESPONSE)
 #define NPP_ASYNC_IS_PAYLOAD_IN_SHM(flags)   ((flags & NPP_ASYNC_FLAG_PAYLOAD_IN_SHM) == NPP_ASYNC_FLAG_PAYLOAD_IN_SHM)
-
-
-
-#ifdef __linux__
-#define MONOTONIC_CLOCK_NAME                CLOCK_MONOTONIC_RAW
-#else
-#define MONOTONIC_CLOCK_NAME                CLOCK_MONOTONIC
-#endif
 
 
 #define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
