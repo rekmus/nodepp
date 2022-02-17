@@ -51,7 +51,7 @@ Default SSL settings give this result:
 ### Basic convention
 
 <div align="center">
-<img src="https://minishare.com/show?p=4xlHEJwL&i=4" width=700>
+<img src="https://minishare.com/show?p=4xlHEJwL&i=5" width=700>
 </div>
 
 If `resource` is a file present in `res` or `resmin` (i.e. an image or css), it will be served and `npp_app_main()` will not be called.
