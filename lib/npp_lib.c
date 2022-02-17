@@ -192,7 +192,7 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
     for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
         strcpy(G_snippets[i].name, "-");
 
-#endif
+#endif  /* NPP_CLIENT */
 
     /* read the config file or set defaults */
 
@@ -8258,7 +8258,9 @@ void npp_lib_read_conf(bool first)
 
     if ( !conf_read )   /* no NPP_DIR or no npp.conf in bin -- try current dir */
     {
+#ifndef NPP_WATCHER
         WAR("Couldn't read $NPP_DIR/bin/npp.conf -- trying current directory...");
+#endif
         conf_read = npp_read_conf("npp.conf");
     }
 
@@ -8270,7 +8272,11 @@ void npp_lib_read_conf(bool first)
 
         /* logLevel */
 
+#ifndef NPP_WATCHER   /* npp_watcher has its own log settings */
+#ifndef NPP_UPDATE
         npp_read_param_int("logLevel", &G_logLevel);
+#endif
+#endif
 
         /* logToStdout */
 
@@ -8507,9 +8513,12 @@ void npp_lib_read_conf(bool first)
     }
     else
     {
+#ifndef NPP_WATCHER
         WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
+#endif
     }
 
+#ifndef NPP_WATCHER
 #ifdef NPP_DEBUG
     if ( G_logLevel < 4 )
     {
@@ -8517,6 +8526,7 @@ void npp_lib_read_conf(bool first)
         DBG("logLevel changed to 4 because of NPP_DEBUG");
     }
 #endif  /* NPP_DEBUG */
+#endif  /* NPP_WATCHER */
 }
 
 

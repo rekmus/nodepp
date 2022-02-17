@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.4.0"
+#define NPP_VERSION                     "1.5.0"
 
 
 #ifndef FALSE
@@ -119,6 +119,13 @@ typedef char                            bool;
 
 #ifndef EOS
 #define EOS                             (char)0         /* End Of String */
+#endif
+
+
+#ifdef __linux__
+#define MONOTONIC_CLOCK_NAME            CLOCK_MONOTONIC_RAW
+#else
+#define MONOTONIC_CLOCK_NAME            CLOCK_MONOTONIC
 #endif
 
 
@@ -153,7 +160,6 @@ typedef char                            bool;
 #define SQLBUF                          NPP_SQLBUF
 
 
-
 /* executable types */
 
 #ifndef NPP_APP
@@ -165,12 +171,21 @@ typedef char                            bool;
 #endif
 
 
-
 /* Query String Value */
 
 typedef char                            QSVAL[NPP_QSBUF];
 typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
+
+/* socket monitoring method */
+
+#ifdef _WIN32
+#define NPP_FD_MON_SELECT   /* WSAPoll doesn't seem to be a reliable alternative */
+#elif defined __linux__
+#define NPP_FD_MON_EPOLL    /* best option */
+#else
+#define NPP_FD_MON_POLL     /* macOS & other Unixes */
+#endif
 
 
 /* application settings */
@@ -194,19 +209,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 
 
-/* socket monitoring method */
-
 #ifdef _WIN32
-#undef NPP_FD_MON_SELECT
-#undef NPP_FD_MON_POLL
-#undef NPP_FD_MON_EPOLL
-#define NPP_FD_MON_SELECT   /* WSAPoll doesn't seem to be a reliable alternative */
 #ifdef NPP_ASYNC
 #undef NPP_ASYNC
-#endif
-#else   /* Linux */
-#ifndef NPP_FD_MON_SELECT
-#define NPP_FD_MON_POLL
 #endif
 #endif  /* _WIN32 */
 
@@ -908,14 +913,6 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_ASYNC_IS_PAYLOAD_IN_SHM(flags)   ((flags & NPP_ASYNC_FLAG_PAYLOAD_IN_SHM) == NPP_ASYNC_FLAG_PAYLOAD_IN_SHM)
 
 
-
-#ifdef __linux__
-#define MONOTONIC_CLOCK_NAME                CLOCK_MONOTONIC_RAW
-#else
-#define MONOTONIC_CLOCK_NAME                CLOCK_MONOTONIC
-#endif
-
-
 #define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
 
 
@@ -1591,7 +1588,7 @@ typedef struct {
     int      static_res;                            /* static resource index in M_stat */
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
-    int      pi;                                    /* pollfds array index */
+    int      pi;                                    /* M_pollfds array index */
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];

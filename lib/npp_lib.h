@@ -1040,7 +1040,11 @@ void NPP_CPP_STRINGS_STRM(const std::string& str, Args&& ... args)
 extern "C" {
 extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];
 
+#ifdef NPP_SVC
+void npp_svc_out_check_realloc(const char *str);
+#else
 void npp_eng_out_check_realloc(int ci, const char *str);
+#endif
 }   /* extern "C" */
 
 

@@ -236,21 +236,24 @@ For other distributions see our [cheat sheets](https://nodepp.org/docs).
 1. Install GCC
 
 ```source.sh
-sudo yum install gcc-c++    # RH
-sudo apt install g++        # Ubuntu
+sudo yum install gcc-c++    # centos / RH
+
+# or
+
+sudo apt install g++        # debian / ubuntu
 ```
 
 2. Get the package
 
 ```source.sh
-wget https://nodepp.org/nodepp_1.3.0.tar.gz
+wget https://nodepp.org/nodepp_1.5.0.tar.gz
 ```
 
 3. Extract the package:
 
 ```source.sh
 mkdir npp_hello
-tar xpzf nodepp_1.3.0.tar.gz -C npp_hello
+tar xpzf nodepp_1.5.0.tar.gz -C npp_hello
 ```
 
 4. Compile:
@@ -310,6 +313,7 @@ Although not necessary, it's good to have **$NPP_DIR** set in the environment, p
 
 ### `bin`
 
+* Main compilation script: `nppmake`
 * Executables, i.e. `npp_app`, `npp_svc`, `npp_watcher`
 * Runtime scripts, i.e. `nppstart`, `nppstop`
 * Configuration: `npp.conf`

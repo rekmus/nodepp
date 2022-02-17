@@ -63,7 +63,7 @@ static int  user_exists(const char *login);
 static int  email_exists(const char *email);
 static int  do_login(int ci, eng_session_data_t *us, char status, int visits);
 static void get_hashes(char *result1, char *result2, const char *login, const char *email, const char *passwd);
-static void doit(char *result1, char *result2, const char *usr, const char *email, const char *src);
+static void doit(char *result1, char *result2, const char *usr, const char *email, const char *passwd);
 static int  get_max(int ci, const char *table);
 static bool load_common_passwd(void);
 
@@ -2820,7 +2820,7 @@ void npp_usr_logout(int ci)
 /* --------------------------------------------------------------------------
    Generate password hashes
 -------------------------------------------------------------------------- */
-static void doit(char *result1, char *result2, const char *login, const char *email, const char *src)
+static void doit(char *result1, char *result2, const char *login, const char *email, const char *passwd)
 {
 #ifdef NPP_SILGY_PASSWORDS  /* Silgy legacy */
 
@@ -2828,7 +2828,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
     unsigned char digest[20];
     int i, j=0;
 
-    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, src);  /* login */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, passwd);  /* login */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
@@ -2840,7 +2840,7 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
     j = 0;
 
-    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, src);  /* email */
+    sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, passwd);  /* email */
     SHA1((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(tmp, digest, 20);
     for ( i=0; tmp[i] != EOS; ++i )  /* drop non-alphanumeric characters */
@@ -2852,20 +2852,23 @@ static void doit(char *result1, char *result2, const char *login, const char *em
 
 #else   /* Use SHA256 */
 
+    char src[128];
     char tmp[4096];
     unsigned char digest[SHA256_DIGEST_LENGTH];
+
+    COPY(src, passwd, 127);
 
     sprintf(tmp, "%s%s%s%s", NPP_PEPPER_01, npp_upper(login), NPP_PEPPER_02, src);  /* login */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(result1, digest, SHA256_DIGEST_LENGTH);
 
-    DBG("result1 [%s]", result1);
+    DDBG("result1 [%s]", result1);
 
     sprintf(tmp, "%s%s%s%s", NPP_PEPPER_03, npp_upper(email), NPP_PEPPER_04, src);  /* email */
     SHA256((unsigned char*)tmp, strlen(tmp), digest);
     npp_b64_encode(result2, digest, SHA256_DIGEST_LENGTH);
 
-    DBG("result2 [%s]", result2);
+    DDBG("result2 [%s]", result2);
 
 #endif  /* NPP_SILGY_PASSWORDS */
 }
