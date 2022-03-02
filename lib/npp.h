@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.5.0"
+#define NPP_VERSION                     "1.6.0"
 
 
 #ifndef FALSE
@@ -803,42 +803,42 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifdef NPP_MEM_TINY
 #define NPP_IN_BUFSIZE                      4096            /* incoming request buffer length (4 kB) */
 #define NPP_OUT_BUFSIZE                     65536           /* initial HTTP response buffer length (64 kB) */
-#define NPP_MAX_CONNECTIONS                 10              /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 9               /* max TCP connections */
 #define NPP_MAX_SESSIONS                    5               /* max user sessions */
 #elif defined NPP_MEM_MEDIUM
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 200             /* max TCP connections (2 per user session) */
+#define NPP_MAX_CONNECTIONS                 199             /* max TCP connections (2 per user session) */
 #define NPP_MAX_SESSIONS                    100             /* max user sessions */
 #elif defined NPP_MEM_LARGE
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 1000            /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 999             /* max TCP connections */
 #define NPP_MAX_SESSIONS                    500             /* max user sessions */
 #elif defined NPP_MEM_XLARGE
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 5000            /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 4999            /* max TCP connections */
 #define NPP_MAX_SESSIONS                    2500            /* max user sessions */
 #elif defined NPP_MEM_XXLARGE
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 10000           /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 9999            /* max TCP connections */
 #define NPP_MAX_SESSIONS                    5000            /* max user sessions */
 #elif defined NPP_MEM_XXXLARGE
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 20000           /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 19999           /* max TCP connections */
 #define NPP_MAX_SESSIONS                    10000           /* max user sessions */
 #elif defined NPP_MEM_XXXXLARGE
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
-#define NPP_MAX_CONNECTIONS                 50000           /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 49999           /* max TCP connections */
 #define NPP_MAX_SESSIONS                    25000           /* max user sessions */
 #else   /* NPP_MEM_SMALL -- default */
 #define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
 #define NPP_OUT_BUFSIZE                     131072          /* initial HTTP response buffer length (128 kB) */
-#define NPP_MAX_CONNECTIONS                 20              /* max TCP connections */
+#define NPP_MAX_CONNECTIONS                 19              /* max TCP connections */
 #define NPP_MAX_SESSIONS                    10              /* max user sessions */
 #endif
 

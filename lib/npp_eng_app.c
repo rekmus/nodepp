@@ -208,11 +208,13 @@ static bool         M_shutdown=FALSE;
 static int          M_prev_minute;
 static int          M_prev_day;
 static time_t       M_last_housekeeping=0;
+static int          M_first_free_ci=0;
+static int          M_highest_used_ci=0;
 
 #ifdef NPP_ASYNC
 static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
 static unsigned     M_last_call_id=0;               /* counter */
-static char         *M_async_shm=NULL;
+static char         *M_async_shm=NULL;              /* shared memory address */
 #endif  /* NPP_ASYNC */
 
 
@@ -232,15 +234,12 @@ static void set_state_sec(int ci, int bytes);
 static void respond_to_expect(int ci);
 static void log_proc_time(int ci);
 static void log_request(int ci);
-static void close_conn(int ci);
+static void close_connection(int ci, bool update_first_free);
 static bool init(int argc, char **argv);
 #ifdef NPP_FD_MON_SELECT
 static void build_fd_sets(void);
 #endif
-static void accept_http();
-#ifdef NPP_HTTPS
-static void accept_https();
-#endif
+static void accept_connection(bool secure);
 static bool ip_blocked(const char *addr);
 static bool ip_allowed(const char *addr);
 static int  first_free_stat(void);
@@ -554,7 +553,7 @@ int main(int argc, char **argv)
                 ALWAYS("Resetting all connections...");
                 int k;
                 for ( k=0; k<NPP_MAX_CONNECTIONS; ++k )
-                    close_conn(k);
+                    close_connection(k, TRUE);
                 failed_select_cnt = 0;
                 ALWAYS("Waiting for 1 second...");
 #ifdef _WIN32
@@ -599,7 +598,7 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
             if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new http connection */
             {
-                accept_http();
+                accept_connection(FALSE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_SELECT */
@@ -607,7 +606,7 @@ int main(int argc, char **argv)
             if ( M_pollfds[0].revents & POLLIN )
             {
                 M_pollfds[0].revents = 0;
-                accept_http();
+                accept_connection(FALSE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_POLL */
@@ -615,7 +614,7 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
             else if ( FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new https connection */
             {
-                accept_https();
+                accept_connection(TRUE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_SELECT */
@@ -623,7 +622,7 @@ int main(int argc, char **argv)
             else if ( M_pollfds[1].revents & POLLIN )
             {
                 M_pollfds[1].revents = 0;
-                accept_https();
+                accept_connection(TRUE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_POLL */
@@ -700,14 +699,14 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_EPOLL
                         if ( M_epollevs[epi].data.fd == M_listening_fd )    /* new HTTP connection */
                         {
-                            accept_http();
+                            accept_connection(FALSE);
                             sockets_ready--;
                             continue;
                         }
 #ifdef NPP_HTTPS
                         else if ( M_epollevs[epi].data.fd == M_listening_sec_fd )   /* new HTTPS connection */
                         {
-                            accept_https();
+                            accept_connection(TRUE);
                             sockets_ready--;
                             continue;
                         }
@@ -1335,8 +1334,8 @@ static void http2_check_client_preface(int ci)
     else
     {
         WAR("Invalid HTTP/2 client preface");
-        DBG("End of processing, close_conn\n");
-        close_conn(ci);
+        DBG("End of processing, close_connection\n");
+        close_connection(ci, TRUE);
     }
 }
 
@@ -1883,7 +1882,7 @@ static void set_state(int ci, int bytes)
     if ( bytes <= 0 )
     {
         DBG("bytes = %d, errno = %d (%s), disconnecting slot %d\n", bytes, errno, strerror(errno), ci);
-        close_conn(ci);
+        close_connection(ci, TRUE);
         return;
     }
 
@@ -1932,8 +1931,8 @@ static void set_state(int ci, int bytes)
             }
             else
             {
-                DBG("End of processing, close_conn\n");
-                close_conn(ci);
+                DBG("End of processing, close_connection\n");
+                close_connection(ci, TRUE);
             }
         }
         else    /* there was a content to send */
@@ -1965,8 +1964,8 @@ static void set_state(int ci, int bytes)
                 }
                 else
                 {
-                    DBG("End of processing, close_conn\n");
-                    close_conn(ci);
+                    DBG("End of processing, close_connection\n");
+                    close_connection(ci, TRUE);
                 }
             }
         }
@@ -1993,8 +1992,8 @@ static void set_state(int ci, int bytes)
             }
             else
             {
-                DBG("End of processing, close_conn\n");
-                close_conn(ci);
+                DBG("End of processing, close_connection\n");
+                close_connection(ci, TRUE);
             }
         }
     }
@@ -2025,7 +2024,7 @@ static void set_state_sec(int ci, int bytes)
         if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
         {
             DBG("Closing connection\n");
-            close_conn(ci);
+            close_connection(ci, TRUE);
         }
 
 #ifdef NPP_FD_MON_POLL
@@ -2093,8 +2092,8 @@ static void set_state_sec(int ci, int bytes)
             }
             else
             {
-                DBG("End of processing, close_conn\n");
-                close_conn(ci);
+                DBG("End of processing, close_connection\n");
+                close_connection(ci, TRUE);
             }
         }
         else    /* there was a content to send */
@@ -2126,8 +2125,8 @@ static void set_state_sec(int ci, int bytes)
                 }
                 else
                 {
-                    DBG("End of processing, close_conn\n");
-                    close_conn(ci);
+                    DBG("End of processing, close_connection\n");
+                    close_connection(ci, TRUE);
                 }
             }
         }
@@ -2145,8 +2144,8 @@ static void set_state_sec(int ci, int bytes)
         }
         else
         {
-            DBG("End of processing, close_conn\n");
-            close_conn(ci);
+            DBG("End of processing, close_connection\n");
+            close_connection(ci, TRUE);
         }
     }
 }
@@ -2274,9 +2273,9 @@ static int find_epoll_idx(int fd)
 /* --------------------------------------------------------------------------
    Close connection
 -------------------------------------------------------------------------- */
-static void close_conn(int ci)
+static void close_connection(int ci, bool update_first_free)
 {
-    DDBG("ci=%d, close_conn, fd=%d", ci, G_connections[ci].fd);
+    DDBG("ci=%d, close_connection, fd=%d", ci, G_connections[ci].fd);
 
 #ifdef NPP_HTTPS
     if ( G_connections[ci].ssl )
@@ -2323,9 +2322,65 @@ static void close_conn(int ci)
 #else
     close(G_connections[ci].fd);
 #endif  /* _WIN32 */
+
     reset_conn(ci, CONN_STATE_DISCONNECTED);
 
     G_connections_cnt--;
+
+    if ( !update_first_free ) return;
+
+    /* update M_first_free_ci & M_highest_used_ci */
+
+    DDBG("                G_connections_cnt = %d", G_connections_cnt);
+    DDBG("M_highest_used_ci before updating = %d", M_highest_used_ci);
+
+    if ( G_connections_cnt == 0 )   /* it was the last connection */
+    {
+        DDBG("No connections, setting M_first_free_ci and M_highest_used_ci to 0");
+
+        M_first_free_ci = 0;
+
+        if ( M_highest_used_ci )
+            M_highest_used_ci = 0;
+    }
+    else if ( ci == M_highest_used_ci ) /* closing connection had the highest spot in G_connections */
+    {
+        if ( ci == 0 )
+        {
+            DDBG("Setting M_first_free_ci to 0");
+
+            M_first_free_ci = 0;
+
+            DDBG("M_highest_used_ci stays at 0");
+        }
+        else    /* loop downwards to find the highest used ci */
+        {
+            DDBG("Looping downwards starting from %d", ci-1);
+
+            int i;
+            for ( i=ci-1; i>=0; i-- )
+            {
+                if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED )
+                {
+                    M_highest_used_ci = i;
+                    DDBG("M_highest_used_ci set to %d", M_highest_used_ci);
+                    M_first_free_ci = i+1;
+                    break;
+                }
+            }
+        }
+    }
+    else    /* there are connections with higher indexes than ci */
+    {
+        DDBG("Setting M_first_free_ci to just released spot");
+
+        M_first_free_ci = ci;
+
+        DDBG("M_highest_used_ci stays where it was");
+    }
+
+    DDBG("  M_first_free_ci = %d", M_first_free_ci);
+    DDBG("M_highest_used_ci = %d", M_highest_used_ci);
 }
 
 
@@ -3007,158 +3062,49 @@ static void build_fd_sets()
     }
 #ifdef NPP_DEBUG
     if ( remain )
-        DBG_T("remain should be 0 but currently %d", remain);
+        WAR_T("remain should be 0 but currently %d", remain);
 #endif
 }
 #endif  /* NPP_FD_MON_SELECT */
 
 
 /* --------------------------------------------------------------------------
-   Handle a brand new connection
-   we've got fd and IP here for G_connections array
+   Find first free spot in G_connections
 -------------------------------------------------------------------------- */
-static void accept_http()
+static void find_first_free_ci()
 {
-    int         i;
-    int         connection;
-    struct sockaddr_in cli_addr;
-    socklen_t   addr_len;
-    char        remote_addr[INET_ADDRSTRLEN]="";
-
-    /* We have a new connection coming in! We'll
-       try to find a spot for it in G_connections array  */
-
-    addr_len = sizeof(cli_addr);
-
-    connection = accept(M_listening_fd, (struct sockaddr*)&cli_addr, &addr_len);
-
-    if ( connection < 0 )
-    {
-        ERR("accept failed, errno = %d (%s)", errno, strerror(errno));
-        return;
-    }
-
-    /* get the remote address */
-#ifdef _WIN32   /* Windows */
-    strcpy(remote_addr, inet_ntoa(cli_addr.sin_addr));
-#else
-    inet_ntop(AF_INET, &(cli_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
-#endif
-
-    if ( G_IPBlackList[0] && ip_blocked(remote_addr) )
-    {
-        ++G_cnts_today.blocked;
-#ifdef _WIN32   /* Windows */
-        closesocket(connection);
-#else
-        close(connection);
-#endif  /* _WIN32 */
-        return;
-    }
-
-    if ( G_IPWhiteList[0] && !ip_allowed(remote_addr) )
-    {
-#ifdef _WIN32   /* Windows */
-        closesocket(connection);
-#else
-        close(connection);
-#endif  /* _WIN32 */
-        return;
-    }
-
-    npp_lib_setnonblocking(connection);
-
-    /* find a free slot in G_connections */
+    int i;
 
     for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
     {
-        if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )    /* free connection slot -- we'll use it */
+        if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )
         {
-            DBG("\nConnection accepted: %s, slot=%d, fd=%d", remote_addr, i, connection);
-            G_connections[i].fd = connection;
-            G_connections[i].flags = G_connections[i].flags & ~NPP_CONN_FLAG_SECURE;
-
-            if ( ++G_connections_cnt > G_connections_hwm )
-                G_connections_hwm = G_connections_cnt;
-
-            strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
-//            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
-
-            DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", i);
-            G_connections[i].conn_state = CONN_STATE_CONNECTED;
-
-            G_connections[i].last_activity = G_now;
-
-#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
-            /* reference ... */
-            G_connections[i].pi = M_pollfds_cnt;
-            /* ... each other to avoid unnecessary looping */
-            M_poll_ci[M_pollfds_cnt] = i;
-            M_pollfds[M_pollfds_cnt].fd = connection;
-            M_pollfds[M_pollfds_cnt].events = POLLIN;
-            M_pollfds[M_pollfds_cnt].revents = 0;
-            ++M_pollfds_cnt;
-#endif  /* NPP_FD_MON_POLL */
-
-#ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
-            /* add to index */
-            M_epoll_ci[M_epollfds_cnt].fd = connection;
-            M_epoll_ci[M_epollfds_cnt].ci = i;
-
-            ++M_epollfds_cnt;
-
-            qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
-
-            struct epoll_event ev;
-
-            ev.data.fd = connection;
-            ev.events = EPOLLIN;
-            epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-
-#endif  /* NPP_FD_MON_EPOLL */
-
-            connection = -1;                        /* mark as OK */
-            break;
+            M_first_free_ci = i;
+            WAR("Sequential search through G_connections (checked %d record(s))", i);
+            return;
         }
     }
 
-    if (connection != -1)   /* none was free */
-    {
-        WAR("No room left for new client, sending 503");
+    WAR("Sequential search through G_connections (checked %d record(s)), none was free", i);
 
-        int bytes = send(connection, "HTTP/1.1 503 Service Unavailable\r\n\r\n", 36, 0);
-
-        if ( bytes < 36 )
-            ERR("write error, bytes = %d of 36", bytes);
-#ifdef _WIN32   /* Windows */
-        closesocket(connection);
-#else
-        close(connection);
-#endif  /* _WIN32 */
-    }
+    M_first_free_ci = -1;
 }
 
+
+/* --------------------------------------------------------------------------
+   Handle a new connection
+-------------------------------------------------------------------------- */
+static void accept_connection(bool secure)
+{
+    struct sockaddr_in cli_addr;
+
+    socklen_t addr_len = sizeof(cli_addr);
 
 #ifdef NPP_HTTPS
-/* --------------------------------------------------------------------------
-   Handle a brand new connection
-   we've got fd and IP here for G_connections array
--------------------------------------------------------------------------- */
-static void accept_https()
-{
-    int         i;
-    int         connection;
-    struct sockaddr_in cli_addr;
-    socklen_t   addr_len;
-    char        remote_addr[INET_ADDRSTRLEN]="";
-    int         ret;
-
-    /* We have a new connection coming in! We'll
-       try to find a spot for it in G_connections array  */
-
-    addr_len = sizeof(cli_addr);
-
-    connection = accept(M_listening_sec_fd, (struct sockaddr*)&cli_addr, &addr_len);
+    int connection = accept(secure?M_listening_sec_fd:M_listening_fd, (struct sockaddr*)&cli_addr, &addr_len);
+#else
+    int connection = accept(M_listening_fd, (struct sockaddr*)&cli_addr, &addr_len);
+#endif
 
     if ( connection < 0 )
     {
@@ -3166,12 +3112,18 @@ static void accept_https()
         return;
     }
 
+    /* -------------------------------------------- */
     /* get the remote address */
+
+    char remote_addr[INET_ADDRSTRLEN]="";
+
 #ifdef _WIN32   /* Windows */
     strcpy(remote_addr, inet_ntoa(cli_addr.sin_addr));
 #else
     inet_ntop(AF_INET, &(cli_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
 #endif
+
+    /* -------------------------------------------- */
 
     if ( G_IPBlackList[0] && ip_blocked(remote_addr) )
     {
@@ -3184,6 +3136,8 @@ static void accept_https()
         return;
     }
 
+    /* -------------------------------------------- */
+
     if ( G_IPWhiteList[0] && !ip_allowed(remote_addr) )
     {
 #ifdef _WIN32   /* Windows */
@@ -3194,132 +3148,198 @@ static void accept_https()
         return;
     }
 
+    /* -------------------------------------------- */
+
     npp_lib_setnonblocking(connection);
 
-    /* find a free slot in G_connections */
+    /* -------------------------------------------- */
 
-    for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
+    if ( M_first_free_ci == -1 )
     {
-        if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )    /* free connection slot -- we'll use it */
-        {
-            DBG("\nSecure connection accepted: %s, slot=%d, fd=%d", remote_addr, i, connection);
-            G_connections[i].fd = connection;
-            G_connections[i].flags |= NPP_CONN_FLAG_SECURE;
+        WAR("No room left for new client");
 
-            if ( ++G_connections_cnt > G_connections_hwm )
-                G_connections_hwm = G_connections_cnt;
+        /* read the request but ignore its content */
 
-#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
-            /* reference ... */
-            G_connections[i].pi = M_pollfds_cnt;
-            /* ... each other to avoid unnecessary looping */
-            M_poll_ci[M_pollfds_cnt] = i;
-            M_pollfds[M_pollfds_cnt].fd = connection;
-            M_pollfds[M_pollfds_cnt].events = POLLIN;
-            M_pollfds[M_pollfds_cnt].revents = 0;
-            ++M_pollfds_cnt;
-#endif  /* NPP_FD_MON_POLL */
+        int bytes = recv(connection, G_tmp, NPP_TMP_BUFSIZE, 0);
 
-#ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
-            /* add to index */
-            M_epoll_ci[M_epollfds_cnt].fd = connection;
-            M_epoll_ci[M_epollfds_cnt].ci = i;
+        DBG("Received %d bytes -- presumably request header", bytes);
 
-            ++M_epollfds_cnt;
+        DBG("Sending 503");
 
-            qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
+        bytes = send(connection, "HTTP/1.1 503 Service Unavailable\r\n\r\n", 36, 0);
 
-            struct epoll_event ev;
-
-            ev.data.fd = connection;
-            ev.events = EPOLLIN;
-            epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-
-#endif  /* NPP_FD_MON_EPOLL */
-
-            G_connections[i].ssl = SSL_new(M_ssl_ctx);
-
-            if ( !G_connections[i].ssl )
-            {
-                ERR("SSL_new failed");
-                close_conn(i);
-                return;
-            }
-
-            /* SSL_set_fd() sets the file descriptor fd as the input/output facility
-               for the TLS/SSL (encrypted) side of ssl. fd will typically be the socket
-               file descriptor of a network connection.
-               When performing the operation, a socket BIO is automatically created to
-               interface between the ssl and fd. The BIO and hence the SSL engine inherit
-               the behaviour of fd. If fd is non-blocking, the ssl will also have non-blocking behaviour.
-               If there was already a BIO connected to ssl, BIO_free() will be called
-               (for both the reading and writing side, if different). */
-
-            ret = SSL_set_fd(G_connections[i].ssl, connection);
-
-            if ( ret <= 0 )
-            {
-                ERR("SSL_set_fd failed, ret = %d", ret);
-                close_conn(i);
-                return;
-            }
-
-            ret = SSL_accept(G_connections[i].ssl);   /* handshake here */
-
-            if ( ret <= 0 )
-            {
-                G_connections[i].ssl_err = SSL_get_error(G_connections[i].ssl, ret);
-
-                if ( G_connections[i].ssl_err != SSL_ERROR_WANT_READ && G_connections[i].ssl_err != SSL_ERROR_WANT_WRITE )
-                {
-                    DBG("SSL_accept failed, ssl_err = %d", G_connections[i].ssl_err);
-                    close_conn(i);
-                    return;
-                }
-            }
-
-#ifdef NPP_FD_MON_POLL
-            if ( G_connections[i].ssl_err == SSL_ERROR_WANT_WRITE )
-                M_pollfds[G_connections[i].pi].events = POLLOUT;
-#endif
-#ifdef NPP_FD_MON_EPOLL
-            if ( G_connections[i].ssl_err == SSL_ERROR_WANT_WRITE )
-            {
-                struct epoll_event ev;
-
-                ev.data.fd = G_connections[i].fd;
-                ev.events = EPOLLOUT;
-                epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
-            }
-#endif
-            strcpy(G_connections[i].ip, remote_addr);        /* possibly client IP */
-//            strcpy(G_connections[i].pip, remote_addr);       /* possibly proxy IP */
-
-            DDBG("ci=%d, changing state to CONN_STATE_ACCEPTING", i);
-            G_connections[i].conn_state = CONN_STATE_ACCEPTING;
-
-            G_connections[i].last_activity = G_now;
-            connection = -1;                        /* mark as OK */
-            break;
-        }
-    }
-
-    if (connection != -1)   /* none was free */
-    {
-        WAR("No room left for new client, sending 503");
-
-        int bytes = send(connection, "HTTP/1.1 503 Service Unavailable\r\n\r\n", 36, 0);
-
-        if ( bytes < 36 )
-            ERR("write error, bytes = %d of 36", bytes);
 #ifdef _WIN32   /* Windows */
         closesocket(connection);
 #else
         close(connection);
 #endif  /* _WIN32 */
+
+        return;
     }
-}
+
+    /* -------------------------------------------- */
+
+    ++G_connections_cnt;
+
+    if ( G_connections_cnt > G_connections_hwm )
+        G_connections_hwm = G_connections_cnt;
+
+    /* -------------------------------------------- */
+
+#ifdef NPP_HTTPS
+
+    if ( secure )
+    {
+        DBG("\nSecure connection accepted: %s, ci=%d, fd=%d", remote_addr, M_first_free_ci, connection);
+        G_connections[M_first_free_ci].fd = connection;
+        G_connections[M_first_free_ci].flags |= NPP_CONN_FLAG_SECURE;
+
+#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
+        /* reference ... */
+        G_connections[M_first_free_ci].pi = M_pollfds_cnt;
+        /* ... each other to avoid unnecessary looping */
+        M_poll_ci[M_pollfds_cnt] = M_first_free_ci;
+        M_pollfds[M_pollfds_cnt].fd = connection;
+        M_pollfds[M_pollfds_cnt].events = POLLIN;
+        M_pollfds[M_pollfds_cnt].revents = 0;
+        ++M_pollfds_cnt;
+#endif  /* NPP_FD_MON_POLL */
+
+#ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
+        /* add to index */
+        M_epoll_ci[M_epollfds_cnt].fd = connection;
+        M_epoll_ci[M_epollfds_cnt].ci = M_first_free_ci;
+
+        ++M_epollfds_cnt;
+
+        qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
+
+        struct epoll_event ev;
+
+        ev.data.fd = connection;
+        ev.events = EPOLLIN;
+        epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+#endif  /* NPP_FD_MON_EPOLL */
+
+        G_connections[M_first_free_ci].ssl = SSL_new(M_ssl_ctx);
+
+        if ( !G_connections[M_first_free_ci].ssl )
+        {
+            ERR("SSL_new failed");
+            close_connection(M_first_free_ci, FALSE);
+            return;
+        }
+
+        /* SSL_set_fd() sets the file descriptor fd as the input/output facility
+           for the TLS/SSL (encrypted) side of ssl. fd will typically be the socket
+           file descriptor of a network connection.
+           When performing the operation, a socket BIO is automatically created to
+           interface between the ssl and fd. The BIO and hence the SSL engine inherit
+           the behaviour of fd. If fd is non-blocking, the ssl will also have non-blocking behaviour.
+           If there was already a BIO connected to ssl, BIO_free() will be called
+           (for both the reading and writing side, if different). */
+
+        int ret = SSL_set_fd(G_connections[M_first_free_ci].ssl, connection);
+
+        if ( ret <= 0 )
+        {
+            ERR("SSL_set_fd failed, ret = %d", ret);
+            close_connection(M_first_free_ci, FALSE);
+            return;
+        }
+
+        ret = SSL_accept(G_connections[M_first_free_ci].ssl);   /* handshake here */
+
+        if ( ret <= 0 )
+        {
+            G_connections[M_first_free_ci].ssl_err = SSL_get_error(G_connections[M_first_free_ci].ssl, ret);
+
+            if ( G_connections[M_first_free_ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[M_first_free_ci].ssl_err != SSL_ERROR_WANT_WRITE )
+            {
+                DBG("SSL_accept failed, ssl_err = %d", G_connections[M_first_free_ci].ssl_err);
+                close_connection(M_first_free_ci, FALSE);
+                return;
+            }
+        }
+
+#ifdef NPP_FD_MON_POLL
+        if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )
+            M_pollfds[G_connections[M_first_free_ci].pi].events = POLLOUT;
+#endif
+
+#ifdef NPP_FD_MON_EPOLL
+        if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )
+        {
+            struct epoll_event ev;
+
+            ev.data.fd = G_connections[M_first_free_ci].fd;
+            ev.events = EPOLLOUT;
+            epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
+        }
+#endif
+
+        DDBG("ci=%d, changing state to CONN_STATE_ACCEPTING", M_first_free_ci);
+        G_connections[M_first_free_ci].conn_state = CONN_STATE_ACCEPTING;
+    }
+    else    /* plain http */
 #endif  /* NPP_HTTPS */
+    {
+        DBG("\nConnection accepted: %s, ci=%d, fd=%d", remote_addr, M_first_free_ci, connection);
+        G_connections[M_first_free_ci].fd = connection;
+        G_connections[M_first_free_ci].flags = G_connections[M_first_free_ci].flags & ~NPP_CONN_FLAG_SECURE;
+
+        DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
+        G_connections[M_first_free_ci].conn_state = CONN_STATE_CONNECTED;
+
+#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
+        /* reference ... */
+        G_connections[M_first_free_ci].pi = M_pollfds_cnt;
+        /* ... each other to avoid unnecessary looping */
+        M_poll_ci[M_pollfds_cnt] = M_first_free_ci;
+        M_pollfds[M_pollfds_cnt].fd = connection;
+        M_pollfds[M_pollfds_cnt].events = POLLIN;
+        M_pollfds[M_pollfds_cnt].revents = 0;
+        ++M_pollfds_cnt;
+#endif  /* NPP_FD_MON_POLL */
+
+#ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
+        /* add to index */
+        M_epoll_ci[M_epollfds_cnt].fd = connection;
+        M_epoll_ci[M_epollfds_cnt].ci = M_first_free_ci;
+
+        ++M_epollfds_cnt;
+
+        qsort(&M_epoll_ci, M_epollfds_cnt, sizeof(epoll_idx_t), compare_epoll_idx);
+
+        struct epoll_event ev;
+
+        ev.data.fd = connection;
+        ev.events = EPOLLIN;
+        epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+#endif  /* NPP_FD_MON_EPOLL */
+    }
+
+    /* -------------------------------------------- */
+
+    strcpy(G_connections[M_first_free_ci].ip, remote_addr);
+
+    /* -------------------------------------------- */
+
+    if ( M_first_free_ci > M_highest_used_ci )
+        M_highest_used_ci = M_first_free_ci;
+
+    /* -------------------------------------------- */
+    /* update M_first_free_ci */
+
+    if ( M_highest_used_ci < NPP_MAX_CONNECTIONS-1 )
+        M_first_free_ci = M_highest_used_ci + 1;
+    else
+        find_first_free_ci();
+
+    /* -------------------------------------------- */
+
+    G_connections[M_first_free_ci].last_activity = G_now;
+}
 
 
 /* --------------------------------------------------------------------------
@@ -5226,7 +5246,7 @@ static void close_old_conn()
         if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED && G_connections[i].last_activity < last_allowed )
         {
             DBG("Closing timeouted connection %d", i);
-            close_conn(i);
+            close_connection(i, TRUE);
         }
     }
 }
