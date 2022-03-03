@@ -2584,6 +2584,10 @@ static bool init(int argc, char **argv)
     ALWAYS("                   Memory model = NPP_MEM_XXXLARGE");
 #elif defined NPP_MEM_XXXXLARGE
     ALWAYS("                   Memory model = NPP_MEM_XXXXLARGE");
+#elif defined NPP_MEM_XXXXXLARGE
+    ALWAYS("                   Memory model = NPP_MEM_XXXXXLARGE");
+#elif defined NPP_MEM_XXXXXXLARGE
+    ALWAYS("                   Memory model = NPP_MEM_XXXXXXLARGE");
 #else   /* NPP_MEM_SMALL -- default */
     ALWAYS("                   Memory model = NPP_MEM_SMALL");
 #endif
