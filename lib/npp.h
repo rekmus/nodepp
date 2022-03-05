@@ -177,20 +177,32 @@ typedef char                            QSVAL[NPP_QSBUF];
 typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 
-/* socket monitoring method */
-
-#ifdef _WIN32
-#define NPP_FD_MON_SELECT   /* WSAPoll doesn't seem to be a reliable alternative */
-#elif defined __linux__
-#define NPP_FD_MON_EPOLL    /* best option */
-#else
-#define NPP_FD_MON_POLL     /* macOS & other Unixes */
-#endif
-
-
 /* application settings */
 
 #include "npp_app.h"
+
+
+/* socket monitoring method */
+
+#ifdef _WIN32           /* Windows ----------------------------------------------------------- */
+    #define NPP_FD_MON_SELECT   /* default (WSAPoll doesn't seem to be a reliable alternative) */
+#elif defined __linux__ /* Linux ------------------------------------------------------------- */
+    #ifdef NPP_FD_MON_LINUX_SELECT
+        #define NPP_FD_MON_SELECT
+    #elif defined NPP_FD_MON_LINUX_POLL
+        #define NPP_FD_MON_POLL
+    #else
+        #define NPP_FD_MON_EPOLL /* default */
+    #endif
+#else                   /* macOS & other Unixes ---------------------------------------------- */
+    #ifdef NPP_FD_MON_OTHERS_SELECT
+        #define NPP_FD_MON_SELECT
+    #elif defined NPP_FD_MON_OTHERS_EPOLL
+        #define NPP_FD_MON_EPOLL
+    #else
+        #define NPP_FD_MON_POLL /* default */
+    #endif
+#endif
 
 
 /* Silgy compatibility */
@@ -1603,6 +1615,9 @@ typedef struct {
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
     int      pi;                                    /* M_pollfds array index */
+#endif
+#ifdef NPP_FD_MON_EPOLL
+//    bool     epoll_out_ready;
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];

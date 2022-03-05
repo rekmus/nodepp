@@ -283,7 +283,7 @@ void npp_safe_copy(char *dst, const std::string& src_, size_t dst_len)
 void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
 #endif
-    DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
+//    DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
 
 #if __GNUC__ > 7
 #pragma GCC diagnostic push
@@ -298,7 +298,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
     if ( dst[dst_len] == EOS )
     {
-        DDBG("not truncated");
+//        DDBG("not truncated");
         return;   /* not truncated */
     }
 
@@ -308,7 +308,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
     if ( !UTF8_ANY(dst[dst_len]) )
     {
         dst[dst_len] = EOS;
-        DDBG("truncated string won't break the UTF-8 sequence");
+//        DDBG("truncated string won't break the UTF-8 sequence");
         return;
     }
 
@@ -319,7 +319,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
     while ( !UTF8_START(dst[dst_len]) )
     {
-        DDBG("UTF-8 sequence byte (%x)", dst[dst_len]);
+//        DDBG("UTF-8 sequence byte (%x)", dst[dst_len]);
 
         if ( dst_len == 0 )
         {
