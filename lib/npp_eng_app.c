@@ -3266,7 +3266,7 @@ static void find_first_free_ci()
 {
     int i;
 
-    for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
+    for ( i=0; i<NPP_MAX_CONNECTIONS-1; ++i )
     {
         if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )
         {
