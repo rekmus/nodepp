@@ -177,7 +177,7 @@ rem Functions
 :get_presence
 set %~2=0
 set FIRST_TOKEN="x"
-for /f %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *%~1$" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set %~2=1
 goto :eof
 
