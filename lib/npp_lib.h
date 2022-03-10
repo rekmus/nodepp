@@ -707,6 +707,12 @@ extern "C" {
     char *npp_json_escape_string(const char *src);
 #endif
 
+#ifdef NPP_CPP_STRINGS
+    char *npp_expand_env_path(const std::string& src);
+#else
+    char *npp_expand_env_path(const char *src);
+#endif
+
 #ifndef NPP_CLIENT  /* web app only */
 
 #ifdef NPP_CPP_STRINGS
@@ -730,6 +736,7 @@ extern "C" {
     void msleep(int msec);
     char *stp_right(char *str);
     bool strdigits(const char *src);
+    int  npp_compare_strings(const void *a, const void *b);
     bool npp_read_conf(const char *file);
 
 #ifdef NPP_CPP_STRINGS

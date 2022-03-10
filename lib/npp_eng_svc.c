@@ -755,14 +755,7 @@ static void clean_up()
     if ( access(M_pidfile, F_OK) != -1 )
     {
         DBG("Removing pid file...");
-        char command[1024];
-#ifdef _WIN32   /* Windows */
-        sprintf(command, "del %s", M_pidfile);
-#else
-        sprintf(command, "rm %s", M_pidfile);
-#endif
-        if ( system(command) != EXIT_SUCCESS )
-            WAR("Couldn't execute %s", command);
+        remove(M_pidfile);
     }
 
 #ifdef NPP_ASYNC

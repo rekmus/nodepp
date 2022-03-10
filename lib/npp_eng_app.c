@@ -641,11 +641,11 @@ int main(int argc, char **argv)
 #endif
 
 #ifdef NPP_FD_MON_SELECT
-                for ( ci=0; sockets_ready>0 && ci<NPP_MAX_CONNECTIONS; ++ci )
+                for ( ci=0; sockets_ready>0; ++ci )
                 {
 #endif  /* NPP_FD_MON_SELECT */
 #ifdef NPP_FD_MON_POLL
-                for ( pi=NPP_LISTENING_FDS; sockets_ready>0 && pi<M_pollfds_cnt; ++pi )
+                for ( pi=NPP_LISTENING_FDS; sockets_ready>0; ++pi )
                 {
 #ifdef NPP_DEBUG
                     DBG_LINE;
@@ -658,7 +658,7 @@ int main(int argc, char **argv)
                     {
                         int l;
                         DBG_LINE;
-                        for ( l=0; l<M_pollfds_cnt; ++l )
+                        for ( l=NPP_LISTENING_FDS; l<M_pollfds_cnt; ++l )
                             DBG("ci=%d, pi=%d, M_pollfds[pi].revents = %d", M_poll_ci[l], l, M_pollfds[l].revents);
                         DBG_LINE;
                         dbg_last_time1 = G_now;
@@ -666,7 +666,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_POLL */
 #ifdef NPP_FD_MON_EPOLL
-                for ( epi=0; sockets_ready>0 && epi<M_epollfds_cnt; ++epi )
+                for ( epi=0; sockets_ready>0; ++epi )
                 {
 #ifdef NPP_DEBUG
                     DBG_LINE;
@@ -695,7 +695,7 @@ int main(int argc, char **argv)
 //                    }
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
-                        DDBG("EPOLLIN (1)");
+                        DDBG("EPOLLIN (new?)");
 
                         if ( M_epollevs[epi].data.fd == M_listening_fd )    /* new HTTP connection */
                         {
@@ -720,7 +720,7 @@ int main(int argc, char **argv)
                     if ( epoll_idx == -1 )
                     {
                         DDBG("fd=%d not found in M_epoll_ci", M_epollevs[epi].data.fd);
-//                        sockets_ready--;
+                        sockets_ready--;
                         continue;
                     }
                     else
@@ -736,13 +736,15 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_POLL
                     if ( M_pollfds[pi].revents & POLLIN )
                     {
+                        DDBG("POLLIN (existing)");
+
                         M_pollfds[pi].revents = 0;
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
-                        DDBG("EPOLLIN (2)");
+                        DDBG("EPOLLIN (existing)");
 #endif  /* NPP_FD_MON_EPOLL */
 
 #ifdef NPP_DEBUG
@@ -761,20 +763,15 @@ int main(int argc, char **argv)
 
                                 bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
 
-                                if ( bytes > 1 )
-                                    G_connections[ci].in[bytes] = EOS;
-                                else if ( bytes == 1 )   /* when client splits the request to prevent BEAST attack */
+                                set_state_sec(ci, bytes);
+
+                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
-                                    bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in+1, NPP_IN_BUFSIZE-2) + 1;
-                                    if ( bytes > 1 )
-                                        G_connections[ci].in[bytes] = EOS;
-                                }
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].http_ver[0] == '2' )
-                                    http2_parse_frame(ci, bytes);
-                                else
+                                    if ( G_connections[ci].http_ver[0] == '2' )
+                                        http2_parse_frame(ci, G_connections[ci].was_read);
 #endif  /* NPP_HTTP2 */
-                                    set_state_sec(ci, bytes);
+                                }
                             }
                             else    /* POST */
                             {
@@ -832,15 +829,21 @@ int main(int argc, char **argv)
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
                                     }
-                                }
 
-                                if ( G_connections[ci].was_read > 0 )
-                                    G_connections[ci].in[G_connections[ci].was_read] = EOS;
+/*                                    if ( G_connections[ci].was_read == NPP_IN_BUFSIZE-1 )
+                                        break;
+                                    else if ( G_connections[ci].was_read > NPP_IN_BUFSIZE-1 )
+                                    {
+                                        WAR("ci=%d, was_read > NPP_IN_BUFSIZE-1, this should never happen!");
+                                        break;
+                                    }*/
+                                }
 
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
+                                    G_connections[ci].in[G_connections[ci].was_read] = EOS;
 #ifdef NPP_HTTP2
-                                    if ( G_connections[ci].http_ver[0] == '2' && bytes > 0 )
+                                    if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
                                     else
 #endif  /* NPP_HTTP2 */
@@ -903,13 +906,13 @@ int main(int argc, char **argv)
                                         G_connections[ci].was_read += bytes;
                                     }
 
-                                    if ( G_connections[ci].was_read == G_connections[ci].clen )
+/*                                    if ( G_connections[ci].was_read == G_connections[ci].clen )
                                         break;
                                     else if ( G_connections[ci].was_read > G_connections[ci].clen )
                                     {
                                         WAR("ci=%d, was_read > clen, this should never happen!");
                                         break;
-                                    }
+                                    }*/
                                 }
 
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
@@ -934,6 +937,8 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_POLL
                     else if ( M_pollfds[pi].revents & POLLOUT )
                     {
+                        DDBG("POLLOUT");
+
                         M_pollfds[pi].revents = 0;
 #endif  /* NPP_FD_MON_POLL */
 #ifdef NPP_FD_MON_EPOLL
@@ -1038,13 +1043,13 @@ int main(int argc, char **argv)
                                                 G_connections[ci].data_sent += bytes;
                                             }
 
-                                            if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+/*                                            if ( G_connections[ci].data_sent == G_connections[ci].out_len )
                                                 break;
                                             else if ( G_connections[ci].data_sent > G_connections[ci].out_len )
                                             {
                                                 WAR("ci=%d, data_sent > out_len, this should never happen!");
                                                 break;
-                                            }
+                                            }*/
                                         }
 #ifdef NPP_HTTP2
                                     }
@@ -1099,13 +1104,13 @@ int main(int argc, char **argv)
                                             G_connections[ci].data_sent += bytes;
                                         }
 
-                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+/*                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
                                             break;
                                         else if ( G_connections[ci].data_sent > G_connections[ci].out_len )
                                         {
                                             WAR("ci=%d, data_sent > out_len, this should never happen!");
                                             break;
-                                        }
+                                        }*/
                                     }
 #ifdef NPP_HTTP2
                                 }
@@ -1120,12 +1125,12 @@ int main(int argc, char **argv)
                     else    /* not IN nor OUT */
                     {
 #ifdef NPP_DEBUG
-                        DBG("Not IN nor OUT, ci=%d, fd=%d conn_state = %c", ci, G_connections[ci].fd, G_connections[ci].conn_state);
+//                        DBG("Not IN nor OUT, ci=%d, fd=%d conn_state = %c", ci, G_connections[ci].fd, G_connections[ci].conn_state);
 #ifdef NPP_FD_MON_POLL
-                        DBG("revents=%d", M_pollfds[pi].revents);
+//                        DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                        DBG("events=%d", M_epollevs[epi].events);
+//                        DBG("events=%d", M_epollevs[epi].events);
 #endif
 #endif  /* NPP_DEBUG */
 
@@ -1187,21 +1192,45 @@ int main(int argc, char **argv)
 #endif
                         gen_response_header(ci);
                     }
+
+                    /* this should not ever happen */
+
+#ifdef NPP_FD_MON_SELECT
+                    if ( ci == NPP_MAX_CONNECTIONS )
+                    {
+                        WAR("ci=NPP_MAX_CONNECTIONS, breaking");
+                        break;
+                    }
+#endif
+#ifdef NPP_FD_MON_POLL
+                    if ( pi == NPP_MAX_CONNECTIONS )
+                    {
+                        WAR("pi=NPP_MAX_CONNECTIONS, breaking");
+                        break;
+                    }
+#endif
+#ifdef NPP_FD_MON_EPOLL
+                    if ( epi == NPP_MAX_CONNECTIONS )
+                    {
+                        WAR("epi=NPP_MAX_CONNECTIONS, breaking");
+                        break;
+                    }
+#endif
                 }   /* for on active sockets */
             }   /* some of the existing connections are ready to read/write */
         }   /* some of the sockets are ready to read/write */
 
 #ifdef NPP_DEBUG
-//        if ( sockets_ready != 0 )
-//        {
-//            static time_t last_time=0;   /* prevent log overflow */
+        if ( sockets_ready != 0 )
+        {
+            static time_t last_time=0;   /* prevent log overflow */
 
-//            if ( last_time != G_now )
-//            {
-//                DBG_T("sockets_ready should be 0 but currently %d", sockets_ready);
-//                last_time = G_now;
-//            }
-//        }
+            if ( last_time != G_now )
+            {
+                DBG_T("sockets_ready should be 0 but currently %d", sockets_ready);
+                last_time = G_now;
+            }
+        }
 #endif  /* NPP_DEBUG */
 
         /* async processing -- check on response queue */
@@ -2194,23 +2223,40 @@ static void set_state_sec(int ci, int bytes)
 {
     int e = errno;
 
-    char ec[256]="";
-
     DDBG("ci=%d, set_state_sec, bytes=%d", ci, bytes);
 
     G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
 
     if ( bytes <= 0 )
     {
-        if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )
-            sprintf(ec, ", errno = %d (%s)", e, strerror(e));
+        char errno_info[256];
 
-        DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, ec);
+//        if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )
+            sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
+
+        DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
+
+        if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
+        {
+            DBG("ssl_err = SSL_ERROR_SSL");
+
+//            DBG("ssl_err = SSL_ERROR_SSL, trying to ignore it");
+//            return;
+        }
+
+        if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
+        {
+            DBG("ssl_err = SSL_ERROR_SYSCALL");
+
+//            DBG("ssl_err = SSL_ERROR_SYSCALL, trying to ignore it");
+//            return;
+        }
 
         if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
         {
             DBG("Closing connection\n");
             close_connection(ci, TRUE);
+            return;
         }
 
 #ifdef NPP_FD_MON_POLL
@@ -2241,6 +2287,9 @@ static void set_state_sec(int ci, int bytes)
     /* we have no way of knowing if accept finished before reading actual request */
     if ( G_connections[ci].conn_state == CONN_STATE_ACCEPTING || G_connections[ci].conn_state == CONN_STATE_CONNECTED )   /* assume the whole header has been read */
     {
+        G_connections[ci].was_read = bytes;
+        G_connections[ci].in[G_connections[ci].was_read] = EOS;
+
         DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
         G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
@@ -2521,7 +2570,7 @@ static void close_connection(int ci, bool update_first_free)
     DDBG("                G_connections_cnt = %d", G_connections_cnt);
     DDBG("M_highest_used_ci before updating = %d", M_highest_used_ci);
 
-    if ( G_connections_cnt == 0 )   /* it was the last connection */
+    if ( G_connections_cnt == 0 )   /* it was the last open connection */
     {
         DDBG("No connections, setting M_first_free_ci and M_highest_used_ci to 0");
 
@@ -2637,7 +2686,7 @@ bool npp_eng_init_ssl()
 
     ALWAYS("    Using certificate: [%s]", G_certFile);
 
-    if ( SSL_CTX_use_certificate_file(M_ssl_ctx, G_certFile, SSL_FILETYPE_PEM) <= 0 )
+    if ( SSL_CTX_use_certificate_file(M_ssl_ctx, npp_expand_env_path(G_certFile), SSL_FILETYPE_PEM) <= 0 )
     {
         ERR("SSL_CTX_use_certificate_file failed");
         return FALSE;
@@ -2647,7 +2696,7 @@ bool npp_eng_init_ssl()
     {
         ALWAYS("Using cert chain file: [%s]", G_certChainFile);
 
-        if ( SSL_CTX_load_verify_locations(M_ssl_ctx, G_certChainFile, NULL) <= 0 )
+        if ( SSL_CTX_load_verify_locations(M_ssl_ctx, npp_expand_env_path(G_certChainFile), NULL) <= 0 )
         {
             ERR("SSL_CTX_load_verify_locations failed");
             return FALSE;
@@ -2658,7 +2707,7 @@ bool npp_eng_init_ssl()
 
     ALWAYS("    Using private key: [%s]", G_keyFile);
 
-    if ( SSL_CTX_use_PrivateKey_file(M_ssl_ctx, G_keyFile, SSL_FILETYPE_PEM) <= 0 )
+    if ( SSL_CTX_use_PrivateKey_file(M_ssl_ctx, npp_expand_env_path(G_keyFile), SSL_FILETYPE_PEM) <= 0 )
     {
         ERR("SSL_CTX_use_PrivateKey_file failed");
         return FALSE;
@@ -3408,6 +3457,7 @@ static void accept_connection(bool secure)
         struct epoll_event ev={0};
 
         ev.data.fd = connection;
+//        ev.events = EPOLLIN;
         ev.events = EPOLLIN | EPOLLET;
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 #endif  /* NPP_FD_MON_EPOLL */
@@ -3453,6 +3503,11 @@ static void accept_connection(bool secure)
             }
         }
 
+#ifdef NPP_DEBUG
+        if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )
+            DBG("ssl_err = SSL_ERROR_WANT_WRITE");
+#endif
+
 #ifdef NPP_FD_MON_POLL
         if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )
             M_pollfds[G_connections[M_first_free_ci].pi].events = POLLOUT;
@@ -3468,7 +3523,6 @@ static void accept_connection(bool secure)
             epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
         }
 #endif
-
         DDBG("ci=%d, changing state to CONN_STATE_ACCEPTING", M_first_free_ci);
         G_connections[M_first_free_ci].conn_state = CONN_STATE_ACCEPTING;
     }
@@ -3506,7 +3560,6 @@ static void accept_connection(bool secure)
 
         ev.data.fd = connection;
         ev.events = EPOLLIN | EPOLLET;
-//        ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 #endif  /* NPP_FD_MON_EPOLL */
     }
@@ -3516,6 +3569,11 @@ static void accept_connection(bool secure)
     strcpy(G_connections[M_first_free_ci].ip, remote_addr);
 
     /* -------------------------------------------- */
+
+    G_connections[M_first_free_ci].last_activity = G_now;
+
+    /* -------------------------------------------- */
+    /* update M_highest_used_ci */
 
     if ( M_first_free_ci > M_highest_used_ci )
         M_highest_used_ci = M_first_free_ci;
@@ -3527,10 +3585,6 @@ static void accept_connection(bool secure)
         M_first_free_ci = M_highest_used_ci + 1;
     else
         find_first_free_ci();
-
-    /* -------------------------------------------- */
-
-    G_connections[M_first_free_ci].last_activity = G_now;
 }
 
 
@@ -3540,7 +3594,6 @@ static void accept_connection(bool secure)
 void npp_eng_read_blocked_ips()
 {
     char    fname[1024];
-    FILE    *h_file=NULL;
     int     c=0;
     int     i=0;
     char    now_value=1;
@@ -3555,14 +3608,20 @@ void npp_eng_read_blocked_ips()
 
     /* open the file */
 
-    if ( G_IPBlackList[0] == '/' )    /* full path */
-        strcpy(fname, G_IPBlackList);
-    else if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
-    else
-        strcpy(fname, G_IPBlackList);
+    strcpy(fname, npp_expand_env_path(G_IPBlackList));
 
-    if ( NULL == (h_file=fopen(fname, "r")) )
+    if ( fname[0] == '/' || fname[0] == '~' )
+    {
+        /* full path */
+    }
+    else if ( G_appdir[0] )
+    {
+        sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
+    }
+
+    FILE *fd=NULL;
+
+    if ( NULL == (fd=fopen(fname, "r")) )
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -3570,7 +3629,7 @@ void npp_eng_read_blocked_ips()
 
     /* parse the file */
 
-    while ( EOF != (c=fgetc(h_file)) )
+    while ( EOF != (c=fgetc(fd)) )
     {
         if ( c == ' ' || c == '\t' || c == '\r' ) continue;  /* omit whitespaces */
 
@@ -3628,17 +3687,24 @@ void npp_eng_read_blocked_ips()
         strcpy(G_blacklist[G_blacklist_cnt++], value);
     }
 
-//    if ( NULL != h_file )
-        fclose(h_file);
+    fclose(fd);
 
     ALWAYS("%d IPs blacklisted", G_blacklist_cnt);
 
-    /* show the list */
+    /* sort */
 
-/*  DBG("");
-    for ( i=0; i<G_blacklist_cnt; ++i )
-        DBG("%s", G_blacklist[i]);
-    DBG("");*/
+    qsort(&G_blacklist, G_blacklist_cnt, sizeof(G_blacklist[0]), npp_compare_strings);
+
+    /* show */
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+    DBG("First 30 entries:");
+    DBG_LINE;
+    for ( i=0; i<G_blacklist_cnt && i<30; ++i )
+        DBG(G_blacklist[i]);
+    DBG_LINE;
+#endif
 }
 
 
@@ -3647,13 +3713,27 @@ void npp_eng_read_blocked_ips()
 -------------------------------------------------------------------------- */
 static bool ip_blocked(const char *addr)
 {
-    int i;
+    int first = 0;
+    int last = G_blacklist_cnt - 1;
+    int middle = (first+last) / 2;
 
-    for ( i=0; i<G_blacklist_cnt; ++i )
+    int result;
+
+    while ( first <= last )
     {
-        if ( 0==strcmp(G_blacklist[i], addr) )
+        result = strcmp(G_blacklist[middle], addr);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
             return TRUE;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
     }
+
+    /* not found */
 
     return FALSE;
 }
@@ -3753,10 +3833,13 @@ void npp_eng_read_allowed_ips()
         strcpy(G_whitelist[G_whitelist_cnt++], value);
     }
 
-//    if ( NULL != h_file )
-        fclose(h_file);
+    fclose(h_file);
 
     ALWAYS("%d IPs on whitelist", G_whitelist_cnt);
+
+    /* sort */
+
+    qsort(&G_whitelist, G_whitelist_cnt, sizeof(G_whitelist[0]), npp_compare_strings);
 }
 
 
@@ -3765,13 +3848,27 @@ void npp_eng_read_allowed_ips()
 -------------------------------------------------------------------------- */
 static bool ip_allowed(const char *addr)
 {
-    int i;
+    int first = 0;
+    int last = G_whitelist_cnt - 1;
+    int middle = (first+last) / 2;
 
-    for ( i=0; i<G_whitelist_cnt; ++i )
+    int result;
+
+    while ( first <= last )
     {
-        if ( 0==strcmp(G_whitelist[i], addr) )
+        result = strcmp(G_whitelist[middle], addr);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
             return TRUE;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
     }
+
+    /* not found */
 
     return FALSE;
 }
@@ -6880,14 +6977,7 @@ static void clean_up()
     if ( access(M_pidfile, F_OK) != -1 )
     {
         DBG("Removing pid file...");
-        char command[1024];
-#ifdef _WIN32   /* Windows */
-        sprintf(command, "del %s", M_pidfile);
-#else
-        sprintf(command, "rm %s", M_pidfile);
-#endif
-        if ( system(command) != EXIT_SUCCESS )
-            WAR("Couldn't execute %s", command);
+        remove(M_pidfile);
     }
 
 
@@ -7396,21 +7486,36 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
     }
 
     char fname[NPP_STATIC_PATH_LEN+1];
-    char command[NPP_STATIC_PATH_LEN*2];
+
+    /* add IP to the array */
 
     strcpy(G_blacklist[G_blacklist_cnt++], value);
 
-    if ( G_IPBlackList[0] == '/' )    /* full path */
-        strcpy(fname, G_IPBlackList);
+    qsort(&G_blacklist, G_blacklist_cnt, sizeof(G_blacklist[0]), npp_compare_strings);
+
+    /* add IP to the file */
+
+    strcpy(fname, npp_expand_env_path(G_IPBlackList));
+
+    if ( fname[0] == '/' || fname[0] == '~' )
+    {
+        /* full path */
+    }
     else if ( G_appdir[0] )
+    {
         sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
+    }
+
+    FILE *fd;
+
+    if ( NULL == (fd=fopen(fname, "a")) )
+        ERR("Couldn't open %s", fname);
     else
-        strcpy(fname, G_IPBlackList);
-
-    sprintf(command, "echo \"%s\t# %sblocked on %s\" >> %s", value, autoblocked?"auto":"", DT_NOW_GMT, fname);
-
-    if ( system(command) != EXIT_SUCCESS )
-        WAR("Couldn't execute %s", command);
+    {
+        fseek(fd, 0, SEEK_END);
+        fprintf(fd, "%s\t# %sblocked on %s\n", value, autoblocked?"auto":"", DT_NOW_GMT);
+        fclose(fd);
+    }
 
     WAR("IP %s blacklisted", value);
 }

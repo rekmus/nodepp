@@ -1015,6 +1015,89 @@ static char dst[NPP_JSON_STR_LEN*2+1];
 
 
 /* --------------------------------------------------------------------------
+   Expand env path in a path
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_expand_env_path(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
+char *npp_expand_env_path(const char *src)
+{
+#endif
+static char dest[NPP_LIB_STR_BUF];
+    bool env_lin=FALSE;
+    bool env_win=FALSE;
+
+    const char *p = strchr(src, '$');
+
+    if ( p )
+        env_lin = TRUE;
+    else
+    {
+        p = strchr(src, '%');
+
+        if ( p )
+            env_win = TRUE;
+        else
+        {
+            COPY(dest, src, NPP_LIB_STR_CHECK);
+            return dest;
+        }
+    }
+
+    DDBG("src [%s]", src);
+
+    int where = p - src;
+
+    ++p;    /* skip $ or % */
+
+    char var_name[128];
+    int i=0;
+
+    if ( env_lin )
+    {
+        while ( *p && *p != '/' && *p != '\\' && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n' && *p != '#' && i<127 )
+        {
+            var_name[i++] = *p;
+            ++p;
+        }
+    }
+    else    /* env_win */
+    {
+        while ( *p && *p != '%' && i<127 )
+        {
+            var_name[i++] = *p;
+            ++p;
+        }
+    }
+
+    var_name[i] = EOS;
+
+    DDBG("var_name [%s]", var_name);
+
+    char *var = getenv(var_name);
+
+    if ( var )
+    {
+        DDBG("var [%s]", var);
+
+        COPY(dest, src, where);
+        strcat(dest, var);
+        strcat(dest, src+(where+strlen(var_name)+(env_lin?1:2)));
+    }
+    else    /* not found */
+    {
+        COPY(dest, src, NPP_LIB_STR_CHECK);
+    }
+
+    DDBG("dest [%s]", dest);
+
+    return dest;
+}
+
+
+/* --------------------------------------------------------------------------
    Verify CSRF token
 -------------------------------------------------------------------------- */
 bool npp_csrft_ok(int ci)
@@ -3811,6 +3894,14 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     int             ssl_err;
 #endif
 
+    /* get the error code ------------------------------------------------ */
+
+#ifdef _WIN32   /* Windows */
+    sockerr = WSAGetLastError();
+#else
+    sockerr = errno;
+#endif
+
 #ifdef NPP_DEBUG
     if ( oper == NPP_OPER_READ )
         DBG("lib_finish_with_timeout NPP_OPER_READ, level=%d", level);
@@ -3830,20 +3921,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
         return -1;
     }
 
-    /* get the error code ------------------------------------------------ */
-    /* note: during SSL operations it will be 0                            */
-
-#ifdef _WIN32   /* Windows */
-    sockerr = WSAGetLastError();
-#else
-    sockerr = errno;
-#endif
-
     if ( !ssl )
     {
-#ifdef _WIN32   /* Windows */
-
-//        sockerr = WSAGetLastError();
+#ifdef _WIN32
 
         if ( sockerr != WSAEWOULDBLOCK )
         {
@@ -3854,9 +3934,7 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             return -1;
         }
 
-#else   /* Linux */
-
-//        sockerr = errno;
+#else
 
         if ( sockerr != EWOULDBLOCK && sockerr != EINPROGRESS )
         {
@@ -4390,7 +4468,7 @@ static void call_http_disconnect(int ssl_ret)
                 else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
                     DBG("SSL_shutdown successful");
                 else
-                    ERR("SSL_shutdown failed (2)");
+                    WAR("SSL_shutdown failed (2)");
             }
             else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
             {
@@ -4398,7 +4476,7 @@ static void call_http_disconnect(int ssl_ret)
             }
             else
             {
-                ERR("SSL_shutdown failed (1)");
+                WAR("SSL_shutdown failed (1)");
             }
         }
 
@@ -5120,7 +5198,7 @@ bool npp_lib_check_ssl_error(int ssl_err)
 
 #endif  /* _WIN32 */
 
-    if ( sockerr == 0 )
+    if ( sockerr == 0 || sockerr == ECONNRESET || sockerr == ECONNABORTED )
         return TRUE;
     else
         return FALSE;
@@ -8041,6 +8119,15 @@ int datetime_cmp(const char *str1, const char *str2)
 
 
 /* --------------------------------------------------------------------------
+   Compare strings for qsort
+-------------------------------------------------------------------------- */
+int npp_compare_strings(const void *a, const void *b)
+{
+    return strcmp((char*)a, (char*)b);
+}
+
+
+/* --------------------------------------------------------------------------
    Read the config file
 -------------------------------------------------------------------------- */
 bool npp_read_conf(const char *file)
@@ -8537,13 +8624,12 @@ char *npp_lib_create_pid_file(const char *name)
 {
 static char pidfilename[512];
     FILE    *fpid=NULL;
-    char    command[1024];
 
     if ( G_pid == 0 )
         G_pid = getpid();
 
     if ( G_appdir[0] )
-#ifdef _WIN32   /* Windows */
+#ifdef _WIN32
         sprintf(pidfilename, "%s\\bin\\%s.pid", G_appdir, name);
 #else
         sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
@@ -8556,58 +8642,72 @@ static char pidfilename[512];
     if ( access(pidfilename, F_OK) != -1 )
     {
         WAR("PID file already exists");
+
         INF("Killing the old process...");
-#ifdef _WIN32   /* Windows */
-        /* open the pid file and read process id */
+
+#ifdef _WIN32
         if ( NULL == (fpid=fopen(pidfilename, "rb")) )
-        {
-            ERR("Couldn't open pid file for reading");
-            return NULL;
-        }
-        fseek(fpid, 0, SEEK_END);     /* determine the file size */
-        int fsize = ftell(fpid);
-        if ( fsize < 1 || fsize > 60 )
-        {
-            fclose(fpid);
-            ERR("Something's wrong with the pid file size (%d bytes)", fsize);
-            return NULL;
-        }
-        rewind(fpid);
-        char oldpid[64];
-
-        if ( fread(oldpid, fsize, 1, fpid) != 1 )
-        {
-            ERR("Couldn't read from the old pid file");
-            fclose(fpid);
-            return NULL;
-        }
-
-        fclose(fpid);
-        oldpid[fsize] = EOS;
-        DBG("oldpid [%s]", oldpid);
-
-        msleep(100);
-
-        sprintf(command, "taskkill /pid %s", oldpid);
 #else
-        sprintf(command, "kill `cat %s`", pidfilename);
-#endif  /* _WIN32 */
-
-        INF("Removing pid file...");
-#ifdef _WIN32   /* Windows */
-        sprintf(command, "del %s", pidfilename);
-#else
-        sprintf(command, "rm %s", pidfilename);
+        if ( NULL == (fpid=fopen(pidfilename, "r")) )
 #endif
-        if ( system(command) != EXIT_SUCCESS )
-            WAR("Couldn't execute %s", command);
+        {
+            WAR("Couldn't open old pid file for reading");
+        }
+        else
+        {
+            fseek(fpid, 0, SEEK_END);     /* determine the file size */
 
-        msleep(100);
+            int fsize = ftell(fpid);
+
+            if ( fsize < 1 || fsize > 60 )
+            {
+                fclose(fpid);
+                WAR("Invalid old pid file size (%d bytes)", fsize);
+            }
+            else
+            {
+                rewind(fpid);
+
+                char oldpidstr[64];
+
+                if ( fread(oldpidstr, fsize, 1, fpid) != 1 )
+                {
+                    WAR("Couldn't read from the old pid file");
+                    fclose(fpid);
+                }
+                else
+                {
+                    fclose(fpid);
+                    oldpidstr[fsize] = EOS;
+                    DBG("oldpidstr [%s]", oldpidstr);
+
+                    int oldpid;
+
+                    sscanf(oldpidstr, "%d", &oldpid);
+
+                    DBG("oldpid = %d", oldpid);
+
+                    if ( oldpid > 1 )
+                    {
+                        char command[512];
+#ifdef _WIN32
+                        sprintf(command, "taskkill /pid %d", oldpid);
+#else
+                        sprintf(command, "kill %d", oldpid);
+#endif
+                        INF("Removing old pid file...");
+                        remove(pidfilename);
+
+                        msleep(250);
+                    }
+                }
+            }
+        }
     }
 
     /* create a pid file */
 
-#ifdef _WIN32   /* Windows */
+#ifdef _WIN32
     if ( NULL == (fpid=fopen(pidfilename, "wb")) )
 #else
     if ( NULL == (fpid=fopen(pidfilename, "w")) )
