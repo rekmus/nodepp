@@ -44,7 +44,7 @@ fi
 # Functions
 
 get_presence () {
-    local present=`grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
+    local present=`grep "^#define\s*$1\s" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 
     if [ "$present" = "$1" ]
     then
@@ -55,11 +55,11 @@ get_presence () {
 }
 
 get_value () {
-    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
+    echo `grep "^#define\s*$1\s" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
 }
 
 get_quoted_value () {
-    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+    echo `grep "^#define\s*$1\s" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
 }
 
 
