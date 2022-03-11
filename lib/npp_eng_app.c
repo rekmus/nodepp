@@ -1982,7 +1982,7 @@ static void http2_hdr_server(int ci)
 
 
 /* --------------------------------------------------------------------------
-   Set new connection state after read or write
+   Set connection state after read or write
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes)
 {
@@ -2116,7 +2116,7 @@ static void set_state(int ci, int bytes)
 
 #ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
-   Set new connection state after read or write for secure connections
+   Set connection state after read or write
 
    SSL_read / write returns bytes only once --
        when finished with currently readable/writable I/O
