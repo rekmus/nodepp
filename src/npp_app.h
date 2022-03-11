@@ -21,6 +21,9 @@
 #define NPP_SVC_MODULES                 NPP_APP_MODULES
 
 
+#define NPP_DEBUG
+
+
 /* app session data */
 /* accessible via SESSION_DATA macro */
 

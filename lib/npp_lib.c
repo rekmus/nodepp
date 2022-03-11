@@ -768,7 +768,7 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
 
     while ( *src && written < dest_len-18 )   /* worst case: </code></li></ul> */
     {
-        DDBG("%c", *src);
+//        DDBG("%c", *src);
 
         if ( pos > 0 )
         {

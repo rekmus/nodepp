@@ -229,7 +229,7 @@ static void http2_add_frame(int ci, unsigned char type);
 #endif  /* NPP_HTTP2 */
 static void set_state(int ci, int bytes);
 #ifdef NPP_HTTPS
-static void set_state_sec(int ci, int bytes);
+static void set_state_ssl(int ci, int bytes);
 #endif
 static void respond_to_expect(int ci);
 static void log_proc_time(int ci);
@@ -763,36 +763,34 @@ int main(int argc, char **argv)
 
                                 bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
 
-                                set_state_sec(ci, bytes);
-
+                                set_state_ssl(ci, bytes);   /* G_connections[ci].was_read is set there */
+#ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
-#ifdef NPP_HTTP2
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
-#endif  /* NPP_HTTP2 */
                                 }
+#endif  /* NPP_HTTP2 */
                             }
-                            else    /* POST */
+                            else    /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
-                                DBG("ci=%d, trying SSL_read %u bytes of POST data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
+                                DBG("ci=%d, trying SSL_read %u bytes of payload data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read);
 
-                                if ( bytes > 0 )
-                                    G_connections[ci].was_read += bytes;
-
+                                set_state_ssl(ci, bytes);   /* G_connections[ci].was_read is set there */
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].http_ver[0] == '2' )
-                                    http2_parse_frame(ci, bytes);
-                                else
+                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
+                                {
+                                    if ( G_connections[ci].http_ver[0] == '2' )
+                                        http2_parse_frame(ci, G_connections[ci].was_read);
+                                }
 #endif  /* NPP_HTTP2 */
-                                    set_state_sec(ci, bytes);
                             }
                         }
-                        else    /* HTTP */
+                        else    /* plain HTTP */
 #endif  /* NPP_HTTPS */
                         {
                             if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
@@ -805,53 +803,23 @@ int main(int argc, char **argv)
                                 {
                                     bytes = recv(G_connections[ci].fd, G_connections[ci].in+G_connections[ci].was_read, NPP_IN_BUFSIZE-G_connections[ci].was_read-1, 0);
 
-                                    if ( bytes == -1 )
-                                    {
-                                        if ( errno == EAGAIN || errno == EWOULDBLOCK )
-                                        {
-                                            DDBG("ci=%d, errno = %d (%s)", ci, errno, strerror(errno));
-                                        }
-                                        else
-                                        {
-                                            DDBG("ci=%d, bytes = -1, errno = %d (%s), disconnecting", ci, errno, strerror(errno));
-                                            close_connection(ci, TRUE);
-                                        }
-
-                                        break;
-                                    }
-                                    else if ( bytes == 0 )
-                                    {
-                                        DDBG("ci=%d, bytes = 0, breaking", ci);
-                                        break;
-                                    }
-                                    else    /* bytes > 0 */
+                                    if ( bytes > 0 )
                                     {
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
                                     }
-
-/*                                    if ( G_connections[ci].was_read == NPP_IN_BUFSIZE-1 )
+                                    else
                                         break;
-                                    else if ( G_connections[ci].was_read > NPP_IN_BUFSIZE-1 )
-                                    {
-                                        WAR("ci=%d, was_read > NPP_IN_BUFSIZE-1, this should never happen!");
-                                        break;
-                                    }*/
                                 }
 
+                                set_state(ci, bytes);
+#ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
-                                    G_connections[ci].in[G_connections[ci].was_read] = EOS;
-#ifdef NPP_HTTP2
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
-                                    else
-#endif  /* NPP_HTTP2 */
-                                        set_state(ci, G_connections[ci].was_read);
                                 }
-
-//                                DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-//                                G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
+#endif  /* NPP_HTTP2 */
                             }
 #ifdef NPP_HTTP2
                             else if ( G_connections[ci].conn_state == CONN_STATE_READY_FOR_CLIENT_PREFACE )
@@ -863,67 +831,41 @@ int main(int argc, char **argv)
                                 bytes = recv(G_connections[ci].fd, G_connections[ci].in, NPP_IN_BUFSIZE-1, 0);
 
                                 if ( bytes > 0 )
-                                {
-                                    G_connections[ci].in[bytes] = EOS;
                                     http2_check_client_preface(ci);   /* hopefully finish upgrade to HTTP/2 */
-                                }
                                 else
                                     set_state(ci, bytes);    /* disconnected */
                             }
 #endif  /* NPP_HTTP2 */
-                            else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* POST */
+                            else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
-                                DBG("ci=%d, trying to read %u bytes of POST data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
+                                DBG("ci=%d, trying to read %u bytes of payload data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
                                 while ( TRUE )
                                 {
                                     bytes = recv(G_connections[ci].fd, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read, 0);
 
-                                    if ( bytes == -1 )
-                                    {
-                                        if ( errno == EAGAIN || errno == EWOULDBLOCK )
-                                        {
-                                            DDBG("ci=%d, errno = %d (%s)", ci, errno, strerror(errno));
-                                        }
-                                        else
-                                        {
-                                            DDBG("ci=%d, bytes = -1, errno = %d (%s), disconnecting", ci, errno, strerror(errno));
-                                            close_connection(ci, TRUE);
-                                        }
-
-                                        break;
-                                    }
-                                    else if ( bytes == 0 )
-                                    {
-                                        DDBG("ci=%d, bytes = 0, breaking", ci);
-                                        break;
-                                    }
-                                    else    /* bytes > 0 */
+                                    if ( bytes > 0 )
                                     {
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
-                                    }
 
-/*                                    if ( G_connections[ci].was_read == G_connections[ci].clen )
+                                        if ( G_connections[ci].was_read == G_connections[ci].clen )
+                                            break;
+                                    }
+                                    else
                                         break;
-                                    else if ( G_connections[ci].was_read > G_connections[ci].clen )
-                                    {
-                                        WAR("ci=%d, was_read > clen, this should never happen!");
-                                        break;
-                                    }*/
                                 }
 
+                                set_state(ci, bytes);
+#ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
-#ifdef NPP_HTTP2
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
-                                    else
-#endif  /* NPP_HTTP2 */
-                                        set_state(ci, G_connections[ci].was_read);
                                 }
+#endif  /* NPP_HTTP2 */
                             }
                         }
 
@@ -943,10 +885,8 @@ int main(int argc, char **argv)
 #endif  /* NPP_FD_MON_POLL */
 #ifdef NPP_FD_MON_EPOLL
                     else if ( M_epollevs[epi].events & EPOLLOUT )
-//                    if ( G_connections[ci].epoll_out_ready || M_epollevs[epi].events & EPOLLOUT )
                     {
                         DDBG("EPOLLOUT");
-//                        G_connections[ci].epoll_out_ready = TRUE;   /* for the next round */
 #endif  /* NPP_FD_MON_EPOLL */
 #ifdef NPP_DEBUG
                         if ( G_now != dbg_last_time3 )   /* only once in a second */
@@ -967,7 +907,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
-                                set_state_sec(ci, bytes);
+                                set_state_ssl(ci, bytes);
                             }
                             else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT)
                             {
@@ -977,7 +917,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_DEBUG */
                                 bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
-                                set_state_sec(ci, bytes);
+                                set_state_ssl(ci, bytes);
                             }
                         }
                         else    /* plain HTTP */
@@ -1018,45 +958,21 @@ int main(int argc, char **argv)
                                         {
                                             bytes = send(G_connections[ci].fd, G_connections[ci].out_start+G_connections[ci].data_sent, G_connections[ci].out_len-G_connections[ci].data_sent, 0);
 
-                                            if ( bytes == -1 )
-                                            {
-                                                if ( errno == EAGAIN || errno == EWOULDBLOCK )
-                                                {
-                                                    DDBG("ci=%d, errno = %d (%s)", ci, errno, strerror(errno));
-                                                }
-                                                else
-                                                {
-                                                    DDBG("ci=%d, bytes = -1, errno = %d (%s), disconnecting", ci, errno, strerror(errno));
-                                                    close_connection(ci, TRUE);
-                                                }
-
-                                                break;
-                                            }
-                                            else if ( bytes == 0 )
-                                            {
-                                                DDBG("ci=%d, bytes = 0, breaking", ci);
-                                                break;
-                                            }
-                                            else    /* bytes > 0 */
+                                            if ( bytes > 0 )
                                             {
                                                 DDBG("ci=%d, sent %d bytes", ci, bytes);
                                                 G_connections[ci].data_sent += bytes;
-                                            }
 
-/*                                            if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                                if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                                    break;
+                                            }
+                                            else
                                                 break;
-                                            else if ( G_connections[ci].data_sent > G_connections[ci].out_len )
-                                            {
-                                                WAR("ci=%d, data_sent > out_len, this should never happen!");
-                                                break;
-                                            }*/
                                         }
+
+                                        set_state(ci, bytes);
 #ifdef NPP_HTTP2
                                     }
-#endif
-                                    if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
-                                        set_state(ci, G_connections[ci].data_sent);
-#ifdef NPP_HTTP2
                                 }
 #endif  /* NPP_HTTP2 */
                             }
@@ -1079,44 +995,22 @@ int main(int argc, char **argv)
                                     {
                                         bytes = send(G_connections[ci].fd, G_connections[ci].out_start+G_connections[ci].data_sent, G_connections[ci].out_len-G_connections[ci].data_sent, 0);
 
-                                        if ( bytes == -1 )
-                                        {
-                                            if ( errno == EAGAIN || errno == EWOULDBLOCK )
-                                            {
-                                                DDBG("ci=%d, errno = %d (%s)", ci, errno, strerror(errno));
-                                            }
-                                            else
-                                            {
-                                                DDBG("ci=%d, bytes = -1, errno = %d (%s), disconnecting", ci, errno, strerror(errno));
-                                                close_connection(ci, TRUE);
-                                            }
-
-                                            break;
-                                        }
-                                        else if ( bytes == 0 )
-                                        {
-                                            DDBG("ci=%d, bytes = 0, breaking", ci);
-                                            break;
-                                        }
-                                        else    /* bytes > 0 */
+                                        if ( bytes > 0 )
                                         {
                                             DDBG("ci=%d, sent %d bytes", ci, bytes);
                                             G_connections[ci].data_sent += bytes;
-                                        }
 
-/*                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                            if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                                break;
+                                        }
+                                        else
                                             break;
-                                        else if ( G_connections[ci].data_sent > G_connections[ci].out_len )
-                                        {
-                                            WAR("ci=%d, data_sent > out_len, this should never happen!");
-                                            break;
-                                        }*/
                                     }
+
+                                    set_state(ci, bytes);
 #ifdef NPP_HTTP2
                                 }
 #endif
-                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
-                                    set_state(ci, G_connections[ci].data_sent);
                             }
                         }
 
@@ -2092,19 +1986,28 @@ static void http2_hdr_server(int ci)
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes)
 {
+    int e = errno;
+
     DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
 
     if ( bytes <= 0 )
     {
-//        DBG("bytes = %d, errno = %d (%s), disconnecting ci=%d\n", bytes, errno, strerror(errno), ci);
-//        close_connection(ci, TRUE);
-        return;
+        if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+        {
+            DDBG("errno = %d (%s)", e, strerror(e));
+            DBG("Closing connection\n");
+            close_connection(ci, TRUE);
+            return;
+        }
     }
 
-    /* bytes > 0 */
+    /* good to go */
 
     if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )  /* assume the whole header has been read */
     {
+        /* G_connections[ci].was_read is set in the main loop */
+        G_connections[ci].in[G_connections[ci].was_read] = EOS;
+
         DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
         G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
@@ -2118,7 +2021,7 @@ static void set_state(int ci, int bytes)
         {
             G_connections[ci].in_data[G_connections[ci].was_read] = EOS;
 
-            DBG("POST data received");
+            DBG("ci=%d, payload received", ci);
 
             /* ready for processing */
 
@@ -2152,8 +2055,6 @@ static void set_state(int ci, int bytes)
         }
         else    /* there was a content to send */
         {
-//            G_connections[ci].data_sent += bytes;
-
             DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
 
 #ifdef NPP_HTTP2
@@ -2187,8 +2088,6 @@ static void set_state(int ci, int bytes)
     }
     else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
     {
-//        G_connections[ci].data_sent += bytes;
-
         if ( G_connections[ci].data_sent < G_connections[ci].out_len )
         {
             DBG("ci=%d, data_sent=%u, continue sending", ci, G_connections[ci].data_sent);
@@ -2218,12 +2117,15 @@ static void set_state(int ci, int bytes)
 #ifdef NPP_HTTPS
 /* --------------------------------------------------------------------------
    Set new connection state after read or write for secure connections
+
+   SSL_read / write returns bytes only once --
+       when finished with currently readable/writable I/O
 -------------------------------------------------------------------------- */
-static void set_state_sec(int ci, int bytes)
+static void set_state_ssl(int ci, int bytes)
 {
     int e = errno;
 
-    DDBG("ci=%d, set_state_sec, bytes=%d", ci, bytes);
+    DDBG("ci=%d, set_state_ssl, bytes=%d", ci, bytes);
 
     G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
 
@@ -2231,24 +2133,19 @@ static void set_state_sec(int ci, int bytes)
     {
         char errno_info[256];
 
-//        if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )
-            sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
+        sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
 
         DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
 
         if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
         {
-            DBG("ssl_err = SSL_ERROR_SSL");
-
-//            DBG("ssl_err = SSL_ERROR_SSL, trying to ignore it");
+            DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
 //            return;
         }
 
         if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
         {
-            DBG("ssl_err = SSL_ERROR_SYSCALL");
-
-//            DBG("ssl_err = SSL_ERROR_SYSCALL, trying to ignore it");
+            DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
 //            return;
         }
 
@@ -2284,7 +2181,7 @@ static void set_state_sec(int ci, int bytes)
 
     /* bytes > 0 */
 
-    /* we have no way of knowing if accept finished before reading actual request */
+    /* we have no way of knowing if SSL_accept finished before reading actual request */
     if ( G_connections[ci].conn_state == CONN_STATE_ACCEPTING || G_connections[ci].conn_state == CONN_STATE_CONNECTED )   /* assume the whole header has been read */
     {
         G_connections[ci].was_read = bytes;
@@ -2295,15 +2192,17 @@ static void set_state_sec(int ci, int bytes)
     }
     else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )
     {
+        G_connections[ci].was_read += bytes;
+
         if ( G_connections[ci].was_read < G_connections[ci].clen )
         {
-            DBG("Continue receiving");
+            DBG("ci=%d, was_read=%u, continue receiving", ci, G_connections[ci].was_read);
         }
         else    /* data received */
         {
             G_connections[ci].in_data[G_connections[ci].was_read] = EOS;
 
-            DBG("POST data received");
+            DBG("ci=%d, payload received", ci);
 
             /* ready for processing */
 
@@ -2371,17 +2270,28 @@ static void set_state_sec(int ci, int bytes)
     {
         G_connections[ci].data_sent += bytes;
 
-        log_request(ci);
-
-        if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+        if ( G_connections[ci].data_sent < G_connections[ci].out_len )
         {
-            DBG("End of processing, reset_conn\n");
-            reset_conn(ci, CONN_STATE_CONNECTED);
+            DBG("ci=%d, data_sent=%u, continue sending", ci, G_connections[ci].data_sent);
         }
-        else
+        else    /* all sent */
         {
-            DBG("End of processing, close_connection\n");
-            close_connection(ci, TRUE);
+            log_request(ci);
+
+#ifdef NPP_HTTP2
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
+#else
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+#endif
+            {
+                DBG("End of processing, reset_conn\n");
+                reset_conn(ci, CONN_STATE_CONNECTED);
+            }
+            else
+            {
+                DBG("End of processing, close_connection\n");
+                close_connection(ci, TRUE);
+            }
         }
     }
 }
@@ -6447,11 +6357,11 @@ static int parse_req(int ci, int len)
         if ( (unsigned)len > G_connections[ci].clen )
             return 400;     /* Bad Request */
 
-        /* copy so far received POST data from G_connections[ci].in to G_connections[ci].in_data */
+        /* copy so far received payload data from G_connections[ci].in to G_connections[ci].in_data */
 
         if ( NULL == (G_connections[ci].in_data=(char*)malloc(G_connections[ci].clen+1)) )
         {
-            ERR("Couldn't allocate %u bytes for POST data", G_connections[ci].clen);
+            ERR("Couldn't allocate %u bytes for payload data", G_connections[ci].clen);
             return 500;     /* Internal Sever Error */
         }
 
@@ -6470,7 +6380,7 @@ static int parse_req(int ci, int len)
         else    /* the whole content received with the header at once */
         {
             G_connections[ci].in_data[len] = EOS;
-            DBG("POST data received with header");
+            DBG("Payload received with header");
         }
     }
 
