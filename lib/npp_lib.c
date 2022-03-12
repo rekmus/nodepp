@@ -1027,7 +1027,7 @@ char *npp_expand_env_path(const char *src)
 #endif
 static char dest[NPP_LIB_STR_BUF];
     bool env_lin=FALSE;
-    bool env_win=FALSE;
+//    bool env_win=FALSE;
 
     const char *p = strchr(src, '$');
 
@@ -1037,9 +1037,7 @@ static char dest[NPP_LIB_STR_BUF];
     {
         p = strchr(src, '%');
 
-        if ( p )
-            env_win = TRUE;
-        else
+        if ( p == NULL )    /* not a Windows-style either = no env variable */
         {
             COPY(dest, src, NPP_LIB_STR_CHECK);
             return dest;

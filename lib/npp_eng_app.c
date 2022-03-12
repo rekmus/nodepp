@@ -220,7 +220,9 @@ static char         *M_async_shm=NULL;              /* shared memory address */
 
 /* prototypes */
 
+#ifdef NPP_FD_MON_EPOLL
 static int find_epoll_ci(int fd);
+#endif
 static bool housekeeping(void);
 #ifdef NPP_HTTP2
 static void http2_check_client_preface(int ci);
@@ -465,7 +467,7 @@ int main(int argc, char **argv)
     epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 
     M_epoll_ci[0].fd = M_listening_fd;
-    M_epoll_ci[0].ci = 0;
+    M_epoll_ci[0].ci = -1;
 
     M_epollfds_cnt = 1;
 
@@ -475,7 +477,7 @@ int main(int argc, char **argv)
     epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 
     M_epoll_ci[1].fd = M_listening_sec_fd;
-    M_epoll_ci[1].ci = 1;
+    M_epoll_ci[1].ci = -2;
 
     M_epollfds_cnt = 2;
 #endif
@@ -680,8 +682,16 @@ int main(int argc, char **argv)
                         for ( l=0; l<sockets_ready; ++l )
                         {
                             int dbg_epoll_idx = find_epoll_ci(M_epollevs[l].data.fd);
+
                             if ( dbg_epoll_idx != -1 )
-                                DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[dbg_epoll_idx].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                            {
+                                if ( M_epollevs[l].data.fd == M_listening_fd )
+                                    DBG("M_epollevs[%d].events = %d, ...data.fd = %d (M_listening_fd)", l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                                else if ( M_epollevs[l].data.fd == M_listening_sec_fd )
+                                    DBG("M_epollevs[%d].events = %d, ...data.fd = %d (M_listening_sec_fd)", l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                                else
+                                    DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[dbg_epoll_idx].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
+                            }
                         }
                         DBG_LINE;
                         dbg_last_time1 = G_now;
