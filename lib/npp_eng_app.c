@@ -3608,12 +3608,11 @@ static bool ip_blocked(const char *addr)
 void npp_eng_read_allowed_ips()
 {
     char    fname[1024];
-    FILE    *h_file=NULL;
     int     c=0;
     int     i=0;
     char    now_value=1;
     char    now_comment=0;
-    char    value[64]="";
+    char    value[INET_ADDRSTRLEN];
 
     G_whitelist_cnt = 0;
 
@@ -3623,14 +3622,20 @@ void npp_eng_read_allowed_ips()
 
     /* open the file */
 
-    if ( G_IPWhiteList[0] == '/' )    /* full path */
-        strcpy(fname, G_IPWhiteList);
-    else if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, G_IPWhiteList);
-    else
-        strcpy(fname, G_IPWhiteList);
+    strcpy(fname, npp_expand_env_path(G_IPWhiteList));
 
-    if ( NULL == (h_file=fopen(fname, "r")) )
+    if ( fname[0] == '/' || fname[0] == '~' )
+    {
+        /* full path */
+    }
+    else if ( G_appdir[0] )
+    {
+        sprintf(fname, "%s/bin/%s", G_appdir, G_IPWhiteList);
+    }
+
+    FILE *fd=NULL;
+
+    if ( NULL == (fd=fopen(fname, "r")) )
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -3638,7 +3643,7 @@ void npp_eng_read_allowed_ips()
 
     /* parse the file */
 
-    while ( EOF != (c=fgetc(h_file)) )
+    while ( EOF != (c=fgetc(fd)) )
     {
         if ( c == ' ' || c == '\t' || c == '\r' ) continue;  /* omit whitespaces */
 
@@ -3647,7 +3652,7 @@ void npp_eng_read_allowed_ips()
             if ( now_value && i )   /* end of value */
             {
                 value[i] = EOS;
-                if ( !ip_blocked(value) )   /* avoid duplicates */
+                if ( !ip_allowed(value) )   /* avoid duplicates */
                 {
                     strcpy(G_whitelist[G_whitelist_cnt++], value);
                     if ( G_whitelist_cnt == NPP_MAX_WHITELIST )
@@ -3696,7 +3701,7 @@ void npp_eng_read_allowed_ips()
         strcpy(G_whitelist[G_whitelist_cnt++], value);
     }
 
-    fclose(h_file);
+    fclose(fd);
 
     ALWAYS("%d IPs on whitelist", G_whitelist_cnt);
 
