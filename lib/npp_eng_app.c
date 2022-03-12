@@ -2057,7 +2057,6 @@ static void set_state(int ci, int bytes, bool secure)
 #ifdef NPP_FD_MON_EPOLL
         int prev_ssl_err = G_connections[ci].ssl_err;
 #endif
-
         G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
 
         if ( bytes <= 0 )
@@ -2077,17 +2076,17 @@ static void set_state(int ci, int bytes, bool secure)
                 DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
             }
 
+#ifdef NPP_DEBUG
             if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
             {
                 DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
-                return;
             }
 
             if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
             {
                 DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
-                return;
             }
+#endif  /* NPP_DEBUG */
 
             if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
             {
