@@ -209,7 +209,7 @@ static int          M_prev_minute;
 static int          M_prev_day;
 static time_t       M_last_housekeeping=0;
 static int          M_first_free_ci=0;
-static int          M_highest_used_ci=0;
+static int          M_highest_used_ci=-1;
 
 #ifdef NPP_ASYNC
 static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
@@ -229,10 +229,7 @@ static void http2_check_client_preface(int ci);
 static void http2_parse_frame(int ci, int bytes);
 static void http2_add_frame(int ci, unsigned char type);
 #endif  /* NPP_HTTP2 */
-static void set_state(int ci, int bytes);
-#ifdef NPP_HTTPS
-static void set_state_ssl(int ci, int bytes);
-#endif
+static void set_state(int ci, int bytes, bool secure);
 static void respond_to_expect(int ci);
 static void log_proc_time(int ci);
 static void log_request(int ci);
@@ -586,6 +583,7 @@ int main(int argc, char **argv)
 #ifdef NPP_DEBUG
             if ( G_now != dbg_last_time0 )   /* only once in a second */
             {
+                DBG("");
                 DBG("     connected = %d", G_connections_cnt);
 #ifdef NPP_FD_MON_POLL
                 DBG(" M_pollfds_cnt = %d", M_pollfds_cnt);
@@ -771,9 +769,20 @@ int main(int argc, char **argv)
                             {
                                 DDBG("ci=%d, trying SSL_read from fd=%d", ci, G_connections[ci].fd);
 
-                                bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
+                                while ( TRUE )
+                                {
+                                    bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
 
-                                set_state_ssl(ci, bytes);   /* G_connections[ci].was_read is set there */
+                                    if ( bytes > 0 )
+                                    {
+                                        DDBG("ci=%d, read %d bytes", ci, bytes);
+                                        G_connections[ci].was_read += bytes;
+                                    }
+                                    else
+                                        break;
+                                }
+
+                                set_state(ci, bytes, TRUE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
@@ -788,9 +797,23 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
                                 DBG("ci=%d, trying SSL_read %u bytes of payload data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read);
+                                while ( TRUE )
+                                {
+                                    bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read);
 
-                                set_state_ssl(ci, bytes);   /* G_connections[ci].was_read is set there */
+                                    if ( bytes > 0 )
+                                    {
+                                        DDBG("ci=%d, read %d bytes", ci, bytes);
+                                        G_connections[ci].was_read += bytes;
+
+                                        if ( G_connections[ci].was_read == G_connections[ci].clen )
+                                            break;
+                                    }
+                                    else
+                                        break;
+                                }
+
+                                set_state(ci, bytes, TRUE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
@@ -822,7 +845,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes);
+                                set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
@@ -843,7 +866,7 @@ int main(int argc, char **argv)
                                 if ( bytes > 0 )
                                     http2_check_client_preface(ci);   /* hopefully finish upgrade to HTTP/2 */
                                 else
-                                    set_state(ci, bytes);    /* disconnected */
+                                    set_state(ci, bytes, FALSE);    /* disconnected */
                             }
 #endif  /* NPP_HTTP2 */
                             else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* payload */
@@ -868,7 +891,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes);
+                                set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
                                 {
@@ -915,19 +938,47 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", ci);
                                 DBG("ci=%d, trying SSL_write %u bytes to fd=%d", ci, G_connections[ci].out_len, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
+                                while ( TRUE )
+                                {
+                                    bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
-                                set_state_ssl(ci, bytes);
+                                    if ( bytes > 0 )
+                                    {
+                                        DDBG("ci=%d, sent %d bytes", ci, bytes);
+                                        G_connections[ci].data_sent += bytes;
+
+                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                            break;
+                                    }
+                                    else
+                                        break;
+                                }
+
+                                set_state(ci, bytes, TRUE);
                             }
-                            else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT)
+                            else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", ci);
                                 DBG("ci=%d, trying SSL_write %u bytes to fd=%d", ci, G_connections[ci].out_len-G_connections[ci].data_sent, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
+                                while ( TRUE )
+                                {
+                                    bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
-                                set_state_ssl(ci, bytes);
+                                    if ( bytes > 0 )
+                                    {
+                                        DDBG("ci=%d, sent %d bytes", ci, bytes);
+                                        G_connections[ci].data_sent += bytes;
+
+                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
+                                            break;
+                                    }
+                                    else
+                                        break;
+                                }
+
+                                set_state(ci, bytes, TRUE);
                             }
                         }
                         else    /* plain HTTP */
@@ -980,7 +1031,7 @@ int main(int argc, char **argv)
                                                 break;
                                         }
 
-                                        set_state(ci, bytes);
+                                        set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
                                     }
                                 }
@@ -1017,7 +1068,7 @@ int main(int argc, char **argv)
                                             break;
                                     }
 
-                                    set_state(ci, bytes);
+                                    set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
                                 }
 #endif
@@ -1994,216 +2045,112 @@ static void http2_hdr_server(int ci)
 /* --------------------------------------------------------------------------
    Set connection state after read or write
 -------------------------------------------------------------------------- */
-static void set_state(int ci, int bytes)
+static void set_state(int ci, int bytes, bool secure)
 {
     int e = errno;
 
     DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
 
-    if ( bytes <= 0 )
+#ifdef NPP_HTTPS
+    if ( secure )
     {
-        if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+#ifdef NPP_FD_MON_EPOLL
+        int prev_ssl_err = G_connections[ci].ssl_err;
+#endif
+
+        G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
+
+        if ( bytes <= 0 )
         {
-            DDBG("errno = %d (%s)", e, strerror(e));
-            DBG("Closing connection\n");
-            close_connection(ci, TRUE);
-            return;
+            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+            {
+                DDBG("errno = %d (%s)", e, strerror(e));
+                DBG("Closing connection\n");
+                close_connection(ci, TRUE);
+                return;
+            }
+
+            if ( G_logLevel >= LOG_DBG )
+            {
+                char errno_info[256];
+                sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
+                DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
+            }
+
+            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
+            {
+                DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
+                return;
+            }
+
+            if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
+            {
+                DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
+                return;
+            }
+
+            if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
+            {
+                DBG("Closing connection\n");
+                close_connection(ci, TRUE);
+                return;
+            }
+
+#ifdef NPP_FD_MON_POLL
+            if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
+                M_pollfds[G_connections[ci].pi].events = POLLIN;
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
+                M_pollfds[G_connections[ci].pi].events = POLLOUT;
+#endif
+
+#ifdef NPP_FD_MON_EPOLL
+            if ( G_connections[ci].ssl_err != prev_ssl_err )
+            {
+                DDBG("ssl_err has changed from %d to %d", prev_ssl_err, G_connections[ci].ssl_err);
+
+                struct epoll_event ev={0};
+
+                ev.data.fd = G_connections[ci].fd;
+
+                if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
+                    ev.events = EPOLLIN | EPOLLET;
+                else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
+                    ev.events = EPOLLOUT | EPOLLET;
+
+                epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
+            }
+#endif
+        }
+    }
+    else    /* plain HTTP */
+#endif  /* NPP_HTTPS */
+    {
+        if ( bytes <= 0 )
+        {
+            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+            {
+                DDBG("errno = %d (%s)", e, strerror(e));
+                DBG("Closing connection\n");
+                close_connection(ci, TRUE);
+                return;
+            }
         }
     }
 
     /* good to go */
 
-    if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )  /* assume the whole header has been read */
+    if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
     {
-        /* G_connections[ci].was_read is set in the main loop */
-        G_connections[ci].in[G_connections[ci].was_read] = EOS;
-
-        DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-        G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
-    }
-    else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )  /* it could have been received only partially */
-    {
-        if ( G_connections[ci].was_read < G_connections[ci].clen )
+        if ( G_connections[ci].was_read > 0 )   /* assume at least the whole header has been read */
         {
-            DBG("ci=%d, was_read=%u, continue receiving", ci, G_connections[ci].was_read);
+            G_connections[ci].in[G_connections[ci].was_read] = EOS;
+
+            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
+            G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
         }
-        else    /* data received */
-        {
-            G_connections[ci].in_data[G_connections[ci].was_read] = EOS;
-
-            DBG("ci=%d, payload received", ci);
-
-            /* ready for processing */
-
-            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
-            G_connections[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
-        }
-    }
-    else if ( G_connections[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
-    {
-        if ( G_connections[ci].clen == 0 )   /* no content to send */
-        {
-            DBG("clen = 0");
-
-            /* assume the whole header has been sent */
-
-            log_request(ci);
-#ifdef NPP_HTTP2
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
-#else
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
-#endif
-            {
-                DBG("End of processing, reset_conn\n");
-                reset_conn(ci, CONN_STATE_CONNECTED);
-            }
-            else
-            {
-                DBG("End of processing, close_connection\n");
-                close_connection(ci, TRUE);
-            }
-        }
-        else    /* there was a content to send */
-        {
-            DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
-
-#ifdef NPP_HTTP2
-            if ( (unsigned)bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
-#else
-            if ( (unsigned)bytes < G_connections[ci].out_len )   /* not all have been sent yet */
-#endif  /* NPP_HTTP2 */
-            {
-                DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
-                G_connections[ci].conn_state = CONN_STATE_SENDING_CONTENT;
-            }
-            else    /* the whole content has been sent at once */
-            {
-                log_request(ci);
-#ifdef NPP_HTTP2
-                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
-#else
-                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
-#endif
-                {
-                    DBG("End of processing, reset_conn\n");
-                    reset_conn(ci, CONN_STATE_CONNECTED);
-                }
-                else
-                {
-                    DBG("End of processing, close_connection\n");
-                    close_connection(ci, TRUE);
-                }
-            }
-        }
-    }
-    else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
-    {
-        if ( G_connections[ci].data_sent < G_connections[ci].out_len )
-        {
-            DBG("ci=%d, data_sent=%u, continue sending", ci, G_connections[ci].data_sent);
-        }
-        else    /* all sent */
-        {
-            log_request(ci);
-#ifdef NPP_HTTP2
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
-#else
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
-#endif
-            {
-                DBG("End of processing, reset_conn\n");
-                reset_conn(ci, CONN_STATE_CONNECTED);
-            }
-            else
-            {
-                DBG("End of processing, close_connection\n");
-                close_connection(ci, TRUE);
-            }
-        }
-    }
-}
-
-
-#ifdef NPP_HTTPS
-/* --------------------------------------------------------------------------
-   Set connection state after read or write
-
-   SSL_read / write returns bytes only once --
-       when finished with currently readable/writable I/O
--------------------------------------------------------------------------- */
-static void set_state_ssl(int ci, int bytes)
-{
-    int e = errno;
-
-    DDBG("ci=%d, set_state_ssl, bytes=%d", ci, bytes);
-
-    G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
-
-    if ( bytes <= 0 )
-    {
-        char errno_info[256];
-
-        sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
-
-        DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
-
-        if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
-        {
-            DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
-//            return;
-        }
-
-        if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
-        {
-            DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
-//            return;
-        }
-
-        if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
-        {
-            DBG("Closing connection\n");
-            close_connection(ci, TRUE);
-            return;
-        }
-
-#ifdef NPP_FD_MON_POLL
-        if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
-            M_pollfds[G_connections[ci].pi].events = POLLIN;
-        else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
-            M_pollfds[G_connections[ci].pi].events = POLLOUT;
-#endif
-
-#ifdef NPP_FD_MON_EPOLL
-        struct epoll_event ev={0};
-
-        ev.data.fd = G_connections[ci].fd;
-
-        if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
-            ev.events = EPOLLIN | EPOLLET;
-        else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
-            ev.events = EPOLLOUT | EPOLLET;
-
-        epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
-#endif
-
-        return;
-    }
-
-    /* bytes > 0 */
-
-    /* we have no way of knowing if SSL_accept finished before reading actual request */
-    if ( G_connections[ci].conn_state == CONN_STATE_ACCEPTING || G_connections[ci].conn_state == CONN_STATE_CONNECTED )   /* assume the whole header has been read */
-    {
-        G_connections[ci].was_read = bytes;
-        G_connections[ci].in[G_connections[ci].was_read] = EOS;
-
-        DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-        G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
     }
     else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )
     {
-        G_connections[ci].was_read += bytes;
-
         if ( G_connections[ci].was_read < G_connections[ci].clen )
         {
             DBG("ci=%d, was_read=%u, continue receiving", ci, G_connections[ci].was_read);
@@ -2230,7 +2177,11 @@ static void set_state_ssl(int ci, int bytes)
 
             log_request(ci);
 
+#ifdef NPP_HTTP2
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
+#else
             if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+#endif
             {
                 DBG("End of processing, reset_conn\n");
                 reset_conn(ci, CONN_STATE_CONNECTED);
@@ -2243,14 +2194,12 @@ static void set_state_ssl(int ci, int bytes)
         }
         else    /* there was a content to send */
         {
-            G_connections[ci].data_sent += bytes;
-
             DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
 
 #ifdef NPP_HTTP2
-            if ( (unsigned)bytes < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
+            if ( G_connections[ci].data_sent < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
 #else
-            if ( (unsigned)bytes < G_connections[ci].out_len )   /* not all have been sent yet */
+            if ( G_connections[ci].data_sent < G_connections[ci].out_len )   /* not all have been sent yet */
 #endif  /* NPP_HTTP2 */
             {
                 DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
@@ -2259,6 +2208,7 @@ static void set_state_ssl(int ci, int bytes)
             else    /* the whole content has been sent at once */
             {
                 log_request(ci);
+
 #ifdef NPP_HTTP2
                 if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
 #else
@@ -2278,8 +2228,6 @@ static void set_state_ssl(int ci, int bytes)
     }
     else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
     {
-        G_connections[ci].data_sent += bytes;
-
         if ( G_connections[ci].data_sent < G_connections[ci].out_len )
         {
             DBG("ci=%d, data_sent=%u, continue sending", ci, G_connections[ci].data_sent);
@@ -2305,7 +2253,6 @@ static void set_state_ssl(int ci, int bytes)
         }
     }
 }
-#endif  /* NPP_HTTPS */
 
 
 /* --------------------------------------------------------------------------
@@ -2492,37 +2439,28 @@ static void close_connection(int ci, bool update_first_free)
 
     if ( G_connections_cnt == 0 )   /* it was the last open connection */
     {
-        DDBG("No connections, setting M_first_free_ci and M_highest_used_ci to 0");
+        DDBG("No connections, setting M_first_free_ci=0 and M_highest_used_ci=-1");
 
         M_first_free_ci = 0;
 
-        if ( M_highest_used_ci )
-            M_highest_used_ci = 0;
+        if ( M_highest_used_ci != -1 )
+            M_highest_used_ci = -1;
     }
     else if ( ci == M_highest_used_ci ) /* closing connection had the highest spot in G_connections */
     {
-        if ( ci == 0 )
+        /* loop downwards to find the highest used ci */
+
+        DDBG("Looping downwards starting from %d", ci-1);
+
+        int i;
+        for ( i=ci-1; i>=0; i-- )
         {
-            DDBG("Setting M_first_free_ci to 0");
-
-            M_first_free_ci = 0;
-
-            DDBG("M_highest_used_ci stays at 0");
-        }
-        else    /* loop downwards to find the highest used ci */
-        {
-            DDBG("Looping downwards starting from %d", ci-1);
-
-            int i;
-            for ( i=ci-1; i>=0; i-- )
+            if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED )
             {
-                if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED )
-                {
-                    M_highest_used_ci = i;
-                    DDBG("M_highest_used_ci set to %d", M_highest_used_ci);
-                    M_first_free_ci = i+1;
-                    break;
-                }
+                M_highest_used_ci = i;
+                DDBG("M_highest_used_ci set to %d", M_highest_used_ci);
+                M_first_free_ci = i+1;
+                break;
             }
         }
     }
@@ -3345,6 +3283,7 @@ static void accept_connection(bool secure)
         G_connections_hwm = G_connections_cnt;
 
     /* -------------------------------------------- */
+    /* set up G_connection record */
 
 #ifdef NPP_HTTPS
 
@@ -3354,7 +3293,11 @@ static void accept_connection(bool secure)
         G_connections[M_first_free_ci].fd = connection;
         G_connections[M_first_free_ci].flags |= NPP_CONN_FLAG_SECURE;
 
-#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
+        /* -------------------------------------------- */
+        /* add connection to monitored set */
+
+#ifdef NPP_FD_MON_POLL
+
         /* reference ... */
         G_connections[M_first_free_ci].pi = M_pollfds_cnt;
         /* ... each other to avoid unnecessary looping */
@@ -3363,10 +3306,12 @@ static void accept_connection(bool secure)
         M_pollfds[M_pollfds_cnt].events = POLLIN;
         M_pollfds[M_pollfds_cnt].revents = 0;
         ++M_pollfds_cnt;
+
 #endif  /* NPP_FD_MON_POLL */
 
-#ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
-        /* add to index */
+
+#ifdef NPP_FD_MON_EPOLL
+
         M_epoll_ci[M_epollfds_cnt].fd = connection;
         M_epoll_ci[M_epollfds_cnt].ci = M_first_free_ci;
 
@@ -3377,10 +3322,11 @@ static void accept_connection(bool secure)
         struct epoll_event ev={0};
 
         ev.data.fd = connection;
-//        ev.events = EPOLLIN;
         ev.events = EPOLLIN | EPOLLET;
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+
 #endif  /* NPP_FD_MON_EPOLL */
+
 
         G_connections[M_first_free_ci].ssl = SSL_new(M_ssl_ctx);
 
@@ -3417,14 +3363,14 @@ static void accept_connection(bool secure)
 
             if ( G_connections[M_first_free_ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[M_first_free_ci].ssl_err != SSL_ERROR_WANT_WRITE )
             {
-                DBG("SSL_accept failed, ssl_err = %d", G_connections[M_first_free_ci].ssl_err);
+                DBG("SSL_accept failed, ssl_err = %d, disconnecting", G_connections[M_first_free_ci].ssl_err);
                 close_connection(M_first_free_ci, FALSE);
                 return;
             }
         }
 
 #ifdef NPP_DEBUG
-        if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )
+        if ( G_connections[M_first_free_ci].ssl_err == SSL_ERROR_WANT_WRITE )   /* unlikely */
             DBG("ssl_err = SSL_ERROR_WANT_WRITE");
 #endif
 
@@ -3443,18 +3389,13 @@ static void accept_connection(bool secure)
             epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
         }
 #endif
-        DDBG("ci=%d, changing state to CONN_STATE_ACCEPTING", M_first_free_ci);
-        G_connections[M_first_free_ci].conn_state = CONN_STATE_ACCEPTING;
     }
-    else    /* plain http */
+    else    /* plain HTTP */
 #endif  /* NPP_HTTPS */
     {
         DBG("\nConnection accepted: %s, ci=%d, fd=%d", remote_addr, M_first_free_ci, connection);
         G_connections[M_first_free_ci].fd = connection;
         G_connections[M_first_free_ci].flags = G_connections[M_first_free_ci].flags & ~NPP_CONN_FLAG_SECURE;
-
-        DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
-        G_connections[M_first_free_ci].conn_state = CONN_STATE_CONNECTED;
 
 #ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
         /* reference ... */
@@ -3483,6 +3424,9 @@ static void accept_connection(bool secure)
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 #endif  /* NPP_FD_MON_EPOLL */
     }
+
+    DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
+    G_connections[M_first_free_ci].conn_state = CONN_STATE_CONNECTED;
 
     /* -------------------------------------------- */
 

@@ -915,7 +915,6 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 /* connection / request state */
 
 #define CONN_STATE_DISCONNECTED             '0'
-#define CONN_STATE_ACCEPTING                'a'
 #define CONN_STATE_CONNECTED                '1'
 #define CONN_STATE_READY_FOR_PARSE          'p'
 #define CONN_STATE_READY_FOR_PROCESS        'P'
