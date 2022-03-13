@@ -2427,10 +2427,15 @@ static void close_connection(int ci, bool update_first_free)
 
     reset_conn(ci, CONN_STATE_DISCONNECTED);
 
-    if ( ci < NPP_MAX_CONNECTIONS )
-        G_connections_cnt--;
+    if ( ci == NPP_MAX_CONNECTIONS )
+        return;
 
-    if ( !update_first_free ) return;
+    G_connections_cnt--;
+
+    if ( !update_first_free )
+        return;
+
+    DDBG("Updating first free ci...");
 
     /* update M_first_free_ci & M_highest_used_ci */
 
@@ -3183,7 +3188,7 @@ static void find_first_free_ci()
         }
     }
 
-    WAR("Sequential search through G_connections (checked %d record(s)), none was free", i+1);
+    WAR("Sequential search through G_connections (checked %d record(s)), none was free", i);
 
     M_first_free_ci = NPP_MAX_CONNECTIONS;
 }
@@ -3432,7 +3437,7 @@ static void accept_connection(bool secure)
     /* -------------------------------------------- */
     /* update M_first_free_ci */
 
-    if ( M_highest_used_ci < NPP_MAX_CONNECTIONS )
+    if ( M_highest_used_ci < NPP_MAX_CONNECTIONS-1 )
         M_first_free_ci = M_highest_used_ci + 1;
     else
         find_first_free_ci();
@@ -4549,6 +4554,7 @@ static void process_req(int ci)
     {
         RES_STATUS(503);
         render_page_msg(ci, ERR_SERVER_TOOBUSY);
+        G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;
     }
 
     /* ------------------------------------------------------------------------ */
