@@ -57,7 +57,7 @@ async_res_t G_svc_res;
 char        *G_svc_out_data=NULL;
 #endif
 char        *G_svc_p_content=NULL;
-npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1]={0};  /* request details */
+npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2]={0};  /* request details */
 eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};      /* sessions -- they start from 1 */
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0}; /* app session data, using the same index (si) */
 

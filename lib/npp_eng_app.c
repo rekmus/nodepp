@@ -67,7 +67,7 @@ int         G_ASYNCDefTimeout=NPP_ASYNC_DEF_TIMEOUT;
 /* end of config params */
 
 int         G_days_up=0;
-npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1]={0};
+npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2]={0};
 int         G_connections_cnt=0;
 int         G_connections_hwm=0;
 eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};
@@ -170,9 +170,9 @@ static int          M_highsock=0;               /* Highest #'d file descriptor, 
 #endif  /* NPP_FD_MON_SELECT */
 
 #ifdef NPP_FD_MON_POLL
-static struct pollfd M_pollfds[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS]={0};
+static struct pollfd M_pollfds[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};
 static int          M_pollfds_cnt=0;
-static int          M_poll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS]={0};   /* connection indexes -- additional data for M_pollfds */
+static int          M_poll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* connection indexes -- additional data for M_pollfds */
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
@@ -182,10 +182,10 @@ typedef struct {
     int ci;
 } epoll_idx_t;
 
-static struct epoll_event M_epollevs[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS]={0};
+static struct epoll_event M_epollevs[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};
 static int          M_epoll_fd=0;
 static int          M_epollfds_cnt=0;
-static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS]={0};  /* connection indexes */
+static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* connection indexes */
 
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -294,7 +294,7 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_EPOLL
     /* init index for sorting */
     int i;
-    for ( i=0; i<NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS; ++i )
+    for ( i=0; i<NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1; ++i )
         M_epoll_ci[i].fd = INT_MAX;
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -448,7 +448,7 @@ int main(int argc, char **argv)
 
 #ifdef NPP_FD_MON_EPOLL
 
-    M_epoll_fd = epoll_create(NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS);
+    M_epoll_fd = epoll_create(NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1);
 
     if ( M_epoll_fd < 1 )
     {
@@ -552,7 +552,7 @@ int main(int argc, char **argv)
                 ERR("select failed for the 10-th time, entering emergency reset");
                 ALWAYS("Resetting all connections...");
                 int k;
-                for ( k=0; k<NPP_MAX_CONNECTIONS; ++k )
+                for ( k=0; k<NPP_MAX_CONNECTIONS+1; ++k )
                     close_connection(k, TRUE);
                 failed_select_cnt = 0;
                 ALWAYS("Waiting for 1 second...");
@@ -1151,23 +1151,23 @@ int main(int argc, char **argv)
                     /* this should not ever happen */
 
 #ifdef NPP_FD_MON_SELECT
-                    if ( ci == NPP_MAX_CONNECTIONS )
+                    if ( ci > NPP_MAX_CONNECTIONS )
                     {
-                        WAR("ci=NPP_MAX_CONNECTIONS, breaking");
+                        WAR("ci > NPP_MAX_CONNECTIONS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_POLL
-                    if ( pi == NPP_MAX_CONNECTIONS )
+                    if ( pi > NPP_MAX_CONNECTIONS )
                     {
-                        WAR("pi=NPP_MAX_CONNECTIONS, breaking");
+                        WAR("pi > NPP_MAX_CONNECTIONS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                    if ( epi == NPP_MAX_CONNECTIONS )
+                    if ( epi > NPP_MAX_CONNECTIONS )
                     {
-                        WAR("epi=NPP_MAX_CONNECTIONS, breaking");
+                        WAR("epi > NPP_MAX_CONNECTIONS, breaking");
                         break;
                     }
 #endif
@@ -2427,7 +2427,8 @@ static void close_connection(int ci, bool update_first_free)
 
     reset_conn(ci, CONN_STATE_DISCONNECTED);
 
-    G_connections_cnt--;
+    if ( M_first_free_ci < NPP_MAX_CONNECTIONS )
+        G_connections_cnt--;
 
     if ( !update_first_free ) return;
 
@@ -2920,7 +2921,7 @@ static bool init(int argc, char **argv)
 
     INF("Initializing connections...");
 
-    for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
+    for ( i=0; i<NPP_MAX_CONNECTIONS+1; ++i )
     {
 #ifdef NPP_OUT_CHECK_REALLOC
         if ( !(G_connections[i].out_data_alloc = (char*)malloc(NPP_OUT_BUFSIZE)) )
@@ -3089,7 +3090,7 @@ static void build_fd_sets()
     int i;
     int remain = G_connections_cnt;
 
-    for ( i=0; remain>0 && i<NPP_MAX_CONNECTIONS; ++i )
+    for ( i=0; remain>0 && i<NPP_MAX_CONNECTIONS+1; ++i )
     {
         if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED ) continue;
 
@@ -3172,7 +3173,7 @@ static void find_first_free_ci()
 {
     int i;
 
-    for ( i=0; i<NPP_MAX_CONNECTIONS-1; ++i )
+    for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
     {
         if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )
         {
@@ -3184,7 +3185,7 @@ static void find_first_free_ci()
 
     WAR("Sequential search through G_connections (checked %d record(s)), none was free", i+1);
 
-    M_first_free_ci = -1;
+    M_first_free_ci = NPP_MAX_CONNECTIONS;
 }
 
 
@@ -3251,35 +3252,20 @@ static void accept_connection(bool secure)
 
     /* -------------------------------------------- */
 
-    if ( M_first_free_ci == -1 )
+    if ( M_first_free_ci == NPP_MAX_CONNECTIONS )
     {
-        WAR("No room left for new client");
+        if ( G_connections[NPP_MAX_CONNECTIONS].conn_state != CONN_STATE_DISCONNECTED )
+            close_connection(NPP_MAX_CONNECTIONS, FALSE);
 
-        /* read the request but ignore its content */
-
-        int bytes = recv(connection, G_tmp, NPP_TMP_BUFSIZE, 0);
-
-        DBG("Received %d bytes -- presumably request header", bytes);
-
-        DBG("Sending 503");
-
-        bytes = send(connection, "HTTP/1.1 503 Service Unavailable\r\n\r\n", 36, 0);
-
-#ifdef _WIN32   /* Windows */
-        closesocket(connection);
-#else
-        close(connection);
-#endif  /* _WIN32 */
-
-        return;
+        WAR("No room left for the new client, returning 503...");
     }
+    else
+    {
+        ++G_connections_cnt;
 
-    /* -------------------------------------------- */
-
-    ++G_connections_cnt;
-
-    if ( G_connections_cnt > G_connections_hwm )
-        G_connections_hwm = G_connections_cnt;
+        if ( G_connections_cnt > G_connections_hwm )
+            G_connections_hwm = G_connections_cnt;
+    }
 
     /* -------------------------------------------- */
     /* set up G_connection record */
@@ -3438,16 +3424,20 @@ static void accept_connection(bool secure)
     /* -------------------------------------------- */
     /* update M_highest_used_ci */
 
-    if ( M_first_free_ci > M_highest_used_ci )
+    if ( M_first_free_ci < NPP_MAX_CONNECTIONS && M_first_free_ci > M_highest_used_ci )
         M_highest_used_ci = M_first_free_ci;
+
+    DDBG("After accept: M_highest_used_ci = %d", M_highest_used_ci);
 
     /* -------------------------------------------- */
     /* update M_first_free_ci */
 
-    if ( M_highest_used_ci < NPP_MAX_CONNECTIONS-1 )
+    if ( M_highest_used_ci < NPP_MAX_CONNECTIONS )
         M_first_free_ci = M_highest_used_ci + 1;
     else
         find_first_free_ci();
+
+    DDBG("After accept:   M_first_free_ci = %d", M_first_free_ci);
 }
 
 
@@ -4555,6 +4545,14 @@ static void process_req(int ci)
 
     /* ------------------------------------------------------------------------ */
 
+    if ( ci == NPP_MAX_CONNECTIONS )    /* connections pool exhausted */
+    {
+        RES_STATUS(503);
+        render_page_msg(ci, ERR_SERVER_TOOBUSY);
+    }
+
+    /* ------------------------------------------------------------------------ */
+
     if ( G_connections[ci].status != 200 )
         return;
 
@@ -5398,7 +5396,7 @@ static void close_old_conn()
 
     last_allowed = G_now - NPP_CONNECTION_TIMEOUT;
 
-    for ( i=0; G_connections_cnt>0 && i<NPP_MAX_CONNECTIONS; ++i )
+    for ( i=0; G_connections_cnt>0 && i<NPP_MAX_CONNECTIONS+1; ++i )
     {
         if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED && G_connections[i].last_activity < last_allowed )
         {

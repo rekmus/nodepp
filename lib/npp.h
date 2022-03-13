@@ -888,7 +888,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 #endif  /* NPP_FD_MON_SELECT */
 
-#define NPP_CLOSING_SESSION_CI              NPP_MAX_CONNECTIONS
+#define NPP_CLOSING_SESSION_CI              NPP_MAX_CONNECTIONS+1
 
 #define NPP_NOT_CONNECTED                   -1
 
@@ -1731,7 +1731,8 @@ extern bool         G_endianness;
 extern int          G_pid;                                      /* pid */
 extern char         G_appdir[256];                              /* application root dir */
 extern int          G_days_up;                                  /* web server's days up */
-extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];   /* HTTP connections & requests -- the main structure. The extra slot is for NPP_CLOSING_SESSION_CI */
+extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];   /* HTTP connections & requests -- the main structure */
+                                                                /* The extra 2 slots are for 503 processing and for NPP_CLOSING_SESSION_CI */
 extern int          G_connections_cnt;                          /* number of open connections */
 extern int          G_connections_hwm;                          /* highest number of open connections (high water mark) */
 extern char         G_tmp[NPP_TMP_BUFSIZE];                     /* temporary string buffer */
