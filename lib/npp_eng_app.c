@@ -1399,7 +1399,7 @@ static bool housekeeping()
 
     if ( G_ptm->tm_min != M_prev_minute )
     {
-        DDBG("Once a minute");
+        DDBG("\nOnce a minute");
 
         /* close expired authenticated sessions */
 #ifdef NPP_USERS
