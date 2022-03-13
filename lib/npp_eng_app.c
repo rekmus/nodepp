@@ -2479,7 +2479,7 @@ static void close_connection(int ci, bool update_first_free)
     }
 
     DDBG("  M_first_free_ci = %d", M_first_free_ci);
-    DDBG("M_highest_used_ci = %d", M_highest_used_ci);
+    DDBG("M_highest_used_ci = %d\n", M_highest_used_ci);
 }
 
 
@@ -3262,7 +3262,7 @@ static void accept_connection(bool secure)
         if ( G_connections[NPP_MAX_CONNECTIONS].conn_state != CONN_STATE_DISCONNECTED )
             close_connection(NPP_MAX_CONNECTIONS, FALSE);
 
-        WAR("No room left for the new client, returning 503...");
+        WAR("No room left for the new client, will return 503...");
     }
     else
     {
