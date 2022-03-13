@@ -2427,7 +2427,7 @@ static void close_connection(int ci, bool update_first_free)
 
     reset_conn(ci, CONN_STATE_DISCONNECTED);
 
-    if ( M_first_free_ci < NPP_MAX_CONNECTIONS )
+    if ( ci < NPP_MAX_CONNECTIONS )
         G_connections_cnt--;
 
     if ( !update_first_free ) return;
