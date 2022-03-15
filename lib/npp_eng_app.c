@@ -87,8 +87,6 @@ int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t)
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
 #endif  /* NPP_ASYNC */
 
-bool        G_index_present=FALSE;          /* index.html present in res? */
-
 char        G_blacklist[NPP_MAX_BLACKLIST+1][INET_ADDRSTRLEN];
 int         G_blacklist_cnt=0;              /* G_blacklist length */
 
@@ -189,15 +187,11 @@ static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* 
 
 #endif  /* NPP_FD_MON_EPOLL */
 
-static static_res_t M_stat[NPP_MAX_STATICS]={0};    /* static resources */
+static static_res_t M_statics[NPP_MAX_STATICS]={0}; /* static resources */
+static int          M_statics_cnt=0;                /* M_statics count */
 static char         M_resp_date[32];                /* response header Date */
 static char         M_expires_stat[32];             /* response header for static resources */
 static char         M_expires_gen[32];              /* response header for generated resources */
-static int          M_static_cnt=-1;                /* highest static resource M_stat index */
-static bool         M_popular_favicon=FALSE;        /* popular statics -- don't create sessions for those */
-static bool         M_popular_appleicon=FALSE;      /* -''- */
-static bool         M_popular_robots=FALSE;         /* -''- */
-static bool         M_popular_sw=FALSE;             /* -''- */
 
 #ifdef _WIN32   /* Windows */
 static WSADATA      M_eng_wsa;
@@ -216,6 +210,9 @@ static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
 static unsigned     M_last_call_id=0;               /* counter */
 static char         *M_async_shm=NULL;              /* shared memory address */
 #endif  /* NPP_ASYNC */
+
+static int          M_index_present=-1;             /* index.html present in res? */
+
 
 
 /* prototypes */
@@ -685,8 +682,10 @@ int main(int argc, char **argv)
                             {
                                 if ( M_epollevs[l].data.fd == M_listening_fd )
                                     DBG("M_epollevs[%d].events = %d, ...data.fd = %d (M_listening_fd)", l, M_epollevs[l].events, M_epollevs[l].data.fd);
+#ifdef NPP_HTTPS
                                 else if ( M_epollevs[l].data.fd == M_listening_sec_fd )
                                     DBG("M_epollevs[%d].events = %d, ...data.fd = %d (M_listening_sec_fd)", l, M_epollevs[l].events, M_epollevs[l].data.fd);
+#endif
                                 else
                                     DBG("ci=%d, M_epollevs[%d].events = %d, ...data.fd = %d", M_epoll_ci[dbg_epoll_idx].ci, l, M_epollevs[l].events, M_epollevs[l].data.fd);
                             }
@@ -765,7 +764,7 @@ int main(int argc, char **argv)
 #ifdef NPP_HTTPS
                         if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )   /* HTTPS */
                         {
-                            if ( G_connections[ci].conn_state != CONN_STATE_READING_DATA )
+                            if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
                             {
                                 DDBG("ci=%d, trying SSL_read from fd=%d", ci, G_connections[ci].fd);
 
@@ -777,6 +776,7 @@ int main(int argc, char **argv)
                                     {
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
+                                        break;  /* ? */
                                     }
                                     else
                                         break;
@@ -791,7 +791,7 @@ int main(int argc, char **argv)
                                 }
 #endif  /* NPP_HTTP2 */
                             }
-                            else    /* payload */
+                            else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
@@ -832,8 +832,8 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
                                 DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                while ( TRUE )
-                                {
+//                                while ( TRUE )
+//                                {
                                     bytes = recv(G_connections[ci].fd, G_connections[ci].in+G_connections[ci].was_read, NPP_IN_BUFSIZE-G_connections[ci].was_read-1, 0);
 
                                     if ( bytes > 0 )
@@ -841,9 +841,9 @@ int main(int argc, char **argv)
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
                                     }
-                                    else
-                                        break;
-                                }
+//                                    else
+//                                        break;
+//                                }
 
                                 set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
@@ -2589,6 +2589,53 @@ bool npp_eng_init_ssl()
 #endif  /* NPP_HTTPS */
 
 
+#ifdef NPP_MULTI_HOST
+/* --------------------------------------------------------------------------
+   Find host id
+-------------------------------------------------------------------------- */
+static int find_host_id(const char *host)
+{
+    if ( host == NULL || host[0] == EOS )
+        return 0;
+
+    int first = 0;
+    int last = G_hosts_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(G_hosts[middle].host, host);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return 0;   /* main host */
+}
+
+
+/* --------------------------------------------------------------------------
+   Update host_id in static resources after app_init
+-------------------------------------------------------------------------- */
+static void static_res_update_host_id()
+{
+    int i;
+
+    for ( i=0; i<M_statics_cnt; ++i )
+    {
+        M_statics[i].host_id = find_host_id(M_statics[i].host);
+    }
+}
+#endif  /* NPP_MULTI_HOST */
+
+
 /* --------------------------------------------------------------------------
    Engine init
    Return TRUE if success
@@ -2604,7 +2651,6 @@ static bool init(int argc, char **argv)
     G_connections_hwm = 0;
     G_sessions_cnt = 0;
     G_sessions_hwm = 0;
-    G_index_present = FALSE;
 #ifdef NPP_MYSQL
     G_dbconn = NULL;
 #endif
@@ -2632,11 +2678,6 @@ static bool init(int argc, char **argv)
 
     if ( !(M_pidfile=npp_lib_create_pid_file("npp_app")) )
         return FALSE;
-
-    /* empty static resources list */
-
-    for ( i=0; i<NPP_MAX_STATICS; ++i )
-        strcpy(M_stat[i].name, "-");
 
     /* check endianness and some parameters */
 
@@ -2867,6 +2908,39 @@ static bool init(int argc, char **argv)
     }
 
     DBG("npp_app_init() OK");
+
+#ifdef NPP_MULTI_HOST
+
+    /* update host_id in static resources */
+
+    ALWAYS("Updating host_id in static resources...");
+
+    static_res_update_host_id();
+
+    DBG("");
+    DBG_LINE_LONG;
+    DBG(" Hosts");
+    DBG_LINE_LONG;
+
+    int h;
+    char host[NPP_MAX_HOST_LEN+1];
+    char res[256];
+    char resmin[256];
+    char snippets[256];
+
+    for ( h=0; h<G_hosts_cnt; ++h )
+    {
+        strcpy(host, npp_add_spaces(G_hosts[h].host, 22));
+        strcpy(res, npp_add_spaces(G_hosts[h].res, 22));
+        strcpy(resmin, npp_add_spaces(G_hosts[h].resmin, 22));
+        strcpy(snippets, npp_add_spaces(G_hosts[h].snippets, 22));
+
+        DBG(" %d | %s | %s | %s | %s", h, host, res, resmin, snippets);
+    }
+
+    DBG_LINE_LONG;
+    DBG("");
+#endif  /* NPP_MULTI_HOST */
 
     /* read static resources */
 
@@ -3260,7 +3334,10 @@ static void accept_connection(bool secure)
     if ( M_first_free_ci == NPP_MAX_CONNECTIONS )
     {
         if ( G_connections[NPP_MAX_CONNECTIONS].conn_state != CONN_STATE_DISCONNECTED )
+        {
+            DBG("Need to force-disconnect previous 503 client...");
             close_connection(NPP_MAX_CONNECTIONS, FALSE);
+        }
 
         WAR("No room left for the new client, will return 503...");
     }
@@ -3574,7 +3651,6 @@ static bool ip_blocked(const char *addr)
     int first = 0;
     int last = G_blacklist_cnt - 1;
     int middle = (first+last) / 2;
-
     int result;
 
     while ( first <= last )
@@ -3714,7 +3790,6 @@ static bool ip_allowed(const char *addr)
     int first = 0;
     int last = G_whitelist_cnt - 1;
     int middle = (first+last) / 2;
-
     int result;
 
     while ( first <= last )
@@ -3892,12 +3967,39 @@ static int deflate_inplace(z_stream *strm, unsigned char *buf, unsigned len, uns
 
 
 /* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+static int compare_statics(const void *a, const void *b)
+{
+    const static_res_t *p1 = (static_res_t*)a;
+    const static_res_t *p2 = (static_res_t*)b;
+
+#ifdef NPP_MULTI_HOST
+
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+    /* same host */
+
+    return strcmp(p1->name, p2->name);
+
+#else
+
+    return strcmp(p1->name, p2->name);
+
+#endif
+}
+
+
+/* --------------------------------------------------------------------------
    Read static resources from disk
    Read all the files from G_appdir/res or resmin directory
    path is a relative path under `res` or `resmin`
-   Unlike snippets, these are only used by main npp_app process
+   Unlike snippets, these are only used by the main npp_app process
 -------------------------------------------------------------------------- */
-static bool read_files(const char *host, const char *directory, char source, bool first_scan, const char *path)
+static bool read_files(const char *host, int host_id, const char *directory, char source, bool first_scan, const char *path)
 {
     bool    minify=FALSE;
     int     i;
@@ -3911,6 +4013,8 @@ static bool read_files(const char *host, const char *directory, char source, boo
     char    *data_tmp=NULL;
     char    *data_tmp_min=NULL;
     struct stat fstat;
+
+    if ( directory == NULL || directory[0] == EOS ) return TRUE;
 
 #ifndef _WIN32
     if ( G_appdir[0] == EOS ) return TRUE;
@@ -3980,72 +4084,62 @@ static bool read_files(const char *host, const char *directory, char source, boo
     {
 //        DDBG("Checking removed files...");
 
-        for ( i=0; i<=M_static_cnt; ++i )
+        int removed = 0;
+
+        for ( i=0; i<M_statics_cnt; ++i )
         {
-            if ( M_stat[i].name[0]==EOS ) continue;   /* already removed */
+            if ( M_statics[i].host_id != host_id || M_statics[i].source != source ) continue;
 
-            if ( 0 != strcmp(M_stat[i].host, host) || M_stat[i].source != source ) continue;
-
-//            DDBG("Checking %s...", M_stat[i].name);
+//            DDBG("Checking %s...", M_statics[i].name);
 
             char fullpath[NPP_STATIC_PATH_LEN*2];
 #ifdef _WIN32
-            sprintf(fullpath, "%s\\%s", resdir, M_stat[i].name);
+            sprintf(fullpath, "%s\\%s", resdir, M_statics[i].name);
 #else
-            sprintf(fullpath, "%s/%s", resdir, M_stat[i].name);
+            sprintf(fullpath, "%s/%s", resdir, M_statics[i].name);
 #endif
             if ( !npp_file_exists(fullpath) )
             {
-                INF("Removing %s from static resources", M_stat[i].name);
+                INF("Removing %s from static resources", M_statics[i].name);
 
-                if ( 0==strcmp(directory, "res") )
+                if ( 0==strcmp(M_statics[i].name, "index.html") )
                 {
-                    if ( 0==strcmp(M_stat[i].name, "index.html") )
-                        G_index_present = FALSE;
-                    else if ( 0==strcmp(M_stat[i].name, "favicon.ico") )
-                        M_popular_favicon = FALSE;
-                    else if ( 0==strcmp(M_stat[i].name, "apple-touch-icon.png") )
-                        M_popular_appleicon = FALSE;
-                    else if ( 0==strcmp(M_stat[i].name, "robots.txt") )
-                        M_popular_robots = FALSE;
-                }
-                else if ( 0==strcmp(directory, "resmin") )
-                {
-                    if ( 0==strcmp(M_stat[i].name, "sw.js") )
-                        M_popular_sw = FALSE;
-                }
+                    if ( host_id == 0 )
+                        M_index_present = -1;
 #ifdef NPP_MULTI_HOST
-                else    /* side gig */
-                {
-                    if ( 0==strcmp(M_stat[i].name, "index.html") )
-                    {
-                        int j;
-                        for ( j=1; j<G_hosts_cnt; ++j )
-                        {
-                            if ( 0==strcmp(G_hosts[j].host, host) )
-                            {
-                                G_hosts[j].index_present = FALSE;
-                                break;
-                            }
-                        }
-                    }
+                    else
+                        G_hosts[host_id].index_present = -1;
+#endif
                 }
+
+#ifdef NPP_MULTI_HOST
+                M_statics[i].host[0] = EOS;
+                M_statics[i].host_id = NPP_MAX_HOSTS;
 #endif  /* NPP_MULTI_HOST */
 
-                M_stat[i].host[0] = EOS;
-                M_stat[i].name[0] = EOS;
+                strcpy(M_statics[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
 
-                free(M_stat[i].data);
-                M_stat[i].data = NULL;
-                M_stat[i].len = 0;
+                free(M_statics[i].data);
+                M_statics[i].data = NULL;
+                M_statics[i].len = 0;
 
-                if ( M_stat[i].data_deflated )
+                if ( M_statics[i].data_deflated )
                 {
-                    free(M_stat[i].data_deflated);
-                    M_stat[i].data_deflated = NULL;
-                    M_stat[i].len_deflated = 0;
+                    free(M_statics[i].data_deflated);
+                    M_statics[i].data_deflated = NULL;
+                    M_statics[i].len_deflated = 0;
                 }
+
+                ++removed;
             }
+        }
+
+        if ( removed )
+        {
+            DBG("%d statics removed", removed);
+            qsort(&M_statics, M_statics_cnt, sizeof(M_statics[0]), compare_statics);
+            M_statics_cnt -= removed;
+            DDBG("M_statics_cnt after removing = %d", M_statics_cnt);
         }
     }
 
@@ -4106,7 +4200,7 @@ static bool read_files(const char *host, const char *directory, char source, boo
             if ( first_scan )
                 DBG("Reading subdirectory [%s]...", dirent->d_name);
 #endif
-            read_files(host, directory, source, first_scan, resname);
+            read_files(host, host_id, directory, source, first_scan, resname);
             continue;
         }
         else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
@@ -4127,17 +4221,13 @@ static bool read_files(const char *host, const char *directory, char source, boo
         {
             bool exists_not_changed = FALSE;
 
-            for ( i=0; i<=M_static_cnt; ++i )
+            for ( i=0; i<M_statics_cnt; ++i )
             {
-                if ( M_stat[i].name[0]==EOS ) continue;   /* removed */
-
-                /* ------------------------------------------------------------------- */
-
-                if ( 0==strcmp(M_stat[i].host, host) && 0==strcmp(M_stat[i].name, resname) && M_stat[i].source == source )
+                if ( M_statics[i].host_id == host_id && 0==strcmp(M_statics[i].name, resname) && M_statics[i].source == source )
                 {
 //                    DDBG("%s already read", resname);
 
-                    if ( M_stat[i].modified == fstat.st_mtime )
+                    if ( M_statics[i].modified == fstat.st_mtime )
                     {
 //                        DDBG("Not modified");
                         exists_not_changed = TRUE;
@@ -4155,31 +4245,28 @@ static bool read_files(const char *host, const char *directory, char source, boo
             if ( exists_not_changed ) continue;   /* not modified */
         }
 
-        /* find the first unused slot in M_stat array */
-
-        if ( !reread )
+        if ( !reread )  /* first time on the list */
         {
-            i = first_free_stat();
-
             /* host -- already uppercase */
 
-            strcpy(M_stat[i].host, host);
+            strcpy(M_statics[M_statics_cnt].host, host);
+            M_statics[M_statics_cnt].host_id = host_id;
 
             /* file name */
 
-            strcpy(M_stat[i].name, resname);
+            strcpy(M_statics[M_statics_cnt].name, resname);
         }
 
         /* source */
 
-        M_stat[i].source = source;
+        M_statics[M_statics_cnt].source = source;
 
         if ( source == STATIC_SOURCE_RESMIN )
             minify = TRUE;
 
         /* last modified */
 
-        M_stat[i].modified = fstat.st_mtime;
+        M_statics[M_statics_cnt].modified = fstat.st_mtime;
 
         /* size and content */
 
@@ -4192,61 +4279,61 @@ static bool read_files(const char *host, const char *directory, char source, boo
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
-            M_stat[i].len = ftell(fd);
+            M_statics[M_statics_cnt].len = ftell(fd);
             rewind(fd);
 
             if ( minify )
             {
                 /* we don't know the minified size yet -- read file into temp buffer */
 
-                if ( NULL == (data_tmp=(char*)malloc(M_stat[i].len+1)) )
+                if ( NULL == (data_tmp=(char*)malloc(M_statics[M_statics_cnt].len+1)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_stat[i].len, M_stat[i].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                if ( NULL == (data_tmp_min=(char*)malloc(M_stat[i].len+1)) )
+                if ( NULL == (data_tmp_min=(char*)malloc(M_statics[M_statics_cnt].len+1)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_stat[i].len, M_stat[i].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                if ( fread(data_tmp, M_stat[i].len, 1, fd) != 1 )
+                if ( fread(data_tmp, M_statics[M_statics_cnt].len, 1, fd) != 1 )
                 {
-                    ERR("Couldn't read from %s", M_stat[i].name);
+                    ERR("Couldn't read from %s", M_statics[M_statics_cnt].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                *(data_tmp+M_stat[i].len) = EOS;
+                *(data_tmp+M_statics[M_statics_cnt].len) = EOS;
 
-                M_stat[i].len = npp_minify(data_tmp_min, data_tmp);   /* new length */
+                M_statics[M_statics_cnt].len = npp_minify(data_tmp_min, data_tmp);   /* new length */
             }
 
             /* allocate the final destination */
 
             if ( reread )
             {
-                free(M_stat[i].data);
-                M_stat[i].data = NULL;
+                free(M_statics[M_statics_cnt].data);
+                M_statics[M_statics_cnt].data = NULL;
 
-                if ( M_stat[i].data_deflated )
+                if ( M_statics[M_statics_cnt].data_deflated )
                 {
-                    free(M_stat[i].data_deflated);
-                    M_stat[i].data_deflated = NULL;
+                    free(M_statics[M_statics_cnt].data_deflated);
+                    M_statics[M_statics_cnt].data_deflated = NULL;
                 }
             }
 
-            M_stat[i].data = (char*)malloc(M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE);
+            M_statics[M_statics_cnt].data = (char*)malloc(M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE);
 
-            if ( NULL == M_stat[i].data )
+            if ( NULL == M_statics[M_statics_cnt].data )
             {
-                ERR("Couldn't allocate %u bytes for %s", M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_stat[i].name);
+                ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
@@ -4254,17 +4341,17 @@ static bool read_files(const char *host, const char *directory, char source, boo
 
             if ( minify )   /* STATIC_SOURCE_RESMIN */
             {
-                memcpy(M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_stat[i].len+1);
+                memcpy(M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[M_statics_cnt].len+1);
                 free(data_tmp);
                 data_tmp = NULL;
                 free(data_tmp_min);
                 data_tmp_min = NULL;
             }
-            else if ( M_stat[i].source == STATIC_SOURCE_RES )
+            else if ( M_statics[M_statics_cnt].source == STATIC_SOURCE_RES )
             {
-                if ( fread(M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, M_stat[i].len, 1, fd) != 1 )
+                if ( fread(M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].len, 1, fd) != 1 )
                 {
-                    ERR("Couldn't read from %s", M_stat[i].name);
+                    ERR("Couldn't read from %s", M_statics[M_statics_cnt].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
@@ -4277,83 +4364,59 @@ static bool read_files(const char *host, const char *directory, char source, boo
 
             if ( !reread )
             {
-                M_stat[i].type = npp_lib_get_res_type(M_stat[i].name);
+                M_statics[M_statics_cnt].type = npp_lib_get_res_type(M_statics[M_statics_cnt].name);
 
-                if ( 0==strcmp(directory, "res") )
+                if ( 0==strcmp(M_statics[M_statics_cnt].name, "index.html") )
                 {
-                    if ( 0==strcmp(M_stat[i].name, "index.html") )
-                        G_index_present = TRUE;
-                    else if ( 0==strcmp(M_stat[i].name, "favicon.ico") )
-                        M_popular_favicon = TRUE;
-                    else if ( 0==strcmp(M_stat[i].name, "apple-touch-icon.png") )
-                        M_popular_appleicon = TRUE;
-                    else if ( 0==strcmp(M_stat[i].name, "robots.txt") )
-                        M_popular_robots = TRUE;
-                }
-                else if ( 0==strcmp(directory, "resmin") )
-                {
-                    if ( 0==strcmp(M_stat[i].name, "sw.js") )
-                        M_popular_sw = TRUE;
-                }
+                    if ( host_id == 0 )
+                        M_index_present = M_statics_cnt;
 #ifdef NPP_MULTI_HOST
-                else    /* side gig */
-                {
-                    if ( 0==strcmp(M_stat[i].name, "index.html") )
-                    {
-                        int j;
-                        for ( j=1; j<G_hosts_cnt; ++j )
-                        {
-                            if ( 0==strcmp(G_hosts[j].host, host) )
-                            {
-                                G_hosts[j].index_present = TRUE;
-                                break;
-                            }
-                        }
-                    }
+                    else
+                        G_hosts[host_id].index_present = M_statics_cnt;
+#endif
                 }
-#endif  /* NPP_MULTI_HOST */
             }
 
             /* compress ---------------------------------------- */
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_stat[i].len, M_stat[i].type) && M_stat[i].source != STATIC_SOURCE_SNIPPETS )
+            if ( SHOULD_BE_COMPRESSED(M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].type) && M_statics[M_statics_cnt].source != STATIC_SOURCE_SNIPPETS )
             {
-                if ( NULL == (data_tmp=(char*)malloc(M_stat[i].len)) )
+                if ( NULL == (data_tmp=(char*)malloc(M_statics[M_statics_cnt].len)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_stat[i].len, M_stat[i].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
                     closedir(dir);
                     return FALSE;
                 }
 
-                int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, M_stat[i].len);
+                int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].len);
 
                 if ( deflated_len == -1 )
                 {
-                    WAR("Couldn't compress %s", M_stat[i].name);
+                    WAR("Couldn't compress %s", M_statics[M_statics_cnt].name);
 
-                    if ( M_stat[i].data_deflated )
+                    if ( M_statics[M_statics_cnt].data_deflated )
                     {
-                        free(M_stat[i].data_deflated);
-                        M_stat[i].data_deflated = NULL;
+                        free(M_statics[M_statics_cnt].data_deflated);
+                        M_statics[M_statics_cnt].data_deflated = NULL;
                     }
 
-                    M_stat[i].len_deflated = 0;
+                    M_statics[M_statics_cnt].len_deflated = 0;
                 }
                 else
                 {
-                    if ( NULL == (M_stat[i].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
+                    if ( NULL == (M_statics[M_statics_cnt].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
                     {
-                        ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_stat[i].name);
+                        ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
                         fclose(fd);
                         closedir(dir);
                         free(data_tmp);
                         return FALSE;
                     }
 
-                    memcpy(M_stat[i].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
-                    M_stat[i].len_deflated = deflated_len;
+                    memcpy(M_statics[M_statics_cnt].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
+                    M_statics[M_statics_cnt].len_deflated = deflated_len;
                 }
 
                 free(data_tmp);
@@ -4366,23 +4429,22 @@ static bool read_files(const char *host, const char *directory, char source, boo
 
             if ( G_logLevel > LOG_INF )
             {
-                G_ptm = gmtime(&M_stat[i].modified);
+                G_ptm = gmtime(&M_statics[M_statics_cnt].modified);
                 char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", npp_add_spaces(M_stat[i].name, 28), mod_time, M_stat[i].len);
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(M_statics[M_statics_cnt].name, 28), mod_time, M_statics[M_statics_cnt].len);
             }
-        }
 
-#ifdef NPP_DEBUG
-//      if ( minify )   /* temporarily */
-//          DBG("minified %s: [%s]", M_stat[i].name, M_stat[i].data);
-#endif  /* NPP_DEBUG */
+            ++M_statics_cnt;
+        }
     }
 
     closedir(dir);
 
     if ( first_scan && !path ) DBG("");
+
+    DBG("M_statics_cnt = %d\n", M_statics_cnt);
 
     return TRUE;
 }
@@ -4393,23 +4455,29 @@ static bool read_files(const char *host, const char *directory, char source, boo
 -------------------------------------------------------------------------- */
 static bool read_resources(bool first_scan)
 {
-    if ( !read_files("", "res", STATIC_SOURCE_RES, first_scan, NULL) )
+    if ( !read_files("", 0, "res", STATIC_SOURCE_RES, first_scan, NULL) )
     {
-        ERR("reading res failed");
+        ERR("Reading res failed");
         return FALSE;
     }
 
-    if ( !read_files("", "resmin", STATIC_SOURCE_RESMIN, first_scan, NULL) )
+    DBG("Reading res OK");
+
+    if ( !read_files("", 0, "resmin", STATIC_SOURCE_RESMIN, first_scan, NULL) )
     {
-        ERR("reading resmin failed");
+        ERR("Reading resmin failed");
         return FALSE;
     }
 
-    if ( !npp_lib_read_snippets("", "snippets", first_scan, NULL) )
+    DBG("Reading resmin OK");
+
+    if ( !npp_lib_read_snippets("", 0, "snippets", first_scan, NULL) )
     {
-        ERR("reading snippets failed");
+        ERR("Reading snippets failed");
         return FALSE;
     }
+
+    DBG("Reading snippets OK");
 
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
@@ -4418,106 +4486,128 @@ static bool read_resources(bool first_scan)
 
     for ( i=1; i<G_hosts_cnt; ++i )
     {
-        if ( G_hosts[i].res[0] && !read_files(G_hosts[i].host, G_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
+        if ( G_hosts[i].res[0] && !read_files(G_hosts[i].host, i, G_hosts[i].res, STATIC_SOURCE_RES, first_scan, NULL) )
         {
-            ERR("reading %s's res failed", G_hosts[i].host);
+            ERR("Reading %s's res failed", G_hosts[i].host);
             return FALSE;
         }
 
-        if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
+        DBG("Reading %s's res OK", G_hosts[i].host);
+
+        if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, i, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
-            ERR("reading %s's resmin failed", G_hosts[i].host);
+            ERR("Reading %s's resmin failed", G_hosts[i].host);
             return FALSE;
         }
 
-        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, first_scan, NULL) )
+        DBG("Reading %s's resmin OK", G_hosts[i].host);
+
+        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, first_scan, NULL) )
         {
-            ERR("reading %s's snippets failed", G_hosts[i].host);
+            ERR("Reading %s's snippets failed", G_hosts[i].host);
             return FALSE;
         }
+
+        DBG("Reading %s's snippets OK", G_hosts[i].host);
     }
 
 #endif  /* NPP_MULTI_HOST */
+
+    qsort(&M_statics, M_statics_cnt, sizeof(M_statics[0]), compare_statics);
+
+    DBG("after sort statics");
+
+    qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
+
+    DBG("after sort snippets");
 
     return TRUE;
 }
 
 
 /* --------------------------------------------------------------------------
-   Find first free slot in M_stat
+   Find first free slot in M_statics
 -------------------------------------------------------------------------- */
-static int first_free_stat()
+/*static int first_free_stat()
 {
     int i=0;
 
     for ( i=0; i<NPP_MAX_STATICS; ++i )
     {
-        if ( M_stat[i].name[0]=='-' || M_stat[i].name[0]==EOS )
+        if ( M_statics[i].name[0]=='-' || M_statics[i].name[0]==EOS )
         {
-            if ( i > M_static_cnt ) M_static_cnt = i;
+            if ( i > M_statics_cnt ) M_statics_cnt = i;
             return i;
         }
     }
 
-    ERR("NPP_MAX_STATICS reached (%d)! You can set/increase APP_MAX_STATICS in npp_app.h.", NPP_MAX_STATICS);
+    ERR("NPP_MAX_STATICS reached (%d)! You can set/increase NPP_MAX_STATICS in npp_app.h.", NPP_MAX_STATICS);
 
-    return -1;  /* nothing's free, we ran out of statics! */
-}
+    return -1; */ /* nothing's free, we ran out of statics! */
+//}
 
 
 /* --------------------------------------------------------------------------
-   Return M_stat array index if URI is on statics' list
+   Return M_statics array index if URI is on statics' list
 -------------------------------------------------------------------------- */
 static int is_static_res(int ci)
 {
-    int i;
+    int first = 0;
+    int last = M_statics_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
 
 #ifdef NPP_MULTI_HOST
 
-    if ( !G_connections[ci].host_id )    /* main host */
+    while ( first <= last )
     {
-        for ( i=0; M_stat[i].name[0] != '-'; ++i )
+        if ( M_statics[middle].host_id < G_connections[ci].host_id )
         {
-            if ( !M_stat[i].host[0] && 0==strcmp(M_stat[i].name, G_connections[ci].uri) /*&& M_stat[i].source != STATIC_SOURCE_SNIPPETS*/ )
-            {
-                if ( G_connections[ci].if_mod_since >= M_stat[i].modified )
-                {
-                    G_connections[ci].status = 304;  /* Not Modified */
-                }
-
-                return i;
-            }
+            first = middle + 1;
         }
-    }
-    else    /* side gig */
-    {
-        for ( i=0; M_stat[i].name[0] != '-'; ++i )
+        else if ( M_statics[middle].host_id == G_connections[ci].host_id )
         {
-            if ( 0==strcmp(M_stat[i].host, G_connections[ci].host_normalized) && 0==strcmp(M_stat[i].name, G_connections[ci].uri) )
-            {
-                if ( G_connections[ci].if_mod_since >= M_stat[i].modified )
-                {
-                    G_connections[ci].status = 304;  /* Not Modified */
-                }
+            result = strcmp(M_statics[middle].name, G_connections[ci].uri);
 
-                return i;
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+            {
+                if ( G_connections[ci].if_mod_since >= M_statics[middle].modified )
+                    G_connections[ci].status = 304;  /* Not Modified */
+
+                return middle;
             }
+            else    /* result > 0 */
+                last = middle - 1;
         }
+        else    /* M_statics[middle].host_id > G_connections[ci].host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
     }
 
 #else   /* NOT NPP_MULTI_HOST */
 
-    for ( i=0; M_stat[i].name[0] != '-'; ++i )
+    while ( first <= last )
     {
-        if ( 0==strcmp(M_stat[i].name, G_connections[ci].uri) /*&& M_stat[i].source != STATIC_SOURCE_SNIPPETS*/ )
-        {
-            if ( G_connections[ci].if_mod_since >= M_stat[i].modified )
-            {
-                G_connections[ci].status = 304;  /* Not Modified */
-            }
+        result = strcmp(M_statics[middle].name, G_connections[ci].uri);
 
-            return i;
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+        {
+            if ( G_connections[ci].if_mod_since >= M_statics[middle].modified )
+                G_connections[ci].status = 304;  /* Not Modified */
+
+            return middle;
         }
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
     }
 
 #endif  /* NPP_MULTI_HOST */
@@ -4554,6 +4644,7 @@ static void process_req(int ci)
     {
         RES_STATUS(503);
         render_page_msg(ci, ERR_SERVER_TOOBUSY);
+        RES_DONT_CACHE;
         G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;
     }
 
@@ -4884,10 +4975,10 @@ static void gen_response_header(int ci)
             {
 #ifdef NPP_HTTP2
                 if ( G_connections[ci].http_ver[0] == '2' )
-                    PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_stat[G_connections[ci].static_res].modified));
+                    PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
                 else
 #endif  /* NPP_HTTP2 */
-                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[G_connections[ci].static_res].modified));
+                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
 
                 if ( NPP_EXPIRES_STATICS > 0 )
                 {
@@ -4965,10 +5056,10 @@ static void gen_response_header(int ci)
                 {
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_stat[G_connections[ci].static_res].modified));
+                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_stat[G_connections[ci].static_res].modified));
+                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
 
                     if ( NPP_EXPIRES_STATICS > 0 )
                     {
@@ -4990,8 +5081,8 @@ static void gen_response_header(int ci)
             }
             else    /* static resource */
             {
-                G_connections[ci].clen = M_stat[G_connections[ci].static_res].len;
-                G_connections[ci].out_ctype = M_stat[G_connections[ci].static_res].type;
+                G_connections[ci].clen = M_statics[G_connections[ci].static_res].len;
+                G_connections[ci].out_ctype = M_statics[G_connections[ci].static_res].type;
             }
 
             /* compress? ------------------------------------------------------------------ */
@@ -5048,10 +5139,10 @@ static              bool first=TRUE;
                         ERR("deflate_inplace failed, ret = %d", ret);
                     }
                 }
-                else if ( M_stat[G_connections[ci].static_res].len_deflated )   /* compressed static resource is available */
+                else if ( M_statics[G_connections[ci].static_res].len_deflated )   /* compressed static resource is available */
                 {
-                    G_connections[ci].out_data = M_stat[G_connections[ci].static_res].data_deflated;
-                    G_connections[ci].clen = M_stat[G_connections[ci].static_res].len_deflated;
+                    G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data_deflated;
+                    G_connections[ci].clen = M_statics[G_connections[ci].static_res].len_deflated;
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
                         PRINT_HTTP2_CONTENT_ENCODING_DEFLATE;
@@ -5923,30 +6014,25 @@ static int parse_req(int ci, int len)
     /* determine whether main host has been requested */
 
 #ifdef NPP_MULTI_HOST
-//#ifndef NPP_DONT_NORMALIZE_HOST
 
-    for ( i=0; i<G_hosts_cnt; ++i )
-    {
-        if ( HOST(G_hosts[i].host) )
-        {
-            G_connections[ci].host_id = i;
-            break;
-        }
-    }
+    G_connections[ci].host_id = find_host_id(G_connections[ci].host_normalized);
 
-//#endif  /* NPP_DONT_NORMALIZE_HOST */
+    DBG("host_id = %d", G_connections[ci].host_id);
+
 #endif  /* NPP_MULTI_HOST */
 
     /* Serve index if present --------------------------------------- */
 
 #ifndef NPP_DONT_LOOK_FOR_INDEX
 
-    if ( !G_connections[ci].uri[0] && REQ_GET )
+    if ( G_connections[ci].uri[0]==EOS && REQ_GET )
     {
+        DBG("M_index_present = %d", M_index_present);
+
 #ifdef NPP_MULTI_HOST
-        if ( (!G_connections[ci].host_id && G_index_present) || G_hosts[G_connections[ci].host_id].index_present )
+        if ( (G_connections[ci].host_id==0 && M_index_present!=-1) || G_hosts[G_connections[ci].host_id].index_present != -1 )
 #else
-        if ( G_index_present )
+        if ( M_index_present != -1 )
 #endif
         {
             INF("Serving index.html");
@@ -5960,12 +6046,6 @@ static int parse_req(int ci, int len)
 
     if ( G_connections[ci].uri[0] )  /* if not empty */
     {
-        if ( (0==strcmp(G_connections[ci].uri, "favicon.ico") && !M_popular_favicon)
-                || (0==strcmp(G_connections[ci].uri, "apple-touch-icon.png") && !M_popular_appleicon)
-                || (0==strcmp(G_connections[ci].uri, "robots.txt") && !M_popular_robots)
-                || (0==strcmp(G_connections[ci].uri, "sw.js") && !M_popular_sw) )
-            return 404;     /* Not Found */
-
         /* cut the query string off */
 
         char uri[NPP_MAX_URI_LEN+1];
@@ -6084,7 +6164,7 @@ static int parse_req(int ci, int len)
         /* now, it may have set G_connections[ci].status to 304 */
 
         if ( G_connections[ci].static_res != NPP_NOT_STATIC )    /* static resource */
-            G_connections[ci].out_data = M_stat[G_connections[ci].static_res].data;
+            G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data;
     }
 
     /* -------------------------------------------------------------- */
@@ -7306,35 +7386,110 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
    Set internal (generated) static resource data & size
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_add_to_static_res(const std::string& name_, const std::string& src_)
+void npp_add_to_static_res(const std::string& host_, const std::string& name_, const std::string& src_)
 {
+    const char *host = host_.c_str();
     const char *name = name_.c_str();
     const char *src = src_.c_str();
 #else
-void npp_add_to_static_res(const char *name, const char *src)
+void npp_add_to_static_res(const char *host, const char *name, const char *src)
 {
 #endif
-    int i;
 
-    i = first_free_stat();
-
-    strcpy(M_stat[i].name, name);
-
-    M_stat[i].len = strlen(src);   /* internal are text based */
-
-    if ( NULL == (M_stat[i].data=(char*)malloc(M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE)) )
+    if ( M_statics_cnt > NPP_MAX_STATICS-1 )
     {
-        ERR("Couldn't allocate %u bytes for %s", M_stat[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_stat[i].name);
+        WAR("M_statics_cnt at max (%d)!", NPP_MAX_STATICS);
         return;
     }
 
-    strcpy(M_stat[i].data+NPP_OUT_HEADER_BUFSIZE, src);
+    if ( host && host[0] )
+        strcpy(M_statics[M_statics_cnt].host, npp_upper(host));
+    else
+        M_statics[M_statics_cnt].host[0] = EOS;
 
-    M_stat[i].type = npp_lib_get_res_type(M_stat[i].name);
-    M_stat[i].modified = G_now;
-    M_stat[i].source = STATIC_SOURCE_INTERNAL;
+#ifdef NPP_MULTI_HOST
+    M_statics[M_statics_cnt].host_id = find_host_id(M_statics[M_statics_cnt].host);
+#else
+    M_statics[M_statics_cnt].host_id = 0;
+#endif
 
-    INF("%s (%u bytes)", M_stat[i].name, M_stat[i].len);
+    strcpy(M_statics[M_statics_cnt].name, name);
+
+    M_statics[M_statics_cnt].len = strlen(src);   /* internal are text based */
+
+    if ( NULL == (M_statics[M_statics_cnt].data=(char*)malloc(M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE)) )
+    {
+        ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
+        return;
+    }
+
+    strcpy(M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, src);
+
+    M_statics[M_statics_cnt].type = npp_lib_get_res_type(M_statics[M_statics_cnt].name);
+    M_statics[M_statics_cnt].modified = G_now;
+    M_statics[M_statics_cnt].source = STATIC_SOURCE_INTERNAL;
+
+    if ( 0==strcmp(M_statics[M_statics_cnt].name, "index.html") )
+    {
+        if ( M_statics[M_statics_cnt].host_id == 0 )
+            M_index_present = M_statics_cnt;
+#ifdef NPP_MULTI_HOST
+        else
+            G_hosts[M_statics[M_statics_cnt].host_id].index_present = M_statics_cnt;
+#endif
+    }
+
+    /* compress ---------------------------------------- */
+
+#ifndef _WIN32
+
+    if ( SHOULD_BE_COMPRESSED(M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].type) && M_statics[M_statics_cnt].source != STATIC_SOURCE_SNIPPETS )
+    {
+        char *data_tmp;
+
+        if ( NULL == (data_tmp=(char*)malloc(M_statics[M_statics_cnt].len)) )
+        {
+            ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
+            return;
+        }
+
+        int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].len);
+
+        if ( deflated_len == -1 )
+        {
+            WAR("Couldn't compress %s", M_statics[M_statics_cnt].name);
+
+            if ( M_statics[M_statics_cnt].data_deflated )
+            {
+                free(M_statics[M_statics_cnt].data_deflated);
+                M_statics[M_statics_cnt].data_deflated = NULL;
+            }
+
+            M_statics[M_statics_cnt].len_deflated = 0;
+        }
+        else
+        {
+            if ( NULL == (M_statics[M_statics_cnt].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
+            {
+                ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
+                free(data_tmp);
+                return;
+            }
+
+            memcpy(M_statics[M_statics_cnt].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
+            M_statics[M_statics_cnt].len_deflated = deflated_len;
+        }
+
+        free(data_tmp);
+    }
+
+#endif  /* _WIN32 */
+
+    INF("%s (%u bytes)", M_statics[M_statics_cnt].name, M_statics[M_statics_cnt].len);
+
+    ++M_statics_cnt;
+
+    qsort(&M_statics, M_statics_cnt, sizeof(M_statics[0]), compare_statics);
 }
 
 

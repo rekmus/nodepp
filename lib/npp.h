@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.6.0"
+#define NPP_VERSION                     "2.0.0"
 
 
 #ifndef FALSE
@@ -941,7 +941,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
 
 
-#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_TEXT || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_BMP))
+#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_BMP || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_MD || type==NPP_CONTENT_TYPE_PDF || type==NPP_CONTENT_TYPE_XML || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_TEXT))
 
 
 /* errors */
@@ -1216,7 +1216,7 @@ typedef struct {
     char res[256];
     char resmin[256];
     char snippets[256];
-    bool index_present;
+    int  index_present;
 } npp_host_t;
 
 
@@ -1633,6 +1633,7 @@ typedef struct {
 
 typedef struct {
     char     host[NPP_MAX_HOST_LEN+1];
+    int      host_id;
     char     name[NPP_STATIC_PATH_LEN+1];
     char     type;
     char     *data;
@@ -1648,6 +1649,7 @@ typedef struct {
 
 typedef struct {
     char     host[NPP_MAX_HOST_LEN+1];
+    int      host_id;
     char     name[NPP_STATIC_PATH_LEN+1];
     char     type;
     char     *data;
@@ -1789,7 +1791,6 @@ extern int          G_async_res_data_size;      /* how many bytes are left for d
 #endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
-extern bool         G_index_present;            /* index.html present in res? */
 
 #ifdef NPP_SVC
 extern async_req_t  G_svc_req;
@@ -1842,9 +1843,9 @@ extern "C" {
     void npp_require_auth(const char *path, char level);
 
 #ifdef NPP_CPP_STRINGS
-    void npp_add_to_static_res(const std::string& name_, const std::string& src_);
+    void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);
 #else
-    void npp_add_to_static_res(const char *name, const char *src);
+    void npp_add_to_static_res(const char *host, const char *name, const char *src);
 #endif
 
     /* public internal */

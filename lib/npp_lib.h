@@ -276,8 +276,8 @@
 
 #define CALL_HTTP_DEFAULT_TIMEOUT                   10000     /* in ms -- to avoid blocking forever */
 
-#define CALL_HTTP(req, res, method, url)            npp_call_http(req, res, method, url, FALSE, FALSE)
-#define CALL_REST(req, res, method, url)            npp_call_http(req, res, method, url, TRUE, FALSE)
+#define CALL_HTTP(req, res, method, url, keep)      npp_call_http(req, res, method, url, FALSE, keep)
+#define CALL_REST(req, res, method, url, keep)      npp_call_http(req, res, method, url, TRUE, keep)
 
 #ifndef NPP_SILGY_COMPATIBILITY
 #ifndef JSON_NO_AUTO_AMPERSANDS
@@ -888,7 +888,8 @@ extern "C" {
     char *npp_lib_fmt_dec(int ci, double in_val);
     char *npp_lib_fmt_int(int ci, long long in_val);
     bool npp_csrft_ok(int ci);
-    bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path);
+    int  lib_compare_snippets(const void *a, const void *b);
+    bool npp_lib_read_snippets(const char *host, int host_id, const char *directory, bool first_scan, const char *path);
     char *npp_get_snippet(int ci, const char *name);
     unsigned npp_get_snippet_len(int ci, const char *name);
     void npp_out_snippet(int ci, const char *name);
@@ -1045,7 +1046,7 @@ void NPP_CPP_STRINGS_STRM(const std::string& str, Args&& ... args)
 #ifndef NPP_CLIENT  /* web app only */
 
 extern "C" {
-extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];
+extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];
 
 #ifdef NPP_SVC
 void npp_svc_out_check_realloc(const char *str);

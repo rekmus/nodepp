@@ -69,7 +69,7 @@ char        *G_strm=NULL;
 
 /* hosts */
 #ifdef NPP_MULTI_HOST
-npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", FALSE}};
+npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", -1}};  /* main host */
 int         G_hosts_cnt=1;
 #endif
 
@@ -185,12 +185,6 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
 
     if ( !load_strings() )
         return FALSE;
-
-    /* snippets */
-
-    int i;
-    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
-        strcpy(G_snippets[i].name, "-");
 
 #endif  /* NPP_CLIENT */
 
@@ -1927,24 +1921,29 @@ void npp_out_html_footer(int ci)
 
 
 /* --------------------------------------------------------------------------
-   Find first free slot in G_snippets
+   Compare
 -------------------------------------------------------------------------- */
-static int first_free_snippet()
+int lib_compare_snippets(const void *a, const void *b)
 {
-    int i=0;
+    const snippet_t *p1 = (snippet_t*)a;
+    const snippet_t *p2 = (snippet_t*)b;
 
-    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
-    {
-        if ( G_snippets[i].name[0]=='-' || G_snippets[i].name[0]==EOS )
-        {
-            if ( i > G_snippets_cnt ) G_snippets_cnt = i;
-            return i;
-        }
-    }
+#ifdef NPP_MULTI_HOST
 
-    ERR("NPP_MAX_SNIPPETS reached (%d)! You can set/increase NPP_MAX_SNIPPETS in npp_app.h.", NPP_MAX_SNIPPETS);
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
 
-    return -1;   /* nothing's free, we ran out of snippets! */
+    /* same host */
+
+    return strcmp(p1->name, p2->name);
+
+#else
+
+    return strcmp(p1->name, p2->name);
+
+#endif
 }
 
 
@@ -1953,7 +1952,7 @@ static int first_free_snippet()
    Unlike res or resmin, snippets need to be available
    in both npp_app and npp_svc processes
 -------------------------------------------------------------------------- */
-bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path)
+bool npp_lib_read_snippets(const char *host, int host_id, const char *directory, bool first_scan, const char *path)
 {
     int     i;
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
@@ -1964,6 +1963,8 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     struct dirent *dirent;
     FILE    *fd;
     struct stat fstat;
+
+    if ( directory == NULL || directory[0] == EOS ) return TRUE;
 
 #ifndef _WIN32
     if ( G_appdir[0] == EOS ) return TRUE;
@@ -2033,11 +2034,13 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     {
 //        DDBG("Checking removed files...");
 
-        for ( i=0; i<=G_snippets_cnt; ++i )
-        {
-            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
+        int removed = 0;
 
-            if ( 0 != strcmp(G_snippets[i].host, host) ) continue;
+        for ( i=0; i<G_snippets_cnt; ++i )
+        {
+//            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
+
+            if ( G_snippets[i].host_id != host_id ) continue;
 
 //            DDBG("Checking %s...", G_snippets[i].name);
 
@@ -2051,13 +2054,27 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
             {
                 INF("Removing %s from snippets", G_snippets[i].name);
 
+#ifdef NPP_MULTI_HOST
                 G_snippets[i].host[0] = EOS;
-                G_snippets[i].name[0] = EOS;
+                G_snippets[i].host_id = NPP_MAX_HOSTS;
+#endif  /* NPP_MULTI_HOST */
+
+                strcpy(G_snippets[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
 
                 free(G_snippets[i].data);
                 G_snippets[i].data = NULL;
                 G_snippets[i].len = 0;
+
+                ++removed;
             }
+        }
+
+        if ( removed )
+        {
+            DBG("%d snippets removed", removed);
+            qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
+            G_snippets_cnt -= removed;
+            DDBG("G_snippets_cnt after removing = %d", G_snippets_cnt);
         }
     }
 
@@ -2118,7 +2135,7 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
             if ( first_scan )
                 DBG("Reading subdirectory [%s]...", dirent->d_name);
 #endif
-            npp_lib_read_snippets(host, directory, first_scan, resname);
+            npp_lib_read_snippets(host, host_id, directory, first_scan, resname);
             continue;
         }
         else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
@@ -2139,13 +2156,13 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
         {
             bool exists_not_changed = FALSE;
 
-            for ( i=0; i<=G_snippets_cnt; ++i )
+            for ( i=0; i<G_snippets_cnt; ++i )
             {
-                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
+//                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
 
                 /* ------------------------------------------------------------------- */
 
-                if ( 0==strcmp(G_snippets[i].host, host) && 0==strcmp(G_snippets[i].name, resname) )
+                if ( G_snippets[i].host_id == host_id && 0==strcmp(G_snippets[i].name, resname) )
                 {
 //                    DDBG("%s already read", resname);
 
@@ -2167,24 +2184,21 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
             if ( exists_not_changed ) continue;   /* not modified */
         }
 
-        /* find the first unused slot in G_snippets array */
-
-        if ( !reread )
+        if ( !reread )  /* first time on the list */
         {
-            i = first_free_snippet();
-
             /* host -- already uppercase */
 
-            strcpy(G_snippets[i].host, host);
+            strcpy(G_snippets[G_snippets_cnt].host, host);
+            G_snippets[G_snippets_cnt].host_id = host_id;
 
             /* file name */
 
-            strcpy(G_snippets[i].name, resname);
+            strcpy(G_snippets[G_snippets_cnt].name, resname);
         }
 
         /* last modified */
 
-        G_snippets[i].modified = fstat.st_mtime;
+        G_snippets[G_snippets_cnt].modified = fstat.st_mtime;
 
         /* size and content */
 
@@ -2197,30 +2211,30 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
-            G_snippets[i].len = ftell(fd);
+            G_snippets[G_snippets_cnt].len = ftell(fd);
             rewind(fd);
 
             /* allocate the final destination */
 
             if ( reread )
             {
-                free(G_snippets[i].data);
-                G_snippets[i].data = NULL;
+                free(G_snippets[G_snippets_cnt].data);
+                G_snippets[G_snippets_cnt].data = NULL;
             }
 
-            G_snippets[i].data = (char*)malloc(G_snippets[i].len+1);
+            G_snippets[G_snippets_cnt].data = (char*)malloc(G_snippets[G_snippets_cnt].len+1);
 
-            if ( NULL == G_snippets[i].data )
+            if ( NULL == G_snippets[G_snippets_cnt].data )
             {
-                ERR("Couldn't allocate %u bytes for %s", G_snippets[i].len+1, G_snippets[i].name);
+                ERR("Couldn't allocate %u bytes for %s", G_snippets[G_snippets_cnt].len+1, G_snippets[G_snippets_cnt].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
             }
 
-            if ( fread(G_snippets[i].data, G_snippets[i].len, 1, fd) != 1 )
+            if ( fread(G_snippets[G_snippets_cnt].data, G_snippets[G_snippets_cnt].len, 1, fd) != 1 )
             {
-                ERR("Couldn't read from %s", G_snippets[i].name);
+                ERR("Couldn't read from %s", G_snippets[G_snippets_cnt].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
@@ -2228,24 +2242,28 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
 
             fclose(fd);
 
-            *(G_snippets[i].data+G_snippets[i].len) = EOS;
+            *(G_snippets[G_snippets_cnt].data+G_snippets[G_snippets_cnt].len) = EOS;
 
             /* log file info ----------------------------------- */
 
             if ( G_logLevel > LOG_INF )
             {
-                G_ptm = gmtime(&G_snippets[i].modified);
+                G_ptm = gmtime(&G_snippets[G_snippets_cnt].modified);
                 char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[G_snippets_cnt].name, 28), mod_time, G_snippets[G_snippets_cnt].len);
             }
+
+            ++G_snippets_cnt;
         }
     }
 
     closedir(dir);
 
     if ( first_scan && !path ) DBG("");
+
+    DBG("G_snippets_cnt = %d\n", G_snippets_cnt);
 
     return TRUE;
 }
@@ -2256,33 +2274,52 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
 -------------------------------------------------------------------------- */
 static int get_snippet_idx(int ci, const char *name)
 {
-    int i;
+    int first = 0;
+    int last = G_snippets_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
 
 #ifdef NPP_MULTI_HOST
 
-    if ( !G_connections[ci].host_id )    /* main host */
+    while ( first <= last )
     {
-        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+        if ( G_snippets[middle].host_id < G_connections[ci].host_id )
         {
-            if ( !G_snippets[i].host[0] && 0==strcmp(G_snippets[i].name, name) )
-                return i;
+            first = middle + 1;
         }
-    }
-    else    /* side gig */
-    {
-        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+        else if ( G_snippets[middle].host_id == G_connections[ci].host_id )
         {
-            if ( 0==strcmp(G_snippets[i].host, G_connections[ci].host_normalized) && 0==strcmp(G_snippets[i].name, name) )
-                return i;
+            result = strcmp(G_snippets[middle].name, name);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
         }
+        else    /* G_snippets[middle].host_id > G_connections[ci].host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
     }
 
 #else   /* NOT NPP_MULTI_HOST */
 
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
+    while ( first <= last )
     {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-            return i;
+        result = strcmp(G_snippets[middle].name, name);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
     }
 
 #endif  /* NPP_MULTI_HOST */
@@ -2429,6 +2466,21 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 }
 
 
+#ifdef NPP_MULTI_HOST
+/* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+static int compare_hosts(const void *a, const void *b)
+{
+    const npp_host_t *p1 = (npp_host_t*)a;
+    const npp_host_t *p2 = (npp_host_t*)b;
+
+    return strcmp(p1->host, p2->host);
+
+}
+#endif  /* NPP_MULTI_HOST */
+
+
 /* --------------------------------------------------------------------------
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
@@ -2456,7 +2508,11 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
     if ( snippets && snippets[0] )
         COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
 
+    G_hosts[G_hosts_cnt].index_present = -1;
+
     ++G_hosts_cnt;
+
+    qsort(G_hosts, G_hosts_cnt, sizeof(G_hosts[0]), compare_hosts);
 
 #endif  /* NPP_MULTI_HOST */
 
