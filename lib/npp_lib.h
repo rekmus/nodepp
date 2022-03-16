@@ -453,6 +453,10 @@
 #define NPP_MAX_LANGUAGES                   250
 #endif
 
+#ifndef NPP_FALLBACK_LANG
+#define NPP_FALLBACK_LANG                   "EN-US"
+#endif
+
 /* messages */
 
 #ifndef NPP_MAX_MESSAGE_LEN
@@ -467,10 +471,6 @@
 
 #ifndef NPP_STRINGS_SEP
 #define NPP_STRINGS_SEP                     '|'
-#endif
-
-#ifndef NPP_STRINGS_LANG
-#define NPP_STRINGS_LANG                    "EN-US"
 #endif
 
 #ifndef NPP_MAX_STRING_LEN
@@ -913,7 +913,7 @@ extern char         G_tmp[NPP_TMP_BUFSIZE];
 extern bool         G_initialized;
 extern char         *G_strm;
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
-extern int          G_next_msg;
+extern int          G_messages_cnt;
 extern int          G_logLevel;
 extern FILE         *G_log_fd;
 extern char         G_dt_string_gmt[128];
@@ -1011,9 +1011,9 @@ void npp_log_write_time(char level, const std::string& message, Args&& ... args)
 template<typename... Args>
 void npp_add_message(int code, const std::string& lang, const std::string& message, Args&& ... args)
 {
-    if ( G_next_msg >= NPP_MAX_MESSAGES )
+    if ( G_messages_cnt > NPP_MAX_MESSAGES-1 )
     {
-        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
+        WAR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
         return;
     }
 
@@ -1023,12 +1023,12 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
 
     std::snprintf(buffer, NPP_MAX_MESSAGE_LEN, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
 
-    G_messages[G_next_msg].code = code;
+    G_messages[G_messages_cnt].code = code;
     if ( lang.c_str() )
-        strcpy(G_messages[G_next_msg].lang, npp_upper(lang.c_str()));
-    strcpy(G_messages[G_next_msg].message, buffer);
+        strcpy(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()));
+    strcpy(G_messages[G_messages_cnt].message, buffer);
 
-    ++G_next_msg;
+    ++G_messages_cnt;
 
     /* in case message was added after init */
 

@@ -4526,28 +4526,6 @@ static bool read_resources(bool first_scan)
 
 
 /* --------------------------------------------------------------------------
-   Find first free slot in M_statics
--------------------------------------------------------------------------- */
-/*static int first_free_stat()
-{
-    int i=0;
-
-    for ( i=0; i<NPP_MAX_STATICS; ++i )
-    {
-        if ( M_statics[i].name[0]=='-' || M_statics[i].name[0]==EOS )
-        {
-            if ( i > M_statics_cnt ) M_statics_cnt = i;
-            return i;
-        }
-    }
-
-    ERR("NPP_MAX_STATICS reached (%d)! You can set/increase NPP_MAX_STATICS in npp_app.h.", NPP_MAX_STATICS);
-
-    return -1; */ /* nothing's free, we ran out of statics! */
-//}
-
-
-/* --------------------------------------------------------------------------
    Return M_statics array index if URI is on statics' list
 -------------------------------------------------------------------------- */
 static int is_static_res(int ci)

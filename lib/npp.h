@@ -1756,9 +1756,7 @@ extern int          G_hosts_cnt;
 
 /* messages */
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
-extern int          G_next_msg;
-extern npp_lang_t   G_msg_lang[NPP_MAX_LANGUAGES];
-extern int          G_next_msg_lang;
+extern int          G_messages_cnt;
 
 /* strings */
 extern npp_string_t G_strings[NPP_MAX_STRINGS];

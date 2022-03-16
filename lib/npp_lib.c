@@ -80,9 +80,7 @@ int         G_hosts_cnt=1;
 
 /* messages */
 npp_message_t G_messages[NPP_MAX_MESSAGES]={0};
-int         G_next_msg=0;
-npp_lang_t  G_msg_lang[NPP_MAX_LANGUAGES]={0};
-int         G_next_msg_lang=0;
+int         G_messages_cnt=0;
 
 /* strings */
 npp_string_t G_strings[NPP_MAX_STRINGS]={0};
@@ -1139,9 +1137,9 @@ static void load_err_messages()
 -------------------------------------------------------------------------- */
 void npp_add_message(int code, const char *lang, const char *message, ...)
 {
-    if ( G_next_msg >= NPP_MAX_MESSAGES )
+    if ( G_messages_cnt > NPP_MAX_MESSAGES-1 )
     {
-        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
+        WAR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
         return;
     }
 
@@ -1154,12 +1152,12 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     vsprintf(buffer, message, plist);
     va_end(plist);
 
-    G_messages[G_next_msg].code = code;
+    G_messages[G_messages_cnt].code = code;
     if ( lang )
-        strcpy(G_messages[G_next_msg].lang, npp_upper(lang));
-    strcpy(G_messages[G_next_msg].message, buffer);
+        strcpy(G_messages[G_messages_cnt].lang, npp_upper(lang));
+    strcpy(G_messages[G_messages_cnt].message, buffer);
 
-    ++G_next_msg;
+    ++G_messages_cnt;
 
     /* in case message was added after init */
 
@@ -1177,11 +1175,11 @@ static int compare_messages(const void *a, const void *b)
     const npp_message_t *p1 = (npp_message_t*)a;
     const npp_message_t *p2 = (npp_message_t*)b;
 
-    int res = strcmp(p1->lang, p2->lang);
+    int lang_result = strcmp(p1->lang, p2->lang);
 
-    if ( res > 0 )
+    if ( lang_result > 0 )
         return 1;
-    else if ( res < 0 )
+    else if ( lang_result < 0 )
         return -1;
 
     /* same language then */
@@ -1200,23 +1198,7 @@ static int compare_messages(const void *a, const void *b)
 -------------------------------------------------------------------------- */
 void npp_sort_messages()
 {
-    qsort(&G_messages, G_next_msg, sizeof(npp_message_t), compare_messages);
-
-    int i;
-
-    for ( i=0; i<G_next_msg; ++i )
-    {
-        if ( 0 != strcmp(G_messages[i].lang, G_msg_lang[G_next_msg_lang].lang) )
-        {
-            if ( G_next_msg_lang ) G_msg_lang[G_next_msg_lang-1].next_lang_index = i;
-
-            strcpy(G_msg_lang[G_next_msg_lang].lang, G_messages[i].lang);
-            G_msg_lang[G_next_msg_lang].first_index = i;
-            ++G_next_msg_lang;
-        }
-    }
-
-    G_msg_lang[G_next_msg_lang-1].next_lang_index = G_next_msg;
+    qsort(&G_messages, G_messages_cnt, sizeof(npp_message_t), compare_messages);
 }
 
 
@@ -1304,29 +1286,39 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
 
 #ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
-   Get error description for user in NPP_STRINGS_LANG
+   Get error description for user in specified language
 -------------------------------------------------------------------------- */
-static char *lib_get_message_fallback(int code)
+static char *lib_get_message_lang(int code, const char *lang, char lang_len)
 {
-    int l, m;
+    int first = 0;
+    int last = G_messages_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
 
-    /* try in NPP_STRINGS_LANG */
-
-    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
+    while ( first <= last )
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, NPP_STRINGS_LANG) )
+        result = strncmp(G_messages[middle].lang, lang, lang_len);
+
+        if ( result < 0 )
         {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
+            first = middle + 1;
         }
+        else if ( result == 0 )
+        {
+            if ( G_messages[middle].code < code )
+                first = middle + 1;
+            else if ( G_messages[middle].code == code )
+                return G_messages[middle].message;
+            else
+                last = middle - 1;
+        }
+        else    /* result > 0 */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
     }
-
-    /* try in any language */
-
-    for ( m=0; m<G_next_msg; ++m )
-        if ( G_messages[m].code == code )
-            return G_messages[m].message;
 
     /* not found */
 
@@ -1339,44 +1331,27 @@ static char unknown[128];
 /* --------------------------------------------------------------------------
    Get error description for user
    Pick the user session language if possible
-   TODO: binary search
 -------------------------------------------------------------------------- */
 char *npp_get_message(int ci, int code)
 {
+    char *result;
 
-    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
-        return lib_get_message_fallback(code);
-
-    if ( !SESSION.lang[0] )   /* unknown client language */
-        return lib_get_message_fallback(code);
-
-    int l, m;
-
-    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
+    if ( SESSION.lang[0] )
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, SESSION.lang) )
-        {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
-        }
+        result = lib_get_message_lang(code, SESSION.lang, strlen(SESSION.lang));
+
+        if ( 0==strncmp(result, "Unknown code: ", 14) && strlen(SESSION.lang) > 2 )
+            return lib_get_message_lang(code, SESSION.lang, 2);
+    }
+    else    /* unknown client language */
+    {
+        result = lib_get_message_lang(code, NPP_FALLBACK_LANG, strlen(NPP_FALLBACK_LANG));
+
+        if ( 0==strncmp(result, "Unknown code: ", 14) && strlen(NPP_FALLBACK_LANG) > 2 )
+            return lib_get_message_lang(code, NPP_FALLBACK_LANG, 2);
     }
 
-    /* if not found, ignore country code */
-
-    for ( l=0; l<G_next_msg_lang; ++l )
-    {
-        if ( 0==strncmp(G_msg_lang[l].lang, SESSION.lang, 2) )
-        {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
-        }
-    }
-
-    /* fallback */
-
-    return lib_get_message_fallback(code);
+    return result;
 }
 
 
@@ -1576,7 +1551,7 @@ void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
 -------------------------------------------------------------------------- */
 const char *npp_lib_get_string(int ci, const char *str)
 {
-    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
+    if ( 0==strcmp(SESSION.lang, NPP_FALLBACK_LANG) )   /* no need to translate */
         return str;
 
     if ( !SESSION.lang[0] )   /* unknown client language */

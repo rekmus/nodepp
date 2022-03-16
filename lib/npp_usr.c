@@ -41,18 +41,18 @@ int G_new_user_id=0;
 
 
 #ifdef REFUSE_10_COMMON_PASSWORDS
-    #define MAX_COMMON  10
+    #define NPP_MAX_COMMON_PASSWD  10
 #elif defined REFUSE_100_COMMON_PASSWORDS
-    #define MAX_COMMON  100
+    #define NPP_MAX_COMMON_PASSWD  100
 #elif defined REFUSE_1000_COMMON_PASSWORDS
-    #define MAX_COMMON  1000
+    #define NPP_MAX_COMMON_PASSWD  1000
 #elif defined REFUSE_10000_COMMON_PASSWORDS
-    #define MAX_COMMON  10000
+    #define NPP_MAX_COMMON_PASSWD  10000
 #else   /* DONT_REFUSE_COMMON_PASSWORDS */
-    #define MAX_COMMON  1
+    #define NPP_MAX_COMMON_PASSWD  1
 #endif
 
-char M_common[MAX_COMMON][16]={0};
+char M_common[NPP_MAX_COMMON_PASSWD][16]={0};
 int  M_common_cnt=0;
 
 
@@ -1302,7 +1302,7 @@ int npp_usr_login(int ci)
 static bool load_common_passwd()
 {
     char    fname[1024];
-    FILE    *h_file=NULL;
+    FILE    *fd=NULL;
     char    c;
     int     i=0;
     char    value[16];
@@ -1316,7 +1316,7 @@ static bool load_common_passwd()
     else
         strcpy(fname, NPP_COMMON_PASSWORDS_FILE);
 
-    if ( NULL == (h_file=fopen(fname, "r")) )
+    if ( NULL == (fd=fopen(fname, "r")) )
     {
         WAR("Couldn't open %s\n", fname);
         return FALSE;
@@ -1326,7 +1326,7 @@ static bool load_common_passwd()
 
     /* parse the file */
 
-    while ( EOF != (c=fgetc(h_file)) )
+    while ( EOF != (c=fgetc(fd)) )
     {
         if ( c == ' ' || c == '\t' || c == '\r' ) continue;   /* omit whitespaces */
 
@@ -1337,7 +1337,7 @@ static bool load_common_passwd()
                 value[i] = EOS;
                 i = 0;
                 strcpy(M_common[M_common_cnt++], value);
-                if ( M_common_cnt == MAX_COMMON ) break;
+                if ( M_common_cnt == NPP_MAX_COMMON_PASSWD ) break;
             }
         }
         else
@@ -1353,10 +1353,11 @@ static bool load_common_passwd()
         strcpy(M_common[M_common_cnt++], value);
     }
 
-    if ( NULL != h_file )
-        fclose(h_file);
+    fclose(fd);
 
     ALWAYS("%d common passwords", M_common_cnt);
+
+    qsort(M_common, M_common_cnt, sizeof(M_common[0]), npp_compare_strings);
 
     /* show the list */
 
@@ -1383,11 +1384,18 @@ int npp_usr_password_quality(const char *passwd)
 
 #ifndef DONT_REFUSE_COMMON_PASSWORDS
 
-    int i;
+    int first = 0;
+    int last = M_common_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
 
-    for ( i=0; i<M_common_cnt; ++i )
+    while ( first <= last )
     {
-        if ( 0==strcmp(M_common[i], passwd) )
+        result = strcmp(M_common[middle], passwd);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
 #ifdef REFUSE_100_COMMON_PASSWORDS
             return ERR_IN_100_COMMON_PASSWORDS;
 #elif defined REFUSE_1000_COMMON_PASSWORDS
@@ -1397,6 +1405,10 @@ int npp_usr_password_quality(const char *passwd)
 #else
             return ERR_IN_10_COMMON_PASSWORDS;
 #endif
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
     }
 
 #endif  /* DONT_REFUSE_COMMON_PASSWORDS */
