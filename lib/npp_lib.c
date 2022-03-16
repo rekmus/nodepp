@@ -2729,14 +2729,30 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
         else if ( esc_type == NPP_ESC_SQL )
             npp_lib_escape_for_sql(retbuf, interbuf, maxlen);
         else
-        {
-            strncpy(retbuf, interbuf, maxlen);
-            retbuf[maxlen] = EOS;
-        }
+            COPY(retbuf, interbuf, maxlen);
     }
 
     return TRUE;
 }
+
+
+#ifdef NPP_CPP_STRINGS
+/* --------------------------------------------------------------------------
+   Overloaded version for std::string
+-------------------------------------------------------------------------- */
+bool npp_lib_get_qs_param(int ci, const std::string& fieldname_, std::string& retbuf_, size_t maxlen, char esc_type)
+{
+    const char *fieldname = fieldname_.c_str();
+static char retbuf[65536];
+
+    bool ok = npp_lib_get_qs_param(ci, fieldname, retbuf, maxlen, esc_type);
+
+    if ( ok )
+        retbuf_ = retbuf;
+
+    return ok;
+}
+#endif
 
 
 /* --------------------------------------------------------------------------

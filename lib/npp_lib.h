@@ -934,6 +934,12 @@ auto cnv_variadic_arg(T&& t)
 
 
 /* --------------------------------------------------------------------------
+   Overloaded version for std::string
+-------------------------------------------------------------------------- */
+bool npp_lib_get_qs_param(int ci, const std::string& fieldname, std::string& retbuf, size_t maxlen, char esc_type);
+
+
+/* --------------------------------------------------------------------------
    Write to log
 -------------------------------------------------------------------------- */
 template<typename... Args>
