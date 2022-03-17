@@ -205,6 +205,8 @@ static time_t       M_last_housekeeping=0;
 static int          M_first_free_ci=0;
 static int          M_highest_used_ci=-1;
 
+static sessions_idx_t M_sessions_idx[NPP_MAX_SESSIONS]={0}; /* this starts from 0 */
+
 #ifdef NPP_ASYNC
 static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
 static unsigned     M_last_call_id=0;               /* counter */
@@ -251,7 +253,6 @@ static void close_uses(int si, int ci);
 static void reset_conn(int ci, char new_state);
 static int  parse_req(int ci, int len);
 static int  set_http_req_val(int ci, const char *label, const char *value);
-static char *get_http_descr(int status_code);
 static void dump_counters(void);
 static void clean_up(void);
 static void sigdisp(int sig);
@@ -626,7 +627,8 @@ int main(int argc, char **argv)
 #endif  /* NPP_FD_MON_POLL */
 #endif  /* NPP_HTTPS */
 #ifndef NPP_FD_MON_EPOLL
-            else    /* existing connections have something going on on them ---------------------------------- */
+//            else    /* existing connections have something going on on them ---------------------------------- */
+            if ( sockets_ready )
 #endif  /* NPP_FD_MON_EPOLL */
             {
 
@@ -640,7 +642,15 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                 for ( ci=0; sockets_ready>0; ++ci )
                 {
+#ifdef NPP_DEBUG
+                    DBG_LINE;
+                    DBG("ci = %d", ci);
+                    DBG_LINE;
+#endif  /* NPP_DEBUG */
+                    if ( G_connections[ci].state == CONN_STATE_DISCONNECTED )
+                        continue;
 #endif  /* NPP_FD_MON_SELECT */
+
 #ifdef NPP_FD_MON_POLL
                 for ( pi=NPP_LISTENING_FDS; sockets_ready>0; ++pi )
                 {
@@ -648,7 +658,7 @@ int main(int argc, char **argv)
                     DBG_LINE;
                     DBG("pi = %d", pi);
                     DBG_LINE;
-#endif
+#endif  /* NPP_DEBUG */
                     ci = M_poll_ci[pi];   /* set G_connections array index */
 #ifdef NPP_DEBUG
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
@@ -662,6 +672,7 @@ int main(int argc, char **argv)
                     }
 #endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_POLL */
+
 #ifdef NPP_FD_MON_EPOLL
                 for ( epi=0; sockets_ready>0; ++epi )
                 {
@@ -738,6 +749,7 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                     if ( FD_ISSET(G_connections[ci].fd, &M_readfds) )     /* incoming data ready */
                     {
+                        DDBG("FD_ISSET (existing) incoming data ready");
 #endif  /* NPP_FD_MON_SELECT */
 
 #ifdef NPP_FD_MON_POLL
@@ -757,41 +769,35 @@ int main(int argc, char **argv)
 #ifdef NPP_DEBUG
                         if ( G_now != dbg_last_time2 )   /* only once in a second */
                         {
-                            DBG("ci=%d, fd=%d has incoming data, conn_state = %c", ci, G_connections[ci].fd, G_connections[ci].conn_state);
+                            DBG("ci=%d, fd=%d has incoming data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
                             dbg_last_time2 = G_now;
                         }
 #endif  /* NPP_DEBUG */
 #ifdef NPP_HTTPS
                         if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )   /* HTTPS */
                         {
-                            if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
+                            if ( G_connections[ci].state == CONN_STATE_CONNECTED )
                             {
                                 DDBG("ci=%d, trying SSL_read from fd=%d", ci, G_connections[ci].fd);
 
-                                while ( TRUE )
-                                {
-                                    bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
+                                bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in, NPP_IN_BUFSIZE-1);
 
-                                    if ( bytes > 0 )
-                                    {
-                                        DDBG("ci=%d, read %d bytes", ci, bytes);
-                                        G_connections[ci].was_read += bytes;
-                                        break;  /* ? */
-                                    }
-                                    else
-                                        break;
+                                if ( bytes > 0 )
+                                {
+                                    DDBG("ci=%d, read %d bytes", ci, bytes);
+                                    G_connections[ci].was_read += bytes;
                                 }
 
                                 set_state(ci, bytes, TRUE);
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
+                                if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
                                 }
 #endif  /* NPP_HTTP2 */
                             }
-                            else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* payload */
+                            else if ( G_connections[ci].state == CONN_STATE_READING_DATA )   /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
@@ -815,7 +821,7 @@ int main(int argc, char **argv)
 
                                 set_state(ci, bytes, TRUE);
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
+                                if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
@@ -826,28 +832,23 @@ int main(int argc, char **argv)
                         else    /* plain HTTP */
 #endif  /* NPP_HTTPS */
                         {
-                            if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
+                            if ( G_connections[ci].state == CONN_STATE_CONNECTED )
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
                                 DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-//                                while ( TRUE )
-//                                {
-                                    bytes = recv(G_connections[ci].fd, G_connections[ci].in+G_connections[ci].was_read, NPP_IN_BUFSIZE-G_connections[ci].was_read-1, 0);
+                                bytes = recv(G_connections[ci].fd, G_connections[ci].in+G_connections[ci].was_read, NPP_IN_BUFSIZE-G_connections[ci].was_read-1, 0);
 
-                                    if ( bytes > 0 )
-                                    {
-                                        DDBG("ci=%d, read %d bytes", ci, bytes);
-                                        G_connections[ci].was_read += bytes;
-                                    }
-//                                    else
-//                                        break;
-//                                }
+                                if ( bytes > 0 )
+                                {
+                                    DDBG("ci=%d, read %d bytes", ci, bytes);
+                                    G_connections[ci].was_read += bytes;
+                                }
 
                                 set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
+                                if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
@@ -855,7 +856,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_HTTP2 */
                             }
 #ifdef NPP_HTTP2
-                            else if ( G_connections[ci].conn_state == CONN_STATE_READY_FOR_CLIENT_PREFACE )
+                            else if ( G_connections[ci].state == CONN_STATE_READY_FOR_CLIENT_PREFACE )
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READY_FOR_CLIENT_PREFACE", ci);
@@ -869,7 +870,7 @@ int main(int argc, char **argv)
                                     set_state(ci, bytes, FALSE);    /* disconnected */
                             }
 #endif  /* NPP_HTTP2 */
-                            else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )   /* payload */
+                            else if ( G_connections[ci].state == CONN_STATE_READING_DATA )   /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
@@ -893,7 +894,7 @@ int main(int argc, char **argv)
 
                                 set_state(ci, bytes, FALSE);
 #ifdef NPP_HTTP2
-                                if ( G_connections[ci].conn_state != CONN_STATE_DISCONNECTED )
+                                if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
                                     if ( G_connections[ci].http_ver[0] == '2' )
                                         http2_parse_frame(ci, G_connections[ci].was_read);
@@ -908,6 +909,7 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                     else if ( FD_ISSET(G_connections[ci].fd, &M_writefds) )        /* ready for outgoing data */
                     {
+                        DDBG("FD_ISSET ready for outgoing data");
 #endif  /* NPP_FD_MON_SELECT */
 #ifdef NPP_FD_MON_POLL
                     else if ( M_pollfds[pi].revents & POLLOUT )
@@ -924,7 +926,7 @@ int main(int argc, char **argv)
 #ifdef NPP_DEBUG
                         if ( G_now != dbg_last_time3 )   /* only once in a second */
                         {
-                            DBG("ci=%d, fd=%d is ready for outgoing data, conn_state = %c", ci, G_connections[ci].fd, G_connections[ci].conn_state);
+                            DBG("ci=%d, fd=%d is ready for outgoing data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
                             dbg_last_time3 = G_now;
                         }
 #endif  /* NPP_DEBUG */
@@ -932,7 +934,7 @@ int main(int argc, char **argv)
 #ifdef NPP_HTTPS
                         if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )   /* HTTPS */
                         {
-                            if ( G_connections[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
+                            if ( G_connections[ci].state == CONN_STATE_READY_TO_SEND_RESPONSE )
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", ci);
@@ -956,7 +958,7 @@ int main(int argc, char **argv)
 
                                 set_state(ci, bytes, TRUE);
                             }
-                            else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
+                            else if ( G_connections[ci].state == CONN_STATE_SENDING_CONTENT )
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", ci);
@@ -984,7 +986,7 @@ int main(int argc, char **argv)
                         else    /* plain HTTP */
 #endif  /* NPP_HTTPS */
                         {
-                            if ( G_connections[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
+                            if ( G_connections[ci].state == CONN_STATE_READY_TO_SEND_RESPONSE )
                             {
                                 DDBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", ci);
 #ifdef NPP_HTTP2
@@ -1000,7 +1002,7 @@ int main(int argc, char **argv)
                                     bytes = send(G_connections[ci].fd, G_connections[ci].http2_frame_start, G_connections[ci].http2_bytes_to_send, 0);
 
                                     DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_CLIENT_PREFACE", ci);
-                                    G_connections[ci].conn_state = CONN_STATE_READY_FOR_CLIENT_PREFACE;
+                                    G_connections[ci].state = CONN_STATE_READY_FOR_CLIENT_PREFACE;
                                 }
                                 else    /* header to send */
                                 {
@@ -1037,7 +1039,7 @@ int main(int argc, char **argv)
                                 }
 #endif  /* NPP_HTTP2 */
                             }
-                            else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
+                            else if ( G_connections[ci].state == CONN_STATE_SENDING_CONTENT )
                             {
                                 DDBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", ci);
 #ifdef NPP_HTTP2
@@ -1080,33 +1082,28 @@ int main(int argc, char **argv)
                     else    /* not IN nor OUT */
                     {
 #ifdef NPP_DEBUG
-//                        DBG("Not IN nor OUT, ci=%d, fd=%d conn_state = %c", ci, G_connections[ci].fd, G_connections[ci].conn_state);
+                        DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
 #ifdef NPP_FD_MON_POLL
-//                        DBG("revents=%d", M_pollfds[pi].revents);
+                        DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #ifdef NPP_FD_MON_EPOLL
-//                        DBG("events=%d", M_epollevs[epi].events);
+                        DBG("events=%d", M_epollevs[epi].events);
 #endif
+                        DBG("");
 #endif  /* NPP_DEBUG */
-
-                        /* shall we close the connection at this point? */
-
-#ifdef NPP_APP_EVERY_SPARE_SECOND
-                        npp_app_every_spare_second();
-#endif
                     }
 
                     /* --------------------------------------------------------------------------------------- */
                     /* after reading / writing it may be ready for parsing and processing ... */
 
-                    if ( G_connections[ci].conn_state == CONN_STATE_READY_FOR_PARSE )
+                    if ( G_connections[ci].state == CONN_STATE_READY_FOR_PARSE )
                     {
                         G_connections[ci].status = parse_req(ci, G_connections[ci].was_read);
 
-                        if ( G_connections[ci].conn_state != CONN_STATE_READING_DATA )
+                        if ( G_connections[ci].state != CONN_STATE_READING_DATA )
                         {
                             DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
-                            G_connections[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
+                            G_connections[ci].state = CONN_STATE_READY_FOR_PROCESS;
                         }
                     }
 
@@ -1117,7 +1114,7 @@ int main(int argc, char **argv)
 
                     /* ready for processing */
 
-                    if ( G_connections[ci].conn_state == CONN_STATE_READY_FOR_PROCESS )
+                    if ( G_connections[ci].state == CONN_STATE_READY_FOR_PROCESS )
                     {
 #ifdef _WIN32
                         clock_gettime_win(&G_connections[ci].proc_start);
@@ -1143,7 +1140,7 @@ int main(int argc, char **argv)
                         if ( !G_connections[ci].location[0] && G_connections[ci].static_res == NPP_NOT_STATIC )   /* process request */
                             process_req(ci);
 #ifdef NPP_ASYNC
-                        if ( G_connections[ci].conn_state != CONN_STATE_WAITING_FOR_ASYNC )
+                        if ( G_connections[ci].state != CONN_STATE_WAITING_FOR_ASYNC )
 #endif
                         gen_response_header(ci);
                     }
@@ -1388,14 +1385,24 @@ static bool housekeeping()
     /* close expired anonymous user sessions */
     if ( G_sessions_cnt ) uses_close_timeouted();
 
-#ifdef NPP_DEBUG
+//#ifdef NPP_DEBUG
 #ifndef NPP_DONT_RESCAN_RES
     if ( G_test )   /* kind of developer mode */
     {
         read_resources(FALSE);
     }
 #endif  /* NPP_DONT_RESCAN_RES */
-#endif  /* NPP_DEBUG */
+//#endif  /* NPP_DEBUG */
+
+#ifdef NPP_APP_EVERY_SPARE_SECOND
+//static time_t every_spare_second_last_time=0;
+
+//    if ( G_now != every_spare_second_last_time )
+//    {
+        npp_app_every_spare_second();
+//        every_spare_second_last_time = G_now;
+//    }
+#endif  /* NPP_APP_EVERY_SPARE_SECOND */
 
     if ( G_ptm->tm_min != M_prev_minute )
     {
@@ -2126,9 +2133,11 @@ static void set_state(int ci, int bytes, bool secure)
     {
         if ( bytes <= 0 )
         {
-            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+            DDBG("errno = %d (%s)", e, strerror(e));
+
+//            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
+            if ( e != EAGAIN && e != EWOULDBLOCK )
             {
-                DDBG("errno = %d (%s)", e, strerror(e));
                 DBG("Closing connection\n");
                 close_connection(ci, TRUE);
                 return;
@@ -2138,17 +2147,17 @@ static void set_state(int ci, int bytes, bool secure)
 
     /* good to go */
 
-    if ( G_connections[ci].conn_state == CONN_STATE_CONNECTED )
+    if ( G_connections[ci].state == CONN_STATE_CONNECTED )
     {
         if ( G_connections[ci].was_read > 0 )   /* assume at least the whole header has been read */
         {
             G_connections[ci].in[G_connections[ci].was_read] = EOS;
 
             DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-            G_connections[ci].conn_state = CONN_STATE_READY_FOR_PARSE;
+            G_connections[ci].state = CONN_STATE_READY_FOR_PARSE;
         }
     }
-    else if ( G_connections[ci].conn_state == CONN_STATE_READING_DATA )
+    else if ( G_connections[ci].state == CONN_STATE_READING_DATA )
     {
         if ( G_connections[ci].was_read < G_connections[ci].clen )
         {
@@ -2163,10 +2172,10 @@ static void set_state(int ci, int bytes, bool secure)
             /* ready for processing */
 
             DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
-            G_connections[ci].conn_state = CONN_STATE_READY_FOR_PROCESS;
+            G_connections[ci].state = CONN_STATE_READY_FOR_PROCESS;
         }
     }
-    else if ( G_connections[ci].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE )
+    else if ( G_connections[ci].state == CONN_STATE_READY_TO_SEND_RESPONSE )
     {
         if ( G_connections[ci].clen == 0 )   /* no content to send */
         {
@@ -2202,7 +2211,7 @@ static void set_state(int ci, int bytes, bool secure)
 #endif  /* NPP_HTTP2 */
             {
                 DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
-                G_connections[ci].conn_state = CONN_STATE_SENDING_CONTENT;
+                G_connections[ci].state = CONN_STATE_SENDING_CONTENT;
             }
             else    /* the whole content has been sent at once */
             {
@@ -2225,7 +2234,7 @@ static void set_state(int ci, int bytes, bool secure)
             }
         }
     }
-    else if ( G_connections[ci].conn_state == CONN_STATE_SENDING_CONTENT )
+    else if ( G_connections[ci].state == CONN_STATE_SENDING_CONTENT )
     {
         if ( G_connections[ci].data_sent < G_connections[ci].out_len )
         {
@@ -2421,6 +2430,9 @@ static void close_connection(int ci, bool update_first_free)
 
 #ifdef _WIN32   /* Windows */
     closesocket(G_connections[ci].fd);
+//    int cr = closesocket(G_connections[ci].fd);
+//    if ( cr != 0 )
+//        WAR("ci=%d, closesocket returned %d", ci, cr);
 #else
     close(G_connections[ci].fd);
 #endif  /* _WIN32 */
@@ -2460,7 +2472,7 @@ static void close_connection(int ci, bool update_first_free)
         int i;
         for ( i=ci-1; i>=0; i-- )
         {
-            if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED )
+            if ( G_connections[i].state != CONN_STATE_DISCONNECTED )
             {
                 M_highest_used_ci = i;
                 DDBG("M_highest_used_ci set to %d", M_highest_used_ci);
@@ -3141,6 +3153,12 @@ static bool init(int argc, char **argv)
 
     npp_sort_messages();
 
+
+    INF("Sorting strings...");
+
+    lib_sort_strings();
+
+
     G_initialized = 1;
 
     return TRUE;
@@ -3171,15 +3189,15 @@ static void build_fd_sets()
 
     for ( i=0; remain>0 && i<NPP_MAX_CONNECTIONS+1; ++i )
     {
-        if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED ) continue;
+        if ( G_connections[i].state == CONN_STATE_DISCONNECTED ) continue;
 
 #ifdef NPP_HTTPS
         if ( NPP_CONN_IS_SECURE(G_connections[i].flags) )
         {
             /* reading */
 
-            if ( G_connections[i].conn_state == CONN_STATE_CONNECTED
-                    || G_connections[i].conn_state == CONN_STATE_READING_DATA
+            if ( G_connections[i].state == CONN_STATE_CONNECTED
+                    || G_connections[i].state == CONN_STATE_READING_DATA
                     || G_connections[i].ssl_err == SSL_ERROR_WANT_READ )
             {
                 FD_SET(G_connections[i].fd, &M_readfds);
@@ -3187,10 +3205,10 @@ static void build_fd_sets()
 
             /* writing */
 
-            else if ( G_connections[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE
-                    || G_connections[i].conn_state == CONN_STATE_SENDING_CONTENT
+            else if ( G_connections[i].state == CONN_STATE_READY_TO_SEND_RESPONSE
+                    || G_connections[i].state == CONN_STATE_SENDING_CONTENT
 #ifdef NPP_ASYNC
-                    || G_connections[i].conn_state == CONN_STATE_WAITING_FOR_ASYNC
+                    || G_connections[i].state == CONN_STATE_WAITING_FOR_ASYNC
 #endif
                     || G_connections[i].ssl_err == SSL_ERROR_WANT_WRITE )
             {
@@ -3202,25 +3220,25 @@ static void build_fd_sets()
 #endif  /* NPP_HTTPS */
             /* reading */
 
-            if ( G_connections[i].conn_state == CONN_STATE_CONNECTED
+            if ( G_connections[i].state == CONN_STATE_CONNECTED
 #ifdef NPP_HTTP2
-                    || G_connections[i].conn_state == CONN_STATE_READY_FOR_CLIENT_PREFACE
+                    || G_connections[i].state == CONN_STATE_READY_FOR_CLIENT_PREFACE
 #endif
-                    || G_connections[i].conn_state == CONN_STATE_READING_DATA )
+                    || G_connections[i].state == CONN_STATE_READING_DATA )
             {
                 FD_SET(G_connections[i].fd, &M_readfds);
             }
 
             /* writing */
 
-            else if ( G_connections[i].conn_state == CONN_STATE_READY_TO_SEND_RESPONSE
+            else if ( G_connections[i].state == CONN_STATE_READY_TO_SEND_RESPONSE
 #ifdef NPP_HTTP2
-//                    || G_connections[i].conn_state == CONN_STATE_READY_TO_SEND_SETTINGS
+//                    || G_connections[i].state == CONN_STATE_READY_TO_SEND_SETTINGS
 #endif
 #ifdef NPP_ASYNC
-                    || G_connections[i].conn_state == CONN_STATE_WAITING_FOR_ASYNC
+                    || G_connections[i].state == CONN_STATE_WAITING_FOR_ASYNC
 #endif
-                    || G_connections[i].conn_state == CONN_STATE_SENDING_CONTENT )
+                    || G_connections[i].state == CONN_STATE_SENDING_CONTENT )
             {
                 FD_SET(G_connections[i].fd, &M_writefds);
             }
@@ -3254,7 +3272,7 @@ static void find_first_free_ci()
 
     for ( i=0; i<NPP_MAX_CONNECTIONS; ++i )
     {
-        if ( G_connections[i].conn_state == CONN_STATE_DISCONNECTED )
+        if ( G_connections[i].state == CONN_STATE_DISCONNECTED )
         {
             M_first_free_ci = i;
             WAR("Sequential search through G_connections (checked %d record(s))", i+1);
@@ -3333,7 +3351,7 @@ static void accept_connection(bool secure)
 
     if ( M_first_free_ci == NPP_MAX_CONNECTIONS )
     {
-        if ( G_connections[NPP_MAX_CONNECTIONS].conn_state != CONN_STATE_DISCONNECTED )
+        if ( G_connections[NPP_MAX_CONNECTIONS].state != CONN_STATE_DISCONNECTED )
         {
             DBG("Need to force-disconnect previous 503 client...");
             close_connection(NPP_MAX_CONNECTIONS, FALSE);
@@ -3352,12 +3370,14 @@ static void accept_connection(bool secure)
     /* -------------------------------------------- */
     /* set up G_connection record */
 
+    G_connections[M_first_free_ci].fd = connection;
+
 #ifdef NPP_HTTPS
 
     if ( secure )
     {
         DBG("\nSecure connection accepted: %s, ci=%d, fd=%d", remote_addr, M_first_free_ci, connection);
-        G_connections[M_first_free_ci].fd = connection;
+
         G_connections[M_first_free_ci].flags |= NPP_CONN_FLAG_SECURE;
 
         /* -------------------------------------------- */
@@ -3461,7 +3481,7 @@ static void accept_connection(bool secure)
 #endif  /* NPP_HTTPS */
     {
         DBG("\nConnection accepted: %s, ci=%d, fd=%d", remote_addr, M_first_free_ci, connection);
-        G_connections[M_first_free_ci].fd = connection;
+
         G_connections[M_first_free_ci].flags = G_connections[M_first_free_ci].flags & ~NPP_CONN_FLAG_SECURE;
 
 #ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
@@ -3493,7 +3513,7 @@ static void accept_connection(bool secure)
     }
 
     DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
-    G_connections[M_first_free_ci].conn_state = CONN_STATE_CONNECTED;
+    G_connections[M_first_free_ci].state = CONN_STATE_CONNECTED;
 
     /* -------------------------------------------- */
 
@@ -3629,8 +3649,6 @@ void npp_eng_read_blocked_ips()
     /* sort */
 
     qsort(&G_blacklist, G_blacklist_cnt, sizeof(G_blacklist[0]), npp_compare_strings);
-
-    /* show */
 
 #ifdef NPP_DEBUG
     DBG_LINE;
@@ -4117,7 +4135,9 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 M_statics[i].host_id = NPP_MAX_HOSTS;
 #endif  /* NPP_MULTI_HOST */
 
-                strcpy(M_statics[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+//                strcpy(M_statics[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+                memset(M_statics[i].name, 'z', NPP_STATIC_PATH_LEN);
+                M_statics[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
                 free(M_statics[i].data);
                 M_statics[i].data = NULL;
@@ -4492,7 +4512,7 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DBG("Reading %s's res OK", G_hosts[i].host);
+        DDBG("Reading %s's res OK", G_hosts[i].host);
 
         if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, i, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
@@ -4500,7 +4520,7 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DBG("Reading %s's resmin OK", G_hosts[i].host);
+        DDBG("Reading %s's resmin OK", G_hosts[i].host);
 
         if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, first_scan, NULL) )
         {
@@ -4508,18 +4528,14 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DBG("Reading %s's snippets OK", G_hosts[i].host);
+        DDBG("Reading %s's snippets OK", G_hosts[i].host);
     }
 
 #endif  /* NPP_MULTI_HOST */
 
     qsort(&M_statics, M_statics_cnt, sizeof(M_statics[0]), compare_statics);
 
-    DBG("after sort statics");
-
     qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
-
-    DBG("after sort snippets");
 
     return TRUE;
 }
@@ -4774,7 +4790,7 @@ static void process_req(int ci)
     if ( IS_SESSION ) SESSION.last_activity = G_now;
 
 #ifdef NPP_ASYNC
-    if ( G_connections[ci].conn_state == CONN_STATE_WAITING_FOR_ASYNC ) return;
+    if ( G_connections[ci].state == CONN_STATE_WAITING_FOR_ASYNC ) return;
 #endif
     /* ------------------------------------------------------------------------ */
 
@@ -4829,6 +4845,26 @@ static void process_req(int ci)
 
         RES_DONT_CACHE;
     }
+}
+
+
+/* --------------------------------------------------------------------------
+   Return HTTP status description
+   Sequentioal search as most popular codes are
+   in the beginning of the array
+-------------------------------------------------------------------------- */
+static const char *get_http_descr(int status_code)
+{
+    int i;
+
+    for ( i=0; M_http_status[i].status != -1; ++i )
+    {
+        if ( M_http_status[i].status == status_code )  /* found */
+            return (const char*)&(M_http_status[i].description);
+    }
+
+static const char not_found[4]="";
+    return not_found;
 }
 
 
@@ -5300,7 +5336,7 @@ static              bool first=TRUE;
     DBG("Response status: %d", G_connections[ci].status);
 
     DDBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_RESPONSE", ci);
-    G_connections[ci].conn_state = CONN_STATE_READY_TO_SEND_RESPONSE;
+    G_connections[ci].state = CONN_STATE_READY_TO_SEND_RESPONSE;
 
 #ifdef NPP_FD_MON_POLL
     M_pollfds[G_connections[ci].pi].events = POLLOUT;
@@ -5407,6 +5443,46 @@ static void print_content_type(int ci, char type)
 
 
 /* --------------------------------------------------------------------------
+   Find session index
+-------------------------------------------------------------------------- */
+static int find_sessions_idx_idx(const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return 0;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(M_sessions_idx[middle].sessid, sessid);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return 0;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Find session index
+-------------------------------------------------------------------------- */
+int npp_eng_find_si(const char *sessid)
+{
+    return M_sessions_idx[find_sessions_idx_idx(sessid)].si;
+}
+
+
+/* --------------------------------------------------------------------------
    Verify IP & User-Agent against sessid in G_sessions (anonymous users)
    Return true if session exists
 -------------------------------------------------------------------------- */
@@ -5436,23 +5512,17 @@ static bool a_session_ok(int ci)
     }
     else    /* fresh connection */
     {
-        int i;
+        int si = npp_eng_find_si(G_connections[ci].cookie_in_a);
 
-        for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
+        if ( si != 0 && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent) )
         {
-            if ( G_sessions[i].sessid[0]
-                    && G_sessions[i].auth_level<AUTH_LEVEL_AUTHENTICATED
-                    && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[i].sessid)
-                    && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
-            {
 #ifdef NPP_DEBUG
-                DBG("Anonymous session found, si=%d, sessid [%s] (2)", i, G_sessions[i].sessid);
+            DBG("Anonymous session found, si=%d, sessid [%s] (2)", si, G_sessions[si].sessid);
 #else
-                DBG("Anonymous session found, si=%d (2)", i);
+            DBG("Anonymous session found, si=%d (2)", si);
 #endif
-                G_connections[ci].si = i;
-                return TRUE;
-            }
+            G_connections[ci].si = si;
+            return TRUE;
         }
     }
 
@@ -5473,7 +5543,7 @@ static void close_old_conn()
 
     for ( i=0; G_connections_cnt>0 && i<NPP_MAX_CONNECTIONS+1; ++i )
     {
-        if ( G_connections[i].conn_state != CONN_STATE_DISCONNECTED && G_connections[i].last_activity < last_allowed )
+        if ( G_connections[i].state != CONN_STATE_DISCONNECTED && G_connections[i].last_activity < last_allowed )
         {
             DBG("Closing timeouted connection %d", i);
             close_connection(i, TRUE);
@@ -5501,6 +5571,19 @@ static void uses_close_timeouted()
 
 
 /* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+static int compare_sessions_idx(const void *a, const void *b)
+{
+    const sessions_idx_t *p1 = (sessions_idx_t*)a;
+    const sessions_idx_t *p2 = (sessions_idx_t*)b;
+
+    return strcmp(p1->sessid, p2->sessid);
+
+}
+
+
+/* --------------------------------------------------------------------------
    Close anonymous user session
 -------------------------------------------------------------------------- */
 static void close_uses(int si, int ci)
@@ -5518,6 +5601,16 @@ static void close_uses(int si, int ci)
         G_connections[NPP_CLOSING_SESSION_CI].si = si;
         npp_app_session_done(NPP_CLOSING_SESSION_CI);
     }
+
+    /* update sessions index */
+
+    int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].sessid);
+
+    memset(M_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
+    M_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
+    M_sessions_idx[sessions_idx_idx].si = 0;
+
+    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
 
     /* reset session data */
 
@@ -5543,7 +5636,7 @@ static void reset_conn(int ci, char new_state)
         DBG("ci=%d, reset_conn, fd=%d, new state == %s\n", ci, G_connections[ci].fd, new_state==CONN_STATE_CONNECTED?"CONN_STATE_CONNECTED":"CONN_STATE_DISCONNECTED");
 #endif
 
-    G_connections[ci].conn_state = new_state;
+    G_connections[ci].state = new_state;
 
     G_connections[ci].status = 200;
     G_connections[ci].method[0] = EOS;
@@ -5665,6 +5758,11 @@ static void reset_conn(int ci, char new_state)
 //    else
 //        G_connections[ci].epoll_out_ready = FALSE;
 #endif
+
+    if ( new_state == CONN_STATE_DISCONNECTED )
+    {
+        G_connections[ci].fd = 0;
+    }
 }
 
 
@@ -5728,8 +5826,8 @@ static int parse_req(int ci, int len)
 
     DBG("\n--------------------------------------------------\n %s  Request %u\n--------------------------------------------------\n", DT_NOW_GMT, G_connections[ci].req);
 
-//  if ( G_connections[ci].conn_state != STATE_SENDING ) /* ignore Range requests for now */
-//      G_connections[ci].conn_state = STATE_RECEIVED;   /* by default */
+//  if ( G_connections[ci].state != STATE_SENDING ) /* ignore Range requests for now */
+//      G_connections[ci].state = STATE_RECEIVED;   /* by default */
 
     if ( len < 14 )  /* ignore any junk */
     {
@@ -6169,9 +6267,9 @@ static int parse_req(int ci, int len)
 
     /* ignore Range requests for now -------------------------------------------- */
 
-/*  if ( G_connections[ci].conn_state == STATE_SENDING )
+/*  if ( G_connections[ci].state == STATE_SENDING )
     {
-        DBG("conn_state == STATE_SENDING, this request will be ignored");
+        DBG("state == STATE_SENDING, this request will be ignored");
         return 200;
     } */
 
@@ -6389,11 +6487,11 @@ static int parse_req(int ci, int len)
         G_connections[ci].was_read = len;    /* if POST then was_read applies to data section only! */
 
         if ( (unsigned)len < G_connections[ci].clen )      /* the whole content not received yet */
-        {                               /* this is the only case when conn_state != received */
+        {                               /* this is the only case when state != received */
             DBG("The whole content not received yet, len=%d", len);
 
             DDBG("ci=%d, changing state to CONN_STATE_READING_DATA", ci);
-            G_connections[ci].conn_state = CONN_STATE_READING_DATA;
+            G_connections[ci].state = CONN_STATE_READING_DATA;
 
             return ret;
         }
@@ -6845,23 +6943,6 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
 
 /* --------------------------------------------------------------------------
-   Return HTTP status description
--------------------------------------------------------------------------- */
-static char *get_http_descr(int status_code)
-{
-    int i;
-
-    for ( i=0; M_http_status[i].status != -1; ++i )
-    {
-        if ( M_http_status[i].status == status_code )  /* found */
-            return (char*)&(M_http_status[i].description);
-    }
-
-    return NULL;
-}
-
-
-/* --------------------------------------------------------------------------
    Dump counters
 -------------------------------------------------------------------------- */
 static void dump_counters()
@@ -7022,8 +7103,8 @@ static int current=0;
 -------------------------------------------------------------------------- */
 int npp_eng_session_start(int ci, const char *sessid)
 {
-    int     i;
-    char    new_sessid[NPP_SESSID_LEN+1];
+    int  i;
+    char new_sessid[NPP_SESSID_LEN+1];
 
     DBG("npp_eng_session_start");
 
@@ -7092,10 +7173,17 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     strcpy(G_connections[ci].cookie_out_a, new_sessid);
 
-    DBG("%d user session(s)", G_sessions_cnt);
+    DBG("%d session(s)", G_sessions_cnt);
 
     if ( G_sessions_cnt > G_sessions_hwm )
         G_sessions_hwm = G_sessions_cnt;
+
+    /* update sessions index */
+
+    memcpy(&M_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
+    M_sessions_idx[G_sessions_cnt-1].si = i;
+
+    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
 
     return OK;
 }
@@ -7323,7 +7411,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
             /* set request state */
 
             DDBG("ci=%d, changing state to CONN_STATE_WAITING_FOR_ASYNC", ci);
-            G_connections[ci].conn_state = CONN_STATE_WAITING_FOR_ASYNC;
+            G_connections[ci].state = CONN_STATE_WAITING_FOR_ASYNC;
 
 #ifdef NPP_FD_MON_POLL
             M_pollfds[G_connections[ci].pi].events = POLLOUT;

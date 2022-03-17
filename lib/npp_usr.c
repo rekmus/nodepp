@@ -254,21 +254,19 @@ int libusr_luses_ok(int ci)
     }
     else    /* fresh connection */
     {
-        for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
+        int si = npp_eng_find_si(G_connections[ci].cookie_in_l);
+
+        if ( si != 0
+                && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent)
+                && G_sessions[si].auth_level>AUTH_LEVEL_ANONYMOUS )
         {
-            if ( G_sessions[i].sessid[0]
-                    && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS
-                    && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[i].sessid)
-                    && 0==strcmp(G_connections[ci].uagent, G_sessions[i].uagent) )
-            {
 #ifdef NPP_DEBUG
-                DBG("Authenticated session found in cache, si=%d, sessid [%s] (2)", i, G_sessions[i].sessid);
+            DBG("Authenticated session found in cache, si=%d, sessid [%s] (2)", si, G_sessions[si].sessid);
 #else
-                DBG("Authenticated session found in cache, si=%d (2)", i);
+            DBG("Authenticated session found in cache, si=%d (2)", si);
 #endif
-                G_connections[ci].si = i;
-                return OK;
-            }
+            G_connections[ci].si = si;
+            return OK;
         }
     }
 
@@ -1359,13 +1357,13 @@ static bool load_common_passwd()
 
     qsort(M_common, M_common_cnt, sizeof(M_common[0]), npp_compare_strings);
 
-    /* show the list */
-
 #ifdef NPP_DEBUG
-    DBG("");
-    for ( i=0; i<M_common_cnt; ++i )
-        DBG("[%s]", M_common[i]);
-    DBG("");
+    DBG_LINE;
+    DBG("First 30 entries:");
+    DBG_LINE;
+    for ( i=0; i<M_common_cnt && i<30; ++i )
+        DBG(M_common[i]);
+    DBG_LINE;
 #endif
 
     return TRUE;

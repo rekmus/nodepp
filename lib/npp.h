@@ -1250,6 +1250,14 @@ typedef struct {
 } eng_session_data_t;
 
 
+/* sessions' index */
+
+typedef struct {
+    char    sessid[NPP_SESSID_LEN+1];
+    int     si;
+} sessions_idx_t;
+
+
 /* counters */
 
 typedef struct {
@@ -1602,7 +1610,7 @@ typedef struct {
     unsigned req;                                   /* request count */
     struct timespec proc_start;                     /* start processing time */
     double   elapsed;                               /* processing time in ms */
-    char     conn_state;                            /* connection state (STATE_XXX) */
+    char     state;                                 /* connection state (STATE_XXX) */
     char     *p_header;                             /* current header pointer */
     char     *p_content;                            /* current content pointer */
 #ifdef NPP_HTTPS
@@ -1760,9 +1768,7 @@ extern int          G_messages_cnt;
 
 /* strings */
 extern npp_string_t G_strings[NPP_MAX_STRINGS];
-extern int          G_next_str;
-extern npp_lang_t   G_str_lang[NPP_MAX_LANGUAGES];
-extern int          G_next_str_lang;
+extern int          G_strings_cnt;
 
 /* snippets */
 extern snippet_t    G_snippets[NPP_MAX_SNIPPETS];
@@ -1852,6 +1858,7 @@ extern "C" {
     bool npp_eng_init_ssl(void);
 #endif
     int  npp_eng_session_start(int ci, const char *sessid);
+    int  npp_eng_find_si(const char *sessid);
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_read_blocked_ips(void);

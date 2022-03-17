@@ -84,10 +84,9 @@ int         G_messages_cnt=0;
 
 /* strings */
 npp_string_t G_strings[NPP_MAX_STRINGS]={0};
-int         G_next_str=0;
-npp_lang_t  G_str_lang[NPP_MAX_LANGUAGES]={0};
-int         G_next_str_lang=0;
+int         G_strings_cnt=0;
 
+/* snippets */
 snippet_t   G_snippets[NPP_MAX_SNIPPETS]={0};
 int         G_snippets_cnt=0;
 
@@ -1153,8 +1152,12 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     va_end(plist);
 
     G_messages[G_messages_cnt].code = code;
-    if ( lang )
-        strcpy(G_messages[G_messages_cnt].lang, npp_upper(lang));
+
+    if ( lang && lang[0] )
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
+    else
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_FALLBACK_LANG), NPP_LANG_LEN);
+
     strcpy(G_messages[G_messages_cnt].message, buffer);
 
     ++G_messages_cnt;
@@ -1188,8 +1191,8 @@ static int compare_messages(const void *a, const void *b)
         return -1;
     else if ( p1->code > p2->code )
         return 1;
-    else
-        return 0;
+
+    return 0;
 }
 
 
@@ -1288,7 +1291,7 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
 /* --------------------------------------------------------------------------
    Get error description for user in specified language
 -------------------------------------------------------------------------- */
-static char *lib_get_message_lang(int code, const char *lang, char lang_len)
+static const char *lib_get_message_lang(int code, const char *lang, char lang_len)
 {
     int first = 0;
     int last = G_messages_cnt - 1;
@@ -1322,9 +1325,8 @@ static char *lib_get_message_lang(int code, const char *lang, char lang_len)
 
     /* not found */
 
-static char unknown[128];
-    sprintf(unknown, "Unknown code: %d", code);
-    return unknown;
+static const char not_found[4]="~~~";
+    return not_found;
 }
 
 
@@ -1332,23 +1334,33 @@ static char unknown[128];
    Get error description for user
    Pick the user session language if possible
 -------------------------------------------------------------------------- */
-char *npp_get_message(int ci, int code)
+const char *npp_get_message(int ci, int code)
 {
-    char *result;
+    const char *result;
 
     if ( SESSION.lang[0] )
     {
         result = lib_get_message_lang(code, SESSION.lang, strlen(SESSION.lang));
 
-        if ( 0==strncmp(result, "Unknown code: ", 14) && strlen(SESSION.lang) > 2 )
-            return lib_get_message_lang(code, SESSION.lang, 2);
+        if ( 0==strcmp(result, "~~~") && strlen(SESSION.lang) > 2 )
+            result = lib_get_message_lang(code, SESSION.lang, 2);
+
+        if ( 0==strcmp(result, "~~~") )
+            result = lib_get_message_lang(code, NPP_FALLBACK_LANG, strlen(NPP_FALLBACK_LANG));
     }
     else    /* unknown client language */
     {
         result = lib_get_message_lang(code, NPP_FALLBACK_LANG, strlen(NPP_FALLBACK_LANG));
 
-        if ( 0==strncmp(result, "Unknown code: ", 14) && strlen(NPP_FALLBACK_LANG) > 2 )
-            return lib_get_message_lang(code, NPP_FALLBACK_LANG, 2);
+        if ( 0==strcmp(result, "~~~") && strlen(NPP_FALLBACK_LANG) > 2 )
+            result = lib_get_message_lang(code, NPP_FALLBACK_LANG, 2);
+    }
+
+    if ( 0==strcmp(result, "~~~") )
+    {
+static char not_found[128];
+        sprintf(not_found, "Unknown code: %d", code);
+        return not_found;
     }
 
     return result;
@@ -1356,26 +1368,17 @@ char *npp_get_message(int ci, int code)
 
 
 /* --------------------------------------------------------------------------
-   Parse and set strings from data
+   Parse and set strings from data (single language)
 -------------------------------------------------------------------------- */
 static void parse_and_set_strings(const char *lang, const char *data)
 {
-    DBG("parse_and_set_strings, lang [%s]", lang);
+    INF("Loading strings for [%s]", lang);
 
     const char *p=data;
     int  j=0;
     char string_orig[NPP_MAX_STRING_LEN+1];
     char string_in_lang[NPP_MAX_STRING_LEN+1];
     bool now_key=1, now_val=0, now_com=0;
-
-    if ( G_next_str_lang >= NPP_MAX_LANGUAGES )
-    {
-        ERR("NPP_MAX_LANGUAGES (%d) has been reached", NPP_MAX_LANGUAGES);
-        return;
-    }
-
-    strcpy(G_str_lang[G_next_str_lang].lang, npp_upper(lang));
-    G_str_lang[G_next_str_lang].first_index = G_next_str;
 
     while ( *p )
     {
@@ -1388,7 +1391,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_lib_add_string(lang, string_orig, string_in_lang);
+                npp_add_string(lang, string_orig, string_in_lang);
             }
         }
         else if ( now_key && *p==NPP_STRINGS_SEP )   /* separator */
@@ -1404,7 +1407,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_lib_add_string(lang, string_orig, string_in_lang);
+                npp_add_string(lang, string_orig, string_in_lang);
             }
             else if ( now_com )
             {
@@ -1430,11 +1433,8 @@ static void parse_and_set_strings(const char *lang, const char *data)
     if ( now_val )
     {
         string_in_lang[j] = EOS;
-        npp_lib_add_string(lang, string_orig, string_in_lang);
+        npp_add_string(lang, string_orig, string_in_lang);
     }
-
-    G_str_lang[G_next_str_lang].next_lang_index = G_next_str;
-    ++G_next_str_lang;
 }
 
 
@@ -1525,21 +1525,107 @@ static bool load_strings()
 
 
 /* --------------------------------------------------------------------------
+   Comparing function for strings
+---------------------------------------------------------------------------*/
+static int compare_strings(const void *a, const void *b)
+{
+    const npp_string_t *p1 = (npp_string_t*)a;
+    const npp_string_t *p2 = (npp_string_t*)b;
+
+    int lang_result = strcmp(p1->lang, p2->lang);
+
+    if ( lang_result > 0 )
+        return 1;
+    else if ( lang_result < 0 )
+        return -1;
+
+    /* same language then */
+
+    return strcmp(p1->string_upper, p2->string_upper);
+}
+
+
+/* --------------------------------------------------------------------------
+   Sort and index strings by languages
+-------------------------------------------------------------------------- */
+void lib_sort_strings()
+{
+    qsort(&G_strings, G_strings_cnt, sizeof(G_strings[0]), compare_strings);
+}
+
+
+/* --------------------------------------------------------------------------
    Add string
 -------------------------------------------------------------------------- */
-void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
+#ifdef NPP_CPP_STRINGS
+void npp_add_string(const std::string& lang_, const std::string& str_, const std::string& str_lang_)
 {
-    if ( G_next_str >= NPP_MAX_STRINGS )
+    const char *lang = lang_.c_str();
+    const char *str = str_.c_str();
+    const char *str_lang = str_lang_.c_str();
+#else
+void npp_add_string(const char *lang, const char *str, const char *str_lang)
+{
+#endif
+    if ( G_strings_cnt > NPP_MAX_STRINGS-1 )
     {
         ERR("NPP_MAX_STRINGS (%d) has been reached", NPP_MAX_STRINGS);
         return;
     }
 
-    strcpy(G_strings[G_next_str].lang, npp_upper(lang));
-    strcpy(G_strings[G_next_str].string_upper, npp_upper(str));
-    strcpy(G_strings[G_next_str].string_in_lang, str_lang);
+    COPY(G_strings[G_strings_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
+    COPY(G_strings[G_strings_cnt].string_upper, npp_upper(str), NPP_MAX_STRING_LEN);
+    COPY(G_strings[G_strings_cnt].string_in_lang, str_lang, NPP_MAX_STRING_LEN);
 
-    ++G_next_str;
+    ++G_strings_cnt;
+
+    if ( G_initialized )
+        lib_sort_strings();
+}
+
+
+/* --------------------------------------------------------------------------
+   Get string in specified language
+-------------------------------------------------------------------------- */
+static const char *lib_get_string_lang(const char *string_upper, const char *lang, char lang_len)
+{
+    int first = 0;
+    int last = G_strings_cnt - 1;
+    int middle = (first+last) / 2;
+    int result_lang;
+    int result;
+
+    while ( first <= last )
+    {
+        result_lang = strncmp(G_strings[middle].lang, lang, lang_len);
+
+        if ( result_lang < 0 )
+        {
+            first = middle + 1;
+        }
+        else if ( result_lang == 0 )
+        {
+            result = strcmp(G_strings[middle].string_upper, string_upper);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return G_strings[middle].string_in_lang;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* result_lang > 0 */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    /* not found */
+
+static const char not_found[4]="~~~";
+    return not_found;
 }
 
 
@@ -1547,50 +1633,37 @@ void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
    Get a string
    Pick the user session language if possible
    If not, return given string
-   TODO: binary search
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+const char *npp_lib_get_string(int ci, const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 const char *npp_lib_get_string(int ci, const char *str)
 {
-    if ( 0==strcmp(SESSION.lang, NPP_FALLBACK_LANG) )   /* no need to translate */
+#endif
+    if ( SESSION.lang[0]==EOS || 0==strcmp(SESSION.lang, NPP_FALLBACK_LANG) )
         return str;
 
-    if ( !SESSION.lang[0] )   /* unknown client language */
-        return str;
+    char string_upper[NPP_MAX_STRING_LEN+1];
 
-    char str_upper[NPP_MAX_STRING_LEN+1];
+    COPY(string_upper, npp_upper(str), NPP_MAX_STRING_LEN);
 
-    strcpy(str_upper, npp_upper(str));
+//    DDBG("npp_lib_get_string [%s]", string_upper);
 
-    int l, s;
+    const char *result = lib_get_string_lang(string_upper, SESSION.lang, strlen(SESSION.lang));
 
-    for ( l=0; l<G_next_str_lang; ++l )   /* jump to the right language */
-    {
-        if ( 0==strcmp(G_str_lang[l].lang, SESSION.lang) )
-        {
-            for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
-                if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
-                    return G_strings[s].string_in_lang;
+    /* if not found try only with a language code */
 
-            /* language found but not this string */
-            return str;
-        }
-    }
-
-    /* if not found, ignore country code */
-
-    for ( l=0; l<G_next_str_lang; ++l )
-    {
-        if ( 0==strncmp(G_str_lang[l].lang, SESSION.lang, 2) )
-        {
-            for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
-                if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
-                    return G_strings[s].string_in_lang;
-        }
-    }
+    if ( 0==strcmp(result, "~~~") && strlen(SESSION.lang) > 2 )
+        result = lib_get_string_lang(string_upper, SESSION.lang, 2);
 
     /* fallback */
 
-    return str;
+    if ( 0==strcmp(result, "~~~") )
+        return str;
+
+    return result;
 }
 #endif  /* NPP_CLIENT */
 
@@ -2034,7 +2107,9 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
                 G_snippets[i].host_id = NPP_MAX_HOSTS;
 #endif  /* NPP_MULTI_HOST */
 
-                strcpy(G_snippets[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+//                strcpy(G_snippets[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+                memset(G_snippets[i].name, 'z', NPP_STATIC_PATH_LEN);
+                G_snippets[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
                 free(G_snippets[i].data);
                 G_snippets[i].data = NULL;

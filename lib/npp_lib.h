@@ -713,6 +713,7 @@ extern "C" {
     char *npp_expand_env_path(const char *src);
 #endif
 
+
 #ifndef NPP_CLIENT  /* web app only */
 
 #ifdef NPP_CPP_STRINGS
@@ -756,7 +757,6 @@ extern "C" {
 
     void npp_sort_messages(void);
     bool npp_is_msg_main_cat(int code, const char *cat);
-    void npp_lib_add_string(const char *lang, const char *str, const char *str_lang);
     void npp_lib_setnonblocking(int sock);
     void npp_call_http_headers_reset(void);
 
@@ -855,7 +855,7 @@ extern "C" {
 
 #ifndef NPP_CLIENT  /* web app only */
     void npp_lib_set_formats(int ci, const char *lang);
-    char *npp_get_message(int ci, int code);
+    const char *npp_get_message(int ci, int code);
     void npp_out_html_header(int ci);
     void npp_out_html_footer(int ci);
     void npp_append_css(int ci, const char *fname, bool first);
@@ -880,7 +880,21 @@ extern "C" {
 #endif
 
     void npp_lib_send_msg_description(int ci, int code);
+
+    void lib_sort_strings();
+
+#ifdef NPP_CPP_STRINGS
+    void npp_add_string(const std::string& lang, const std::string& str, const std::string& str_lang);
+#else
+    void npp_add_string(const char *lang, const char *str, const char *str_lang);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    const char *npp_lib_get_string(int ci, const std::string& str);
+#else
     const char *npp_lib_get_string(int ci, const char *str);
+#endif
+
     void npp_set_tz(int ci);
     time_t npp_ua_time(int ci);
     char *npp_today_ua(int ci);
@@ -1024,8 +1038,12 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
     std::snprintf(buffer, NPP_MAX_MESSAGE_LEN, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
 
     G_messages[G_messages_cnt].code = code;
-    if ( lang.c_str() )
-        strcpy(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()));
+
+    if ( lang.c_str() && lang.c_str()[0] )
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()), NPP_LANG_LEN);
+    else
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_FALLBACK_LANG), NPP_LANG_LEN);
+
     strcpy(G_messages[G_messages_cnt].message, buffer);
 
     ++G_messages_cnt;
