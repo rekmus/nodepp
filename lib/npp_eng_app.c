@@ -626,12 +626,18 @@ int main(int argc, char **argv)
             }
 #endif  /* NPP_FD_MON_POLL */
 #endif  /* NPP_HTTPS */
-#ifndef NPP_FD_MON_EPOLL
-//            else    /* existing connections have something going on on them ---------------------------------- */
-            if ( sockets_ready )
-#endif  /* NPP_FD_MON_EPOLL */
-            {
 
+#ifndef NPP_FD_MON_EPOLL
+
+//#ifdef NPP_FD_MON_SELECT
+            if ( sockets_ready )
+//#else
+//            else    /* existing connections have something going on on them ---------------------------------- */
+//#endif
+
+#endif  /* NPP_FD_MON_EPOLL */
+
+            {
 #ifdef NPP_DEBUG
                 DBG("");
                 DBG_LINE_LONG;
@@ -1155,22 +1161,22 @@ int main(int argc, char **argv)
                     }
 #endif
 #ifdef NPP_FD_MON_POLL
-                    if ( pi > NPP_MAX_CONNECTIONS )
+                    if ( pi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        WAR("pi > NPP_MAX_CONNECTIONS, breaking");
+                        WAR("pi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                    if ( epi > NPP_MAX_CONNECTIONS )
+                    if ( epi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        WAR("epi > NPP_MAX_CONNECTIONS, breaking");
+                        WAR("epi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
                 }   /* for on active sockets */
-            }   /* some of the existing connections are ready to read/write */
-        }   /* some of the sockets are ready to read/write */
+            }   /* some of the existing connections are ready for I/O */
+        }   /* some sockets are ready for I/O (including listening sockets) */
 
 #ifdef NPP_DEBUG
         if ( sockets_ready != 0 )
