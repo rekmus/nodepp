@@ -3314,14 +3314,20 @@ static void accept_connection(bool secure)
 
     char remote_addr[INET6_ADDRSTRLEN]="";
 
+#ifndef NPP_DONT_MAP_IPV4_ADDRESSES
     if ( IN6_IS_ADDR_V4MAPPED(&(cli_addr.sin6_addr)) )
     {
         DDBG("\nIN6_IS_ADDR_V4MAPPED");
-//        struct sockaddr_in addr_v4={0};
-//        addr_v4.sin_family = AF_INET;
-        inet_ntop(AF_INET, &(cli_addr.sin6_addr)+12, remote_addr, INET_ADDRSTRLEN);
+
+        struct sockaddr_in addr_v4={0};
+        addr_v4.sin_family = AF_INET;
+
+        memcpy(&addr_v4.sin_addr, ((char*)&cli_addr.sin6_addr) + 12, 4);
+
+        inet_ntop(AF_INET, &(addr_v4.sin_addr), remote_addr, INET_ADDRSTRLEN);
     }
     else
+#endif  /* NPP_DONT_MAP_IPV4_ADDRESSES */
         inet_ntop(AF_INET6, &(cli_addr.sin6_addr), remote_addr, INET6_ADDRSTRLEN);
 
     /* -------------------------------------------- */

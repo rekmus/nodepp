@@ -1156,7 +1156,7 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     if ( lang && lang[0] )
         COPY(G_messages[G_messages_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
     else
-        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_FALLBACK_LANG), NPP_LANG_LEN);
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_DEFAULT_LANG), NPP_LANG_LEN);
 
     strcpy(G_messages[G_messages_cnt].message, buffer);
 
@@ -1346,14 +1346,14 @@ const char *npp_get_message(int ci, int code)
             result = lib_get_message_lang(code, SESSION.lang, 2);
 
         if ( 0==strcmp(result, "~~~") )
-            result = lib_get_message_lang(code, NPP_FALLBACK_LANG, strlen(NPP_FALLBACK_LANG));
+            result = lib_get_message_lang(code, NPP_DEFAULT_LANG, strlen(NPP_DEFAULT_LANG));
     }
     else    /* unknown client language */
     {
-        result = lib_get_message_lang(code, NPP_FALLBACK_LANG, strlen(NPP_FALLBACK_LANG));
+        result = lib_get_message_lang(code, NPP_DEFAULT_LANG, strlen(NPP_DEFAULT_LANG));
 
-        if ( 0==strcmp(result, "~~~") && strlen(NPP_FALLBACK_LANG) > 2 )
-            result = lib_get_message_lang(code, NPP_FALLBACK_LANG, 2);
+        if ( 0==strcmp(result, "~~~") && strlen(NPP_DEFAULT_LANG) > 2 )
+            result = lib_get_message_lang(code, NPP_DEFAULT_LANG, 2);
     }
 
     if ( 0==strcmp(result, "~~~") )
@@ -1642,7 +1642,7 @@ const char *npp_lib_get_string(int ci, const std::string& str_)
 const char *npp_lib_get_string(int ci, const char *str)
 {
 #endif
-    if ( SESSION.lang[0]==EOS || 0==strcmp(SESSION.lang, NPP_FALLBACK_LANG) )
+    if ( SESSION.lang[0]==EOS || 0==strcmp(SESSION.lang, NPP_DEFAULT_LANG) )
         return str;
 
     char string_upper[NPP_MAX_STRING_LEN+1];

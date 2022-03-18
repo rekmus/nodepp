@@ -453,8 +453,8 @@
 #define NPP_MAX_LANGUAGES                   250
 #endif
 
-#ifndef NPP_FALLBACK_LANG
-#define NPP_FALLBACK_LANG                   "EN-US"
+#ifndef NPP_DEFAULT_LANG
+#define NPP_DEFAULT_LANG                    "EN-US"
 #endif
 
 /* messages */
@@ -1042,7 +1042,7 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
     if ( lang.c_str() && lang.c_str()[0] )
         COPY(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()), NPP_LANG_LEN);
     else
-        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_FALLBACK_LANG), NPP_LANG_LEN);
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_DEFAULT_LANG), NPP_LANG_LEN);
 
     strcpy(G_messages[G_messages_cnt].message, buffer);
 
