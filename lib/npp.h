@@ -51,7 +51,7 @@
 #define R_OK    0x04    /* test for read permission */
 #endif  /* _MSC_VER */
 #undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501 /* Windows XP or higher required */
+#define _WIN32_WINNT _WIN32_WINNT_VISTA  /* Windows Vista or higher required */
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <psapi.h>
@@ -1226,7 +1226,7 @@ typedef struct {
     /* id */
     char    sessid[NPP_SESSID_LEN+1];
     /* connection data */
-    char    ip[INET_ADDRSTRLEN];
+    char    ip[INET6_ADDRSTRLEN];
     char    uagent[NPP_MAX_VALUE_LEN+1];
     char    referer[NPP_MAX_VALUE_LEN+1];
     char    lang[NPP_LANG_LEN+1];
@@ -1287,7 +1287,7 @@ typedef struct {
     int      ci;
     char     service[NPP_SVC_NAME_LEN+1];
     /* pass some request details over */
-    char     ip[INET_ADDRSTRLEN];
+    char     ip[INET6_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
@@ -1463,7 +1463,7 @@ typedef struct {
 
 #ifdef NPP_SVC
 typedef struct {                            /* request details for npp_svc */
-    char     ip[INET_ADDRSTRLEN];
+    char     ip[INET6_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
@@ -1522,7 +1522,7 @@ typedef struct {
 #else
     int      fd;                                    /* file descriptor */
 #endif  /* _WIN32 */
-    char     ip[INET_ADDRSTRLEN];                   /* client IP */
+    char     ip[INET6_ADDRSTRLEN];                  /* client IP */
     char     in[NPP_IN_BUFSIZE];                    /* the whole incoming request */
     char     method[NPP_METHOD_LEN+1];              /* HTTP method */
     unsigned was_read;                              /* request bytes read so far */
@@ -1808,10 +1808,10 @@ extern int          G_error_code;
 extern int          G_svc_si;
 #endif  /* NPP_SVC */
 
-extern char         G_blacklist[NPP_MAX_BLACKLIST+1][INET_ADDRSTRLEN];
+extern char         G_blacklist[NPP_MAX_BLACKLIST+1][INET6_ADDRSTRLEN];
 extern int          G_blacklist_cnt;            /* G_blacklist length */
 
-extern char         G_whitelist[NPP_MAX_WHITELIST+1][INET_ADDRSTRLEN];
+extern char         G_whitelist[NPP_MAX_WHITELIST+1][INET6_ADDRSTRLEN];
 extern int          G_whitelist_cnt;            /* G_whitelist length */
 /* counters */
 extern npp_counters_t G_cnts_today;             /* today's counters */

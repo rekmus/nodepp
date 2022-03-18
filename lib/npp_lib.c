@@ -4302,13 +4302,13 @@ static int addresses_cnt=0, addresses_last=0;
 #endif
         DBG("getaddrinfo...");   /* TODO: change to asynchronous, i.e. getaddrinfo_a */
 
-        struct addrinfo hints;
-        int s;
+        struct addrinfo hints={0};
 
-        memset(&hints, 0, sizeof(struct addrinfo));
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_protocol = IPPROTO_TCP;
+
+        int s;
 
         if ( (s=getaddrinfo(host, port, &hints, &result)) != 0 )
         {
@@ -4420,13 +4420,13 @@ static int addresses_cnt=0, addresses_last=0;
         addresses[addresses_last].addr.ai_next = NULL;
 
         /* get the remote address */
-        char remote_addr[INET_ADDRSTRLEN]="";
-        struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
-#ifdef _WIN32   /* Windows */
-        strcpy(remote_addr, inet_ntoa(remote_addr_struct->sin_addr));
-#else
-        inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
-#endif
+
+        char remote_addr[INET6_ADDRSTRLEN]="";
+
+        struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+
+        inet_ntop(AF_INET6, &(remote_addr_struct->sin6_addr), remote_addr, INET6_ADDRSTRLEN);
+
         INF("Connected to %s", remote_addr);
 
         DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);

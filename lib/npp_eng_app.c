@@ -87,10 +87,10 @@ int         G_async_req_data_size=NPP_ASYNC_REQ_MSG_SIZE-sizeof(async_req_hdr_t)
 int         G_async_res_data_size=NPP_ASYNC_RES_MSG_SIZE-sizeof(async_res_hdr_t)-sizeof(int)*4; /* how many bytes are left for data */
 #endif  /* NPP_ASYNC */
 
-char        G_blacklist[NPP_MAX_BLACKLIST+1][INET_ADDRSTRLEN];
+char        G_blacklist[NPP_MAX_BLACKLIST+1][INET6_ADDRSTRLEN];
 int         G_blacklist_cnt=0;              /* G_blacklist length */
 
-char        G_whitelist[NPP_MAX_WHITELIST+1][INET_ADDRSTRLEN];
+char        G_whitelist[NPP_MAX_WHITELIST+1][INET6_ADDRSTRLEN];
 int         G_whitelist_cnt=0;              /* G_whitelist length */
 
 /* counters */
@@ -265,13 +265,13 @@ static void render_page_msg(int ci, int code);
 -------------------------------------------------------------------------- */
 int main(int argc, char **argv)
 {
-    struct sockaddr_in serv_addr;
+    struct sockaddr_in6 serv_addr={0};
 //    unsigned    hit=0;
-    int         reuse_addr=1;       /* Used so we can re-bind to our port while a previous connection is still in TIME_WAIT state */
+    int         reuse_addr=1;       /* we want to re-bind while a previous connection is still in TIME_WAIT state */
 #ifdef NPP_FD_MON_SELECT
-    struct timeval timeout;         /* Timeout for select */
+    struct timeval timeout;         /* timeout for select */
 #endif
-    int         sockets_ready;      /* Number of sockets ready for I/O */
+    int         sockets_ready;      /* number of sockets ready for I/O */
     int         ci=0;
     int         bytes=0;
     int         failed_select_cnt=0;
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
 
 #endif  /* _WIN32 */
 
-    if ( (M_listening_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+    if ( (M_listening_fd = socket(AF_INET6, SOCK_STREAM, 0)) < 0 )  /* TCP socket */
     {
         ERR("socket failed, errno = %d (%s)", errno, strerror(errno));
         clean_up();
@@ -324,7 +324,6 @@ int main(int argc, char **argv)
 
     DBG("M_listening_fd = %d", M_listening_fd);
 
-    /* So that we can re-bind to it without TIME_WAIT problems */
 #ifdef _WIN32   /* Windows */
     setsockopt(M_listening_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse_addr, sizeof(reuse_addr));
 #else
@@ -337,9 +336,9 @@ int main(int argc, char **argv)
 
     /* bind socket to a port */
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(G_httpPort);
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_addr = in6addr_any;
+    serv_addr.sin6_port = htons(G_httpPort);
 
     DBG("Trying bind to port %d...", G_httpPort);
 
@@ -367,7 +366,7 @@ int main(int argc, char **argv)
 
     DBG("Trying socket for secure connections...");
 
-    if ( (M_listening_sec_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+    if ( (M_listening_sec_fd = socket(AF_INET6, SOCK_STREAM, 0)) < 0 )  /* TCP socket */
     {
         ERR("socket failed, errno = %d (%s)", errno, strerror(errno));
         clean_up();
@@ -389,9 +388,9 @@ int main(int argc, char **argv)
 
     /* bind socket to a port */
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(G_httpsPort);
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_addr = in6addr_any;
+    serv_addr.sin6_port = htons(G_httpsPort);
 
     DBG("Trying bind to port %d...", G_httpsPort);
 
@@ -3294,7 +3293,7 @@ static void find_first_free_ci()
 -------------------------------------------------------------------------- */
 static void accept_connection(bool secure)
 {
-    struct sockaddr_in cli_addr;
+    struct sockaddr_in6 cli_addr;
 
     socklen_t addr_len = sizeof(cli_addr);
 
@@ -3313,13 +3312,17 @@ static void accept_connection(bool secure)
     /* -------------------------------------------- */
     /* get the remote address */
 
-    char remote_addr[INET_ADDRSTRLEN]="";
+    char remote_addr[INET6_ADDRSTRLEN]="";
 
-#ifdef _WIN32   /* Windows */
-    strcpy(remote_addr, inet_ntoa(cli_addr.sin_addr));
-#else
-    inet_ntop(AF_INET, &(cli_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
-#endif
+    if ( IN6_IS_ADDR_V4MAPPED(&(cli_addr.sin6_addr)) )
+    {
+        DDBG("\nIN6_IS_ADDR_V4MAPPED");
+//        struct sockaddr_in addr_v4={0};
+//        addr_v4.sin_family = AF_INET;
+        inet_ntop(AF_INET, &(cli_addr.sin6_addr)+12, remote_addr, INET_ADDRSTRLEN);
+    }
+    else
+        inet_ntop(AF_INET6, &(cli_addr.sin6_addr), remote_addr, INET6_ADDRSTRLEN);
 
     /* -------------------------------------------- */
 
@@ -3520,7 +3523,8 @@ static void accept_connection(bool secure)
 
     /* -------------------------------------------- */
 
-    strcpy(G_connections[M_first_free_ci].ip, remote_addr);
+//    if ( IN6_IS_ADDR_V4MAPPED(&addr6->sin6_addr) )
+        strcpy(G_connections[M_first_free_ci].ip, remote_addr);
 
     /* -------------------------------------------- */
 
@@ -3556,7 +3560,7 @@ void npp_eng_read_blocked_ips()
     int     i=0;
     char    now_value=1;
     char    now_comment=0;
-    char    value[INET_ADDRSTRLEN];
+    char    value[INET6_ADDRSTRLEN];
 
     G_blacklist_cnt = 0;
 
@@ -3634,7 +3638,7 @@ void npp_eng_read_blocked_ips()
         }
         else if ( now_value )   /* value */
         {
-            if ( i < INET_ADDRSTRLEN-1 )
+            if ( i < INET6_ADDRSTRLEN-1 )
                 value[i++] = c;
         }
     }
@@ -3704,7 +3708,7 @@ void npp_eng_read_allowed_ips()
     int     i=0;
     char    now_value=1;
     char    now_comment=0;
-    char    value[INET_ADDRSTRLEN];
+    char    value[INET6_ADDRSTRLEN];
 
     G_whitelist_cnt = 0;
 
@@ -3782,7 +3786,7 @@ void npp_eng_read_allowed_ips()
         }
         else if ( now_value )   /* value */
         {
-            if ( i < INET_ADDRSTRLEN-1 )
+            if ( i < INET6_ADDRSTRLEN-1 )
                 value[i++] = c;
         }
     }
