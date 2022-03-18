@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 
     CALL_HTTP_HEADER_SET("User-Agent", "Node++ Watcher Bot");
 
-    if ( !CALL_HTTP(NULL, NULL, "GET", url) )
+    if ( !CALL_HTTP(NULL, NULL, "GET", url, FALSE) )
     {
         npp_update_time_globals();
 

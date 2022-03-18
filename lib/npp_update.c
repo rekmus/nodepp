@@ -263,7 +263,7 @@ static int check_latest_version()
     sprintf(url, "http://nodepp.org/api/v2/update_info");
 #endif
 
-    if ( !CALL_HTTP(NULL, &data, "GET", url) )
+    if ( !CALL_HTTP(NULL, &data, "GET", url, FALSE) )
     {
         ERR("Couldn't connect to nodepp.org");
         return FAIL;
@@ -403,7 +403,7 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
 #endif
             DBG("url [%s]", url);
 
-            if ( !CALL_HTTP(NULL, &data, "GET", url) )
+            if ( !CALL_HTTP(NULL, &data, "GET", url, FALSE) )
             {
                 ERR("Couldn't connect to nodepp.org");
                 return FAIL;
@@ -505,8 +505,6 @@ int main(int argc, char *argv[])
 
     if ( !G_appdir[0] )
     {
-//        ERR("NPP_DIR is required");
-//        return EXIT_FAILURE;
         strcpy(G_appdir, "..");
     }
 

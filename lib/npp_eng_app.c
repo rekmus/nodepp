@@ -629,11 +629,7 @@ int main(int argc, char **argv)
 
 #ifndef NPP_FD_MON_EPOLL
 
-//#ifdef NPP_FD_MON_SELECT
-            if ( sockets_ready )
-//#else
-//            else    /* existing connections have something going on on them ---------------------------------- */
-//#endif
+            if ( sockets_ready )    /* existing connections */
 
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -1152,7 +1148,7 @@ int main(int argc, char **argv)
                     }
 
                     /* this should not ever happen */
-
+#ifdef NPP_DEBUG
 #ifdef NPP_FD_MON_SELECT
                     if ( ci > NPP_MAX_CONNECTIONS )
                     {
@@ -1174,6 +1170,7 @@ int main(int argc, char **argv)
                         break;
                     }
 #endif
+#endif  /* NPP_DEBUG */
                 }   /* for on active sockets */
             }   /* some of the existing connections are ready for I/O */
         }   /* some sockets are ready for I/O (including listening sockets) */
