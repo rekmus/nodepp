@@ -8465,7 +8465,7 @@ void npp_lib_read_conf(bool first)
 
     if ( !conf_read )   /* no NPP_DIR or no npp.conf in bin -- try current dir */
     {
-#ifndef NPP_WATCHER
+#ifndef NPP_CLIENT
         WAR("Couldn't read $NPP_DIR/bin/npp.conf -- trying current directory...");
 #endif
         conf_read = npp_read_conf("npp.conf");
@@ -8720,7 +8720,7 @@ void npp_lib_read_conf(bool first)
     }
     else
     {
-#ifndef NPP_WATCHER
+#ifndef NPP_CLIENT
         WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
 #endif
     }

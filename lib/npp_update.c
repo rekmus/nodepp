@@ -474,6 +474,22 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
 
 
 /* --------------------------------------------------------------------------
+   Print usage
+-------------------------------------------------------------------------- */
+void usage(int argc, char *argv[])
+{
+    ALWAYS("");
+    ALWAYS("Node++ library update. Usage:");
+    ALWAYS("");
+    ALWAYS("%s [-uf]", argv[0]);
+    ALWAYS("");
+    ALWAYS("\tno options = show info", argv[0]);
+    ALWAYS("\t-u = update");
+    ALWAYS("\t-f = force update (if major version changed)");
+}
+
+
+/* --------------------------------------------------------------------------
    main
 -------------------------------------------------------------------------- */
 int main(int argc, char *argv[])
@@ -484,11 +500,12 @@ int main(int argc, char *argv[])
     int ret = parse_command_line(argc, argv);
 
     if ( M_test )
+    {
         G_logLevel = LOG_DBG;
+        DBG("TEST MODE");
+    }
     else
         G_logLevel = LOG_ERR;
-
-    DBG("TEST MODE");
 
     if ( ret == FAIL )
     {
@@ -503,10 +520,18 @@ int main(int argc, char *argv[])
     DDBG("M_force_update = %d", M_force_update);
     DDBG("M_update = %d", M_update);
 
-    if ( !G_appdir[0] )
+    if ( !M_update )
+        usage(argc, argv);
+    else
     {
-        strcpy(G_appdir, "..");
+        ALWAYS("");
+        ALWAYS("Node++ library update.");
     }
+
+    ALWAYS("");
+
+    if ( !G_appdir[0] )
+        strcpy(G_appdir, "..");
 
     ret = check_local_version();
 
@@ -557,9 +582,16 @@ int main(int argc, char *argv[])
         }
         else    /* same version */
         {
+            ALWAYS("");
             ALWAYS("Nothing to update.");
         }
     }
+
+    ALWAYS("");
+    ALWAYS("More info: nodepp.org");
+#ifndef _WIN32
+    ALWAYS("");
+#endif
 
     npp_lib_done();
 

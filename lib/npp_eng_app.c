@@ -3529,8 +3529,7 @@ static void accept_connection(bool secure)
 
     /* -------------------------------------------- */
 
-//    if ( IN6_IS_ADDR_V4MAPPED(&addr6->sin6_addr) )
-        strcpy(G_connections[M_first_free_ci].ip, remote_addr);
+    strcpy(G_connections[M_first_free_ci].ip, remote_addr);
 
     /* -------------------------------------------- */
 
