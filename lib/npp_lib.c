@@ -1996,6 +1996,73 @@ int lib_compare_snippets(const void *a, const void *b)
 
 
 /* --------------------------------------------------------------------------
+   Get snippet index
+-------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+static int get_snippet_idx(int host_id, const char *name)
+{
+    int first = 0;
+    int last = G_snippets_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        if ( G_snippets[middle].host_id < host_id )
+        {
+            first = middle + 1;
+        }
+        else if ( G_snippets[middle].host_id == host_id )
+        {
+            result = strcmp(G_snippets[middle].name, name);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* G_snippets[middle].host_id > host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;
+}
+
+#else   /* NOT NPP_MULTI_HOST */
+
+static int get_snippet_idx(const char *name)
+{
+    int first = 0;
+    int last = G_snippets_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(G_snippets[middle].name, name);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;
+}
+#endif  /* NPP_MULTI_HOST */
+
+
+/* --------------------------------------------------------------------------
    Read snippets from disk
    Unlike res or resmin, snippets need to be available
    in both npp_app and npp_svc processes
@@ -2071,7 +2138,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     if ( (dir=opendir(ressubdir)) == NULL )
     {
         if ( first_scan )
-            DBG("Couldn't open directory [%s]", ressubdir);
+            DBG("Couldn't open directory [%s], skipping", ressubdir);
         return TRUE;    /* don't panic, just no snippets will be used */
     }
 
@@ -2086,8 +2153,6 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
         for ( i=0; i<G_snippets_cnt; ++i )
         {
-//            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
-
             if ( G_snippets[i].host_id != host_id ) continue;
 
 //            DDBG("Checking %s...", G_snippets[i].name);
@@ -2107,7 +2172,6 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
                 G_snippets[i].host_id = NPP_MAX_HOSTS;
 #endif  /* NPP_MULTI_HOST */
 
-//                strcpy(G_snippets[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
                 memset(G_snippets[i].name, 'z', NPP_STATIC_PATH_LEN);
                 G_snippets[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
@@ -2204,51 +2268,45 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
         if ( !first_scan )
         {
-            bool exists_not_changed = FALSE;
-
-            for ( i=0; i<G_snippets_cnt; ++i )
+#ifdef NPP_MULTI_HOST
+            i = get_snippet_idx(host_id, resname);
+#else
+            i = get_snippet_idx(resname);
+#endif
+            if ( i != -1 )  /* already read */
             {
-//                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
+//                DDBG("%s already read", resname);
 
-                /* ------------------------------------------------------------------- */
-
-                if ( G_snippets[i].host_id == host_id && 0==strcmp(G_snippets[i].name, resname) )
+                if ( G_snippets[i].modified == fstat.st_mtime )
                 {
-//                    DDBG("%s already read", resname);
-
-                    if ( G_snippets[i].modified == fstat.st_mtime )
-                    {
-//                        DDBG("Not modified");
-                        exists_not_changed = TRUE;
-                    }
-                    else
-                    {
-                        INF("%s has been modified", resname);
-                        reread = TRUE;
-                    }
-
-                    break;
+//                    DDBG("Not modified");
+                    continue;   /* skip to the next file */
+                }
+                else
+                {
+                    INF("%s has been modified", resname);
+                    reread = TRUE;
                 }
             }
-
-            if ( exists_not_changed ) continue;   /* not modified */
         }
 
         if ( !reread )  /* first time on the list */
         {
+            i = G_snippets_cnt;
+
             /* host -- already uppercase */
 
-            strcpy(G_snippets[G_snippets_cnt].host, host);
-            G_snippets[G_snippets_cnt].host_id = host_id;
+            strcpy(G_snippets[i].host, host);
+            G_snippets[i].host_id = host_id;
 
             /* file name */
 
-            strcpy(G_snippets[G_snippets_cnt].name, resname);
+            strcpy(G_snippets[i].name, resname);
         }
 
         /* last modified */
 
-        G_snippets[G_snippets_cnt].modified = fstat.st_mtime;
+        G_snippets[i].modified = fstat.st_mtime;
 
         /* size and content */
 
@@ -2261,30 +2319,30 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
-            G_snippets[G_snippets_cnt].len = ftell(fd);
+            G_snippets[i].len = ftell(fd);
             rewind(fd);
 
             /* allocate the final destination */
 
             if ( reread )
             {
-                free(G_snippets[G_snippets_cnt].data);
-                G_snippets[G_snippets_cnt].data = NULL;
+                free(G_snippets[i].data);
+                G_snippets[i].data = NULL;
             }
 
-            G_snippets[G_snippets_cnt].data = (char*)malloc(G_snippets[G_snippets_cnt].len+1);
+            G_snippets[i].data = (char*)malloc(G_snippets[i].len+1);
 
-            if ( NULL == G_snippets[G_snippets_cnt].data )
+            if ( NULL == G_snippets[i].data )
             {
-                ERR("Couldn't allocate %u bytes for %s", G_snippets[G_snippets_cnt].len+1, G_snippets[G_snippets_cnt].name);
+                ERR("Couldn't allocate %u bytes for %s", G_snippets[i].len+1, G_snippets[i].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
             }
 
-            if ( fread(G_snippets[G_snippets_cnt].data, G_snippets[G_snippets_cnt].len, 1, fd) != 1 )
+            if ( fread(G_snippets[i].data, G_snippets[i].len, 1, fd) != 1 )
             {
-                ERR("Couldn't read from %s", G_snippets[G_snippets_cnt].name);
+                ERR("Couldn't read from %s", G_snippets[i].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
@@ -2292,20 +2350,21 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
             fclose(fd);
 
-            *(G_snippets[G_snippets_cnt].data+G_snippets[G_snippets_cnt].len) = EOS;
+            *(G_snippets[i].data+G_snippets[i].len) = EOS;
 
             /* log file info ----------------------------------- */
 
             if ( G_logLevel > LOG_INF )
             {
-                G_ptm = gmtime(&G_snippets[G_snippets_cnt].modified);
+                G_ptm = gmtime(&G_snippets[i].modified);
                 char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[G_snippets_cnt].name, 28), mod_time, G_snippets[G_snippets_cnt].len);
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
             }
 
-            ++G_snippets_cnt;
+            if ( !reread )
+                ++G_snippets_cnt;
         }
     }
 
@@ -2320,70 +2379,15 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
 
 /* --------------------------------------------------------------------------
-   Get snippet index
--------------------------------------------------------------------------- */
-static int get_snippet_idx(int ci, const char *name)
-{
-    int first = 0;
-    int last = G_snippets_cnt - 1;
-    int middle = (first+last) / 2;
-    int result;
-
-#ifdef NPP_MULTI_HOST
-
-    while ( first <= last )
-    {
-        if ( G_snippets[middle].host_id < G_connections[ci].host_id )
-        {
-            first = middle + 1;
-        }
-        else if ( G_snippets[middle].host_id == G_connections[ci].host_id )
-        {
-            result = strcmp(G_snippets[middle].name, name);
-
-            if ( result < 0 )
-                first = middle + 1;
-            else if ( result == 0 )
-                return middle;
-            else    /* result > 0 */
-                last = middle - 1;
-        }
-        else    /* G_snippets[middle].host_id > G_connections[ci].host_id */
-        {
-            last = middle - 1;
-        }
-
-        middle = (first+last) / 2;
-    }
-
-#else   /* NOT NPP_MULTI_HOST */
-
-    while ( first <= last )
-    {
-        result = strcmp(G_snippets[middle].name, name);
-
-        if ( result < 0 )
-            first = middle + 1;
-        else if ( result == 0 )
-            return middle;
-        else    /* result > 0 */
-            last = middle - 1;
-
-        middle = (first+last) / 2;
-    }
-
-#endif  /* NPP_MULTI_HOST */
-
-    return -1;
-}
-
-
-/* --------------------------------------------------------------------------
    Get snippet
 -------------------------------------------------------------------------- */
 char *npp_get_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         return G_snippets[i].data;
@@ -2397,7 +2401,11 @@ char *npp_get_snippet(int ci, const char *name)
 -------------------------------------------------------------------------- */
 unsigned npp_get_snippet_len(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         return G_snippets[i].len;
@@ -2411,7 +2419,11 @@ unsigned npp_get_snippet_len(int ci, const char *name)
 -------------------------------------------------------------------------- */
 void npp_out_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         OUT_BIN(G_snippets[i].data, G_snippets[i].len);
@@ -2423,7 +2435,11 @@ void npp_out_snippet(int ci, const char *name)
 -------------------------------------------------------------------------- */
 void npp_out_snippet_md(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
     {

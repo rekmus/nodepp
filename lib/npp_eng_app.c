@@ -4103,7 +4103,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     if ( (dir=opendir(ressubdir)) == NULL )
     {
         if ( first_scan )
-            DBG("Couldn't open directory [%s]", ressubdir);
+            DBG("Couldn't open directory [%s], skipping", ressubdir);
         return TRUE;    /* don't panic, just no external resources will be used */
     }
 
@@ -4147,7 +4147,6 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 M_statics[i].host_id = NPP_MAX_HOSTS;
 #endif  /* NPP_MULTI_HOST */
 
-//                strcpy(M_statics[i].name, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
                 memset(M_statics[i].name, 'z', NPP_STATIC_PATH_LEN);
                 M_statics[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
@@ -4279,26 +4278,28 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
         if ( !reread )  /* first time on the list */
         {
+            i = M_statics_cnt;
+
             /* host -- already uppercase */
 
-            strcpy(M_statics[M_statics_cnt].host, host);
-            M_statics[M_statics_cnt].host_id = host_id;
+            strcpy(M_statics[i].host, host);
+            M_statics[i].host_id = host_id;
 
             /* file name */
 
-            strcpy(M_statics[M_statics_cnt].name, resname);
+            strcpy(M_statics[i].name, resname);
         }
 
         /* source */
 
-        M_statics[M_statics_cnt].source = source;
+        M_statics[i].source = source;
 
         if ( source == STATIC_SOURCE_RESMIN )
             minify = TRUE;
 
         /* last modified */
 
-        M_statics[M_statics_cnt].modified = fstat.st_mtime;
+        M_statics[i].modified = fstat.st_mtime;
 
         /* size and content */
 
@@ -4311,61 +4312,61 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
-            M_statics[M_statics_cnt].len = ftell(fd);
+            M_statics[i].len = ftell(fd);
             rewind(fd);
 
             if ( minify )
             {
                 /* we don't know the minified size yet -- read file into temp buffer */
 
-                if ( NULL == (data_tmp=(char*)malloc(M_statics[M_statics_cnt].len+1)) )
+                if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len+1)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                if ( NULL == (data_tmp_min=(char*)malloc(M_statics[M_statics_cnt].len+1)) )
+                if ( NULL == (data_tmp_min=(char*)malloc(M_statics[i].len+1)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                if ( fread(data_tmp, M_statics[M_statics_cnt].len, 1, fd) != 1 )
+                if ( fread(data_tmp, M_statics[i].len, 1, fd) != 1 )
                 {
-                    ERR("Couldn't read from %s", M_statics[M_statics_cnt].name);
+                    ERR("Couldn't read from %s", M_statics[i].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
 
-                *(data_tmp+M_statics[M_statics_cnt].len) = EOS;
+                *(data_tmp+M_statics[i].len) = EOS;
 
-                M_statics[M_statics_cnt].len = npp_minify(data_tmp_min, data_tmp);   /* new length */
+                M_statics[i].len = npp_minify(data_tmp_min, data_tmp);   /* new length */
             }
 
             /* allocate the final destination */
 
             if ( reread )
             {
-                free(M_statics[M_statics_cnt].data);
-                M_statics[M_statics_cnt].data = NULL;
+                free(M_statics[i].data);
+                M_statics[i].data = NULL;
 
-                if ( M_statics[M_statics_cnt].data_deflated )
+                if ( M_statics[i].data_deflated )
                 {
-                    free(M_statics[M_statics_cnt].data_deflated);
-                    M_statics[M_statics_cnt].data_deflated = NULL;
+                    free(M_statics[i].data_deflated);
+                    M_statics[i].data_deflated = NULL;
                 }
             }
 
-            M_statics[M_statics_cnt].data = (char*)malloc(M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE);
+            M_statics[i].data = (char*)malloc(M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE);
 
-            if ( NULL == M_statics[M_statics_cnt].data )
+            if ( NULL == M_statics[i].data )
             {
-                ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
+                ERR("Couldn't allocate %u bytes for %s", M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
                 fclose(fd);
                 closedir(dir);
                 return FALSE;
@@ -4373,17 +4374,17 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
             if ( minify )   /* STATIC_SOURCE_RESMIN */
             {
-                memcpy(M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[M_statics_cnt].len+1);
+                memcpy(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[i].len+1);
                 free(data_tmp);
                 data_tmp = NULL;
                 free(data_tmp_min);
                 data_tmp_min = NULL;
             }
-            else if ( M_statics[M_statics_cnt].source == STATIC_SOURCE_RES )
+            else if ( M_statics[i].source == STATIC_SOURCE_RES )
             {
-                if ( fread(M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].len, 1, fd) != 1 )
+                if ( fread(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, M_statics[i].len, 1, fd) != 1 )
                 {
-                    ERR("Couldn't read from %s", M_statics[M_statics_cnt].name);
+                    ERR("Couldn't read from %s", M_statics[i].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
@@ -4396,15 +4397,15 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
             if ( !reread )
             {
-                M_statics[M_statics_cnt].type = npp_lib_get_res_type(M_statics[M_statics_cnt].name);
+                M_statics[i].type = npp_lib_get_res_type(M_statics[i].name);
 
-                if ( 0==strcmp(M_statics[M_statics_cnt].name, "index.html") )
+                if ( 0==strcmp(M_statics[i].name, "index.html") )
                 {
                     if ( host_id == 0 )
-                        M_index_present = M_statics_cnt;
+                        M_index_present = i;
 #ifdef NPP_MULTI_HOST
                     else
-                        G_hosts[host_id].index_present = M_statics_cnt;
+                        G_hosts[host_id].index_present = i;
 #endif
                 }
             }
@@ -4413,42 +4414,42 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].type) && M_statics[M_statics_cnt].source != STATIC_SOURCE_SNIPPETS )
+            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) && M_statics[i].source != STATIC_SOURCE_SNIPPETS )
             {
-                if ( NULL == (data_tmp=(char*)malloc(M_statics[M_statics_cnt].len)) )
+                if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
-                    ERR("Couldn't allocate %u bytes for %s", M_statics[M_statics_cnt].len, M_statics[M_statics_cnt].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     closedir(dir);
                     return FALSE;
                 }
 
-                int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[M_statics_cnt].data+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].len);
+                int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, M_statics[i].len);
 
                 if ( deflated_len == -1 )
                 {
-                    WAR("Couldn't compress %s", M_statics[M_statics_cnt].name);
+                    WAR("Couldn't compress %s", M_statics[i].name);
 
-                    if ( M_statics[M_statics_cnt].data_deflated )
+                    if ( M_statics[i].data_deflated )
                     {
-                        free(M_statics[M_statics_cnt].data_deflated);
-                        M_statics[M_statics_cnt].data_deflated = NULL;
+                        free(M_statics[i].data_deflated);
+                        M_statics[i].data_deflated = NULL;
                     }
 
-                    M_statics[M_statics_cnt].len_deflated = 0;
+                    M_statics[i].len_deflated = 0;
                 }
                 else
                 {
-                    if ( NULL == (M_statics[M_statics_cnt].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
+                    if ( NULL == (M_statics[i].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
                     {
-                        ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[M_statics_cnt].name);
+                        ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
                         fclose(fd);
                         closedir(dir);
                         free(data_tmp);
                         return FALSE;
                     }
 
-                    memcpy(M_statics[M_statics_cnt].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
-                    M_statics[M_statics_cnt].len_deflated = deflated_len;
+                    memcpy(M_statics[i].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
+                    M_statics[i].len_deflated = deflated_len;
                 }
 
                 free(data_tmp);
@@ -4461,14 +4462,15 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
             if ( G_logLevel > LOG_INF )
             {
-                G_ptm = gmtime(&M_statics[M_statics_cnt].modified);
+                G_ptm = gmtime(&M_statics[i].modified);
                 char mod_time[128];
                 sprintf(mod_time, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
                 G_ptm = gmtime(&G_now);     /* set it back */
-                DBG("%s %s\t\t%u bytes", npp_add_spaces(M_statics[M_statics_cnt].name, 28), mod_time, M_statics[M_statics_cnt].len);
+                DBG("%s %s\t\t%u bytes", npp_add_spaces(M_statics[i].name, 28), mod_time, M_statics[i].len);
             }
 
-            ++M_statics_cnt;
+            if ( !reread )
+                ++M_statics_cnt;
         }
     }
 
