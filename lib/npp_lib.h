@@ -772,6 +772,8 @@ extern "C" {
     void npp_call_http_header_unset(const char *key);
 #endif
 
+    void npp_sockaddr_to_string(struct sockaddr_in6 *in_addr, char *result);
+
 #ifdef NPP_CPP_STRINGS
     bool npp_call_http(const void *req, void *res, const std::string& method, const std::string& url, bool json, bool keep);
 #else

@@ -4257,6 +4257,29 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
 
 
 /* --------------------------------------------------------------------------
+   Convert network address to a string
+-------------------------------------------------------------------------- */
+void npp_sockaddr_to_string(struct sockaddr_in6 *in_addr, char *result)
+{
+#ifndef NPP_DONT_MAP_IPV4_ADDRESSES
+    if ( IN6_IS_ADDR_V4MAPPED(&(in_addr->sin6_addr)) )
+    {
+        DDBG("\nIN6_IS_ADDR_V4MAPPED");
+
+        struct sockaddr_in addr_v4={0};
+        addr_v4.sin_family = AF_INET;
+
+        memcpy(&addr_v4.sin_addr, ((char*)&(in_addr->sin6_addr)) + 12, 4);
+
+        inet_ntop(AF_INET, &(addr_v4.sin_addr), result, INET_ADDRSTRLEN);
+    }
+    else
+#endif  /* NPP_DONT_MAP_IPV4_ADDRESSES */
+        inet_ntop(AF_INET6, &(in_addr->sin6_addr), result, INET6_ADDRSTRLEN);
+}
+
+
+/* --------------------------------------------------------------------------
    HTTP call / connect
 -------------------------------------------------------------------------- */
 static bool call_http_connect(const char *host, const char *port, struct timespec *start, int *timeout_remain, bool secure)
@@ -4430,20 +4453,31 @@ static int addresses_cnt=0, addresses_last=0;
         strcpy(addresses[addresses_last].host, host);
         strcpy(addresses[addresses_last].port, port);
         memcpy(&addresses[addresses_last].addr, rp, sizeof(struct addrinfo));
+
         /* addrinfo contains pointers -- mind the shallow copy! */
+
         memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr));
-        addresses[addresses_last].addr.ai_addr = &addresses[addresses_last].ai_addr;
+        addresses[addresses_last].addr.ai_addr = &(addresses[addresses_last].ai_addr);
         addresses[addresses_last].addr.ai_next = NULL;
 
         /* get the remote address */
 
         char remote_addr[INET6_ADDRSTRLEN]="";
 
-        struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+        if ( rp->ai_family == AF_INET6 )
+        {
+            DBG("AF_INET6");
+            struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+            npp_sockaddr_to_string(remote_addr_struct, remote_addr);
+        }
+        else    /* AF_INET */
+        {
+            DBG("AF_INET");
+            struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+            inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
+        }
 
-        inet_ntop(AF_INET6, &(remote_addr_struct->sin6_addr), remote_addr, INET6_ADDRSTRLEN);
-
-        INF("Connected to %s", remote_addr);
+        INF("Connected to [%s]", remote_addr);
 
         DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);
 
@@ -7778,7 +7812,9 @@ bool npp_email(const std::string& to_, const std::string& subject_, const std::s
 {
     const char *to = to_.c_str();
     const char *subject = subject_.c_str();
+#ifndef _WIN32
     const char *message = message_.c_str();
+#endif
 #else
 bool npp_email(const char *to, const char *subject, const char *message)
 {
@@ -7789,22 +7825,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
     char    sender[512];
     char    command[1024];
 
-//#ifndef NPP_SVC   /* web server mode */
-
-//    sprintf(sender, "%s <noreply@%s>", G_connections[ci].app_name, G_connections[ci].host);
-
-    /* happens when using non-standard port */
-
-//    char    *colon;
-//    if ( G_test && (colon=strchr(sender, ':')) )
-//    {
-//        *colon = '>';
-//        *(++colon) = EOS;
-//        DBG("sender truncated to [%s]", sender);
-//    }
-//#else
     sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
-//#endif  /* NPP_SVC */
 
     sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
 
@@ -7845,7 +7866,9 @@ bool npp_email_attach(const std::string& to_, const std::string& subject_, const
 {
     const char *to = to_.c_str();
     const char *subject = subject_.c_str();
+#ifndef _WIN32
     const char *message = message_.c_str();
+#endif
     const char *att_name = att_name_.c_str();
 #else
 bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len)
