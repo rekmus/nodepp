@@ -70,7 +70,7 @@ char        *G_strm=NULL;
 
 /* hosts */
 #ifdef NPP_MULTI_HOST
-npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", -1}};  /* main host */
+npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", NPP_REQUIRED_AUTH_LEVEL, -1}};  /* main host */
 int         G_hosts_cnt=1;
 #endif
 
@@ -1990,15 +1990,9 @@ int lib_compare_snippets(const void *a, const void *b)
     else if ( p1->host_id > p2->host_id )
         return 1;
 
-    /* same host */
-
-    return strcmp(p1->name, p2->name);
-
-#else
-
-    return strcmp(p1->name, p2->name);
-
 #endif
+
+    return strcmp(p1->name, p2->name);
 }
 
 
@@ -2561,14 +2555,14 @@ static int compare_hosts(const void *a, const void *b)
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_)
+bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_, char required_auth_level)
 {
     const char *host = host_.c_str();
     const char *res = res_.c_str();
     const char *resmin = resmin_.c_str();
     const char *snippets = snippets_.c_str();
 #else
-bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
+bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level)
 {
 #endif
 #ifdef NPP_MULTI_HOST
@@ -2583,6 +2577,8 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
         COPY(G_hosts[G_hosts_cnt].resmin, resmin, 255);
     if ( snippets && snippets[0] )
         COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
+
+    G_hosts[G_hosts_cnt].required_auth_level = required_auth_level;
 
     G_hosts[G_hosts_cnt].index_present = -1;
 

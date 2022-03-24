@@ -724,9 +724,9 @@ extern "C" {
 #ifndef NPP_CLIENT  /* web app only */
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets);
+    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
 #else
-    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
+    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
 #endif
 
 #ifdef NPP_CPP_STRINGS

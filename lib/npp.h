@@ -1220,6 +1220,7 @@ typedef struct {
     char res[256];
     char resmin[256];
     char snippets[256];
+    char required_auth_level;
     int  index_present;
 } npp_host_t;
 
@@ -1228,6 +1229,9 @@ typedef struct {
 
 typedef struct {
     /* id */
+#ifdef NPP_MULTI_HOST
+    int     host_id;
+#endif
     char    sessid[NPP_SESSID_LEN+1];
     /* connection data */
     char    ip[INET6_ADDRSTRLEN];
@@ -1257,6 +1261,9 @@ typedef struct {
 /* sessions' index */
 
 typedef struct {
+#ifdef NPP_MULTI_HOST
+    int     host_id;
+#endif
     char    sessid[NPP_SESSID_LEN+1];
     int     si;
 } sessions_idx_t;
@@ -1862,8 +1869,15 @@ extern "C" {
 #ifdef NPP_HTTPS
     bool npp_eng_init_ssl(void);
 #endif
+
     int  npp_eng_session_start(int ci, const char *sessid);
+
+#ifdef NPP_MULTI_HOST
+    int  npp_eng_find_si(int host_id, const char *sessid);
+#else
     int  npp_eng_find_si(const char *sessid);
+#endif
+
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_read_blocked_ips(void);

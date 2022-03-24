@@ -237,6 +237,9 @@ int libusr_luses_ok(int ci)
     {
         if ( G_sessions[G_connections[ci].si].sessid[0]
                 && G_sessions[G_connections[ci].si].auth_level>AUTH_LEVEL_ANONYMOUS
+#ifdef NPP_MULTI_HOST
+                && G_connections[ci].host_id == G_sessions[G_connections[ci].si].host_id
+#endif
                 && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[G_connections[ci].si].sessid)
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
@@ -254,7 +257,11 @@ int libusr_luses_ok(int ci)
     }
     else    /* fresh connection */
     {
+#ifdef NPP_MULTI_HOST
+        int si = npp_eng_find_si(G_connections[ci].host_id, G_connections[ci].cookie_in_l);
+#else
         int si = npp_eng_find_si(G_connections[ci].cookie_in_l);
+#endif
 
         if ( si != 0
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent)

@@ -3992,15 +3992,9 @@ static int compare_statics(const void *a, const void *b)
     else if ( p1->host_id > p2->host_id )
         return 1;
 
-    /* same host */
-
-    return strcmp(p1->name, p2->name);
-
-#else
-
-    return strcmp(p1->name, p2->name);
-
 #endif
+
+    return strcmp(p1->name, p2->name);
 }
 
 
@@ -5449,6 +5443,47 @@ static void print_content_type(int ci, char type)
 /* --------------------------------------------------------------------------
    Find session index
 -------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+static int find_sessions_idx_idx(int host_id, const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return 0;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        if ( M_sessions_idx[middle].host_id < host_id )
+        {
+            first = middle + 1;
+        }
+        else if ( M_sessions_idx[middle].host_id == host_id )
+        {
+            result = strcmp(M_sessions_idx[middle].sessid, sessid);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* M_sessions_idx[middle].host_id > host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    return 0;   /* not found */
+}
+
+#else   /* NOT NPP_MULTI_HOST */
+
 static int find_sessions_idx_idx(const char *sessid)
 {
     if ( sessid == NULL || sessid[0] == EOS )
@@ -5475,15 +5510,23 @@ static int find_sessions_idx_idx(const char *sessid)
 
     return 0;   /* not found */
 }
+#endif  /* NPP_MULTI_HOST */
 
 
 /* --------------------------------------------------------------------------
    Find session index
 -------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+int npp_eng_find_si(int host_id, const char *sessid)
+{
+    return M_sessions_idx[find_sessions_idx_idx(host_id, sessid)].si;
+}
+#else
 int npp_eng_find_si(const char *sessid)
 {
     return M_sessions_idx[find_sessions_idx_idx(sessid)].si;
 }
+#endif  /* NPP_MULTI_HOST */
 
 
 /* --------------------------------------------------------------------------
@@ -5498,6 +5541,9 @@ static bool a_session_ok(int ci)
     {
         if ( G_sessions[G_connections[ci].si].sessid[0]
                 && G_sessions[G_connections[ci].si].auth_level<AUTH_LEVEL_AUTHENTICATED
+#ifdef NPP_MULTI_HOST
+                && G_connections[ci].host_id == G_sessions[G_connections[ci].si].host_id
+#endif
                 && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[G_connections[ci].si].sessid)
                 && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
         {
@@ -5508,7 +5554,7 @@ static bool a_session_ok(int ci)
 #endif
             return TRUE;
         }
-        else    /* session was closed -- it should never happen */
+        else    /* session was closed */
         {
             WAR("si > 0 and no session!");
             G_connections[ci].si = 0;
@@ -5516,7 +5562,11 @@ static bool a_session_ok(int ci)
     }
     else    /* fresh connection */
     {
+#ifdef NPP_MULTI_HOST
+        int si = npp_eng_find_si(G_connections[ci].host_id, G_connections[ci].cookie_in_a);
+#else
         int si = npp_eng_find_si(G_connections[ci].cookie_in_a);
+#endif
 
         if ( si != 0 && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent) )
         {
@@ -5582,8 +5632,16 @@ static int compare_sessions_idx(const void *a, const void *b)
     const sessions_idx_t *p1 = (sessions_idx_t*)a;
     const sessions_idx_t *p2 = (sessions_idx_t*)b;
 
-    return strcmp(p1->sessid, p2->sessid);
+#ifdef NPP_MULTI_HOST
 
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+#endif
+
+    return strcmp(p1->sessid, p2->sessid);
 }
 
 
@@ -5608,7 +5666,11 @@ static void close_uses(int si, int ci)
 
     /* update sessions index */
 
+#ifdef NPP_MULTI_HOST
+    int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].host_id, G_sessions[si].sessid);
+#else
     int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].sessid);
+#endif
 
     memset(M_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
     M_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
@@ -6091,13 +6153,17 @@ static int parse_req(int ci, int len)
 #endif  /* NPP_HTTP2 */
 
     /* -------------------------------------------------------------- */
-    /* determine whether main host has been requested */
+    /* determine which host has been requested */
 
 #ifdef NPP_MULTI_HOST
 
     G_connections[ci].host_id = find_host_id(G_connections[ci].host_normalized);
 
     DBG("host_id = %d", G_connections[ci].host_id);
+
+    G_connections[ci].required_auth_level = G_hosts[G_connections[ci].host_id].required_auth_level;
+
+    DBG("required_auth_level = %d", G_connections[ci].required_auth_level);
 
 #endif  /* NPP_MULTI_HOST */
 
@@ -7148,6 +7214,9 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     /* add record to G_sessions */
 
+#ifdef NPP_MULTI_HOST
+    SESSION.host_id = G_connections[ci].host_id;
+#endif
     strcpy(SESSION.sessid, new_sessid);
     strcpy(SESSION.ip, G_connections[ci].ip);
     strcpy(SESSION.uagent, G_connections[ci].uagent);
