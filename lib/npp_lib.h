@@ -442,16 +442,17 @@
 #define NPP_JSON_BUFSIZE                    256
 #endif
 
+/* npp_email */
+
+#ifndef NPP_EMAIL_FROM_NAME
+#define NPP_EMAIL_FROM_NAME                 NPP_APP_NAME
+#endif
 
 #ifndef NPP_EMAIL_FROM_USER
 #define NPP_EMAIL_FROM_USER                 "noreply"
 #endif
 
 /* languages */
-
-#ifndef NPP_MAX_LANGUAGES
-#define NPP_MAX_LANGUAGES                   250
-#endif
 
 #ifndef NPP_DEFAULT_LANG
 #define NPP_DEFAULT_LANG                    "EN-US"
@@ -678,6 +679,12 @@ extern "C" {
     bool npp_email(const std::string& to, const std::string& subject, const std::string& message);
 #else
     bool npp_email(const char *to, const char *subject, const char *message);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+//    bool npp_email_telnet(const std::string& to, const std::string& subject, const std::string& message, char *err_msg);
+#else
+//    bool npp_email_telnet(const char *to, const char *subject, const char *message, char *err_msg);
 #endif
 
 #ifdef NPP_CPP_STRINGS

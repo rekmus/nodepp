@@ -152,7 +152,7 @@ static SOCKET   M_listening_sec_fd=0;       /* The socket file descriptor for se
 static int      M_listening_sec_fd=0;       /* The socket file descriptor for secure "listening" socket */
 #endif  /* _WIN32 */
 
-static SSL_CTX  *M_ssl_ctx;
+static SSL_CTX  *M_ssl_server_ctx;
 #endif  /* NPP_HTTPS */
 
 #ifdef NPP_HTTPS
@@ -189,7 +189,6 @@ static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* 
 
 static static_res_t M_statics[NPP_MAX_STATICS]={0}; /* static resources */
 static int          M_statics_cnt=0;                /* M_statics count */
-static char         M_resp_date[32];                /* response header Date */
 static char         M_expires_stat[32];             /* response header for static resources */
 static char         M_expires_gen[32];              /* response header for generated resources */
 
@@ -485,12 +484,6 @@ int main(int argc, char **argv)
     for ( ;; )
     {
         npp_update_time_globals();
-
-#ifdef _WIN32   /* Windows */
-        strftime(M_resp_date, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
-#else
-        strftime(M_resp_date, 32, "%a, %d %b %Y %T GMT", G_ptm);
-#endif  /* _WIN32 */
 
 #ifdef NPP_ASYNC
         /* release timeout-ed */
@@ -1858,8 +1851,8 @@ static void http2_hdr_date(int ci)
     DDBG("http2_hdr_date");
 
     *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_DATE);
-    *G_connections[ci].p_header++ = (char)strlen(M_resp_date);
-    HOUT(M_resp_date);
+    *G_connections[ci].p_header++ = (char)strlen(G_header_date);
+    HOUT(G_header_date);
 }
 
 
@@ -2521,6 +2514,8 @@ bool npp_eng_init_ssl()
 
     DBG("npp_eng_init_ssl");
 
+    DBG("Initializing SSL_lib...");
+
     /* libssl init */
     SSL_library_init();
     SSL_load_error_strings();
@@ -2533,20 +2528,20 @@ bool npp_eng_init_ssl()
 
     method = SSLv23_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
 
-    M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
+    M_ssl_server_ctx = SSL_CTX_new(method);    /* create new context from method */
 
-    if ( M_ssl_ctx == NULL )
+    if ( M_ssl_server_ctx == NULL )
     {
         ERR("SSL_CTX_new failed");
         return FALSE;
     }
 
     const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
-    SSL_CTX_set_options(M_ssl_ctx, flags);
+    SSL_CTX_set_options(M_ssl_server_ctx, flags);
 
     /* support ECDH using the most appropriate shared curve */
 
-    if ( SSL_CTX_set_ecdh_auto(M_ssl_ctx, 1) <= 0 )
+    if ( SSL_CTX_set_ecdh_auto(M_ssl_server_ctx, 1) <= 0 )
     {
         ERR("SSL_CTX_set_ecdh_auto failed");
         return FALSE;
@@ -2557,13 +2552,13 @@ bool npp_eng_init_ssl()
 
     ALWAYS("        Using ciphers: [%s]", ciphers);
 
-    SSL_CTX_set_cipher_list(M_ssl_ctx, ciphers);
+    SSL_CTX_set_cipher_list(M_ssl_server_ctx, ciphers);
 
     /* set the local certificate */
 
     ALWAYS("    Using certificate: [%s]", G_certFile);
 
-    if ( SSL_CTX_use_certificate_file(M_ssl_ctx, npp_expand_env_path(G_certFile), SSL_FILETYPE_PEM) <= 0 )
+    if ( SSL_CTX_use_certificate_file(M_ssl_server_ctx, npp_expand_env_path(G_certFile), SSL_FILETYPE_PEM) <= 0 )
     {
         ERR("SSL_CTX_use_certificate_file failed");
         return FALSE;
@@ -2573,7 +2568,7 @@ bool npp_eng_init_ssl()
     {
         ALWAYS("Using cert chain file: [%s]", G_certChainFile);
 
-        if ( SSL_CTX_load_verify_locations(M_ssl_ctx, npp_expand_env_path(G_certChainFile), NULL) <= 0 )
+        if ( SSL_CTX_load_verify_locations(M_ssl_server_ctx, npp_expand_env_path(G_certChainFile), NULL) <= 0 )
         {
             ERR("SSL_CTX_load_verify_locations failed");
             return FALSE;
@@ -2584,7 +2579,7 @@ bool npp_eng_init_ssl()
 
     ALWAYS("    Using private key: [%s]", G_keyFile);
 
-    if ( SSL_CTX_use_PrivateKey_file(M_ssl_ctx, npp_expand_env_path(G_keyFile), SSL_FILETYPE_PEM) <= 0 )
+    if ( SSL_CTX_use_PrivateKey_file(M_ssl_server_ctx, npp_expand_env_path(G_keyFile), SSL_FILETYPE_PEM) <= 0 )
     {
         ERR("SSL_CTX_use_PrivateKey_file failed");
         return FALSE;
@@ -2592,7 +2587,7 @@ bool npp_eng_init_ssl()
 
     /* verify private key */
 
-    if ( !SSL_CTX_check_private_key(M_ssl_ctx) )
+    if ( !SSL_CTX_check_private_key(M_ssl_server_ctx) )
     {
         ERR("Private key does not match the public certificate");
         return FALSE;
@@ -3413,7 +3408,7 @@ static void accept_connection(bool secure)
 #endif  /* NPP_FD_MON_EPOLL */
 
 
-        G_connections[M_first_free_ci].ssl = SSL_new(M_ssl_ctx);
+        G_connections[M_first_free_ci].ssl = SSL_new(M_ssl_server_ctx);
 
         if ( !G_connections[M_first_free_ci].ssl )
         {
@@ -4462,9 +4457,12 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
     closedir(dir);
 
-    if ( first_scan && !path ) DBG("");
-
-    DBG("M_statics_cnt = %d\n", M_statics_cnt);
+    if ( first_scan && !path )
+    {
+        DBG("");
+        DBG("M_statics_cnt = %d", M_statics_cnt);
+        DBG("");
+    }
 
     return TRUE;
 }
@@ -4481,7 +4479,8 @@ static bool read_resources(bool first_scan)
         return FALSE;
     }
 
-    DBG("Reading res OK");
+    if ( first_scan )
+        DBG("Reading res OK");
 
     if ( !read_files("", 0, "resmin", STATIC_SOURCE_RESMIN, first_scan, NULL) )
     {
@@ -4489,7 +4488,8 @@ static bool read_resources(bool first_scan)
         return FALSE;
     }
 
-    DBG("Reading resmin OK");
+    if ( first_scan )
+        DBG("Reading resmin OK");
 
     if ( !npp_lib_read_snippets("", 0, "snippets", first_scan, NULL) )
     {
@@ -4497,7 +4497,8 @@ static bool read_resources(bool first_scan)
         return FALSE;
     }
 
-    DBG("Reading snippets OK");
+    if ( first_scan )
+        DBG("Reading snippets OK");
 
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
@@ -4512,7 +4513,8 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DDBG("Reading %s's res OK", G_hosts[i].host);
+        if ( first_scan )
+            DBG("Reading %s's res OK", G_hosts[i].host);
 
         if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, i, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
@@ -4520,7 +4522,8 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DDBG("Reading %s's resmin OK", G_hosts[i].host);
+        if ( first_scan )
+            DBG("Reading %s's resmin OK", G_hosts[i].host);
 
         if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, first_scan, NULL) )
         {
@@ -4528,7 +4531,8 @@ static bool read_resources(bool first_scan)
             return FALSE;
         }
 
-        DDBG("Reading %s's snippets OK", G_hosts[i].host);
+        if ( first_scan )
+            DBG("Reading %s's snippets OK", G_hosts[i].host);
     }
 
 #endif  /* NPP_MULTI_HOST */
@@ -7002,7 +7006,7 @@ static void clean_up()
 
 
 #ifdef NPP_HTTPS
-    SSL_CTX_free(M_ssl_ctx);
+    SSL_CTX_free(M_ssl_server_ctx);
     EVP_cleanup();
 #endif
 
@@ -7297,11 +7301,11 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
     /* For POST, the payload can be in the data space of the message,
        or -- if it's bigger -- in the shared memory */
 
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen > 0 )
     {
         if ( G_connections[ci].clen < G_async_req_data_size )
         {
-            DBG("Payload fits in msg");
+            DBG("Payload (%u) fits in msg (data size: %u)", G_connections[ci].clen, G_async_req_data_size);
 
             memcpy(req.data, G_connections[ci].in_data, G_connections[ci].clen+1);
         }

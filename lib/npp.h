@@ -350,7 +350,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define PRINT_HTTP2_STATUS(val)             http2_hdr_status(ci, val)
 
 /* date */
-#define PRINT_HTTP_DATE                     (sprintf(G_tmp, "Date: %s\r\n", M_resp_date), HOUT(G_tmp))
+#define PRINT_HTTP_DATE                     (sprintf(G_tmp, "Date: %s\r\n", G_header_date), HOUT(G_tmp))
 #define PRINT_HTTP2_DATE                    http2_hdr_date(ci)
 
 /* redirection */
@@ -1177,6 +1177,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #define DT_NOW                          DT_NOW_GMT                          /* convenience alias */
 
+/* RFC 2822 */
+
+#define DT_HEADER                       G_header_date
+
 
 /* CSRFT */
 
@@ -1753,6 +1757,7 @@ extern int          G_sessions_hwm;                             /* highest numbe
 extern time_t       G_now;                                      /* current GMT time (epoch) */
 extern struct tm    *G_ptm;                                     /* human readable current time */
 extern char         G_last_modified[32];                        /* response header field with server's start time */
+extern char         G_header_date[32];                          /* RFC 2822 datetime format */
 extern bool         G_initialized;                              /* is server initialization complete? */
 extern char         *G_strm;                                    /* for STRM macro */
 

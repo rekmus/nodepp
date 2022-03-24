@@ -485,7 +485,7 @@ void usage(int argc, char *argv[])
     ALWAYS("");
     ALWAYS("\tno options = show info", argv[0]);
     ALWAYS("\t-u = update");
-    ALWAYS("\t-f = force update (if major version changed)");
+    ALWAYS("\t-f = force update (if major version has changed)");
 }
 
 

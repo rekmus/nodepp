@@ -61,9 +61,10 @@ FILE        *G_log_fd=NULL;
 bool        G_endianness=ENDIANNESS_LITTLE;
 int         G_pid=0;
 char        G_appdir[256]="..";
-char        G_tmp[NPP_TMP_BUFSIZE];
+char        G_tmp[NPP_TMP_BUFSIZE]="";
 time_t      G_now=0;
 struct tm   *G_ptm=NULL;
+char        G_header_date[32]="";
 bool        G_initialized=0;
 char        *G_strm=NULL;
 
@@ -132,7 +133,7 @@ static SOCKET M_call_http_socket;
 static int M_call_http_socket;
 #endif  /* _WIN32 */
 #ifdef NPP_HTTPS
-static SSL_CTX *M_ssl_ctx=NULL;
+static SSL_CTX *M_ssl_client_ctx=NULL;
 static SSL *M_call_http_ssl=NULL;
 #else
 static void *M_call_http_ssl=NULL;    /* dummy */
@@ -1842,8 +1843,16 @@ void npp_get_exec_name(char *dst, const char *path)
 void npp_update_time_globals()
 {
     G_now = time(NULL);
+
     G_ptm = gmtime(&G_now);
+
     sprintf(G_dt_string_gmt, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
+
+#ifdef _WIN32   /* Windows */
+    strftime(G_header_date, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
+#else
+    strftime(G_header_date, 32, "%a, %d %b %Y %T GMT", G_ptm);
+#endif  /* _WIN32 */
 }
 
 
@@ -1877,25 +1886,23 @@ static bool init_ssl_client()
 
     DDBG("before SSL_CTX_new");
 
-    M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
+    M_ssl_client_ctx = SSL_CTX_new(method);    /* create new context from method */
 
     DDBG("after SSL_CTX_new");
 
-    if ( M_ssl_ctx == NULL )
+    if ( M_ssl_client_ctx == NULL )
     {
         ERR("SSL_CTX_new failed");
         return FALSE;
     }
 
-//    const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION;
     const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
-
-    SSL_CTX_set_options(M_ssl_ctx, flags);
+    SSL_CTX_set_options(M_ssl_client_ctx, flags);
 
     /* temporarily ignore server cert errors */
 
     WAR("Ignoring remote server cert errors for HTTP calls");
-//    SSL_CTX_set_verify(M_ssl_ctx, SSL_VERIFY_NONE, NULL);
+//    SSL_CTX_set_verify(M_ssl_client_ctx, SSL_VERIFY_NONE, NULL);
 
     return TRUE;
 }
@@ -2370,9 +2377,12 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
     closedir(dir);
 
-    if ( first_scan && !path ) DBG("");
-
-    DBG("G_snippets_cnt = %d\n", G_snippets_cnt);
+    if ( first_scan && !path )
+    {
+        DBG("");
+        DBG("G_snippets_cnt = %d", G_snippets_cnt);
+        DBG("");
+    }
 
     return TRUE;
 }
@@ -3828,12 +3838,6 @@ static bool call_http_parse_url(const char *url, char *host, char *port, char *u
             ERR("url too short (2)");
             return FALSE;
         }
-
-        if ( !M_ssl_ctx && !init_ssl_client() )   /* first time */
-        {
-            ERR("init_ssl_client failed");
-            return FALSE;
-        }
 #else
         ERR("HTTPS is not enabled");
         return FALSE;
@@ -4018,15 +4022,15 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 /* --------------------------------------------------------------------------
    Finish socket operation with timeout
 -------------------------------------------------------------------------- */
-static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
+static int finish_client_io(char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
 {
     int             sockerr;
     struct timeval  timeout;
     fd_set          readfds;
     fd_set          writefds;
     int             socks=0;
-#ifdef NPP_HTTPS
     int             bytes;
+#ifdef NPP_HTTPS
     int             ssl_err;
 #endif
 
@@ -4040,20 +4044,20 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
 
 #ifdef NPP_DEBUG
     if ( oper == NPP_OPER_READ )
-        DBG("lib_finish_with_timeout NPP_OPER_READ, level=%d", level);
+        DBG("finish_client_io NPP_OPER_READ, level=%d", level);
     else if ( oper == NPP_OPER_WRITE )
-        DBG("lib_finish_with_timeout NPP_OPER_WRITE, level=%d", level);
+        DBG("finish_client_io NPP_OPER_WRITE, level=%d", level);
     else if ( oper == NPP_OPER_CONNECT )
-        DBG("lib_finish_with_timeout NPP_OPER_CONNECT, level=%d", level);
+        DBG("finish_client_io NPP_OPER_CONNECT, level=%d", level);
     else if ( oper == NPP_OPER_SHUTDOWN )
-        DBG("lib_finish_with_timeout NPP_OPER_SHUTDOWN, level=%d", level);
+        DBG("finish_client_io NPP_OPER_SHUTDOWN, level=%d", level);
     else
-        ERR("lib_finish_with_timeout -- unknown operation: %d", oper);
+        ERR("finish_client_io -- unknown operation: %d", oper);
 #endif  /* NPP_DEBUG */
 
     if ( level > 20 )   /* just in case */
     {
-        ERR("lib_finish_with_timeout -- too many levels");
+        ERR("finish_client_io -- too many levels");
         return -1;
     }
 
@@ -4109,15 +4113,15 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     {
         DDBG("NPP_OPER_READ, waiting on select()...");
         FD_ZERO(&readfds);
-        FD_SET(sock, &readfds);
-        socks = select(sock+1, &readfds, NULL, NULL, &timeout);
+        FD_SET(M_call_http_socket, &readfds);
+        socks = select(M_call_http_socket+1, &readfds, NULL, NULL, &timeout);
     }
     else if ( readwrite == NPP_OPER_WRITE )
     {
         DDBG("NPP_OPER_WRITE, waiting on select()...");
         FD_ZERO(&writefds);
-        FD_SET(sock, &writefds);
-        socks = select(sock+1, NULL, &writefds, NULL, &timeout);
+        FD_SET(M_call_http_socket, &writefds);
+        socks = select(M_call_http_socket+1, NULL, &writefds, NULL, &timeout);
     }
     else if ( readwrite == NPP_OPER_CONNECT || readwrite == NPP_OPER_SHUTDOWN )   /* SSL only! */
     {
@@ -4129,9 +4133,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
         ssl_err = SSL_get_error((SSL*)ssl, len);
 
         if ( ssl_err==SSL_ERROR_WANT_READ )
-            return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+            return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
         else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-            return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+            return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
         else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
         {
             DBG("SSL_connect or SSL_shutdown error %d", ssl_err);
@@ -4146,7 +4150,8 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     }
     else
     {
-        ERR("lib_finish_with_timeout -- invalid readwrite (%d) for this operation (%d)", readwrite, oper);
+        ERR("finish_client_io -- invalid readwrite (%d) for this operation (%d)", readwrite, oper);
+        return -1;
     }
 
     *msec -= npp_elapsed(&start);
@@ -4162,12 +4167,12 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     }
     else if ( socks == 0 )
     {
-        WAR("lib_finish_with_timeout timeouted (was waiting for %.2f ms)", npp_elapsed(&start));
+        WAR("finish_client_io timeouted (was waiting for %.2f ms)", npp_elapsed(&start));
         return -1;
     }
     else    /* socket is ready for I/O */
     {
-        DDBG("lib_finish_with_timeout socks > 0");
+        DDBG("finish_client_io socks > 0");
 
         if ( readwrite == NPP_OPER_READ )
         {
@@ -4181,7 +4186,7 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
-                if ( bytes > 0 )
+                if ( bytes >= 0 )
                 {
                     return bytes;
                 }
@@ -4192,9 +4197,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_read error %d", ssl_err);
@@ -4204,7 +4209,14 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             }
             else
 #endif  /* NPP_HTTPS */
-                return recv(sock, buffer, len, 0);
+            {
+                bytes = recv(M_call_http_socket, buffer, len, 0);
+
+                if ( bytes >= 0 )
+                    return bytes;
+                else
+                    return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, NULL, level+1);
+            }
         }
         else if ( readwrite == NPP_OPER_WRITE )
         {
@@ -4218,7 +4230,7 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
-                if ( bytes > 0 )
+                if ( bytes >= 0 )
                 {
                     return bytes;
                 }
@@ -4229,9 +4241,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_write error %d", ssl_err);
@@ -4241,16 +4253,23 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             }
             else
 #endif  /* NPP_HTTPS */
-                return send(sock, buffer, len, 0);
+            {
+                bytes = send(M_call_http_socket, buffer, len, 0);
+
+                if ( bytes >= 0 )
+                    return bytes;
+                else
+                    return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, NULL, level+1);
+            }
         }
         else
         {
-            ERR("lib_finish_with_timeout -- should have never reached this!");
+            ERR("finish_client_io -- should have never reached this!");
             return -1;
         }
     }
 
-    DBG("lib_finish_with_timeout reached the end (returning 1)");
+    DBG("finish_client_io reached the end (returning 1)");
 
     return 1;
 }
@@ -4401,7 +4420,28 @@ static int addresses_cnt=0, addresses_last=0;
 
 #ifdef NPP_DEBUG
         int finish_res;
-#endif
+
+        {
+            /* get the remote address */
+
+            char remote_addr[INET6_ADDRSTRLEN]="";
+
+            if ( rp->ai_family == AF_INET6 )
+            {
+                DBG("AF_INET6");
+                struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+                npp_sockaddr_to_string(remote_addr_struct, remote_addr);
+            }
+            else    /* AF_INET */
+            {
+                DBG("AF_INET");
+                struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+                inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
+            }
+
+            DBG("Address [%s]", remote_addr);
+        }
+#endif  /* NPP_DEBUG */
 
         if ( connect(M_call_http_socket, rp->ai_addr, rp->ai_addrlen) != -1 )
         {
@@ -4409,9 +4449,9 @@ static int addresses_cnt=0, addresses_last=0;
             break;  /* immediate success */
         }
 #ifdef NPP_DEBUG
-        else if ( (finish_res=lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0)) == 0 )
+        else if ( (finish_res=finish_client_io(NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0)) == 0 )
 #else
-        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
+        else if ( finish_client_io(NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
 #endif
         {
             DDBG("Success within timeout");
@@ -4422,7 +4462,7 @@ static int addresses_cnt=0, addresses_last=0;
 #ifdef NPP_DEBUG
             int last_errno = errno;
 #endif
-            ERR("Couldn't connect with lib_finish_with_timeout");
+            ERR("Couldn't connect with finish_client_io");
 #ifdef NPP_DEBUG
             DDBG("finish_res = %d", finish_res);
             if ( finish_res == -1 )
@@ -4509,9 +4549,16 @@ static int addresses_cnt=0, addresses_last=0;
 
     if ( secure )
     {
+        if ( !M_ssl_client_ctx && !init_ssl_client() )   /* first time */
+        {
+            ERR("init_ssl_client failed");
+            close_conn(M_call_http_socket);
+            return FALSE;
+        }
+
         DBG("Trying SSL_new...");
 
-        M_call_http_ssl = SSL_new(M_ssl_ctx);
+        M_call_http_ssl = SSL_new(M_ssl_client_ctx);
 
         if ( !M_call_http_ssl )
         {
@@ -4556,7 +4603,7 @@ static int addresses_cnt=0, addresses_last=0;
         {
             DBG("SSL_connect immediate success");
         }
-        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_CONNECT, NULL, ret, timeout_remain, M_call_http_ssl, 0) > 0 )
+        else if ( finish_client_io(NPP_OPER_CONNECT, NPP_OPER_CONNECT, NULL, ret, timeout_remain, M_call_http_ssl, 0) > 0 )
         {
             DBG("SSL_connect successful");
         }
@@ -4570,8 +4617,6 @@ static int addresses_cnt=0, addresses_last=0;
         }
 
         DDBG("elapsed after SSL connect: %.3lf ms", npp_elapsed(start));
-
-//        M_ssl_session = SSL_get_session(M_call_http_ssl);
 
         X509 *server_cert;
         server_cert = SSL_get_peer_certificate(M_call_http_ssl);
@@ -4635,12 +4680,12 @@ static void call_http_disconnect(int ssl_ret)
 
                 if ( ret == 1 )
                     DBG("SSL_shutdown success");
-                else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+                else if ( finish_client_io(NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
                     DBG("SSL_shutdown successful");
                 else
                     WAR("SSL_shutdown failed (2)");
             }
-            else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+            else if ( finish_client_io(NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
             {
                 DBG("SSL_shutdown successful");
             }
@@ -4651,9 +4696,6 @@ static void call_http_disconnect(int ssl_ret)
         }
 
         SSL_free(M_call_http_ssl);
-
-/*        if ( M_ssl_session )
-            SSL_SESSION_free(M_ssl_session); */
 
         M_call_http_ssl = NULL;
     }
@@ -4920,6 +4962,88 @@ static bool call_http_res_parse(char *res_header, int bytes)
 
 
 /* --------------------------------------------------------------------------
+   Send through non-blocking socket with timeout
+-------------------------------------------------------------------------- */
+static int client_send(char *buffer, int len, int *timeout_remain, bool secure)
+{
+    if ( *timeout_remain < 2 )
+    {
+        ERR("Operation timeouted");
+        call_http_disconnect(0);
+        return -1;
+    }
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    int bytes;
+
+#ifdef NPP_HTTPS
+    if ( secure )
+        bytes = SSL_write(M_call_http_ssl, buffer, len);
+    else
+#endif  /* NPP_HTTPS */
+        bytes = send(M_call_http_socket, buffer, len, 0);
+
+    if ( bytes < 0 )
+        bytes = finish_client_io(NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+    DBG("client_send returning %d bytes", bytes);
+
+    DDBG("client_send took %.3lf ms", npp_elapsed(&start));
+
+    return bytes;
+}
+
+
+/* --------------------------------------------------------------------------
+   Receive through non-blocking socket with timeout
+-------------------------------------------------------------------------- */
+static int client_recv(char *buffer, int len, int *timeout_remain, bool secure)
+{
+    if ( *timeout_remain < 2 )
+    {
+        ERR("Operation timeouted");
+        call_http_disconnect(0);
+        return -1;
+    }
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    int bytes;
+
+#ifdef NPP_HTTPS
+    if ( secure )
+        bytes = SSL_read(M_call_http_ssl, buffer, len);
+    else
+#endif  /* NPP_HTTPS */
+        bytes = recv(M_call_http_socket, buffer, len, 0);
+
+    if ( bytes < 0 )
+        bytes = finish_client_io(NPP_OPER_READ, NPP_OPER_READ, buffer, len, timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+    DBG("client_recv returning %d bytes", bytes);
+
+    DDBG("client_recv took %.3lf ms", npp_elapsed(&start));
+
+    return bytes;
+}
+
+
+/* --------------------------------------------------------------------------
    HTTP call
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -4987,81 +5111,46 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
 
     /* connect if necessary ----------------------------------------------------- */
 
-    if ( !connected && !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
+    if ( !connected && !call_http_connect(host, port, &start, &timeout_remain, secure) )
+        return FALSE;
 
     /* -------------------------------------------------------------------------- */
 
     DBG("Sending request...");
 
-    bool after_reconnect=0;
+    bytes = client_send(buffer, len, &timeout_remain, secure);
 
-    while ( timeout_remain > 1 )
+    if ( bytes < 0 )    /* couldn't send */
     {
-#ifdef NPP_HTTPS
-        if ( secure )
+        if ( was_connected )    /* could have been disconnected since the last time */
         {
-/*            char first_char[2];
-            first_char[0] = buffer[0];
-            first_char[1] = EOS;
+            DBG("Trying to reconnect...");
 
-            bytes = SSL_write(M_call_http_ssl, first_char, 1);
-
-            if ( bytes > 0 )
-                bytes = SSL_write(M_call_http_ssl, buffer+1, len-1) + bytes; */
-
-            bytes = SSL_write(M_call_http_ssl, buffer, len);
-        }
-        else
-#endif  /* NPP_HTTPS */
-            bytes = send(M_call_http_socket, buffer, len, 0);    /* try in one go */
-
-        if ( !secure && bytes <= 0 )
-        {
-            if ( !was_connected || after_reconnect )
+            if ( call_http_connect(host, port, &start, &timeout_remain, secure) )
             {
-                ERR("Send (after fresh connect) failed");
-                call_http_disconnect(0);
-                connected = FALSE;
+                bytes = client_send(buffer, len, &timeout_remain, secure);
+            }
+            else    /* couldn't reconnect */
+            {
                 return FALSE;
             }
-
-            DBG("Disconnected? Trying to reconnect...");
-            call_http_disconnect(0);
-            if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-            after_reconnect = 1;
         }
-        else if ( secure && bytes == -1 )
-        {
-            bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, &timeout_remain, M_call_http_ssl, 0);
+    }
 
-            if ( bytes == -1 )
-            {
-                if ( !was_connected || after_reconnect )
-                {
-                    ERR("Send (after fresh connect) failed");
-                    call_http_disconnect(-1);
-                    connected = FALSE;
-                    return FALSE;
-                }
-
-                DBG("Disconnected? Trying to reconnect...");
-                call_http_disconnect(-1);
-                if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-                after_reconnect = 1;
-            }
-        }
-        else    /* bytes > 0 ==> OK */
-        {
-            break;
-        }
+    if ( bytes < 0 )
+    {
+        ERR("Couldn't send request");
+        call_http_disconnect(-1);
+        connected = FALSE;
+        return FALSE;
     }
 
     DDBG("Sent %d bytes", bytes);
 
     if ( bytes < 15 )
     {
-        ERR("send failed, errno = %d (%s)", errno, strerror(errno));
-        call_http_disconnect(bytes);
+        ERR("Bytes sent < 15, aborting");
+        call_http_disconnect(0);
         connected = FALSE;
         return FALSE;
     }
@@ -5072,24 +5161,14 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
 
     DBG("Reading response...");
 
-#ifdef NPP_HTTPS
-    if ( secure )
-        bytes = SSL_read(M_call_http_ssl, res_header, CALL_HTTP_RES_HEADER_LEN);
-    else
-#endif  /* NPP_HTTPS */
-        bytes = recv(M_call_http_socket, res_header, CALL_HTTP_RES_HEADER_LEN, 0);
+    bytes = client_recv(res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure);
 
-    if ( bytes == -1 )
+    if ( bytes < 0 )
     {
-        bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
-
-        if ( bytes <= 0 )
-        {
-            ERR("recv failed, errno = %d (%s)", errno, strerror(errno));
-            call_http_disconnect(bytes);
-            connected = FALSE;
-            return FALSE;
-        }
+        ERR("Couldn't read response");
+        call_http_disconnect(bytes);
+        connected = FALSE;
+        return FALSE;
     }
 
     DBG("Read %d bytes", bytes);
@@ -5159,15 +5238,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
         {
             DDBG("trying again (content-length)");
 
-#ifdef NPP_HTTPS
-            if ( secure )
-                bytes = SSL_read(M_call_http_ssl, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1);
-            else
-#endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+            bytes = client_recv(res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, &timeout_remain, secure);
 
             if ( bytes > 0 )
                 content_read += bytes;
@@ -5222,15 +5293,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
             DDBG("trying again (chunked)");
 
-#ifdef NPP_HTTPS
-            if ( secure )
-                bytes = SSL_read(M_call_http_ssl, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1);
-            else
-#endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+            bytes = client_recv(buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, &timeout_remain, secure);
 
             if ( bytes > 0 )
                 buffer_read += bytes;
@@ -5477,16 +5540,16 @@ int npp_get_memory()
 
 #ifdef __linux__
 
-    char line[128];
-    FILE* file = fopen("/proc/self/status", "r");
+    char line[256];
+    FILE* fd = fopen("/proc/self/status", "r");
 
-    if ( !file )
+    if ( !fd )
     {
         ERR("fopen(\"/proc/self/status\" failed, errno = %d (%s)", errno, strerror(errno));
         return result;
     }
 
-    while ( fgets(line, 128, file) != NULL )
+    while ( fgets(line, 255, fd) != NULL )
     {
         if ( strncmp(line, "VmHWM:", 6) == 0 )
         {
@@ -5495,7 +5558,7 @@ int npp_get_memory()
         }
     }
 
-    fclose(file);
+    fclose(fd);
 
 #else   /* not Linux */
 
@@ -7805,6 +7868,98 @@ void npp_get_byteorder()
 
 
 /* --------------------------------------------------------------------------
+   Get MX server name
+-------------------------------------------------------------------------- */
+#ifdef _WIN32
+#ifdef NPP_EMAIL_FROM_WINDOWS
+static void get_mx_server(const char *server, char *dst)
+{
+    char command[512];
+    char line[256];
+
+    sprintf(command, "nslookup -type=mx %s", server);
+
+    FILE *pipe = popen(command, "r");
+
+    if ( !pipe )
+    {
+        WAR("Couldn't execute nslookup, errno = %d (%s), using domain", errno, strerror(errno));
+        strcpy(dst, server);
+        return;
+    }
+
+/*
+    Linux:
+
+    $ nslookup -type=mx gmail.com
+    Server:         172.31.0.2
+    Address:        172.31.0.2#53
+
+    Non-authoritative answer:
+    gmail.com       mail exchanger = 10 alt1.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 20 alt2.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 30 alt3.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 40 alt4.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 5 gmail-smtp-in.l.google.com.
+
+    Authoritative answers can be found from:
+
+
+    Windows:
+
+    nslookup -type=mx gmail.com
+    Server:  Linksys09355
+    Address:  192.168.1.1
+
+    Non-authoritative answer:
+    gmail.com       MX preference = 30, mail exchanger = alt3.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 10, mail exchanger = alt1.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 40, mail exchanger = alt4.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 20, mail exchanger = alt2.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 5, mail exchanger = gmail-smtp-in.l.google.com
+
+*/
+
+    const char *space;
+    int  len;
+    bool found = FALSE;
+
+    while ( fgets(line, 255, pipe) )
+    {
+        if ( !found && strncmp(line, server, strlen(server)) == 0 )
+        {
+            len = strlen(line);
+
+            while ( len && (line[len-1]=='\n' || line[len-1]=='\r' || line[len-1]==' ' || line[len-1]=='.') )
+            {
+                line[len-1] = EOS;
+                len--;
+            }
+
+            DDBG("line [%s]", line);
+
+            if ( (space=strrchr(line, ' ')) != NULL )
+            {
+                strcpy(dst, space+1);
+                DBG("mail exchanger [%s]", dst);
+                found = TRUE;
+            }
+        }
+    }
+
+    if ( !found )
+    {
+        WAR("Couldn't find MX server for %s, using domain", server);
+        strcpy(dst, server);
+    }
+
+    pclose(pipe);
+}
+#endif  /* NPP_EMAIL_FROM_WINDOWS */
+#endif  /* _WIN32 */
+
+
+/* --------------------------------------------------------------------------
    Send an email
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -7812,7 +7967,7 @@ bool npp_email(const std::string& to_, const std::string& subject_, const std::s
 {
     const char *to = to_.c_str();
     const char *subject = subject_.c_str();
-#ifndef _WIN32
+#if !defined _WIN32 || defined NPP_EMAIL_FROM_WINDOWS
     const char *message = message_.c_str();
 #endif
 #else
@@ -7821,37 +7976,218 @@ bool npp_email(const char *to, const char *subject, const char *message)
 #endif
     DBG("Sending email to [%s], subject [%s]", to, subject);
 
+    char sender_bare[256];
+    char sender_full[512];
+
+    sprintf(sender_bare, "%s@%s", NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(sender_full, "%s <%s>", NPP_EMAIL_FROM_NAME, sender_bare);
+
 #ifndef _WIN32
-    char    sender[512];
-    char    command[1024];
 
-    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    char command[1024];
 
-    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender_bare);
 
-    FILE *mailpipe = popen(command, "w");
+    FILE *pipe = popen(command, "w");
 
-    if ( mailpipe == NULL )
+    if ( pipe == NULL )
     {
         ERR("Failed to invoke sendmail");
         return FALSE;
     }
     else
     {
-        fprintf(mailpipe, "From: %s\n", sender);
-        fprintf(mailpipe, "To: %s\n", to);
-        fprintf(mailpipe, "Subject: %s\n", subject);
-        fprintf(mailpipe, "Content-Type: text/plain; charset=\"utf-8\"\n\n");
-        fwrite(message, strlen(message), 1, mailpipe);
-        fwrite("\n.\n", 3, 1, mailpipe);
-        pclose(mailpipe);
+        fprintf(pipe, "Date: %s\r\n", G_header_date);
+        fprintf(pipe, "From: %s\r\n", sender_full);
+        fprintf(pipe, "To: %s\r\n", to);
+        fprintf(pipe, "Subject: %s\r\n", subject);
+        fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
+        fprintf(pipe, "\r\n");
+        fwrite(message, strlen(message), 1, pipe);
+        fwrite("\r\n.\r\n", 5, 1, pipe);
+        pclose(pipe);
     }
 
     return TRUE;
 
 #else   /* Windows */
 
-    WAR("There's no email service for Windows");
+#ifdef NPP_EMAIL_FROM_WINDOWS
+
+    INF("Experimental simple SMTP client for Windows");
+
+    int len = strlen(message);
+
+    if ( len > 8000 )
+    {
+        ERR("Message too long (%d bytes). Maximum message length is 8000 bytes", len);
+        return FALSE;
+    }
+
+    char server[NPP_MAX_HOST_LEN+1];
+    const char *at = strchr(to, '@');
+
+    if ( at == NULL )
+    {
+        ERR("Invalid address");
+        return FALSE;
+    }
+
+    COPY(server, at+1, NPP_MAX_HOST_LEN);
+
+    DBG("server [%s]", server);
+
+    /* -------------------------------------------------------------------------- */
+
+    char host[NPP_MAX_HOST_LEN+1];
+    char port[]="25";
+
+    get_mx_server(server, host);
+
+    struct timespec start;
+
+    clock_gettime_win(&start);
+
+    int timeout_remain = G_callHTTPTimeout;
+
+    /* -------------------------------------------------------------------------- */
+
+    if ( !call_http_connect(host, port, &start, &timeout_remain, FALSE) )
+        return FALSE;
+
+    if ( timeout_remain < 2 )
+    {
+        ERR("No timeout left");
+        call_http_disconnect(0);
+        return FALSE;
+    }
+
+    /* -------------------------------------------------------------------------- */
+
+    struct {
+        char cmd[8192];
+        char exp[256];
+    } commands[10];
+
+    int  i = 0;
+
+    sprintf(commands[i].cmd, "EHLO %s\r\n", NPP_APP_DOMAIN);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "MAIL FROM:<%s>\r\n", sender_bare);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "RCPT TO:<%s>\r\n", to);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "DATA\r\n");
+    strcpy(commands[i++].exp, "354");
+
+    /* -------------------------------------------------------------------------- */
+    /* message itself */
+
+    STRM_BEGIN(commands[i].cmd);
+    STRM("Date: %s\r\n", G_header_date);
+    STRM("From: %s\r\n", sender_full);
+    STRM("To: %s\r\n", to);
+    STRM("Subject: %s\r\n", subject);
+    STRM("Content-Type: text/plain; charset=\"utf-8\"\r\n");
+    STRM("\r\n");
+    STRM(message);
+    STRM("\r\n.\r\n");
+    STRM_END;
+
+    strcpy(commands[i++].exp, "250");
+
+    /* -------------------------------------------------------------------------- */
+
+    sprintf(commands[i].cmd, "QUIT\r\n");
+    commands[i++].exp[0] = EOS;
+
+    commands[i].cmd[0] = EOS;
+    commands[i++].exp[0] = EOS;
+
+    /* -------------------------------------------------------------------------- */
+    /* read greetings */
+
+    char buffer[1024];
+
+    int bytes = client_recv(buffer, 1023, &timeout_remain, FALSE);
+
+    if ( bytes < 0 )
+    {
+        ERR("Couldn't read response");
+        call_http_disconnect(bytes);
+        return FALSE;
+    }
+
+    buffer[bytes] = EOS;
+    DBG("Got %d bytes [%s]", bytes, buffer);
+
+    i = 0;
+
+    /* -------------------------------------------------------------------------- */
+    /* send commands */
+
+    while ( commands[i].cmd[0] && timeout_remain > 1 )
+    {
+        len = strlen(commands[i].cmd);
+
+        DBG("Sending [%s]...", commands[i].cmd);
+
+        bytes = client_send(commands[i].cmd, len, &timeout_remain, FALSE);
+
+        if ( bytes < 0 )
+        {
+            ERR("Couldn't send data (bytes = %d)", bytes);
+            call_http_disconnect(-1);
+            return FALSE;
+        }
+
+        DBG("Sent %d bytes", bytes);
+
+        DBG("Reading response...");
+
+        bytes = client_recv(buffer, 1023, &timeout_remain, FALSE);
+
+        if ( bytes < 0 )
+        {
+            ERR("Couldn't read response");
+            call_http_disconnect(bytes);
+            return FALSE;
+        }
+
+        buffer[bytes] = EOS;
+        DBG("Got %d bytes [%s]", bytes, buffer);
+
+        len = strlen(commands[i].exp);
+
+        if ( len && strncmp(buffer, commands[i].exp, len) != 0 )
+        {
+            ERR("SMTP server rejected our data");
+            call_http_disconnect(0);
+            return FALSE;
+        }
+
+        ++i;
+    }
+
+    /* -------------------------------------------------------------------------- */
+
+    call_http_disconnect(0);
+    
+    if ( bytes < 1 )
+    {
+        ERR("Couldn't send email to %s", to);
+        return FALSE;
+    }
+
+#else
+
+    INF("Sending emails from Windows is off by default. Use NPP_EMAIL_FROM_WINDOWS to use Node++ simple SMTP client.");
+
+#endif  /* NPP_EMAIL_FROM_WINDOWS */
+
     return TRUE;
 
 #endif  /* _WIN32 */
@@ -7878,37 +8214,41 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
 #define NPP_BOUNDARY "nppbndGq7ehJxtz"
 
+    char sender_bare[256];
+    char sender_full[512];
+
+    sprintf(sender_bare, "%s@%s", NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(sender_full, "%s <%s>", NPP_EMAIL_FROM_NAME, sender_bare);
+
 #ifndef _WIN32
-    char    sender[512];
-    char    command[1024];
+    char command[1024];
 
-    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender_bare);
 
-    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
+    FILE *pipe = popen(command, "w");
 
-    FILE *mailpipe = popen(command, "w");
-
-    if ( mailpipe == NULL )
+    if ( pipe == NULL )
     {
         ERR("Failed to invoke sendmail");
         return FALSE;
     }
     else
     {
-        fprintf(mailpipe, "From: %s\n", sender);
-        fprintf(mailpipe, "To: %s\n", to);
-        fprintf(mailpipe, "Subject: %s\n", subject);
-        fprintf(mailpipe, "Content-Type: multipart/mixed; boundary=%s\n", NPP_BOUNDARY);
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Date: %s\r\n", G_header_date);
+        fprintf(pipe, "From: %s\r\n", sender_full);
+        fprintf(pipe, "To: %s\r\n", to);
+        fprintf(pipe, "Subject: %s\r\n", subject);
+        fprintf(pipe, "Content-Type: multipart/mixed; boundary=%s\r\n", NPP_BOUNDARY);
+        fprintf(pipe, "\r\n");
 
         /* message */
 
-        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
+        fprintf(pipe, "--%s\r\n", NPP_BOUNDARY);
 
-        fprintf(mailpipe, "Content-Type: text/plain; charset=\"utf-8\"\n");
-//        fprintf(mailpipe, "Content-Transfer-Encoding: quoted-printable\n");
-        fprintf(mailpipe, "Content-Disposition: inline\n");
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
+//        fprintf(pipe, "Content-Transfer-Encoding: quoted-printable\n");
+        fprintf(pipe, "Content-Disposition: inline\r\n");
+        fprintf(pipe, "\r\n");
 
 
 /*        char *qpm;
@@ -7924,20 +8264,20 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         DBG("qpm [%s]", qpm); */
 
-        fwrite(message, strlen(message), 1, mailpipe);
-//        fwrite(qpm, 1, strlen(qpm), mailpipe);
+        fwrite(message, strlen(message), 1, pipe);
+//        fwrite(qpm, 1, strlen(qpm), pipe);
 //        free(qpm);
-        fprintf(mailpipe, "\n\n");
+        fprintf(pipe, "\r\n\r\n");
 
 
         /* attachement */
 
-        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
+        fprintf(pipe, "--%s\r\n", NPP_BOUNDARY);
 
-        fprintf(mailpipe, "Content-Type: application\n");
-        fprintf(mailpipe, "Content-Transfer-Encoding: base64\n");
-        fprintf(mailpipe, "Content-Disposition: attachment; filename=\"%s\"\n", att_name);
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Content-Type: application\r\n");
+        fprintf(pipe, "Content-Transfer-Encoding: base64\r\n");
+        fprintf(pipe, "Content-Disposition: attachment; filename=\"%s\"\r\n", att_name);
+        fprintf(pipe, "\r\n");
 
         char *b64data;
         int b64data_len = ((4 * att_data_len / 3) + 3) & ~3;
@@ -7955,15 +8295,15 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         DBG("     Real b64data_len = %d", b64data_len);
 
-        fwrite(b64data, b64data_len, 1, mailpipe);
+        fwrite(b64data, b64data_len, 1, pipe);
 
         free(b64data);
 
         /* finish */
 
-        fprintf(mailpipe, "\n\n--%s--\n", NPP_BOUNDARY);
+        fprintf(pipe, "\r\n\r\n--%s--\r\n", NPP_BOUNDARY);
 
-        pclose(mailpipe);
+        pclose(pipe);
     }
 
     return TRUE;
@@ -8620,7 +8960,7 @@ void npp_lib_read_conf(bool first)
                 strcpy(G_certChainFile, tmp_certChainFile);
                 strcpy(G_keyFile, tmp_keyFile);
 
-                SSL_CTX_free(M_ssl_ctx);
+                SSL_CTX_free(M_ssl_client_ctx);
                 EVP_cleanup();
 
                 npp_eng_init_ssl();

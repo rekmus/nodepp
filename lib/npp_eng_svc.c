@@ -395,7 +395,7 @@ int main(int argc, char *argv[])
             /* For POST, the payload can be in the data space of the message,
                or -- if it's bigger -- in the shared memory */
 
-            if ( NPP_CONN_IS_PAYLOAD(G_svc_req.hdr.flags) )
+            if ( NPP_CONN_IS_PAYLOAD(G_svc_req.hdr.flags) && G_svc_req.hdr.clen > 0 )
             {
                 if ( !NPP_ASYNC_IS_PAYLOAD_IN_SHM(G_svc_req.hdr.async_flags) )
                 {
