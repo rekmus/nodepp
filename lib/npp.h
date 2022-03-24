@@ -1664,6 +1664,16 @@ typedef struct {
 } static_res_t;
 
 
+/* authorization levels */
+
+typedef struct {
+    char host[NPP_MAX_HOST_LEN+1];
+    int  host_id;
+    char path[NPP_STATIC_PATH_LEN+1];
+    char level;
+} auth_level_t;
+
+
 /* snippets */
 
 typedef struct {
@@ -1856,7 +1866,11 @@ extern "C" {
 
     /* public */
 
-    void npp_require_auth(const char *path, char level);
+#ifdef NPP_CPP_STRINGS
+    void npp_require_auth(const std::string& host, const std::string& path, char level);
+#else
+    void npp_require_auth(const char *host, const char *path, char level);
+#endif
 
 #ifdef NPP_CPP_STRINGS
     void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);

@@ -127,16 +127,6 @@ http_status_t   M_http_status[]={
     };
 
 
-/* authorization levels */
-
-static struct {
-    char path[256];
-    char level;
-    } M_auth_levels[NPP_MAX_RESOURCES] = {
-        {"-", EOS}
-    };
-
-
 static char     *M_pidfile;                 /* pid file name */
 
 #ifdef _WIN32   /* Windows */
@@ -203,6 +193,9 @@ static int          M_prev_day;
 static time_t       M_last_housekeeping=0;
 static int          M_first_free_ci=0;
 static int          M_highest_used_ci=-1;
+
+static auth_level_t M_auth_levels[NPP_MAX_RESOURCES]={0};
+static int          M_auth_levels_cnt=0;
 
 static sessions_idx_t M_sessions_idx[NPP_MAX_SESSIONS]={0}; /* this starts from 0 */
 
@@ -5870,6 +5863,44 @@ static bool check_block_ip(int ci, const char *rule, const char *value)
 
 
 /* --------------------------------------------------------------------------
+   Find authorization level for the requested resource
+-------------------------------------------------------------------------- */
+char find_auth_level(int ci)
+{
+    int i;
+
+#ifdef NPP_MULTI_HOST
+
+    i = 0;
+
+    while ( M_auth_levels[i].host_id != G_connections[ci].host_id && i<M_auth_levels_cnt ) ++i;
+
+    for ( ; i<M_auth_levels_cnt; ++i )
+    {
+        if ( M_auth_levels[i].host_id != G_connections[ci].host_id )
+            break;
+
+        if ( URI(M_auth_levels[i].path) && M_auth_levels[i].host_id == G_connections[ci].host_id )
+            return M_auth_levels[i].level;
+    }
+
+    return G_hosts[G_connections[ci].host_id].required_auth_level;
+
+#else   /* NOT NPP_MULTI_HOST */
+
+    for ( i=0; i<M_auth_levels_cnt; ++i )
+    {
+        if ( URI(M_auth_levels[i].path) )
+            return M_auth_levels[i].level;
+    }
+
+    return NPP_REQUIRED_AUTH_LEVEL;
+
+#endif  /* NPP_MULTI_HOST */
+}
+
+
+/* --------------------------------------------------------------------------
    Parse HTTP request
    Return HTTP status code
 -------------------------------------------------------------------------- */
@@ -6318,17 +6349,9 @@ static int parse_req(int ci, int len)
 
     if ( G_connections[ci].static_res == NPP_NOT_STATIC )
     {
-        i = 0;
-        while ( M_auth_levels[i].path[0] != '-' )
-        {
-            if ( URI(M_auth_levels[i].path) )
-            {
-                DDBG("Required authorization level = %d", M_auth_levels[i].level);
-                G_connections[ci].required_auth_level = M_auth_levels[i].level;
-                break;
-            }
-            ++i;
-        }
+        G_connections[ci].required_auth_level = find_auth_level(ci);
+
+        DDBG("Required authorization level = %d", M_auth_levels[i].level);
     }
     else    /* don't do any checks for static resources */
     {
@@ -7139,6 +7162,27 @@ static void render_page_msg(int ci, int code)
 }
 
 
+/* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+static int compare_auth_levels(const void *a, const void *b)
+{
+    const auth_level_t *p1 = (auth_level_t*)a;
+    const auth_level_t *p2 = (auth_level_t*)b;
+
+#ifdef NPP_MULTI_HOST
+
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+#endif
+
+    return strcmp(p1->path, p2->path);
+}
+
+
 
 
 
@@ -7153,18 +7197,39 @@ static void render_page_msg(int ci, int code)
 /* --------------------------------------------------------------------------
    Set required authorization level for the resource
 -------------------------------------------------------------------------- */
-void npp_require_auth(const char *path, char level)
+#ifdef NPP_CPP_STRINGS
+void npp_require_auth(const std::string& host_, const std::string& path_, char level)
 {
-static int current=0;
+    const char *host = host_.c_str();
+    const char *path = path_.c_str();
+#else
+void npp_require_auth(const char *host, const char *path, char level)
+{
+#endif
 
-    if ( current > NPP_MAX_RESOURCES-2 )
+    if ( M_auth_levels_cnt > NPP_MAX_RESOURCES-1 )
+    {
+        WAR("M_auth_levels_cnt at max (%d)!", NPP_MAX_RESOURCES);
         return;
+    }
 
-    strncpy(M_auth_levels[current].path, path, 255);
-    M_auth_levels[current].path[255] = EOS;
-    M_auth_levels[current].level = level;
+    if ( host && host[0] )
+        strcpy(M_auth_levels[M_auth_levels_cnt].host, npp_upper(host));
+    else
+        M_auth_levels[M_auth_levels_cnt].host[0] = EOS;
 
-    strcpy(M_auth_levels[++current].path, "-");
+#ifdef NPP_MULTI_HOST
+    M_auth_levels[M_auth_levels_cnt].host_id = find_host_id(M_auth_levels[M_auth_levels_cnt].host);
+#else
+    M_auth_levels[M_auth_levels_cnt].host_id = 0;
+#endif
+
+    COPY(M_auth_levels[M_auth_levels_cnt].path, path, NPP_STATIC_PATH_LEN);
+    M_auth_levels[M_auth_levels_cnt].level = level;
+
+    ++M_auth_levels_cnt;
+
+    qsort(&M_auth_levels, M_auth_levels_cnt, sizeof(M_auth_levels[0]), compare_auth_levels);
 }
 
 
