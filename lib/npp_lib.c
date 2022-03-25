@@ -4020,11 +4020,7 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 -------------------------------------------------------------------------- */
 static int finish_client_io(char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
 {
-#ifdef _WIN32
-    int sockerr = WSAGetLastError();
-#else
-    int sockerr = errno;
-#endif
+    int sockerr = NPP_SOCKET_GET_ERROR;
 
 #ifdef NPP_DEBUG
     if ( oper == NPP_OPER_READ )
@@ -5410,13 +5406,9 @@ bool npp_lib_check_ssl_error(int ssl_err)
 {
 #ifdef NPP_HTTPS
 
-    if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
+    int sockerr = NPP_SOCKET_GET_ERROR;
 
-#ifdef _WIN32
-    int sockerr = WSAGetLastError();
-#else
-    int sockerr = errno;
-#endif
+    if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
 
 #ifdef _WIN32   /* Windows */
 

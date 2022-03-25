@@ -2042,11 +2042,7 @@ static void http2_hdr_server(int ci)
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes, bool secure)
 {
-#ifdef _WIN32
-    int sockerr = WSAGetLastError();
-#else
-    int sockerr = errno;
-#endif
+    int sockerr = NPP_SOCKET_GET_ERROR;
 
     DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
 
@@ -2074,10 +2070,22 @@ static void set_state(int ci, int bytes, bool secure)
 #ifdef NPP_DEBUG
             NPP_SOCKET_LOG_ERROR(sockerr);
 
-            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
+            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )                   /* 1 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )        /* 2 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_READ", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )       /* 3 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_WRITE", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_X509_LOOKUP ) /* 4 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_X509_LOOKUP", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )          /* 5 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_ZERO_RETURN )      /* 6 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_ZERO_RETURN", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_CONNECT )     /* 7 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_CONNECT", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_ACCEPT )      /* 8 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_ACCEPT", ci);
             else
                 DBG("ci=%d, ssl_err = %d", ci, G_connections[ci].ssl_err);
 #endif  /* NPP_DEBUG */

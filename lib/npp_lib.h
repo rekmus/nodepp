@@ -264,9 +264,11 @@
 /* socket errors */
 
 #ifdef _WIN32
+#define NPP_SOCKET_GET_ERROR            WSAGetLastError()
 #define NPP_SOCKET_WOULD_BLOCK(e)       (e==WSAEWOULDBLOCK)
 #define NPP_SOCKET_LOG_ERROR(e)         lib_log_win_socket_error(e)
 #else
+#define NPP_SOCKET_GET_ERROR            errno
 #define NPP_SOCKET_WOULD_BLOCK(e)       (e==EWOULDBLOCK || e==EINPROGRESS)
 #define NPP_SOCKET_LOG_ERROR(e)         DBG("errno = %d (%s)", e, strerror(e))
 #endif
