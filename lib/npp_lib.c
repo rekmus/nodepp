@@ -4020,22 +4020,10 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 -------------------------------------------------------------------------- */
 static int finish_client_io(char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
 {
-    int             sockerr;
-    struct timeval  timeout;
-    fd_set          readfds;
-    fd_set          writefds;
-    int             socks=0;
-    int             bytes;
-#ifdef NPP_HTTPS
-    int             ssl_err;
-#endif
-
-    /* get the error code ------------------------------------------------ */
-
-#ifdef _WIN32   /* Windows */
-    sockerr = WSAGetLastError();
+#ifdef _WIN32
+    int sockerr = WSAGetLastError();
 #else
-    sockerr = errno;
+    int sockerr = errno;
 #endif
 
 #ifdef NPP_DEBUG
@@ -4051,35 +4039,35 @@ static int finish_client_io(char oper, char readwrite, char *buffer, int len, in
         ERR("finish_client_io -- unknown operation: %d", oper);
 #endif  /* NPP_DEBUG */
 
+    /* ------------------------------------------------------------------- */
+
     if ( level > 20 )   /* just in case */
     {
         ERR("finish_client_io -- too many levels");
         return -1;
     }
 
+    /* ------------------------------------------------------------------- */
+
     if ( !ssl )
     {
-#ifdef _WIN32
-
-        if ( sockerr != WSAEWOULDBLOCK )
+        if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
         {
-            wchar_t *s = NULL;
-            FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-            ERR("%d (%S)", sockerr, s);
-            LocalFree(s);
+            NPP_SOCKET_LOG_ERROR(sockerr);
             return -1;
         }
-
-#else
-
-        if ( sockerr != EWOULDBLOCK && sockerr != EINPROGRESS )
-        {
-            ERR("errno = %d (%s)", sockerr, strerror(sockerr));
-            return -1;
-        }
-
-#endif  /* _WIN32 */
     }
+
+    /* ------------------------------------------------------------------- */
+
+    struct timeval  timeout;
+    fd_set          readfds;
+    fd_set          writefds;
+    int             socks=0;
+    int             bytes;
+#ifdef NPP_HTTPS
+    int             ssl_err;
+#endif
 
     /* set up timeout for select ----------------------------------------- */
 
@@ -5378,6 +5366,20 @@ void npp_call_http_disconnect()
 
 
 /* --------------------------------------------------------------------------
+   Log Windows socket error
+-------------------------------------------------------------------------- */
+#ifdef _WIN32
+void lib_log_win_socket_error(int sockerr)
+{
+    wchar_t *s = NULL;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
+    DBG("%d (%S)", sockerr, s);
+    LocalFree(s);
+}
+#endif
+
+
+/* --------------------------------------------------------------------------
    Log SSL error
 
    From openssl.h:
@@ -5410,9 +5412,13 @@ bool npp_lib_check_ssl_error(int ssl_err)
 
     if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
 
-#ifdef _WIN32   /* Windows */
-
+#ifdef _WIN32
     int sockerr = WSAGetLastError();
+#else
+    int sockerr = errno;
+#endif
+
+#ifdef _WIN32   /* Windows */
 
     wchar_t *s = NULL;
     FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
@@ -5420,8 +5426,6 @@ bool npp_lib_check_ssl_error(int ssl_err)
     LocalFree(s);
 
 #else   /* Linux */
-
-    int sockerr = errno;
 
     DBG("ssl_err=SSL_ERROR_SYSCALL, errno=%d (%s)", sockerr, strerror(sockerr));
 
@@ -6087,7 +6091,7 @@ static char dst[32];
 
     G_ptm = gmtime(&G_now);  /* make sure G_ptm is up to date */
 
-    DDBG("time_epoch2http: [%s]", dst);
+//    DDBG("time_epoch2http: [%s]", dst);
 
     return dst;
 }

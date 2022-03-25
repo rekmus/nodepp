@@ -261,6 +261,18 @@
 
 
 
+/* socket errors */
+
+#ifdef _WIN32
+#define NPP_SOCKET_WOULD_BLOCK(e)       (e==WSAEWOULDBLOCK)
+#define NPP_SOCKET_LOG_ERROR(e)         lib_log_win_socket_error(e)
+#else
+#define NPP_SOCKET_WOULD_BLOCK(e)       (e==EWOULDBLOCK || e==EINPROGRESS)
+#define NPP_SOCKET_LOG_ERROR(e)         DBG("errno = %d (%s)", e, strerror(e))
+#endif
+
+
+
 /* HTTP & RESTful calls */
 
 #define CALL_HTTP_HEADER_KEY_LEN                    255
@@ -788,6 +800,9 @@ extern "C" {
 #endif
 
     void npp_call_http_disconnect(void);
+#ifdef _WIN32
+    void lib_log_win_socket_error(int sockerr);
+#endif
     bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
     char npp_lib_get_res_type(const char *fname);

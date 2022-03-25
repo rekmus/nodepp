@@ -2042,9 +2042,24 @@ static void http2_hdr_server(int ci)
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes, bool secure)
 {
-    int e = errno;
+#ifdef _WIN32
+    int sockerr = WSAGetLastError();
+#else
+    int sockerr = errno;
+#endif
 
     DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
+
+    if ( bytes < 0 )
+    {
+        if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
+        {
+            NPP_SOCKET_LOG_ERROR(sockerr);
+            DBG("Closing connection\n");
+            close_connection(ci, TRUE);
+            return;
+        }
+    }
 
 #ifdef NPP_HTTPS
     if ( secure )
@@ -2056,31 +2071,15 @@ static void set_state(int ci, int bytes, bool secure)
 
         if ( bytes <= 0 )
         {
-            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
-            {
-                DDBG("errno = %d (%s)", e, strerror(e));
-                DBG("Closing connection\n");
-                close_connection(ci, TRUE);
-                return;
-            }
-
-            if ( G_logLevel >= LOG_DBG )
-            {
-                char errno_info[256];
-                sprintf(errno_info, ", errno = %d (%s)", e, strerror(e));
-                DBG("bytes = %d, ssl_err = %d%s", bytes, G_connections[ci].ssl_err, errno_info);
-            }
-
 #ifdef NPP_DEBUG
-            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
-            {
-                DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
-            }
+            NPP_SOCKET_LOG_ERROR(sockerr);
 
-            if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
-            {
+            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )   /* 1 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )   /* 5 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
-            }
+            else
+                DBG("ci=%d, ssl_err = %d", ci, G_connections[ci].ssl_err);
 #endif  /* NPP_DEBUG */
 
             if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
@@ -2116,22 +2115,7 @@ static void set_state(int ci, int bytes, bool secure)
 #endif
         }
     }
-    else    /* plain HTTP */
 #endif  /* NPP_HTTPS */
-    {
-        if ( bytes <= 0 )
-        {
-            DDBG("errno = %d (%s)", e, strerror(e));
-
-//            if ( e != 0 && e != EAGAIN && e != EWOULDBLOCK )
-            if ( e != EAGAIN && e != EWOULDBLOCK )
-            {
-                DBG("Closing connection\n");
-                close_connection(ci, TRUE);
-                return;
-            }
-        }
-    }
 
     /* good to go */
 
