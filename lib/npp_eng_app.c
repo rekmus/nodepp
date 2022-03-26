@@ -7192,6 +7192,17 @@ static int compare_auth_levels(const void *a, const void *b)
    Set required authorization level for the resource
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
+/* overloaded version to enable host being NULL */
+void npp_require_auth(const char *host, const std::string& path, char level)
+{
+    std::string host_="";
+
+    if ( host && host[0] )
+        host_ = host;
+
+    npp_require_auth(host_, path, level);
+}
+
 void npp_require_auth(const std::string& host_, const std::string& path_, char level)
 {
     const char *host = host_.c_str();
@@ -7584,6 +7595,17 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
    Set internal (generated) static resource data & size
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
+/* overloaded version to enable host being NULL */
+void npp_add_to_static_res(const char *host, const std::string& name, const std::string& src)
+{
+    std::string host_="";
+
+    if ( host && host[0] )
+        host_ = host;
+
+    npp_add_to_static_res(host_, name, src);
+}
+
 void npp_add_to_static_res(const std::string& host_, const std::string& name_, const std::string& src_)
 {
     const char *host = host_.c_str();

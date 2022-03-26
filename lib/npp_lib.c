@@ -5369,7 +5369,7 @@ void lib_log_win_socket_error(int sockerr)
 {
     wchar_t *s = NULL;
     FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-    DBG("%d (%S)", sockerr, s);
+    DBG("WSAGetLastError() = %d (%S)", sockerr, s);
     LocalFree(s);
 }
 #endif

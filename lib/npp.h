@@ -1860,21 +1860,27 @@ extern int          G_qs_len;
    prototypes
 -------------------------------------------------------------------------- */
 
+#ifdef NPP_CPP_STRINGS
+    void npp_require_auth(const char *host, const std::string& path, char level);
+    void npp_require_auth(const std::string& host, const std::string& path, char level);
+
+    void npp_add_to_static_res(const char *host, const std::string& name, const std::string& src);
+    void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);
+
+#ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
+    int  npp_app_custom_activation_email(int ci, int user_id, const std::string& email, const std::string& linkkey);
+#endif
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
     /* public */
 
-#ifdef NPP_CPP_STRINGS
-    void npp_require_auth(const std::string& host, const std::string& path, char level);
-#else
+#ifndef NPP_CPP_STRINGS
     void npp_require_auth(const char *host, const char *path, char level);
-#endif
-
-#ifdef NPP_CPP_STRINGS
-    void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);
-#else
     void npp_add_to_static_res(const char *host, const char *name, const char *src);
 #endif
 
@@ -1936,7 +1942,9 @@ extern "C" {
 #endif
 
 #ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
+#ifndef NPP_CPP_STRINGS
     int  npp_app_custom_activation_email(int ci, int user_id, const char *email, const char *linkkey);
+#endif
 #endif
 
 #ifdef NPP_USERS
