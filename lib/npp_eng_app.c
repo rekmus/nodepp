@@ -1122,7 +1122,7 @@ int main(int argc, char **argv)
                         }
 #ifdef NPP_DEBUG
                         if ( G_connections[ci].static_res != NPP_NOT_STATIC )
-                            DBG("ci=%d, static resource", ci);
+                            DBG("ci=%d, static resource [%s]", ci, G_connections[ci].resource);
 #endif
                         if ( !G_connections[ci].location[0] && G_connections[ci].static_res == NPP_NOT_STATIC )   /* process request */
                             process_req(ci);
@@ -1406,7 +1406,7 @@ static bool housekeeping()
 #endif
 
         /* say something sometimes ... */
-        ALWAYS_T("%d connection(s) | %d session(s)", G_connections_cnt, G_sessions_cnt);
+        ALWAYS_T("%u request(s) | %d connection(s) | %d session(s)", G_cnts_today.req, G_connections_cnt, G_sessions_cnt);
 
         npp_log_flush();
 
@@ -2046,7 +2046,7 @@ static void set_state(int ci, int bytes, bool secure)
 
     DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
 
-    if ( bytes < 0 )
+    if ( bytes <= 0 )
     {
         if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
         {
@@ -2070,17 +2070,17 @@ static void set_state(int ci, int bytes, bool secure)
 #ifdef NPP_DEBUG
             NPP_SOCKET_LOG_ERROR(sockerr);
 
-            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )                   /* 1 */
+            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )                   /* 1 (A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.) */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
             else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )        /* 2 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_WANT_READ", ci);
             else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )       /* 3 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_WANT_WRITE", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_X509_LOOKUP ) /* 4 */
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_X509_LOOKUP ) /* 4 (The operation did not complete because an application callback set by SSL_CTX_set_client_cert_cb() has asked to be called again.) */
                 DBG("ci=%d, ssl_err = SSL_ERROR_WANT_X509_LOOKUP", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )          /* 5 */
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )          /* 5 (Some non-recoverable, fatal I/O error occurred. SSL_shutdown() must not be called.) */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_ZERO_RETURN )      /* 6 */
+            else if ( G_connections[ci].ssl_err == SSL_ERROR_ZERO_RETURN )      /* 6 (The TLS/SSL peer has closed the connection for writing by sending the close_notify alert. No more data can be read.) */
                 DBG("ci=%d, ssl_err = SSL_ERROR_ZERO_RETURN", ci);
             else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_CONNECT )     /* 7 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_WANT_CONNECT", ci);
@@ -4622,7 +4622,6 @@ static void process_req(int ci)
         RES_STATUS(503);
         render_page_msg(ci, ERR_SERVER_TOOBUSY);
         RES_DONT_CACHE;
-        G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;
     }
 
     /* ------------------------------------------------------------------------ */
@@ -5584,7 +5583,7 @@ static void close_old_conn()
     {
         if ( G_connections[i].state != CONN_STATE_DISCONNECTED && G_connections[i].last_activity < last_allowed )
         {
-            DBG("Closing timeouted connection %d", i);
+            DBG("Closing timeouted connection ci=%d", i);
             close_connection(i, TRUE);
         }
     }
@@ -6819,9 +6818,12 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "CONNECTION") )
     {
-        strcpy(uvalue, npp_upper(value));
-        if ( 0==strcmp(uvalue, "KEEP-ALIVE") )
-            G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_ALIVE;
+        if ( ci < NPP_MAX_CONNECTIONS )
+        {
+            strcpy(uvalue, npp_upper(value));
+            if ( 0==strcmp(uvalue, "KEEP-ALIVE") )
+                G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_ALIVE;
+        }
     }
     else if ( 0==strcmp(ulabel, "COOKIE") )
     {

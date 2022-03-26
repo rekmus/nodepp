@@ -5381,11 +5381,11 @@ void lib_log_win_socket_error(int sockerr)
    From openssl.h:
 
 #define SSL_ERROR_NONE        (0)
-#define SSL_ERROR_SSL         (1)
+#define SSL_ERROR_SSL         (1) A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.
 #define SSL_ERROR_WANT_READ   (2)
 #define SSL_ERROR_WANT_WRITE  (3)
-#define SSL_ERROR_SYSCALL     (5)
-#define SSL_ERROR_ZERO_RETURN (6)
+#define SSL_ERROR_SYSCALL     (5) Some non-recoverable, fatal I/O error occurred. SSL_shutdown() must not be called.
+#define SSL_ERROR_ZERO_RETURN (6) The TLS/SSL peer has closed the connection for writing by sending the close_notify alert. No more data can be read.
 
 Return TRUE if everything is cool
 
@@ -5406,22 +5406,13 @@ bool npp_lib_check_ssl_error(int ssl_err)
 {
 #ifdef NPP_HTTPS
 
-    int sockerr = NPP_SOCKET_GET_ERROR;
-
     if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
 
-#ifdef _WIN32   /* Windows */
+    DBG("ssl_err = SSL_ERROR_SYSCALL");
 
-    wchar_t *s = NULL;
-    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-    DBG("ssl_err=SSL_ERROR_SYSCALL, errno=%d (%S)", sockerr, s);
-    LocalFree(s);
+    int sockerr = NPP_SOCKET_GET_ERROR;
 
-#else   /* Linux */
-
-    DBG("ssl_err=SSL_ERROR_SYSCALL, errno=%d (%s)", sockerr, strerror(sockerr));
-
-#endif  /* _WIN32 */
+    NPP_SOCKET_LOG_ERROR(sockerr);
 
     if ( sockerr == 0 || sockerr == ECONNRESET || sockerr == ECONNABORTED )
         return TRUE;
