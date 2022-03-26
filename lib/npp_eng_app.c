@@ -2048,25 +2048,27 @@ static void set_state(int ci, int bytes, bool secure)
 
     if ( bytes <= 0 )
     {
-        if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
+        if ( !secure )
         {
-            NPP_SOCKET_LOG_ERROR(sockerr);
-            DBG("Closing connection\n");
-            close_connection(ci, TRUE);
-            return;
+            if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
+            {
+#ifdef NPP_DEBUG
+                NPP_SOCKET_LOG_ERROR(sockerr);
+#endif
+                DBG("Closing connection\n");
+                close_connection(ci, TRUE);
+                return;
+            }
         }
-    }
 
 #ifdef NPP_HTTPS
-    if ( secure )
-    {
-#ifdef NPP_FD_MON_EPOLL
-        int prev_ssl_err = G_connections[ci].ssl_err;
-#endif
-        G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
-
-        if ( bytes <= 0 )
+        if ( secure )
         {
+#ifdef NPP_FD_MON_EPOLL
+            int prev_ssl_err = G_connections[ci].ssl_err;
+#endif
+            G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
+
 #ifdef NPP_DEBUG
             NPP_SOCKET_LOG_ERROR(sockerr);
 
@@ -2102,7 +2104,7 @@ static void set_state(int ci, int bytes, bool secure)
                 M_pollfds[G_connections[ci].pi].events = POLLIN;
             else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
                 M_pollfds[G_connections[ci].pi].events = POLLOUT;
-#endif
+#endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
             if ( G_connections[ci].ssl_err != prev_ssl_err )
@@ -2120,10 +2122,12 @@ static void set_state(int ci, int bytes, bool secure)
 
                 epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
             }
-#endif
+#endif  /* NPP_FD_MON_EPOLL */
         }
-    }
 #endif  /* NPP_HTTPS */
+
+        return;     /* ??? */
+    }
 
     /* good to go */
 
@@ -5942,6 +5946,15 @@ static int parse_req(int ci, int len)
             else
             {
                 DBG("Request syntax error, ignoring");
+
+                /* don't confuse log */
+
+                G_connections[ci].method[0] = EOS;
+                G_connections[ci].uri[0] = EOS;
+                strcpy(G_connections[ci].http_ver, "?");
+                G_connections[ci].referer[0] = EOS;
+                G_connections[ci].uagent[0] = EOS;
+
                 return 400;  /* Bad Request */
             }
         }
@@ -5968,6 +5981,15 @@ static int parse_req(int ci, int len)
             else
             {
                 WAR("Method too long, ignoring");
+
+                /* don't confuse log */
+
+                G_connections[ci].method[0] = EOS;
+                G_connections[ci].uri[0] = EOS;
+                strcpy(G_connections[ci].http_ver, "?");
+                G_connections[ci].referer[0] = EOS;
+                G_connections[ci].uagent[0] = EOS;
+
                 return 400;  /* Bad Request */
             }
         }
@@ -5996,6 +6018,14 @@ static int parse_req(int ci, int len)
             else
             {
                 WAR("Method [%s] not allowed, ignoring", G_connections[ci].method);
+
+                /* don't confuse log */
+
+                G_connections[ci].uri[0] = EOS;
+                strcpy(G_connections[ci].http_ver, "?");
+                G_connections[ci].referer[0] = EOS;
+                G_connections[ci].uagent[0] = EOS;
+
                 return 405;
             }
 
@@ -6025,6 +6055,14 @@ static int parse_req(int ci, int len)
             else
             {
                 WAR("URI too long, ignoring");
+
+                /* don't confuse log */
+
+                G_connections[ci].uri[0] = EOS;
+                strcpy(G_connections[ci].http_ver, "?");
+                G_connections[ci].referer[0] = EOS;
+                G_connections[ci].uagent[0] = EOS;
+
                 return 414;  /* Request-URI Too Long */
             }
         }
@@ -6140,6 +6178,12 @@ static int parse_req(int ci, int len)
             {
                 label[j] = EOS;
                 WAR("Label [%s] too long, ignoring", label);
+
+                /* don't confuse log */
+
+                G_connections[ci].referer[0] = EOS;
+                G_connections[ci].uagent[0] = EOS;
+
                 return 400;  /* Bad Request */
             }
         }
@@ -6324,7 +6368,7 @@ static int parse_req(int ci, int len)
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
-        DBG("  REQ_ID [%s]", G_connections[ci].id);
+        DBG("REQ_ID [%s]", G_connections[ci].id);
 #endif
         /* -------------------------------------------------------------- */
 
