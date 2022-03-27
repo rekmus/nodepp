@@ -191,8 +191,10 @@ static bool         M_shutdown=FALSE;
 static int          M_prev_minute;
 static int          M_prev_day;
 static time_t       M_last_housekeeping=0;
-static int          M_first_free_ci=0;
+static int          M_first_free_ci=0;              /* connections start from 0 */
 static int          M_highest_used_ci=-1;
+static int          M_first_free_si=1;              /* sessions start from 1 */
+static int          M_highest_used_si=0;
 
 static auth_level_t M_auth_levels[NPP_MAX_RESOURCES]={0};
 static int          M_auth_levels_cnt=0;
@@ -1122,7 +1124,7 @@ int main(int argc, char **argv)
                         }
 #ifdef NPP_DEBUG
                         if ( G_connections[ci].static_res != NPP_NOT_STATIC )
-                            DBG("ci=%d, static resource [%s]", ci, G_connections[ci].resource);
+                            DBG("ci=%d, static resource [%s]", ci, G_connections[ci].uri);
 #endif
                         if ( !G_connections[ci].location[0] && G_connections[ci].static_res == NPP_NOT_STATIC )   /* process request */
                             process_req(ci);
@@ -2414,9 +2416,6 @@ static void close_connection(int ci, bool update_first_free)
 
 #ifdef _WIN32   /* Windows */
     closesocket(G_connections[ci].fd);
-//    int cr = closesocket(G_connections[ci].fd);
-//    if ( cr != 0 )
-//        WAR("ci=%d, closesocket returned %d", ci, cr);
 #else
     close(G_connections[ci].fd);
 #endif  /* _WIN32 */
@@ -2456,7 +2455,7 @@ static void close_connection(int ci, bool update_first_free)
         int i;
         for ( i=ci-1; i>=0; i-- )
         {
-            if ( G_connections[i].state != CONN_STATE_DISCONNECTED )
+            if ( G_connections[i].state != CONN_STATE_DISCONNECTED )    /* used */
             {
                 M_highest_used_ci = i;
                 DDBG("M_highest_used_ci set to %d", M_highest_used_ci);
@@ -5435,7 +5434,7 @@ static void print_content_type(int ci, char type)
 static int find_sessions_idx_idx(int host_id, const char *sessid)
 {
     if ( sessid == NULL || sessid[0] == EOS )
-        return 0;
+        return -1;
 
     int first = 0;
     int last = G_sessions_cnt - 1;
@@ -5467,7 +5466,7 @@ static int find_sessions_idx_idx(int host_id, const char *sessid)
         middle = (first+last) / 2;
     }
 
-    return 0;   /* not found */
+    return -1;  /* not found */
 }
 
 #else   /* NOT NPP_MULTI_HOST */
@@ -5475,7 +5474,7 @@ static int find_sessions_idx_idx(int host_id, const char *sessid)
 static int find_sessions_idx_idx(const char *sessid)
 {
     if ( sessid == NULL || sessid[0] == EOS )
-        return 0;
+        return -1;
 
     int first = 0;
     int last = G_sessions_cnt - 1;
@@ -5496,7 +5495,7 @@ static int find_sessions_idx_idx(const char *sessid)
         middle = (first+last) / 2;
     }
 
-    return 0;   /* not found */
+    return -1;  /* not found */
 }
 #endif  /* NPP_MULTI_HOST */
 
@@ -5507,12 +5506,22 @@ static int find_sessions_idx_idx(const char *sessid)
 #ifdef NPP_MULTI_HOST
 int npp_eng_find_si(int host_id, const char *sessid)
 {
-    return M_sessions_idx[find_sessions_idx_idx(host_id, sessid)].si;
+    int idx = find_sessions_idx_idx(host_id, sessid);
+
+    if ( idx != -1 )
+        return M_sessions_idx[idx].si;
+
+    return 0;
 }
 #else
 int npp_eng_find_si(const char *sessid)
 {
-    return M_sessions_idx[find_sessions_idx_idx(sessid)].si;
+    int idx = find_sessions_idx_idx(sessid);
+
+    if ( idx != -1 )
+        return M_sessions_idx[idx].si;
+
+    return 0;
 }
 #endif  /* NPP_MULTI_HOST */
 
@@ -5660,11 +5669,22 @@ static void close_uses(int si, int ci)
     int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].sessid);
 #endif
 
-    memset(M_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
-    M_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
-    M_sessions_idx[sessions_idx_idx].si = 0;
+    if ( sessions_idx_idx == -1 )   /* this should never happen */
+    {
+        ERR("ci=%d, si=%d, sessions_idx_idx == -1", ci, si);
+        DDBG("sessid [%s]", G_sessions[si].sessid);
+    }
+    else    /* session found in M_sessions_idx */
+    {
+#ifdef NPP_MULTI_HOST
+        M_sessions_idx[sessions_idx_idx].host_id = NPP_MAX_HOSTS;
+#endif
+        memset(M_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
+        M_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
+        M_sessions_idx[sessions_idx_idx].si = 0;
 
-    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
+        qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
+    }
 
     /* reset session data */
 
@@ -5677,6 +5697,52 @@ static void close_uses(int si, int ci)
         G_connections[ci].si = 0;
 
     DBG("%d session(s) remaining", G_sessions_cnt);
+    
+    DDBG("Updating first free si...");
+
+    /* update M_first_free_si & M_highest_used_si */
+
+    DDBG("                   G_sessions_cnt = %d", G_sessions_cnt);
+    DDBG("M_highest_used_si before updating = %d", M_highest_used_si);
+
+    if ( G_sessions_cnt == 0 )   /* it was the last open session */
+    {
+        DDBG("No sessions, setting M_first_free_si=1 and M_highest_used_si=0");
+
+        M_first_free_si = 1;
+
+        if ( M_highest_used_si != 0 )
+            M_highest_used_si = 0;
+    }
+    else if ( si == M_highest_used_si ) /* closing session had the highest spot in G_sessions */
+    {
+        /* loop downwards to find the highest used si */
+
+        DDBG("Looping downwards starting from %d", si-1);
+
+        int i;
+        for ( i=si-1; i>0; i-- )
+        {
+            if ( G_sessions[i].sessid[0] )  /* used */
+            {
+                M_highest_used_si = i;
+                DDBG("M_highest_used_si set to %d", M_highest_used_si);
+                M_first_free_si = i+1;
+                break;
+            }
+        }
+    }
+    else    /* there are sessions with higher indexes than si */
+    {
+        DDBG("Setting M_first_free_si to just released spot");
+
+        M_first_free_si = si;
+
+        DDBG("M_highest_used_si stays where it was");
+    }
+
+    DDBG("  M_first_free_si = %d", M_first_free_si);
+    DDBG("M_highest_used_si = %d\n", M_highest_used_si);
 }
 
 
@@ -7221,6 +7287,27 @@ static int compare_auth_levels(const void *a, const void *b)
 }
 
 
+/* --------------------------------------------------------------------------
+   Find first free spot in G_sessions
+-------------------------------------------------------------------------- */
+static void find_first_free_si()
+{
+    int i;
+
+    for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
+    {
+        if ( G_sessions[i].sessid[0] == EOS )
+        {
+            M_first_free_si = i;
+            WAR("Sequential search through G_sessions (checked %d record(s))", i);
+            return;
+        }
+    }
+
+    ERR("Sequential search through G_sessions (checked %d record(s)), none was free", i-1);
+}
+
+
 
 
 
@@ -7300,16 +7387,9 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     ++G_sessions_cnt;   /* start from 1 */
 
-    /* find first free slot */
+    G_connections[ci].si = M_first_free_si;
 
-    for ( i=1; i<=NPP_MAX_SESSIONS; ++i )
-    {
-        if ( G_sessions[i].sessid[0] == EOS )
-        {
-            G_connections[ci].si = i;
-            break;
-        }
-    }
+    /* -------------------------------------------- */
 
     if ( sessid )
     {
@@ -7326,6 +7406,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     INF("ci=%d, starting new session, si=%d", ci, G_connections[ci].si);
 #endif
 
+    /* -------------------------------------------- */
     /* add record to G_sessions */
 
 #ifdef NPP_MULTI_HOST
@@ -7338,6 +7419,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     strcpy(SESSION.lang, G_connections[ci].lang);
     SESSION.formats = G_connections[ci].formats;
 
+    /* -------------------------------------------- */
     /* generate CSRF token */
 
     npp_random(SESSION.csrft, NPP_CSRFT_LEN);
@@ -7348,6 +7430,25 @@ int npp_eng_session_start(int ci, const char *sessid)
     DBG("New CSRFT generated");
 #endif
 
+    /* -------------------------------------------- */
+    /* update M_highest_used_si */
+
+    if ( M_first_free_si > M_highest_used_si )
+        M_highest_used_si = M_first_free_si;
+
+    DDBG("After starting new session: M_highest_used_si = %d", M_highest_used_si);
+
+    /* -------------------------------------------- */
+    /* update M_first_free_si */
+
+    if ( M_highest_used_si < NPP_MAX_SESSIONS )
+        M_first_free_si = M_highest_used_si + 1;
+    else
+        find_first_free_si();
+
+    DDBG("After starting new session:   M_first_free_si = %d", M_first_free_si);
+
+    /* -------------------------------------------- */
     /* custom session init */
 
     if ( !npp_app_session_init(ci) )
@@ -7356,6 +7457,7 @@ int npp_eng_session_start(int ci, const char *sessid)
         return ERR_INT_SERVER_ERROR;
     }
 
+    /* -------------------------------------------- */
     /* set 'as' cookie */
 
     strcpy(G_connections[ci].cookie_out_a, new_sessid);
@@ -7365,6 +7467,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     if ( G_sessions_cnt > G_sessions_hwm )
         G_sessions_hwm = G_sessions_cnt;
 
+    /* -------------------------------------------- */
     /* update sessions index */
 
     memcpy(&M_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
