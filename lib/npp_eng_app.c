@@ -5564,6 +5564,7 @@ static bool a_session_ok(int ci)
 #else
         int si = npp_eng_find_si(G_connections[ci].cookie_in_a);
 #endif
+        DDBG("npp_eng_find_si = %d", si);
 
         if ( si != 0 && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent) )
         {
@@ -7374,7 +7375,6 @@ void npp_require_auth(const char *host, const char *path, char level)
 -------------------------------------------------------------------------- */
 int npp_eng_session_start(int ci, const char *sessid)
 {
-    int  i;
     char new_sessid[NPP_SESSID_LEN+1];
 
     DBG("npp_eng_session_start");
@@ -7431,6 +7431,14 @@ int npp_eng_session_start(int ci, const char *sessid)
 #endif
 
     /* -------------------------------------------- */
+    /* update sessions index */
+
+    memcpy(&M_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
+    M_sessions_idx[G_sessions_cnt-1].si = M_first_free_si;
+
+    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
+
+    /* -------------------------------------------- */
     /* update M_highest_used_si */
 
     if ( M_first_free_si > M_highest_used_si )
@@ -7451,8 +7459,11 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* -------------------------------------------- */
     /* custom session init */
 
+    DBG("Calling npp_app_session_init()...");
+
     if ( !npp_app_session_init(ci) )
     {
+        ERR("npp_app_session_init() failed");
         close_uses(G_connections[ci].si, ci);
         return ERR_INT_SERVER_ERROR;
     }
@@ -7466,14 +7477,6 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     if ( G_sessions_cnt > G_sessions_hwm )
         G_sessions_hwm = G_sessions_cnt;
-
-    /* -------------------------------------------- */
-    /* update sessions index */
-
-    memcpy(&M_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
-    M_sessions_idx[G_sessions_cnt-1].si = i;
-
-    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
 
     return OK;
 }
