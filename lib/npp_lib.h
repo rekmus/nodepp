@@ -735,7 +735,7 @@ extern "C" {
 #endif
 
 
-#ifndef NPP_CLIENT  /* web app only */
+#ifndef NPP_CLIENT  /* server processes only */
 
 #ifdef NPP_CPP_STRINGS
     bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
@@ -879,7 +879,7 @@ extern "C" {
     char *strnstr(const char *haystack, const char *needle, size_t len);
 #endif  /* _WIN32 */
 
-#ifndef NPP_CLIENT  /* web app only */
+#ifndef NPP_CLIENT  /* server processes only */
     void npp_lib_set_formats(int ci, const char *lang);
     const char *npp_get_message(int ci, int code);
     void npp_out_html_header(int ci);
@@ -934,6 +934,14 @@ extern "C" {
     unsigned npp_get_snippet_len(int ci, const char *name);
     void npp_out_snippet(int ci, const char *name);
     void npp_out_snippet_md(int ci, const char *name);
+    int  npp_lib_compare_sess_idx(const void *a, const void *b);
+
+#ifdef NPP_MULTI_HOST
+    int npp_lib_find_sess_idx_idx(int host_id, const char *sessid);
+#else
+    int npp_lib_find_sess_idx_idx(const char *sessid);
+#endif
+
 #endif  /* NPP_CLIENT */
 
 #ifdef __cplusplus

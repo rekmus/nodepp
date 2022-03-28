@@ -1246,28 +1246,33 @@ int npp_usr_login(int ci)
 
     if ( IS_SESSION )
     {
+#ifdef NPP_APP
 #ifdef NPP_MULTI_HOST
-        int idx = npp_eng_find_sess_idx_idx(G_connections[ci].host_id, SESSION.sessid);
+        int idx = npp_lib_find_sess_idx_idx(G_connections[ci].host_id, SESSION.sessid);
 #else
-        int idx = npp_eng_find_sess_idx_idx(SESSION.sessid);
+        int idx = npp_lib_find_sess_idx_idx(SESSION.sessid);
 #endif
+#endif  /* NPP_APP */
         npp_random(SESSION.sessid, NPP_SESSID_LEN);
 #ifdef NPP_DEBUG
         DBG("Using current session si=%d, generated new sessid [%s]", G_connections[ci].si, SESSION.sessid);
 #else
         DBG("Using current session si=%d, generated new sessid", G_connections[ci].si);
 #endif
+
+#ifdef NPP_APP
         /* update sessions index */
 
         if ( idx == -1 )    /* this should never happen */
         {
-            ERR("npp_eng_find_sess_idx_idx returned -1");
+            ERR("npp_lib_find_sess_idx_idx returned -1");
         }
         else
         {
             memcpy(&G_sessions_idx[idx].sessid, SESSION.sessid, NPP_SESSID_LEN+1);
-            qsort(G_sessions_idx, G_sessions_cnt, sizeof(G_sessions_idx[0]), npp_eng_compare_sess_idx);
+            qsort(G_sessions_idx, G_sessions_cnt, sizeof(G_sessions_idx[0]), npp_lib_compare_sess_idx);
         }
+#endif  /* NPP_APP */
     }
     else    /* no session --> start a new one */
     {

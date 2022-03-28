@@ -74,6 +74,8 @@ npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", NPP_REQUIR
 int         G_hosts_cnt=1;
 #endif
 
+sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS]={0};
+
 #if __GNUC__ < 6
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-braces"
@@ -10136,7 +10138,7 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 
 
 /* ================================================================================================ */
-/* Main process (npp_app) only                                                                      */
+/* Server processes (npp_app & npp_svc) only                                                                      */
 /* ================================================================================================ */
 
 #ifndef NPP_CLIENT
@@ -10161,21 +10163,12 @@ void npp_lib_set_formats(int ci, const char *lang)
 
     if ( 0==strcmp(lang, "EN-US") || 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "TH-TH") )
     {
-//        M_dsep = '.';
-//        M_tsep = ',';
         G_connections[ci].formats |= NPP_NUMBER_DS_DOT;
         G_connections[ci].formats |= NPP_NUMBER_TS_COMMA;
     }
     else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "NB-NO") || 0==strcmp(lang, "ES-ES") )
     {
-//        M_dsep = ',';
-//        M_tsep = '.';
         G_connections[ci].formats |= NPP_NUMBER_TS_DOT;
-    }
-    else
-    {
-//        M_dsep = ',';
-//        M_tsep = ' ';
     }
 
     G_connections[ci].formats |= NPP_FORMATS_SET;
@@ -10373,6 +10366,100 @@ static char dest[256];
 
 
 /* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+int npp_lib_compare_sess_idx(const void *a, const void *b)
+{
+    const sessions_idx_t *p1 = (sessions_idx_t*)a;
+    const sessions_idx_t *p2 = (sessions_idx_t*)b;
+
+#ifdef NPP_MULTI_HOST
+
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+#endif
+
+    return strcmp(p1->sessid, p2->sessid);
+}
+
+
+/* --------------------------------------------------------------------------
+   Find session index
+-------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+int npp_lib_find_sess_idx_idx(int host_id, const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return -1;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        if ( G_sessions_idx[middle].host_id < host_id )
+        {
+            first = middle + 1;
+        }
+        else if ( G_sessions_idx[middle].host_id == host_id )
+        {
+            result = strcmp(G_sessions_idx[middle].sessid, sessid);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* G_sessions_idx[middle].host_id > host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;  /* not found */
+}
+
+#else   /* NOT NPP_MULTI_HOST */
+
+int npp_lib_find_sess_idx_idx(const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return -1;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(G_sessions_idx[middle].sessid, sessid);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;  /* not found */
+}
+#endif  /* NPP_MULTI_HOST */
+
+
+/* --------------------------------------------------------------------------
    Notify admin via email
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -10404,5 +10491,5 @@ void npp_notify_admin(const char *msg)
 
 
 /* ================================================================================================ */
-/* End of main process (npp_app) only part                                                          */
+/* End of server processes (npp_app & npp_svc) only part                                                          */
 /* ================================================================================================ */
