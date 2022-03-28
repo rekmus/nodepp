@@ -1771,6 +1771,8 @@ extern eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1];       /* engine sessio
 extern app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]; /* app session data, using the same index (si) */
 extern int          G_sessions_cnt;                             /* number of active user sessions */
 extern int          G_sessions_hwm;                             /* highest number of active user sessions (high water mark) */
+extern sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS];         /* G_sessions' index, this starts from 0 */
+
 extern time_t       G_now;                                      /* current GMT time (epoch) */
 extern struct tm    *G_ptm;                                     /* human readable current time */
 extern char         G_last_modified[32];                        /* response header field with server's start time */
@@ -1893,10 +1895,18 @@ extern "C" {
     int  npp_eng_session_start(int ci, const char *sessid);
 
 #ifdef NPP_MULTI_HOST
+    int npp_eng_find_sess_idx_idx(int host_id, const char *sessid);
+#else
+    int npp_eng_find_sess_idx_idx(const char *sessid);
+#endif
+
+#ifdef NPP_MULTI_HOST
     int  npp_eng_find_si(int host_id, const char *sessid);
 #else
     int  npp_eng_find_si(const char *sessid);
 #endif
+
+    int  npp_eng_compare_sess_idx(const void *a, const void *b);
 
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);

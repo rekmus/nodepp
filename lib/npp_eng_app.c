@@ -72,6 +72,7 @@ int         G_connections_cnt=0;
 int         G_connections_hwm=0;
 eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0};
+sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS]={0};
 int         G_sessions_cnt=0;
 int         G_sessions_hwm=0;
 char        G_last_modified[32]="";
@@ -198,8 +199,6 @@ static int          M_highest_used_si=0;
 
 static auth_level_t M_auth_levels[NPP_MAX_RESOURCES]={0};
 static int          M_auth_levels_cnt=0;
-
-static sessions_idx_t M_sessions_idx[NPP_MAX_SESSIONS]={0}; /* this starts from 0 */
 
 #ifdef NPP_ASYNC
 static areq_t       M_areqs[NPP_ASYNC_MAX_REQUESTS]={0}; /* async requests */
@@ -650,6 +649,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_DEBUG */
                     ci = M_poll_ci[pi];   /* set G_connections array index */
 #ifdef NPP_DEBUG
+#ifndef NPP_CPP_STRINGS
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
                     {
                         int l;
@@ -659,6 +659,7 @@ int main(int argc, char **argv)
                         DBG_LINE;
                         dbg_last_time1 = G_now;
                     }
+#endif  /* NPP_CPP_STRINGS */
 #endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_POLL */
 
@@ -669,7 +670,7 @@ int main(int argc, char **argv)
                     DBG_LINE;
                     DBG("epi = %d", epi);
                     DBG_LINE;
-
+#ifndef NPP_CPP_STRINGS
                     if ( G_now != dbg_last_time1 )   /* only once in a second */
                     {
                         int l;
@@ -693,13 +694,8 @@ int main(int argc, char **argv)
                         DBG_LINE;
                         dbg_last_time1 = G_now;
                     }
+#endif  /* NPP_CPP_STRINGS */
 #endif  /* NPP_DEBUG */
-//                    if ( (M_epollevs[epi].events & EPOLLERR) || (M_epollevs[epi].events & EPOLLHUP) )
-//                    {
-//                        DDBG("EPOLLERR or EPOLLHUP");
-//                        sockets_ready--;
-//                        continue;
-//                    }
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
                         DDBG("EPOLLIN (new?)");
@@ -726,7 +722,9 @@ int main(int argc, char **argv)
 
                     if ( epoll_idx == -1 )
                     {
+#ifndef NPP_CPP_STRINGS
                         DDBG("fd=%d not found in M_epoll_ci", M_epollevs[epi].data.fd);
+#endif
                         sockets_ready--;
                         continue;
                     }
@@ -1054,12 +1052,14 @@ int main(int argc, char **argv)
                     {
 #ifdef NPP_DEBUG
                         DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
+#ifndef NPP_CPP_STRINGS
 #ifdef NPP_FD_MON_POLL
                         DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #ifdef NPP_FD_MON_EPOLL
                         DBG("events=%d", M_epollevs[epi].events);
 #endif
+#endif  /* NPP_CPP_STRINGS */
                         DBG("");
 #endif  /* NPP_DEBUG */
                     }
@@ -5414,7 +5414,7 @@ static void print_content_type(int ci, char type)
    Find session index
 -------------------------------------------------------------------------- */
 #ifdef NPP_MULTI_HOST
-static int find_sessions_idx_idx(int host_id, const char *sessid)
+int npp_eng_find_sess_idx_idx(int host_id, const char *sessid)
 {
     if ( sessid == NULL || sessid[0] == EOS )
         return -1;
@@ -5426,13 +5426,13 @@ static int find_sessions_idx_idx(int host_id, const char *sessid)
 
     while ( first <= last )
     {
-        if ( M_sessions_idx[middle].host_id < host_id )
+        if ( G_sessions_idx[middle].host_id < host_id )
         {
             first = middle + 1;
         }
-        else if ( M_sessions_idx[middle].host_id == host_id )
+        else if ( G_sessions_idx[middle].host_id == host_id )
         {
-            result = strcmp(M_sessions_idx[middle].sessid, sessid);
+            result = strcmp(G_sessions_idx[middle].sessid, sessid);
 
             if ( result < 0 )
                 first = middle + 1;
@@ -5441,7 +5441,7 @@ static int find_sessions_idx_idx(int host_id, const char *sessid)
             else    /* result > 0 */
                 last = middle - 1;
         }
-        else    /* M_sessions_idx[middle].host_id > host_id */
+        else    /* G_sessions_idx[middle].host_id > host_id */
         {
             last = middle - 1;
         }
@@ -5454,7 +5454,7 @@ static int find_sessions_idx_idx(int host_id, const char *sessid)
 
 #else   /* NOT NPP_MULTI_HOST */
 
-static int find_sessions_idx_idx(const char *sessid)
+int npp_eng_find_sess_idx_idx(const char *sessid)
 {
     if ( sessid == NULL || sessid[0] == EOS )
         return -1;
@@ -5466,7 +5466,7 @@ static int find_sessions_idx_idx(const char *sessid)
 
     while ( first <= last )
     {
-        result = strcmp(M_sessions_idx[middle].sessid, sessid);
+        result = strcmp(G_sessions_idx[middle].sessid, sessid);
 
         if ( result < 0 )
             first = middle + 1;
@@ -5489,20 +5489,20 @@ static int find_sessions_idx_idx(const char *sessid)
 #ifdef NPP_MULTI_HOST
 int npp_eng_find_si(int host_id, const char *sessid)
 {
-    int idx = find_sessions_idx_idx(host_id, sessid);
+    int idx = npp_eng_find_sess_idx_idx(host_id, sessid);
 
     if ( idx != -1 )
-        return M_sessions_idx[idx].si;
+        return G_sessions_idx[idx].si;
 
     return 0;
 }
 #else
 int npp_eng_find_si(const char *sessid)
 {
-    int idx = find_sessions_idx_idx(sessid);
+    int idx = npp_eng_find_sess_idx_idx(sessid);
 
     if ( idx != -1 )
-        return M_sessions_idx[idx].si;
+        return G_sessions_idx[idx].si;
 
     return 0;
 }
@@ -5608,7 +5608,7 @@ static void uses_close_timeouted()
 /* --------------------------------------------------------------------------
    Compare
 -------------------------------------------------------------------------- */
-static int compare_sessions_idx(const void *a, const void *b)
+int npp_eng_compare_sess_idx(const void *a, const void *b)
 {
     const sessions_idx_t *p1 = (sessions_idx_t*)a;
     const sessions_idx_t *p2 = (sessions_idx_t*)b;
@@ -5650,9 +5650,9 @@ static void close_uses(int si, int ci)
     /* update sessions index */
 
 #ifdef NPP_MULTI_HOST
-    int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].host_id, G_sessions[si].sessid);
+    int sessions_idx_idx = npp_eng_find_sess_idx_idx(G_sessions[si].host_id, G_sessions[si].sessid);
 #else
-    int sessions_idx_idx = find_sessions_idx_idx(G_sessions[si].sessid);
+    int sessions_idx_idx = npp_eng_find_sess_idx_idx(G_sessions[si].sessid);
 #endif
 
     if ( sessions_idx_idx == -1 )   /* this should never happen */
@@ -5660,16 +5660,16 @@ static void close_uses(int si, int ci)
         ERR("ci=%d, si=%d, sessions_idx_idx == -1", ci, si);
         DDBG("sessid [%s]", G_sessions[si].sessid);
     }
-    else    /* session found in M_sessions_idx */
+    else    /* session found in G_sessions_idx */
     {
 #ifdef NPP_MULTI_HOST
-        M_sessions_idx[sessions_idx_idx].host_id = NPP_MAX_HOSTS;
+        G_sessions_idx[sessions_idx_idx].host_id = NPP_MAX_HOSTS;
 #endif
-        memset(M_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
-        M_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
-        M_sessions_idx[sessions_idx_idx].si = 0;
+        memset(G_sessions_idx[sessions_idx_idx].sessid, 'z', NPP_SESSID_LEN);
+        G_sessions_idx[sessions_idx_idx].sessid[NPP_SESSID_LEN] = EOS;
+        G_sessions_idx[sessions_idx_idx].si = 0;
 
-        qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
+        qsort(G_sessions_idx, G_sessions_cnt, sizeof(G_sessions_idx[0]), npp_eng_compare_sess_idx);
     }
 
     /* reset session data */
@@ -5912,7 +5912,7 @@ static bool check_block_ip(int ci, const char *rule, const char *value)
 /* --------------------------------------------------------------------------
    Find authorization level for the requested resource
 -------------------------------------------------------------------------- */
-char find_auth_level(int ci)
+static char find_auth_level(int ci)
 {
     int i;
 
@@ -6953,8 +6953,6 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     else if ( 0==strcmp(ulabel, "REFERER") )
     {
         strcpy(G_connections[ci].referer, value);
-//      if ( !G_connections[ci].uri[0] && value[0] )
-//          INF("Referer: [%s]", value);
     }
     else if ( 0==strcmp(ulabel, "CONTENT-TYPE") )
     {
@@ -7030,16 +7028,9 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "ACCEPT-LANGUAGE") )    /* en-US en-GB pl-PL */
     {
-/*        if ( !IS_SESSION )
-            DBG("No session");
-
-        if ( SESSION.lang[0]==EOS )
-            DBG("No lang in session, SESSION.lang [%s]", SESSION.lang);*/
-
         if ( !IS_SESSION || SESSION.lang[0]==EOS )    /* session data has priority */
-//        if ( !NPP_IS_FORMATS_SET )
         {
-            DBG("No session or no language in session, setting formats");
+            DDBG("No session or no language in session, setting formats");
 
             i = 0;
             while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
@@ -7362,8 +7353,6 @@ void npp_require_auth(const char *host, const char *path, char level)
 -------------------------------------------------------------------------- */
 int npp_eng_session_start(int ci, const char *sessid)
 {
-    char new_sessid[NPP_SESSID_LEN+1];
-
     DBG("npp_eng_session_start");
 
     if ( G_sessions_cnt == NPP_MAX_SESSIONS )
@@ -7377,6 +7366,8 @@ int npp_eng_session_start(int ci, const char *sessid)
     G_connections[ci].si = M_first_free_si;
 
     /* -------------------------------------------- */
+
+    char new_sessid[NPP_SESSID_LEN+1];
 
     if ( sessid )
     {
@@ -7420,10 +7411,20 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* -------------------------------------------- */
     /* update sessions index */
 
-    memcpy(&M_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
-    M_sessions_idx[G_sessions_cnt-1].si = M_first_free_si;
+    memcpy(&G_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
+    G_sessions_idx[G_sessions_cnt-1].si = M_first_free_si;
 
-    qsort(M_sessions_idx, G_sessions_cnt, sizeof(M_sessions_idx[0]), compare_sessions_idx);
+    qsort(G_sessions_idx, G_sessions_cnt, sizeof(G_sessions_idx[0]), npp_eng_compare_sess_idx);
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+    DBG(" Sessions (sorted):");
+    DBG_LINE;
+    int i;
+    for ( i=0; i<G_sessions_cnt; ++i )
+        DBG(" [%s] si=%d", G_sessions_idx[i].sessid, G_sessions_idx[i].si);
+    DBG_LINE;
+#endif
 
     /* -------------------------------------------- */
     /* update M_highest_used_si */
