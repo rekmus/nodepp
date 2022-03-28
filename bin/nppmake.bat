@@ -65,7 +65,7 @@ if %NPP_MYSQL%==1 (
 )
 
 if %NPP_USERS%==1 (
-    set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% ..\lib\npp_usr.c"
+    set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% ..\lib\npp_usr.cpp"
 )
 
 if %NPP_VERBOSE%==1 echo NPP_M_MODULES_APP=%NPP_M_MODULES_APP%
