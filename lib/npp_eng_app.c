@@ -7335,6 +7335,9 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* -------------------------------------------- */
     /* update sessions index */
 
+#ifdef NPP_MULTI_HOST
+    G_sessions_idx[G_sessions_cnt-1].host_id = G_connections[ci].host_id;
+#endif
     memcpy(&G_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
     G_sessions_idx[G_sessions_cnt-1].si = M_first_free_si;
 
@@ -7346,7 +7349,11 @@ int npp_eng_session_start(int ci, const char *sessid)
     DBG_LINE;
     int i;
     for ( i=0; i<G_sessions_cnt; ++i )
+#ifdef NPP_MULTI_HOST
+        DBG(" %d [%s] si=%d", G_sessions_idx[i].host_id, G_sessions_idx[i].sessid, G_sessions_idx[i].si);
+#else
         DBG(" [%s] si=%d", G_sessions_idx[i].sessid, G_sessions_idx[i].si);
+#endif
     DBG_LINE;
 #endif
 

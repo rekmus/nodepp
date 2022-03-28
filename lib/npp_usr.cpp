@@ -37,6 +37,15 @@
 #ifdef NPP_USERS
 
 
+#include "Cusers.h"
+#include "Cusers_groups.h"
+#include "Cusers_settings.h"
+#include "Cusers_logins.h"
+#include "Cusers_activations.h"
+#include "Cusers_p_resets.h"
+#include "Cusers_messages.h"
+
+
 int G_new_user_id=0;
 
 
@@ -289,205 +298,173 @@ int libusr_luses_ok(int ci)
 
     /* not found in memory -- try database */
 
-    char        sql[NPP_SQLBUF];
-    MYSQL_RES   *result;
-    MYSQL_ROW   row;
-
-    char sanuagent[NPP_DB_UAGENT_LEN+1];
-    npp_lib_escape_for_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
-
-    char sanlscookie[NPP_SESSID_LEN+1];
-    strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
-
-    sprintf(sql, "SELECT uagent, user_id, created, csrft FROM users_logins WHERE sessid = BINARY '%s'", sanlscookie);
-#ifdef NPP_DEBUG
-    DBG("sql: %s", sql);
-#else
-    DBG("sql: SELECT uagent, user_id, created, csrft FROM users_logins WHERE sessid = BINARY...");
-#endif
-
-    mysql_query(G_dbconn, sql);
-
-    result = mysql_store_result(G_dbconn);
-
-    if ( !result )
-    {
-        ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
-        return ERR_INT_SERVER_ERROR;
-    }
-
-    row = mysql_fetch_row(result);
-
-    if ( !row )     /* no such session in database */
-    {
-        mysql_free_result(result);
-        WAR("No authenticated session in database [%s]", sanlscookie);
-        strcpy(G_connections[ci].cookie_out_l, "x");
-        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
-
-        /* ---------------------------------------------------------------------------------- */
-        /* brute force ls cookie attack prevention */
-
-        /* maintain the list of last n IPs with failed ls cookie authentication with counters */
-
-        static failed_login_cnt_t failed_cnt[FAILED_LOGIN_CNT_SIZE];
-        static int failed_cnt_used=0;
-        static int failed_cnt_next=0;
-        char found=0;
-
-        for ( i=0; i<failed_cnt_used && i<FAILED_LOGIN_CNT_SIZE; ++i )
-        {
-            if ( 0==strcmp(G_connections[ci].ip, failed_cnt[i].ip) )
-            {
-                if ( (failed_cnt[i].cnt > 10 && failed_cnt[i].when > G_now-60)      /* 10 failed attempts within a minute or */
-                    || (failed_cnt[i].cnt > 100 && failed_cnt[i].when > G_now-3600) /* 100 failed attempts within an hour or */
-                    || failed_cnt[i].cnt > 1000 )                                   /* 1000 failed attempts */
-                {
-                    WAR("Looks like brute-force cookie attack, blocking IP");
-                    npp_eng_block_ip(G_connections[ci].ip, TRUE);
-                }
-                else
-                {
-                    ++failed_cnt[i].cnt;
-                }
-
-                found = 1;
-                break;
-            }
-        }
-
-        if ( !found )   /* add record to failed_cnt array */
-        {
-            strcpy(failed_cnt[failed_cnt_next].ip, G_connections[ci].ip);
-            failed_cnt[failed_cnt_next].cnt = 1;
-            failed_cnt[failed_cnt_next].when = G_now;
-
-            if ( failed_cnt_next >= FAILED_LOGIN_CNT_SIZE-1 )    /* last slot was just used -- roll over */
-                failed_cnt_next = 0;
-            else
-            {
-                ++failed_cnt_next;
-
-                if ( failed_cnt_used < FAILED_LOGIN_CNT_SIZE )   /* before first roll-over */
-                    ++failed_cnt_used;
-            }
-        }
-
-        /* ---------------------------------------------------------------------------------- */
-
-        return ERR_SESSION_EXPIRED;
-    }
-
-    /* verify uagent */
-
-    if ( 0 != strcmp(sanuagent, row[0]) )
-    {
-        mysql_free_result(result);
-#ifdef NPP_DEBUG
-        INF("Different uagent in database for sessid [%s]", sanlscookie);
-#else
-        INF("Different uagent in database");
-#endif
-        strcpy(G_connections[ci].cookie_out_l, "x");
-        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
-        return ERR_SESSION_EXPIRED;
-    }
-
-#ifdef NPP_DEBUG
-    DBG("ci=%d, sessid [%s] uagent OK", ci, sanlscookie);
-#else
-    DBG("ci=%d, uagent OK", ci);
-#endif
-
-    /* -------------------------------------------------- */
-    /* Verify time. If created more than NPP_USER_KEEP_LOGGED_DAYS ago -- refuse */
-
-    time_t created = time_db2epoch(row[2]);
-
-    if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
-    {
-        DBG("Removing old authenticated session, si=%d, sessid [%s], created %s from database", G_connections[ci].si, sanlscookie, row[2]);
-
-        mysql_free_result(result);
-
-        sprintf(sql, "DELETE FROM users_logins WHERE sessid = BINARY '%s'", sanlscookie);
-        DBG("sql: %s", sql);
-
-        if ( mysql_query(G_dbconn, sql) )
-        {
-            ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
-            return ERR_INT_SERVER_ERROR;
-        }
-
-        /* tell browser we're logging out */
-
-        strcpy(G_connections[ci].cookie_out_l, "x");
-        strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
-
-        INF("Session [%s] expired", sanlscookie);
-
-        return ERR_SESSION_EXPIRED;
-    }
-
-#ifdef NPP_DEBUG
-    DBG("ci=%d, session [%s] created not too long ago => OK", ci, sanlscookie);
-#else
-    DBG("ci=%d, session created not too long ago => OK", ci);
-#endif
-
-    /* -------------------------------------------------- */
-    /* cookie has not expired -- log user in */
+    time_t created;
 
     eng_session_data_t us={0};   /* pass user information (in this case user_id) over to do_login */
 
-    us.user_id = atoi(row[1]);
-
-    char csrft[NPP_CSRFT_LEN+1];
-
-    if ( row[3] && row[3][0] )   /* csrft from users_logins */
+    try
     {
+static Cusers_logins ul;
+
+        char sanlscookie[NPP_SESSID_LEN+1];
+        strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
+
+        if ( !ul.Get(sanlscookie) )
+        {
+            WAR("No authenticated session in database [%s]", sanlscookie);
+            strcpy(G_connections[ci].cookie_out_l, "x");
+            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+
+            /* ---------------------------------------------------------------------------------- */
+            /* brute force ls cookie attack prevention */
+
+            /* maintain the list of last n IPs with failed ls cookie authentication with counters */
+
+            static failed_login_cnt_t failed_cnt[FAILED_LOGIN_CNT_SIZE];
+            static int failed_cnt_used=0;
+            static int failed_cnt_next=0;
+            char found=0;
+
+            for ( i=0; i<failed_cnt_used && i<FAILED_LOGIN_CNT_SIZE; ++i )
+            {
+                if ( 0==strcmp(G_connections[ci].ip, failed_cnt[i].ip) )
+                {
+                    if ( (failed_cnt[i].cnt > 10 && failed_cnt[i].when > G_now-60)      /* 10 failed attempts within a minute or */
+                        || (failed_cnt[i].cnt > 100 && failed_cnt[i].when > G_now-3600) /* 100 failed attempts within an hour or */
+                        || failed_cnt[i].cnt > 1000 )                                   /* 1000 failed attempts */
+                    {
+                        WAR("Looks like brute-force cookie attack, blocking IP");
+                        npp_eng_block_ip(G_connections[ci].ip, TRUE);
+                    }
+                    else
+                    {
+                        ++failed_cnt[i].cnt;
+                    }
+
+                    found = 1;
+                    break;
+                }
+            }
+
+            if ( !found )   /* add record to failed_cnt array */
+            {
+                strcpy(failed_cnt[failed_cnt_next].ip, G_connections[ci].ip);
+                failed_cnt[failed_cnt_next].cnt = 1;
+                failed_cnt[failed_cnt_next].when = G_now;
+
+                if ( failed_cnt_next >= FAILED_LOGIN_CNT_SIZE-1 )    /* last slot was just used -- roll over */
+                    failed_cnt_next = 0;
+                else
+                {
+                    ++failed_cnt_next;
+
+                    if ( failed_cnt_used < FAILED_LOGIN_CNT_SIZE )   /* before first roll-over */
+                        ++failed_cnt_used;
+                }
+            }
+
+            /* ---------------------------------------------------------------------------------- */
+
+            return ERR_SESSION_EXPIRED;
+        }
+
+        /* verify uagent */
+
+        char sanuagent[NPP_DB_UAGENT_LEN+1];
+        npp_lib_escape_for_sql(sanuagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
+
+        if ( 0 != strcmp(sanuagent, ul.uagent) )
+        {
 #ifdef NPP_DEBUG
-        DBG("Using previous CSRFT [%s]", row[3]);
+            INF("Different uagent in database for sessid [%s]", sanlscookie);
 #else
-        DBG("Using previous CSRFT");
+            INF("Different uagent in database");
 #endif
-        strcpy(csrft, row[3]);
-    }
-    else
-    {
-        DBG("Fresh CSRFT will be used");
-        csrft[0] = EOS;
-    }
+            strcpy(G_connections[ci].cookie_out_l, "x");
+            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
 
-    mysql_free_result(result);
-
-    DBG("Valid authenticated session found in database");
-
-    /* -------------------------------------------------- */
-    /* start a fresh anonymous session */
-
-    if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
-        return ret;
-
-    if ( csrft[0] )   /* using previous CSRFT */
-        strcpy(SESSION.csrft, csrft);
-
-    /* replace sessid */
-
-    if ( csrft[0] )
-        sprintf(sql, "UPDATE users_logins SET sessid='%s', last_used='%s' WHERE sessid = BINARY '%s'", SESSION.sessid, DT_NOW_GMT, sanlscookie);
-    else
-        sprintf(sql, "UPDATE users_logins SET sessid='%s', csrft='%s', last_used='%s' WHERE sessid = BINARY '%s'", SESSION.sessid, SESSION.csrft, DT_NOW_GMT, sanlscookie);
+            return ERR_SESSION_EXPIRED;
+        }
 
 #ifdef NPP_DEBUG
-    DBG("sql: %s", sql);
+        DBG("ci=%d, sessid [%s] uagent OK", ci, sanlscookie);
 #else
-    DBG("sql: UPDATE users_logins SET sessid=...");
+        DBG("ci=%d, uagent OK", ci);
 #endif
 
-    if ( mysql_query(G_dbconn, sql) )
+        /* -------------------------------------------------- */
+        /* Verify time. If created more than NPP_USER_KEEP_LOGGED_DAYS ago -- refuse */
+
+        created = time_db2epoch(ul.created);
+
+        if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
+        {
+            DBG("Removing old authenticated session, si=%d, sessid [%s], created %s from database", G_connections[ci].si, sanlscookie, ul.created);
+
+            ul.Delete(sanlscookie);
+
+            /* tell browser we're logging out */
+
+            strcpy(G_connections[ci].cookie_out_l, "x");
+            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+
+            INF("Session [%s] expired", sanlscookie);
+
+            return ERR_SESSION_EXPIRED;
+        }
+
+#ifdef NPP_DEBUG
+        DBG("ci=%d, session [%s] created not too long ago => OK", ci, sanlscookie);
+#else
+        DBG("ci=%d, session created not too long ago => OK", ci);
+#endif
+
+        /* -------------------------------------------------- */
+        /* cookie has not expired -- log user in */
+
+        us.user_id = ul.user_id;
+
+        char csrft[NPP_CSRFT_LEN+1];
+
+        if ( ul.csrft[0] )
+        {
+#ifdef NPP_DEBUG
+            DBG("Using previous CSRFT [%s]", ul.csrft);
+#else
+            DBG("Using previous CSRFT");
+#endif
+            strcpy(csrft, ul.csrft);
+        }
+        else
+        {
+            DBG("Fresh CSRFT will be used");
+            csrft[0] = EOS;
+        }
+
+        DBG("Valid authenticated session found in database");
+
+        /* -------------------------------------------------- */
+        /* start a fresh anonymous session */
+
+        if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
+            return ret;
+
+        if ( csrft[0] )   /* using previous CSRFT */
+            strcpy(SESSION.csrft, csrft);
+
+        /* replace sessid */
+
+        strcpy(ul.sessid, SESSION.sessid);
+        strcpy(ul.last_used, DT_NOW_GMT);
+
+        if ( csrft[0] == EOS )
+            strcpy(ul.csrft, SESSION.csrft);
+
+        ul.Update(sanlscookie);
+    }
+    catch (std::exception& e)
     {
-        ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
+        ERR(e.what());
         return ERR_INT_SERVER_ERROR;
     }
 
