@@ -792,7 +792,7 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
                                 DBG("ci=%d, trying SSL_read %u bytes of payload data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                while ( TRUE )
+                                while ( G_connections[ci].was_read < G_connections[ci].clen )
                                 {
                                     bytes = SSL_read(G_connections[ci].ssl, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read);
 
@@ -800,9 +800,6 @@ int main(int argc, char **argv)
                                     {
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
-
-                                        if ( G_connections[ci].was_read == G_connections[ci].clen )
-                                            break;
                                     }
                                     else
                                         break;
@@ -827,7 +824,7 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
                                 DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                bytes = recv(G_connections[ci].fd, G_connections[ci].in+G_connections[ci].was_read, NPP_IN_BUFSIZE-G_connections[ci].was_read-1, 0);
+                                bytes = recv(G_connections[ci].fd, G_connections[ci].in, NPP_IN_BUFSIZE-1, 0);
 
                                 if ( bytes > 0 )
                                 {
@@ -865,7 +862,7 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
                                 DBG("ci=%d, trying to read %u bytes of payload data from fd=%d", ci, G_connections[ci].clen-G_connections[ci].was_read, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                while ( TRUE )
+                                while ( G_connections[ci].was_read < G_connections[ci].clen )
                                 {
                                     bytes = recv(G_connections[ci].fd, G_connections[ci].in_data+G_connections[ci].was_read, G_connections[ci].clen-G_connections[ci].was_read, 0);
 
@@ -873,9 +870,6 @@ int main(int argc, char **argv)
                                     {
                                         DDBG("ci=%d, read %d bytes", ci, bytes);
                                         G_connections[ci].was_read += bytes;
-
-                                        if ( G_connections[ci].was_read == G_connections[ci].clen )
-                                            break;
                                     }
                                     else
                                         break;
@@ -929,7 +923,7 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_READY_TO_SEND_RESPONSE", ci);
                                 DBG("ci=%d, trying SSL_write %u bytes to fd=%d", ci, G_connections[ci].out_len, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                while ( TRUE )
+                                while ( G_connections[ci].data_sent < G_connections[ci].out_len )
                                 {
                                     bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
@@ -937,9 +931,6 @@ int main(int argc, char **argv)
                                     {
                                         DDBG("ci=%d, sent %d bytes", ci, bytes);
                                         G_connections[ci].data_sent += bytes;
-
-                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
-                                            break;
                                     }
                                     else
                                         break;
@@ -953,7 +944,7 @@ int main(int argc, char **argv)
                                 DBG("ci=%d, state == CONN_STATE_SENDING_CONTENT", ci);
                                 DBG("ci=%d, trying SSL_write %u bytes to fd=%d", ci, G_connections[ci].out_len-G_connections[ci].data_sent, G_connections[ci].fd);
 #endif  /* NPP_DEBUG */
-                                while ( TRUE )
+                                while ( G_connections[ci].data_sent < G_connections[ci].out_len )
                                 {
                                     bytes = SSL_write(G_connections[ci].ssl, G_connections[ci].out_start, G_connections[ci].out_len);
 
@@ -961,9 +952,6 @@ int main(int argc, char **argv)
                                     {
                                         DDBG("ci=%d, sent %d bytes", ci, bytes);
                                         G_connections[ci].data_sent += bytes;
-
-                                        if ( G_connections[ci].data_sent == G_connections[ci].out_len )
-                                            break;
                                     }
                                     else
                                         break;
@@ -1006,7 +994,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_HTTP2 */
                                         DDBG("ci=%d, trying to write %u bytes to fd=%d", ci, G_connections[ci].out_len, G_connections[ci].fd);
 
-                                        while ( TRUE )
+                                        while ( G_connections[ci].data_sent < G_connections[ci].out_len )
                                         {
                                             bytes = send(G_connections[ci].fd, G_connections[ci].out_start+G_connections[ci].data_sent, G_connections[ci].out_len-G_connections[ci].data_sent, 0);
 
@@ -1014,9 +1002,6 @@ int main(int argc, char **argv)
                                             {
                                                 DDBG("ci=%d, sent %d bytes", ci, bytes);
                                                 G_connections[ci].data_sent += bytes;
-
-                                                if ( G_connections[ci].data_sent == G_connections[ci].out_len )
-                                                    break;
                                             }
                                             else
                                                 break;
@@ -1043,7 +1028,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_HTTP2 */
                                     DDBG("ci=%d, trying to write %u bytes to fd=%d", ci, G_connections[ci].out_len-G_connections[ci].data_sent, G_connections[ci].fd);
 
-                                    while ( TRUE )
+                                    while ( G_connections[ci].data_sent < G_connections[ci].out_len )
                                     {
                                         bytes = send(G_connections[ci].fd, G_connections[ci].out_start+G_connections[ci].data_sent, G_connections[ci].out_len-G_connections[ci].data_sent, 0);
 
@@ -1051,9 +1036,6 @@ int main(int argc, char **argv)
                                         {
                                             DDBG("ci=%d, sent %d bytes", ci, bytes);
                                             G_connections[ci].data_sent += bytes;
-
-                                            if ( G_connections[ci].data_sent == G_connections[ci].out_len )
-                                                break;
                                         }
                                         else
                                             break;
@@ -2050,13 +2032,13 @@ static void set_state(int ci, int bytes, bool secure)
 
     if ( bytes <= 0 )
     {
+#ifdef NPP_DEBUG
+        NPP_SOCKET_LOG_ERROR(sockerr);
+#endif
         if ( !secure )
         {
             if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
             {
-#ifdef NPP_DEBUG
-                NPP_SOCKET_LOG_ERROR(sockerr);
-#endif
                 DBG("Closing connection\n");
                 close_connection(ci, TRUE);
                 return;
@@ -2072,8 +2054,6 @@ static void set_state(int ci, int bytes, bool secure)
             G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
 
 #ifdef NPP_DEBUG
-            NPP_SOCKET_LOG_ERROR(sockerr);
-
             if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )                   /* 1 (A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.) */
                 DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
             else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )        /* 2 */
@@ -2128,7 +2108,7 @@ static void set_state(int ci, int bytes, bool secure)
         }
 #endif  /* NPP_HTTPS */
 
-        return;     /* ??? */
+        return;
     }
 
     /* good to go */
@@ -2896,11 +2876,11 @@ static bool init(int argc, char **argv)
     /* custom init
        Among others, that may contain generating statics, like css and js */
 
-    INF("Calling npp_app_init()...");
+    INF("Calling npp_app_init...");
 
     if ( !npp_app_init(argc, argv) )
     {
-        ERR("npp_app_init() failed");
+        ERR("npp_app_init failed");
         return FALSE;
     }
 
@@ -4609,8 +4589,11 @@ static void process_req(int ci)
     /* ------------------------------------------------------------------------ */
 
 #ifdef NPP_DEBUG
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].in_data )
-        npp_log_long(G_connections[ci].in_data, G_connections[ci].was_read, "Payload");
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags)
+            && G_connections[ci].in_data
+            && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART
+            && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_OCTET_STREAM )
+        npp_log_long(G_connections[ci].in_data, G_connections[ci].was_read, "\nPayload");
 #endif
 
     /* ------------------------------------------------------------------------ */
@@ -5654,10 +5637,12 @@ static void close_uses(int si, int ci)
     DBG("Closing anonymous session, si=%d", si);
 #endif
 
+    DBG("Calling npp_app_session_done...");
+
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
         npp_app_session_done(ci);
-    else    /* trick to maintain consistency across npp_app_xxx functions */
-    {       /* that use ci for everything -- even to get user session data */
+    else    /* use special temporary G_connections slot to maintain consistency across npp_app_xxx functions */
+    {       /* that use ci for everything -- including getting the session data */
         G_connections[NPP_CLOSING_SESSION_CI].si = si;
         npp_app_session_done(NPP_CLOSING_SESSION_CI);
     }
@@ -7176,6 +7161,8 @@ static void clean_up()
     npp_log_memory();
     dump_counters();
 
+    DBG("Calling npp_app_done...");
+
     npp_app_done();
 
 #ifdef NPP_FD_MON_EPOLL
@@ -7459,11 +7446,11 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* -------------------------------------------- */
     /* custom session init */
 
-    DBG("Calling npp_app_session_init()...");
+    DBG("Calling npp_app_session_init...");
 
     if ( !npp_app_session_init(ci) )
     {
-        ERR("npp_app_session_init() failed");
+        ERR("npp_app_session_init failed");
         close_uses(G_connections[ci].si, ci);
         return ERR_INT_SERVER_ERROR;
     }

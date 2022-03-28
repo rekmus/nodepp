@@ -205,8 +205,11 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
     SESSION.group_id = us->group_id;
 
 #ifndef NPP_SVC
+    DBG("Calling npp_app_user_login...");
+
     if ( !npp_app_user_login(ci) )
     {
+        ERR("npp_app_user_login failed");
         libusr_luses_downgrade(G_connections[ci].si, ci, FALSE);
         return ERR_INT_SERVER_ERROR;
     }
@@ -583,6 +586,8 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
     G_sessions[si].group_id = 0;
 
 #ifndef NPP_SVC
+    DBG("Calling npp_app_user_logout...");
+
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
     {
         npp_app_user_logout(ci);
@@ -799,8 +804,6 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
 
     /* set formats */
 
-    DBG("SESSION.lang [%s]", SESSION.lang);
-
     if ( SESSION.lang[0] == EOS && G_connections[ci].lang[0] )  /* user has empty lang in database */
     {
         strcpy(SESSION.lang, G_connections[ci].lang);   /* formats should already be set */
@@ -810,6 +813,8 @@ static int do_login(int ci, eng_session_data_t *us, char status, int visits)
     {
         npp_lib_set_formats(ci, SESSION.lang);
     }
+
+    DBG("SESSION.lang [%s]", SESSION.lang);
 
     /* upgrade anonymous session to logged in */
 
