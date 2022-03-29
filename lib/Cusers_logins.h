@@ -14,7 +14,7 @@
 
 typedef char USERS_LOGINS_SESSID[15+1];
 typedef char USERS_LOGINS_UAGENT[250+1];
-typedef char USERS_LOGINS_IP[15+1];
+typedef char USERS_LOGINS_IP[45+1];
 typedef char USERS_LOGINS_CSRFT[7+1];
 typedef char USERS_LOGINS_CREATED[19+1];
 typedef char USERS_LOGINS_LAST_USED[19+1];

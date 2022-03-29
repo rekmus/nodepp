@@ -436,7 +436,7 @@
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  15      /* in one JSON struct */
+#define NPP_JSON_MAX_ELEMS                  30      /* in one JSON struct */
 #endif
 
 #ifndef NPP_JSON_MAX_LEVELS
@@ -511,7 +511,7 @@
 #define NPP_JSON_STR_LEN                    255
 
 #undef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  30
+#define NPP_JSON_MAX_ELEMS                  50
 
 #undef NPP_JSON_MAX_LEVELS
 #define NPP_JSON_MAX_LEVELS                 4

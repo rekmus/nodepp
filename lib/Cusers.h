@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-28 14:58:12, generator v.2.0.1
+   Generated on nodepp.org on 2022-03-29 20:05:41, generator v.2.0.1
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -22,8 +22,6 @@ typedef char USERS_PASSWD1[44+1];
 typedef char USERS_PASSWD2[44+1];
 typedef char USERS_LANG[5+1];
 typedef char USERS_ABOUT[250+1];
-typedef char USERS_AVATAR_NAME[60+1];
-typedef char USERS_AVATAR_DATA[65535+1];
 typedef char USERS_CREATED[19+1];
 typedef char USERS_LAST_LOGIN[19+1];
 typedef char USERS_ULA_TIME[19+1];
@@ -31,35 +29,31 @@ typedef char USERS_ULA_TIME[19+1];
 
 typedef struct
 {
-    int               id;
-    USERS_LOGIN       login;
-    USERS_LOGIN_U     login_u;
-    USERS_EMAIL       email;
-    USERS_EMAIL_U     email_u;
-    USERS_NAME        name;
-    USERS_PHONE       phone;
-    USERS_PASSWD1     passwd1;
-    USERS_PASSWD2     passwd2;
-    USERS_LANG        lang;
-    USERS_ABOUT       about;
-    USERS_AVATAR_NAME avatar_name;
-    USERS_AVATAR_DATA avatar_data;
-    int               group_id;
-    char              auth_level;
-    char              status;
-    USERS_CREATED     created;
-    USERS_LAST_LOGIN  last_login;
-    int               visits;
-    int               ula_cnt;
-    USERS_ULA_TIME    ula_time;
+    int              id;
+    USERS_LOGIN      login;
+    USERS_LOGIN_U    login_u;
+    USERS_EMAIL      email;
+    USERS_EMAIL_U    email_u;
+    USERS_NAME       name;
+    USERS_PHONE      phone;
+    USERS_PASSWD1    passwd1;
+    USERS_PASSWD2    passwd2;
+    USERS_LANG       lang;
+    USERS_ABOUT      about;
+    int              group_id;
+    char             auth_level;
+    char             status;
+    USERS_CREATED    created;
+    USERS_LAST_LOGIN last_login;
+    int              visits;
+    int              ula_cnt;
+    USERS_ULA_TIME   ula_time;
 } USERS_REC;
 
 
 class Cusers : public USERS_REC, public Cdb
 {
 public:
-    unsigned long avatar_data_len;
-
     Cusers();
     ~Cusers();
 
@@ -102,7 +96,6 @@ static bool slots_[CDB_MAX_INSTANCES];
     unsigned long passwd2_len_;
     unsigned long lang_len_;
     unsigned long about_len_;
-    unsigned long avatar_name_len_;
     MYSQL_TIME    t_created_;
     MYSQL_TIME    t_last_login_;
     MYSQL_TIME    t_ula_time_;
@@ -119,8 +112,6 @@ static bool slots_[CDB_MAX_INSTANCES];
     my_bool passwd2_is_null_;
     my_bool lang_is_null_;
     my_bool about_is_null_;
-    my_bool avatar_name_is_null_;
-    my_bool avatar_data_is_null_;
     my_bool group_id_is_null_;
     my_bool auth_level_is_null_;
     my_bool status_is_null_;
@@ -131,8 +122,8 @@ static bool slots_[CDB_MAX_INSTANCES];
     my_bool ula_time_is_null_;
 
     MYSQL_BIND bndk_[1];
-    MYSQL_BIND bndi_[22];
-    MYSQL_BIND bndo_[21];
+    MYSQL_BIND bndi_[20];
+    MYSQL_BIND bndo_[19];
 
     void bindKey(MYSQL_STMT *s, int arg_id);
     void bindInput(MYSQL_STMT *s, bool withKey=false, int arg_id=0);
