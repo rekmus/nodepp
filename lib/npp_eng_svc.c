@@ -639,7 +639,7 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     G_connections[ci].si = 1;
 
-    npp_random(new_sessid, NPP_SESSID_LEN);
+    strcpy(new_sessid, npp_random(NPP_SESSID_LEN));
 
 #ifdef NPP_DEBUG
     INF("Starting new session, sessid [%s]", new_sessid);
