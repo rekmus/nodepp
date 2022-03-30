@@ -341,25 +341,25 @@
 #define JSON_FROM_STRING(json, str)         lib_json_from_string(json, str, 0, 0)
 
 #define JSON_ADD_STR(json, name, value)     lib_json_add_str(json, name, -1, value)
-#define JSON_ADD_STR_A(json, i, value)      lib_json_add_str(json, NULL, i, value)
+#define JSON_ADD_STR_A(json, i, value)      lib_json_add_str(json, "", i, value)
 #define JSON_ADD_INT(json, name, value)     lib_json_add_int(json, name, -1, value)
-#define JSON_ADD_INT_A(json, i, value)      lib_json_add_int(json, NULL, i, value)
+#define JSON_ADD_INT_A(json, i, value)      lib_json_add_int(json, "", i, value)
 #define JSON_ADD_UINT(json, name, value)    lib_json_add_uint(json, name, -1, value)
-#define JSON_ADD_UINT_A(json, i, value)     lib_json_add_uint(json, NULL, i, value)
+#define JSON_ADD_UINT_A(json, i, value)     lib_json_add_uint(json, "", i, value)
 #define JSON_ADD_LONG(json, name, value)    lib_json_add_long(json, name, -1, value)
-#define JSON_ADD_LONG_A(json, i, value)     lib_json_add_long(json, NULL, i, value)
+#define JSON_ADD_LONG_A(json, i, value)     lib_json_add_long(json, "", i, value)
 #define JSON_ADD_FLOAT(json, name, value)   lib_json_add_float(json, name, -1, value)
-#define JSON_ADD_FLOAT_A(json, i, value)    lib_json_add_float(json, NULL, i, value)
+#define JSON_ADD_FLOAT_A(json, i, value)    lib_json_add_float(json, "", i, value)
 #define JSON_ADD_DOUBLE(json, name, value)  lib_json_add_double(json, name, -1, value)
-#define JSON_ADD_DOUBLE_A(json, i, value)   lib_json_add_double(json, NULL, i, value)
+#define JSON_ADD_DOUBLE_A(json, i, value)   lib_json_add_double(json, "", i, value)
 #define JSON_ADD_BOOL(json, name, value)    lib_json_add_bool(json, name, -1, value)
-#define JSON_ADD_BOOL_A(json, i, value)     lib_json_add_bool(json, NULL, i, value)
+#define JSON_ADD_BOOL_A(json, i, value)     lib_json_add_bool(json, "", i, value)
 
 #define JSON_ADD_RECORD(json, name, value)  lib_json_add_record(json, name, 0, value, FALSE)
-#define JSON_ADD_RECORD_A(json, i, value)   lib_json_add_record(json, NULL, i, value, FALSE)
+#define JSON_ADD_RECORD_A(json, i, value)   lib_json_add_record(json, "", i, value, FALSE)
 
 #define JSON_ADD_ARRAY(json, name, value)   lib_json_add_record(json, name, 0, value, TRUE)
-#define JSON_ADD_ARRAY_A(json, i, value)    lib_json_add_record(json, NULL, i, value, TRUE)
+#define JSON_ADD_ARRAY_A(json, i, value)    lib_json_add_record(json, "", i, value, TRUE)
 
 #define JSON_PRESENT(json, name)            lib_json_present(json, name)
 
@@ -383,27 +383,27 @@
 #else   /* NOT NPP_JSON_V1 = new version */
 
 #define JSON_GET_STR(json, name, value, maxlen) lib_json_get_str(json, name, -1, value, maxlen)
-#define JSON_GET_STR_A(json, i, value, maxlen)  lib_json_get_str(json, NULL, i, value, maxlen)
+#define JSON_GET_STR_A(json, i, value, maxlen)  lib_json_get_str(json, "", i, value, maxlen)
 #define JSON_GET_INT(json, name, value)     lib_json_get_int(json, name, -1, value)
-#define JSON_GET_INT_A(json, i, value)      lib_json_get_int(json, NULL, i, value)
+#define JSON_GET_INT_A(json, i, value)      lib_json_get_int(json, "", i, value)
 #define JSON_GET_UINT(json, name, value)    lib_json_get_uint(json, name, -1, value)
-#define JSON_GET_UINT_A(json, i, value)     lib_json_get_uint(json, NULL, i, value)
+#define JSON_GET_UINT_A(json, i, value)     lib_json_get_uint(json, "", i, value)
 #define JSON_GET_LONG(json, name, value)    lib_json_get_long(json, name, -1, value)
-#define JSON_GET_LONG_A(json, i, value)     lib_json_get_long(json, NULL, i, value)
+#define JSON_GET_LONG_A(json, i, value)     lib_json_get_long(json, "", i, value)
 #define JSON_GET_FLOAT(json, name, value)   lib_json_get_float(json, name, -1, value)
-#define JSON_GET_FLOAT_A(json, i, value)    lib_json_get_float(json, NULL, i, value)
+#define JSON_GET_FLOAT_A(json, i, value)    lib_json_get_float(json, "", i, value)
 #define JSON_GET_DOUBLE(json, name, value)  lib_json_get_double(json, name, -1, value)
-#define JSON_GET_DOUBLE_A(json, i, value)   lib_json_get_double(json, NULL, i, value)
+#define JSON_GET_DOUBLE_A(json, i, value)   lib_json_get_double(json, "", i, value)
 #define JSON_GET_BOOL(json, name, value)    lib_json_get_bool(json, name, -1, value)
-#define JSON_GET_BOOL_A(json, i, value)     lib_json_get_bool(json, NULL, i, value)
+#define JSON_GET_BOOL_A(json, i, value)     lib_json_get_bool(json, "", i, value)
 
 #endif  /* NPP_JSON_V1 */
 
 #define JSON_GET_RECORD(json, name, value)  lib_json_get_record(json, name, -1, value)
-#define JSON_GET_RECORD_A(json, i, value)   lib_json_get_record(json, NULL, i, value)
+#define JSON_GET_RECORD_A(json, i, value)   lib_json_get_record(json, "", i, value)
 
 #define JSON_GET_ARRAY(json, name, value)   lib_json_get_record(json, name, -1, value)
-#define JSON_GET_ARRAY_A(json, i, value)    lib_json_get_record(json, NULL, i, value)
+#define JSON_GET_ARRAY_A(json, i, value)    lib_json_get_record(json, "", i, value)
 
 
 #define JSON_RESET(json)                    lib_json_reset(json)

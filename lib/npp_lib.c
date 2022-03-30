@@ -7127,7 +7127,7 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, index, &json_pool[pool_idx], FALSE);
+                        lib_json_add_record(json, "", index, &json_pool[pool_idx], FALSE);
                     else
                         lib_json_add_record(json, key, 0, &json_pool[pool_idx], FALSE);
                     /* fill in the destination (children) */
@@ -7162,7 +7162,7 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, index, &json_pool[pool_idx], TRUE);
+                        lib_json_add_record(json, "", index, &json_pool[pool_idx], TRUE);
                     else
                         lib_json_add_record(json, key, 0, &json_pool[pool_idx], TRUE);
                     /* fill in the destination (children) */
@@ -7210,22 +7210,22 @@ static char tmp[NPP_JSON_BUFSIZE];
             if ( inside_array )
             {
                 if ( type==NPP_JSON_STRING )
-                    lib_json_add_str(json, NULL, index, value);
+                    lib_json_add_str(json, "", index, value);
                 else if ( value[0]=='t' )
-                    lib_json_add_bool(json, NULL, index, 1);
+                    lib_json_add_bool(json, "", index, 1);
                 else if ( value[0]=='f' )
-                    lib_json_add_bool(json, NULL, index, 0);
+                    lib_json_add_bool(json, "", index, 0);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add_float(json, NULL, index, flo_value);
+                        lib_json_add_float(json, "", index, flo_value);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add_double(json, NULL, index, dbl_value);
+                        lib_json_add_double(json, "", index, dbl_value);
                     }
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
@@ -7233,20 +7233,20 @@ static char tmp[NPP_JSON_BUFSIZE];
                 {
                     int num_val;
                     sscanf(value, "%d", &num_val);
-                    lib_json_add_int(json, NULL, index, num_val);
+                    lib_json_add_int(json, "", index, num_val);
                 }
                 else    /* unsigned */
                 {
                     unsigned num_val;
                     sscanf(value, "%u", &num_val);
-                    lib_json_add_uint(json, NULL, index, num_val);
+                    lib_json_add_uint(json, "", index, num_val);
                 }
 #else   /* Linux */
                 else    /* long */
                 {
                     long num_val;
                     sscanf(value, "%ld", &num_val);
-                    lib_json_add_long(json, NULL, index, num_val);
+                    lib_json_add_long(json, "", index, num_val);
                 }
 #endif  /* _WIN32 */
             }
@@ -7324,7 +7324,7 @@ void lib_json_log_dbg(JSON *json, const char *name)
 
     DBG_LINE;
 
-    if ( name )
+    if ( name && name[0] )
         DBG("%s:", name);
     else
         DBG("JSON record:");
@@ -7372,7 +7372,7 @@ void lib_json_log_inf(JSON *json, const char *name)
 
     INF_LINE;
 
-    if ( name )
+    if ( name && name[0] )
         INF("%s:", name);
     else
         INF("JSON record:");
@@ -7415,7 +7415,7 @@ void lib_json_log_inf(JSON *json, const char *name)
 -------------------------------------------------------------------------- */
 static int json_add_elem(JSON *json, const char *name, int i)
 {
-    if ( name )
+    if ( name && name[0] )
     {
         i = json_get_i(json, name);
 
@@ -7603,7 +7603,7 @@ bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bo
 #endif
     DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
-    if ( name )   /* named record */
+    if ( name && name[0] )   /* named record */
     {
         DDBG("named record [%s]", name);
 
@@ -7678,7 +7678,7 @@ static char dst[NPP_JSON_STR_LEN+1];
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_str index (%d) out of bounds (max = %d)", i, json->cnt-1);
             dst[0] = EOS;
             return dst;
         }
@@ -7726,7 +7726,7 @@ int lib_json_get_int(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_int index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7758,7 +7758,7 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_uint index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7790,7 +7790,7 @@ long lib_json_get_long(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_long index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_long index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7822,7 +7822,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_float index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7854,7 +7854,7 @@ double lib_json_get_double(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_double index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7884,7 +7884,7 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_bool index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -7932,11 +7932,32 @@ static char retval[NPP_JSON_STR_LEN+1];
 bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t maxlen)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+                {
+                    COPY(retval, json->rec[i].value, maxlen);
+#ifdef NPP_CPP_STRINGS
+                    retval_ = retval;
+#endif
+                    return TRUE;
+                }
+                else    /* types don't match */
+                {
+                    return FALSE;   /* types don't match or couldn't convert */
+                }
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_str index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -7954,26 +7975,7 @@ bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t 
         }
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
-            {
-                COPY(retval, json->rec[i].value, maxlen);
-#ifdef NPP_CPP_STRINGS
-                retval_ = retval;
-#endif
-                return TRUE;
-            }
-            else    /* types don't match */
-            {
-                return FALSE;   /* types don't match or couldn't convert */
-            }
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -7988,11 +7990,22 @@ bool lib_json_get_int(JSON *json, const std::string& name_, int i, int *retval)
 bool lib_json_get_int(JSON *json, const char *name, int i, int *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%d", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_int index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8000,16 +8013,7 @@ bool lib_json_get_int(JSON *json, const char *name, int i, int *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            sscanf(json->rec[i].value, "%d", retval);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -8024,11 +8028,22 @@ bool lib_json_get_uint(JSON *json, const std::string& name_, int i, unsigned *re
 bool lib_json_get_uint(JSON *json, const char *name, int i, unsigned *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%u", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_uint index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8036,16 +8051,7 @@ bool lib_json_get_uint(JSON *json, const char *name, int i, unsigned *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            sscanf(json->rec[i].value, "%u", retval);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -8060,11 +8066,22 @@ bool lib_json_get_long(JSON *json, const std::string& name_, int i, long *retval
 bool lib_json_get_long(JSON *json, const char *name, int i, long *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%ld", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_long index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_long index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8072,16 +8089,7 @@ bool lib_json_get_long(JSON *json, const char *name, int i, long *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            sscanf(json->rec[i].value, "%ld", retval);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -8096,11 +8104,22 @@ bool lib_json_get_float(JSON *json, const std::string& name_, int i, float *retv
 bool lib_json_get_float(JSON *json, const char *name, int i, float *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%f", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_float index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8108,16 +8127,7 @@ bool lib_json_get_float(JSON *json, const char *name, int i, float *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            sscanf(json->rec[i].value, "%f", retval);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -8132,11 +8142,22 @@ bool lib_json_get_double(JSON *json, const std::string& name_, int i, double *re
 bool lib_json_get_double(JSON *json, const char *name, int i, double *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%lf", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_double index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8144,16 +8165,7 @@ bool lib_json_get_double(JSON *json, const char *name, int i, double *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            sscanf(json->rec[i].value, "%lf", retval);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -8168,11 +8180,22 @@ bool lib_json_get_bool(JSON *json, const std::string& name_, int i, bool *retval
 bool lib_json_get_bool(JSON *json, const char *name, int i, bool *retval)
 {
 #endif
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_bool index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8180,16 +8203,7 @@ bool lib_json_get_bool(JSON *json, const char *name, int i, bool *retval)
         return TRUE;
     }
 
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-            *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
-            return TRUE;
-        }
-    }
-
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 #endif  /* NPP_JSON_V1 */
@@ -8210,11 +8224,33 @@ bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub)
 #endif
     DBG("lib_json_get_record by %s", name?"name":"index");
 
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
+    {
+        DDBG("name [%s]", name);
+
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+    //            DBG("lib_json_get_record, found [%s]", name);
+                if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
+                {
+                    intptr_t jp;
+                    sscanf(json->rec[i].value, "%p", (void**)&jp);
+                    memcpy(json_sub, (JSON*)jp, sizeof(JSON));
+                    return TRUE;
+                }
+
+    //            DBG("lib_json_get_record, types of [%s] don't match", name);
+                return FALSE;   /* types don't match or couldn't convert */
+            }
+        }
+    }
+    else    /* array element */
     {
         if ( i < 0 || i >= json->cnt )
         {
-            WAR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_record index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -8233,28 +8269,7 @@ bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub)
         }
     }
 
-    DDBG("name [%s]", name);
-
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-//            DBG("lib_json_get_record, found [%s]", name);
-            if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
-            {
-                intptr_t jp;
-                sscanf(json->rec[i].value, "%p", (void**)&jp);
-                memcpy(json_sub, (JSON*)jp, sizeof(JSON));
-                return TRUE;
-            }
-
-//            DBG("lib_json_get_record, types of [%s] don't match", name);
-            return FALSE;   /* types don't match or couldn't convert */
-        }
-    }
-
-//    DBG("lib_json_get_record, [%s] not found", name);
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
