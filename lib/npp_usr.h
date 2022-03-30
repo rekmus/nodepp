@@ -292,35 +292,88 @@ typedef struct {
    prototypes
 -------------------------------------------------------------------------- */
 
+#ifdef NPP_CPP_STRINGS
+    char *npp_usr_name(const char *login, const char *email, const char *name, int user_id);
+    char *npp_usr_name(const std::string& login, const std::string& email, const std::string& name, int user_id);
+
+    int  npp_usr_get_str(int ci, const std::string& us_key, char *us_val);
+    int  npp_usr_get_str(int ci, const std::string& us_key, std::string& us_val);
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
     int  npp_usr_login(int ci);
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_password_quality(const std::string& passwd);
+#else
     int  npp_usr_password_quality(const char *passwd);
+#endif
+
     int  npp_usr_create_account(int ci);
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_add_user(int ci, bool use_qs, const std::string& login, const std::string& email, const std::string& name, const std::string& passwd, const std::string& phone, const std::string& lang, const std::string& about, char group_id, char auth_level, char status);
+#else
     int  npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, const char *name, const char *passwd, const char *phone, const char *lang, const char *about, char group_id, char auth_level, char status);
+#endif
+
     int  npp_usr_send_message(int ci);
     int  npp_usr_save_account(int ci);
     int  npp_usr_email_registered(int ci);
+
+#ifndef NPP_CPP_STRINGS
     char *npp_usr_name(const char *login, const char *email, const char *name, int user_id);
+#endif
+
     int  npp_usr_send_passwd_reset_email(int ci);
-    int  npp_usr_verify_passwd_reset_key(int ci, char *linkkey, int *user_id);
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_verify_passwd_reset_key(int ci, const std::string& linkkey, int *user_id);
+#else
+    int  npp_usr_verify_passwd_reset_key(int ci, const char *linkkey, int *user_id);
+#endif
+
     int  npp_usr_activate(int ci);
     int  npp_usr_save_avatar(int ci, int user_id);
     int  npp_usr_get_avatar(int ci, int user_id);
     int  npp_usr_change_password(int ci);
     int  npp_usr_reset_password(int ci);
     void npp_usr_logout(int ci);
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_set_str(int ci, const std::string& us_key, const std::string& us_val);
+#else
     int  npp_usr_set_str(int ci, const char *us_key, const char *us_val);
+#endif
+
+#ifndef NPP_CPP_STRINGS
     int  npp_usr_get_str(int ci, const char *us_key, char *us_val);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_set_int(int ci, const std::string& us_key, int us_val);
+#else
     int  npp_usr_set_int(int ci, const char *us_key, int us_val);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    int  npp_usr_get_int(int ci, const std::string& us_key, int *us_val);
+#else
     int  npp_usr_get_int(int ci, const char *us_key, int *us_val);
+#endif
+
     /* for the engine */
+
     void libusr_init(void);
     int  libusr_luses_ok(int ci);
     void libusr_luses_close_timeouted(void);
     void libusr_luses_save_csrft(void);
     void libusr_luses_downgrade(int si, int ci, bool usr_logout);
+
 #ifdef __cplusplus
 }   // extern "C"
 #endif

@@ -65,7 +65,7 @@ if %NPP_MYSQL%==1 (
 )
 
 if %NPP_USERS%==1 (
-    set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% ..\lib\npp_usr.c"
+    set "NPP_M_MODULES_APP=%NPP_M_MODULES_APP% ..\lib\npp_usr.cpp ..\lib\Cusers.cpp ..\lib\Cusers_avatars.cpp ..\lib\Cusers_groups.cpp ..\lib\Cusers_settings.cpp ..\lib\Cusers_logins.cpp ..\lib\Cusers_activations.cpp ..\lib\Cusers_p_resets.cpp ..\lib\Cusers_messages.cpp"
 )
 
 if %NPP_VERBOSE%==1 echo NPP_M_MODULES_APP=%NPP_M_MODULES_APP%
@@ -177,7 +177,7 @@ rem Functions
 :get_presence
 set %~2=0
 set FIRST_TOKEN="x"
-for /f %%i in ('findstr /r /c:"^#define *%~1" npp_app.h') do set FIRST_TOKEN=%%i
+for /f %%i in ('findstr /r /c:"^#define *%~1$" npp_app.h') do set FIRST_TOKEN=%%i
 if "%FIRST_TOKEN%"=="#define" set %~2=1
 goto :eof
 

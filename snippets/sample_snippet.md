@@ -23,7 +23,3 @@ _This is underline text_
 * first item
 * second item
 * third item with **bold**
-
-## Note
-
-This is simplified Markdown parser. I believe the most important tags are present. As my spare time will allow, I'll keep extending it.

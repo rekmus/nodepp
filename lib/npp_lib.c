@@ -61,17 +61,20 @@ FILE        *G_log_fd=NULL;
 bool        G_endianness=ENDIANNESS_LITTLE;
 int         G_pid=0;
 char        G_appdir[256]="..";
-char        G_tmp[NPP_TMP_BUFSIZE];
+char        G_tmp[NPP_TMP_BUFSIZE]="";
 time_t      G_now=0;
 struct tm   *G_ptm=NULL;
+char        G_header_date[32]="";
 bool        G_initialized=0;
 char        *G_strm=NULL;
 
 /* hosts */
 #ifdef NPP_MULTI_HOST
-npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", FALSE}};
+npp_host_t  G_hosts[NPP_MAX_HOSTS]={{"", "res", "resmin", "snippets", NPP_REQUIRED_AUTH_LEVEL, -1}};  /* main host */
 int         G_hosts_cnt=1;
 #endif
+
+sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS]={0};
 
 #if __GNUC__ < 6
 #pragma GCC diagnostic push
@@ -80,16 +83,13 @@ int         G_hosts_cnt=1;
 
 /* messages */
 npp_message_t G_messages[NPP_MAX_MESSAGES]={0};
-int         G_next_msg=0;
-npp_lang_t  G_msg_lang[NPP_MAX_LANGUAGES]={0};
-int         G_next_msg_lang=0;
+int         G_messages_cnt=0;
 
 /* strings */
 npp_string_t G_strings[NPP_MAX_STRINGS]={0};
-int         G_next_str=0;
-npp_lang_t  G_str_lang[NPP_MAX_LANGUAGES]={0};
-int         G_next_str_lang=0;
+int         G_strings_cnt=0;
 
+/* snippets */
 snippet_t   G_snippets[NPP_MAX_SNIPPETS]={0};
 int         G_snippets_cnt=0;
 
@@ -135,7 +135,7 @@ static SOCKET M_call_http_socket;
 static int M_call_http_socket;
 #endif  /* _WIN32 */
 #ifdef NPP_HTTPS
-static SSL_CTX *M_ssl_ctx=NULL;
+static SSL_CTX *M_ssl_client_ctx=NULL;
 static SSL *M_call_http_ssl=NULL;
 #else
 static void *M_call_http_ssl=NULL;    /* dummy */
@@ -185,12 +185,6 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
 
     if ( !load_strings() )
         return FALSE;
-
-    /* snippets */
-
-    int i;
-    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
-        strcpy(G_snippets[i].name, "-");
 
 #endif  /* NPP_CLIENT */
 
@@ -283,7 +277,7 @@ void npp_safe_copy(char *dst, const std::string& src_, size_t dst_len)
 void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 {
 #endif
-    DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
+//    DDBG("npp_safe_copy [%s], dst_len = %u", src, dst_len);
 
 #if __GNUC__ > 7
 #pragma GCC diagnostic push
@@ -298,7 +292,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
     if ( dst[dst_len] == EOS )
     {
-        DDBG("not truncated");
+//        DDBG("not truncated");
         return;   /* not truncated */
     }
 
@@ -308,7 +302,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
     if ( !UTF8_ANY(dst[dst_len]) )
     {
         dst[dst_len] = EOS;
-        DDBG("truncated string won't break the UTF-8 sequence");
+//        DDBG("truncated string won't break the UTF-8 sequence");
         return;
     }
 
@@ -319,7 +313,7 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 
     while ( !UTF8_START(dst[dst_len]) )
     {
-        DDBG("UTF-8 sequence byte (%x)", dst[dst_len]);
+//        DDBG("UTF-8 sequence byte (%x)", dst[dst_len]);
 
         if ( dst_len == 0 )
         {
@@ -337,11 +331,19 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 /* --------------------------------------------------------------------------
    Binary to string
 ---------------------------------------------------------------------------*/
-void npp_bin2hex(char *dst, const unsigned char *src, int len)
+char *npp_bin2hex(const unsigned char *src, size_t len)
 {
+static char dst[NPP_LIB_STR_BUF];
     char *d=dst;
     char hex[4];
-    int i;
+    unsigned i;
+
+    if ( len > NPP_LIB_STR_CHECK/2 )
+    {
+        WAR("npp_bin2hex: src too long");
+        dst[0] = EOS;
+        return dst;
+    }
 
     for ( i=0; i<len; ++i )
     {
@@ -350,6 +352,8 @@ void npp_bin2hex(char *dst, const unsigned char *src, int len)
     }
 
     *d = EOS;
+
+    return dst;
 }
 
 
@@ -768,7 +772,7 @@ char *npp_render_md(char *dest, const char *src, size_t dest_len)
 
     while ( *src && written < dest_len-18 )   /* worst case: </code></li></ul> */
     {
-        DDBG("%c", *src);
+//        DDBG("%c", *src);
 
         if ( pos > 0 )
         {
@@ -1015,6 +1019,87 @@ static char dst[NPP_JSON_STR_LEN*2+1];
 
 
 /* --------------------------------------------------------------------------
+   Expand env path in a path
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+char *npp_expand_env_path(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
+char *npp_expand_env_path(const char *src)
+{
+#endif
+static char dest[NPP_LIB_STR_BUF];
+    bool env_lin=FALSE;
+//    bool env_win=FALSE;
+
+    const char *p = strchr(src, '$');
+
+    if ( p )
+        env_lin = TRUE;
+    else
+    {
+        p = strchr(src, '%');
+
+        if ( p == NULL )    /* not a Windows-style either = no env variable */
+        {
+            COPY(dest, src, NPP_LIB_STR_CHECK);
+            return dest;
+        }
+    }
+
+    DDBG("src [%s]", src);
+
+    int where = p - src;
+
+    ++p;    /* skip $ or % */
+
+    char var_name[128];
+    int i=0;
+
+    if ( env_lin )
+    {
+        while ( *p && *p != '/' && *p != '\\' && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n' && *p != '#' && i<127 )
+        {
+            var_name[i++] = *p;
+            ++p;
+        }
+    }
+    else    /* env_win */
+    {
+        while ( *p && *p != '%' && i<127 )
+        {
+            var_name[i++] = *p;
+            ++p;
+        }
+    }
+
+    var_name[i] = EOS;
+
+    DDBG("var_name [%s]", var_name);
+
+    char *var = getenv(var_name);
+
+    if ( var )
+    {
+        DDBG("var [%s]", var);
+
+        COPY(dest, src, where);
+        strcat(dest, var);
+        strcat(dest, src+(where+strlen(var_name)+(env_lin?1:2)));
+    }
+    else    /* not found */
+    {
+        COPY(dest, src, NPP_LIB_STR_CHECK);
+    }
+
+    DDBG("dest [%s]", dest);
+
+    return dest;
+}
+
+
+/* --------------------------------------------------------------------------
    Verify CSRF token
 -------------------------------------------------------------------------- */
 bool npp_csrft_ok(int ci)
@@ -1064,9 +1149,9 @@ static void load_err_messages()
 -------------------------------------------------------------------------- */
 void npp_add_message(int code, const char *lang, const char *message, ...)
 {
-    if ( G_next_msg >= NPP_MAX_MESSAGES )
+    if ( G_messages_cnt > NPP_MAX_MESSAGES-1 )
     {
-        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
+        WAR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
         return;
     }
 
@@ -1079,12 +1164,16 @@ void npp_add_message(int code, const char *lang, const char *message, ...)
     vsprintf(buffer, message, plist);
     va_end(plist);
 
-    G_messages[G_next_msg].code = code;
-    if ( lang )
-        strcpy(G_messages[G_next_msg].lang, npp_upper(lang));
-    strcpy(G_messages[G_next_msg].message, buffer);
+    G_messages[G_messages_cnt].code = code;
 
-    ++G_next_msg;
+    if ( lang && lang[0] )
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
+    else
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_DEFAULT_LANG), NPP_LANG_LEN);
+
+    strcpy(G_messages[G_messages_cnt].message, buffer);
+
+    ++G_messages_cnt;
 
     /* in case message was added after init */
 
@@ -1102,11 +1191,11 @@ static int compare_messages(const void *a, const void *b)
     const npp_message_t *p1 = (npp_message_t*)a;
     const npp_message_t *p2 = (npp_message_t*)b;
 
-    int res = strcmp(p1->lang, p2->lang);
+    int lang_result = strcmp(p1->lang, p2->lang);
 
-    if ( res > 0 )
+    if ( lang_result > 0 )
         return 1;
-    else if ( res < 0 )
+    else if ( lang_result < 0 )
         return -1;
 
     /* same language then */
@@ -1115,8 +1204,8 @@ static int compare_messages(const void *a, const void *b)
         return -1;
     else if ( p1->code > p2->code )
         return 1;
-    else
-        return 0;
+
+    return 0;
 }
 
 
@@ -1125,23 +1214,7 @@ static int compare_messages(const void *a, const void *b)
 -------------------------------------------------------------------------- */
 void npp_sort_messages()
 {
-    qsort(&G_messages, G_next_msg, sizeof(npp_message_t), compare_messages);
-
-    int i;
-
-    for ( i=0; i<G_next_msg; ++i )
-    {
-        if ( 0 != strcmp(G_messages[i].lang, G_msg_lang[G_next_msg_lang].lang) )
-        {
-            if ( G_next_msg_lang ) G_msg_lang[G_next_msg_lang-1].next_lang_index = i;
-
-            strcpy(G_msg_lang[G_next_msg_lang].lang, G_messages[i].lang);
-            G_msg_lang[G_next_msg_lang].first_index = i;
-            ++G_next_msg_lang;
-        }
-    }
-
-    G_msg_lang[G_next_msg_lang-1].next_lang_index = G_next_msg;
+    qsort(&G_messages, G_messages_cnt, sizeof(npp_message_t), compare_messages);
 }
 
 
@@ -1229,103 +1302,96 @@ bool npp_is_msg_main_cat(int code, const char *arg_cat)
 
 #ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
-   Get error description for user in NPP_STRINGS_LANG
+   Get error description for user in specified language
 -------------------------------------------------------------------------- */
-static char *lib_get_message_fallback(int code)
+static const char *lib_get_message_lang(int code, const char *lang, char lang_len)
 {
-    int l, m;
+    int first = 0;
+    int last = G_messages_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
 
-    /* try in NPP_STRINGS_LANG */
-
-    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
+    while ( first <= last )
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, NPP_STRINGS_LANG) )
+        result = strncmp(G_messages[middle].lang, lang, lang_len);
+
+        if ( result < 0 )
         {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
+            first = middle + 1;
         }
+        else if ( result == 0 )
+        {
+            if ( G_messages[middle].code < code )
+                first = middle + 1;
+            else if ( G_messages[middle].code == code )
+                return G_messages[middle].message;
+            else
+                last = middle - 1;
+        }
+        else    /* result > 0 */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
     }
-
-    /* try in any language */
-
-    for ( m=0; m<G_next_msg; ++m )
-        if ( G_messages[m].code == code )
-            return G_messages[m].message;
 
     /* not found */
 
-static char unknown[128];
-    sprintf(unknown, "Unknown code: %d", code);
-    return unknown;
+static const char not_found[4]="~~~";
+    return not_found;
 }
 
 
 /* --------------------------------------------------------------------------
    Get error description for user
    Pick the user session language if possible
-   TODO: binary search
 -------------------------------------------------------------------------- */
-char *npp_get_message(int ci, int code)
+const char *npp_get_message(int ci, int code)
 {
+    const char *result;
 
-    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
-        return lib_get_message_fallback(code);
-
-    if ( !SESSION.lang[0] )   /* unknown client language */
-        return lib_get_message_fallback(code);
-
-    int l, m;
-
-    for ( l=0; l<G_next_msg_lang; ++l )   /* jump to the right language */
+    if ( SESSION.lang[0] )
     {
-        if ( 0==strcmp(G_msg_lang[l].lang, SESSION.lang) )
-        {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
-        }
+        result = lib_get_message_lang(code, SESSION.lang, strlen(SESSION.lang));
+
+        if ( 0==strcmp(result, "~~~") && strlen(SESSION.lang) > 2 )
+            result = lib_get_message_lang(code, SESSION.lang, 2);
+
+        if ( 0==strcmp(result, "~~~") )
+            result = lib_get_message_lang(code, NPP_DEFAULT_LANG, strlen(NPP_DEFAULT_LANG));
+    }
+    else    /* unknown client language */
+    {
+        result = lib_get_message_lang(code, NPP_DEFAULT_LANG, strlen(NPP_DEFAULT_LANG));
+
+        if ( 0==strcmp(result, "~~~") && strlen(NPP_DEFAULT_LANG) > 2 )
+            result = lib_get_message_lang(code, NPP_DEFAULT_LANG, 2);
     }
 
-    /* if not found, ignore country code */
-
-    for ( l=0; l<G_next_msg_lang; ++l )
+    if ( 0==strcmp(result, "~~~") )
     {
-        if ( 0==strncmp(G_msg_lang[l].lang, SESSION.lang, 2) )
-        {
-            for ( m=G_msg_lang[l].first_index; m<G_msg_lang[l].next_lang_index; ++m )
-                if ( G_messages[m].code == code )
-                    return G_messages[m].message;
-        }
+static char not_found[128];
+        sprintf(not_found, "Unknown code: %d", code);
+        return not_found;
     }
 
-    /* fallback */
-
-    return lib_get_message_fallback(code);
+    return result;
 }
 
 
 /* --------------------------------------------------------------------------
-   Parse and set strings from data
+   Parse and set strings from data (single language)
 -------------------------------------------------------------------------- */
 static void parse_and_set_strings(const char *lang, const char *data)
 {
-    DBG("parse_and_set_strings, lang [%s]", lang);
+    INF("Loading strings for [%s]", lang);
 
     const char *p=data;
     int  j=0;
     char string_orig[NPP_MAX_STRING_LEN+1];
     char string_in_lang[NPP_MAX_STRING_LEN+1];
     bool now_key=1, now_val=0, now_com=0;
-
-    if ( G_next_str_lang >= NPP_MAX_LANGUAGES )
-    {
-        ERR("NPP_MAX_LANGUAGES (%d) has been reached", NPP_MAX_LANGUAGES);
-        return;
-    }
-
-    strcpy(G_str_lang[G_next_str_lang].lang, npp_upper(lang));
-    G_str_lang[G_next_str_lang].first_index = G_next_str;
 
     while ( *p )
     {
@@ -1338,7 +1404,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_lib_add_string(lang, string_orig, string_in_lang);
+                npp_add_string(lang, string_orig, string_in_lang);
             }
         }
         else if ( now_key && *p==NPP_STRINGS_SEP )   /* separator */
@@ -1354,7 +1420,7 @@ static void parse_and_set_strings(const char *lang, const char *data)
             {
                 now_val = 0;
                 string_in_lang[j] = EOS;
-                npp_lib_add_string(lang, string_orig, string_in_lang);
+                npp_add_string(lang, string_orig, string_in_lang);
             }
             else if ( now_com )
             {
@@ -1380,11 +1446,8 @@ static void parse_and_set_strings(const char *lang, const char *data)
     if ( now_val )
     {
         string_in_lang[j] = EOS;
-        npp_lib_add_string(lang, string_orig, string_in_lang);
+        npp_add_string(lang, string_orig, string_in_lang);
     }
-
-    G_str_lang[G_next_str_lang].next_lang_index = G_next_str;
-    ++G_next_str_lang;
 }
 
 
@@ -1475,21 +1538,107 @@ static bool load_strings()
 
 
 /* --------------------------------------------------------------------------
+   Comparing function for strings
+---------------------------------------------------------------------------*/
+static int compare_strings(const void *a, const void *b)
+{
+    const npp_string_t *p1 = (npp_string_t*)a;
+    const npp_string_t *p2 = (npp_string_t*)b;
+
+    int lang_result = strcmp(p1->lang, p2->lang);
+
+    if ( lang_result > 0 )
+        return 1;
+    else if ( lang_result < 0 )
+        return -1;
+
+    /* same language then */
+
+    return strcmp(p1->string_upper, p2->string_upper);
+}
+
+
+/* --------------------------------------------------------------------------
+   Sort and index strings by languages
+-------------------------------------------------------------------------- */
+void lib_sort_strings()
+{
+    qsort(&G_strings, G_strings_cnt, sizeof(G_strings[0]), compare_strings);
+}
+
+
+/* --------------------------------------------------------------------------
    Add string
 -------------------------------------------------------------------------- */
-void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
+#ifdef NPP_CPP_STRINGS
+void npp_add_string(const std::string& lang_, const std::string& str_, const std::string& str_lang_)
 {
-    if ( G_next_str >= NPP_MAX_STRINGS )
+    const char *lang = lang_.c_str();
+    const char *str = str_.c_str();
+    const char *str_lang = str_lang_.c_str();
+#else
+void npp_add_string(const char *lang, const char *str, const char *str_lang)
+{
+#endif
+    if ( G_strings_cnt > NPP_MAX_STRINGS-1 )
     {
         ERR("NPP_MAX_STRINGS (%d) has been reached", NPP_MAX_STRINGS);
         return;
     }
 
-    strcpy(G_strings[G_next_str].lang, npp_upper(lang));
-    strcpy(G_strings[G_next_str].string_upper, npp_upper(str));
-    strcpy(G_strings[G_next_str].string_in_lang, str_lang);
+    COPY(G_strings[G_strings_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
+    COPY(G_strings[G_strings_cnt].string_upper, npp_upper(str), NPP_MAX_STRING_LEN);
+    COPY(G_strings[G_strings_cnt].string_in_lang, str_lang, NPP_MAX_STRING_LEN);
 
-    ++G_next_str;
+    ++G_strings_cnt;
+
+    if ( G_initialized )
+        lib_sort_strings();
+}
+
+
+/* --------------------------------------------------------------------------
+   Get string in specified language
+-------------------------------------------------------------------------- */
+static const char *lib_get_string_lang(const char *string_upper, const char *lang, char lang_len)
+{
+    int first = 0;
+    int last = G_strings_cnt - 1;
+    int middle = (first+last) / 2;
+    int result_lang;
+    int result;
+
+    while ( first <= last )
+    {
+        result_lang = strncmp(G_strings[middle].lang, lang, lang_len);
+
+        if ( result_lang < 0 )
+        {
+            first = middle + 1;
+        }
+        else if ( result_lang == 0 )
+        {
+            result = strcmp(G_strings[middle].string_upper, string_upper);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return G_strings[middle].string_in_lang;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* result_lang > 0 */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    /* not found */
+
+static const char not_found[4]="~~~";
+    return not_found;
 }
 
 
@@ -1497,50 +1646,37 @@ void npp_lib_add_string(const char *lang, const char *str, const char *str_lang)
    Get a string
    Pick the user session language if possible
    If not, return given string
-   TODO: binary search
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+const char *npp_lib_get_string(int ci, const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 const char *npp_lib_get_string(int ci, const char *str)
 {
-    if ( 0==strcmp(SESSION.lang, NPP_STRINGS_LANG) )   /* no need to translate */
+#endif
+    if ( SESSION.lang[0]==EOS || 0==strcmp(SESSION.lang, NPP_DEFAULT_LANG) )
         return str;
 
-    if ( !SESSION.lang[0] )   /* unknown client language */
-        return str;
+    char string_upper[NPP_MAX_STRING_LEN+1];
 
-    char str_upper[NPP_MAX_STRING_LEN+1];
+    COPY(string_upper, npp_upper(str), NPP_MAX_STRING_LEN);
 
-    strcpy(str_upper, npp_upper(str));
+//    DDBG("npp_lib_get_string [%s]", string_upper);
 
-    int l, s;
+    const char *result = lib_get_string_lang(string_upper, SESSION.lang, strlen(SESSION.lang));
 
-    for ( l=0; l<G_next_str_lang; ++l )   /* jump to the right language */
-    {
-        if ( 0==strcmp(G_str_lang[l].lang, SESSION.lang) )
-        {
-            for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
-                if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
-                    return G_strings[s].string_in_lang;
+    /* if not found try only with a language code */
 
-            /* language found but not this string */
-            return str;
-        }
-    }
-
-    /* if not found, ignore country code */
-
-    for ( l=0; l<G_next_str_lang; ++l )
-    {
-        if ( 0==strncmp(G_str_lang[l].lang, SESSION.lang, 2) )
-        {
-            for ( s=G_str_lang[l].first_index; s<G_str_lang[l].next_lang_index; ++s )
-                if ( 0==strcmp(G_strings[s].string_upper, str_upper) )
-                    return G_strings[s].string_in_lang;
-        }
-    }
+    if ( 0==strcmp(result, "~~~") && strlen(SESSION.lang) > 2 )
+        result = lib_get_string_lang(string_upper, SESSION.lang, 2);
 
     /* fallback */
 
-    return str;
+    if ( 0==strcmp(result, "~~~") )
+        return str;
+
+    return result;
 }
 #endif  /* NPP_CLIENT */
 
@@ -1680,15 +1816,23 @@ bool npp_file_exists(const char *fname)
    Get the last part of path
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_get_exec_name(char *dst, const std::string& path_)
+char *npp_get_exec_name(const std::string& path_)
 {
     const char *path = path_.c_str();
 #else
-void npp_get_exec_name(char *dst, const char *path)
+char *npp_get_exec_name(const char *path)
 {
 #endif
+static char dst[NPP_LIB_STR_BUF];
     const char *p=path;
     const char *pd=NULL;
+
+    if ( strlen(path) > NPP_LIB_STR_CHECK )
+    {
+        WAR("npp_get_exec_name: path too long");
+        dst[0] = EOS;
+        return dst;
+    }
 
     while ( *p )
     {
@@ -1709,7 +1853,7 @@ void npp_get_exec_name(char *dst, const char *path)
     else
         strcpy(dst, path);
 
-//    DBG("exec name [%s]", dst);
+    return dst;
 }
 
 
@@ -1719,8 +1863,16 @@ void npp_get_exec_name(char *dst, const char *path)
 void npp_update_time_globals()
 {
     G_now = time(NULL);
+
     G_ptm = gmtime(&G_now);
+
     sprintf(G_dt_string_gmt, "%d-%02d-%02d %02d:%02d:%02d", G_ptm->tm_year+1900, G_ptm->tm_mon+1, G_ptm->tm_mday, G_ptm->tm_hour, G_ptm->tm_min, G_ptm->tm_sec);
+
+#ifdef _WIN32   /* Windows */
+    strftime(G_header_date, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
+#else
+    strftime(G_header_date, 32, "%a, %d %b %Y %T GMT", G_ptm);
+#endif  /* _WIN32 */
 }
 
 
@@ -1754,25 +1906,23 @@ static bool init_ssl_client()
 
     DDBG("before SSL_CTX_new");
 
-    M_ssl_ctx = SSL_CTX_new(method);    /* create new context from method */
+    M_ssl_client_ctx = SSL_CTX_new(method);    /* create new context from method */
 
     DDBG("after SSL_CTX_new");
 
-    if ( M_ssl_ctx == NULL )
+    if ( M_ssl_client_ctx == NULL )
     {
         ERR("SSL_CTX_new failed");
         return FALSE;
     }
 
-//    const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION;
     const long flags = SSL_OP_ALL | SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
-
-    SSL_CTX_set_options(M_ssl_ctx, flags);
+    SSL_CTX_set_options(M_ssl_client_ctx, flags);
 
     /* temporarily ignore server cert errors */
 
     WAR("Ignoring remote server cert errors for HTTP calls");
-//    SSL_CTX_set_verify(M_ssl_ctx, SSL_VERIFY_NONE, NULL);
+//    SSL_CTX_set_verify(M_ssl_client_ctx, SSL_VERIFY_NONE, NULL);
 
     return TRUE;
 }
@@ -1846,25 +1996,91 @@ void npp_out_html_footer(int ci)
 
 
 /* --------------------------------------------------------------------------
-   Find first free slot in G_snippets
+   Compare
 -------------------------------------------------------------------------- */
-static int first_free_snippet()
+int lib_compare_snippets(const void *a, const void *b)
 {
-    int i=0;
+    const snippet_t *p1 = (snippet_t*)a;
+    const snippet_t *p2 = (snippet_t*)b;
 
-    for ( i=0; i<NPP_MAX_SNIPPETS; ++i )
+#ifdef NPP_MULTI_HOST
+
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+#endif
+
+    return strcmp(p1->name, p2->name);
+}
+
+
+/* --------------------------------------------------------------------------
+   Get snippet index
+-------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+static int get_snippet_idx(int host_id, const char *name)
+{
+    int first = 0;
+    int last = G_snippets_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
     {
-        if ( G_snippets[i].name[0]=='-' || G_snippets[i].name[0]==EOS )
+        if ( G_snippets[middle].host_id < host_id )
         {
-            if ( i > G_snippets_cnt ) G_snippets_cnt = i;
-            return i;
+            first = middle + 1;
         }
+        else if ( G_snippets[middle].host_id == host_id )
+        {
+            result = strcmp(G_snippets[middle].name, name);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* G_snippets[middle].host_id > host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
     }
 
-    ERR("NPP_MAX_SNIPPETS reached (%d)! You can set/increase NPP_MAX_SNIPPETS in npp_app.h.", NPP_MAX_SNIPPETS);
-
-    return -1;   /* nothing's free, we ran out of snippets! */
+    return -1;
 }
+
+#else   /* NOT NPP_MULTI_HOST */
+
+static int get_snippet_idx(const char *name)
+{
+    int first = 0;
+    int last = G_snippets_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(G_snippets[middle].name, name);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;
+}
+#endif  /* NPP_MULTI_HOST */
 
 
 /* --------------------------------------------------------------------------
@@ -1872,7 +2088,7 @@ static int first_free_snippet()
    Unlike res or resmin, snippets need to be available
    in both npp_app and npp_svc processes
 -------------------------------------------------------------------------- */
-bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path)
+bool npp_lib_read_snippets(const char *host, int host_id, const char *directory, bool first_scan, const char *path)
 {
     int     i;
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
@@ -1883,6 +2099,8 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     struct dirent *dirent;
     FILE    *fd;
     struct stat fstat;
+
+    if ( directory == NULL || directory[0] == EOS ) return TRUE;
 
 #ifndef _WIN32
     if ( G_appdir[0] == EOS ) return TRUE;
@@ -1941,7 +2159,7 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     if ( (dir=opendir(ressubdir)) == NULL )
     {
         if ( first_scan )
-            DBG("Couldn't open directory [%s]", ressubdir);
+            DBG("Couldn't open directory [%s], skipping", ressubdir);
         return TRUE;    /* don't panic, just no snippets will be used */
     }
 
@@ -1952,11 +2170,11 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
     {
 //        DDBG("Checking removed files...");
 
-        for ( i=0; i<=G_snippets_cnt; ++i )
-        {
-            if ( G_snippets[i].name[0]==EOS ) continue;   /* already removed */
+        int removed = 0;
 
-            if ( 0 != strcmp(G_snippets[i].host, host) ) continue;
+        for ( i=0; i<G_snippets_cnt; ++i )
+        {
+            if ( G_snippets[i].host_id != host_id ) continue;
 
 //            DDBG("Checking %s...", G_snippets[i].name);
 
@@ -1970,13 +2188,28 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
             {
                 INF("Removing %s from snippets", G_snippets[i].name);
 
+#ifdef NPP_MULTI_HOST
                 G_snippets[i].host[0] = EOS;
-                G_snippets[i].name[0] = EOS;
+                G_snippets[i].host_id = NPP_MAX_HOSTS;
+#endif  /* NPP_MULTI_HOST */
+
+                memset(G_snippets[i].name, 'z', NPP_STATIC_PATH_LEN);
+                G_snippets[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
                 free(G_snippets[i].data);
                 G_snippets[i].data = NULL;
                 G_snippets[i].len = 0;
+
+                ++removed;
             }
+        }
+
+        if ( removed )
+        {
+            DBG("%d snippets removed", removed);
+            qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
+            G_snippets_cnt -= removed;
+            DDBG("G_snippets_cnt after removing = %d", G_snippets_cnt);
         }
     }
 
@@ -2037,7 +2270,7 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
             if ( first_scan )
                 DBG("Reading subdirectory [%s]...", dirent->d_name);
 #endif
-            npp_lib_read_snippets(host, directory, first_scan, resname);
+            npp_lib_read_snippets(host, host_id, directory, first_scan, resname);
             continue;
         }
         else if ( !S_ISREG(fstat.st_mode) )    /* skip if not a regular file nor directory */
@@ -2056,45 +2289,36 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
 
         if ( !first_scan )
         {
-            bool exists_not_changed = FALSE;
-
-            for ( i=0; i<=G_snippets_cnt; ++i )
+#ifdef NPP_MULTI_HOST
+            i = get_snippet_idx(host_id, resname);
+#else
+            i = get_snippet_idx(resname);
+#endif
+            if ( i != -1 )  /* already read */
             {
-                if ( G_snippets[i].name[0]==EOS ) continue;   /* removed */
+//                DDBG("%s already read", resname);
 
-                /* ------------------------------------------------------------------- */
-
-                if ( 0==strcmp(G_snippets[i].host, host) && 0==strcmp(G_snippets[i].name, resname) )
+                if ( G_snippets[i].modified == fstat.st_mtime )
                 {
-//                    DDBG("%s already read", resname);
-
-                    if ( G_snippets[i].modified == fstat.st_mtime )
-                    {
-//                        DDBG("Not modified");
-                        exists_not_changed = TRUE;
-                    }
-                    else
-                    {
-                        INF("%s has been modified", resname);
-                        reread = TRUE;
-                    }
-
-                    break;
+//                    DDBG("Not modified");
+                    continue;   /* skip to the next file */
+                }
+                else
+                {
+                    INF("%s has been modified", resname);
+                    reread = TRUE;
                 }
             }
-
-            if ( exists_not_changed ) continue;   /* not modified */
         }
 
-        /* find the first unused slot in G_snippets array */
-
-        if ( !reread )
+        if ( !reread )  /* first time on the list */
         {
-            i = first_free_snippet();
+            i = G_snippets_cnt;
 
             /* host -- already uppercase */
 
             strcpy(G_snippets[i].host, host);
+            G_snippets[i].host_id = host_id;
 
             /* file name */
 
@@ -2159,54 +2383,22 @@ bool npp_lib_read_snippets(const char *host, const char *directory, bool first_s
                 G_ptm = gmtime(&G_now);     /* set it back */
                 DBG("%s %s\t\t%u bytes", npp_add_spaces(G_snippets[i].name, 28), mod_time, G_snippets[i].len);
             }
+
+            if ( !reread )
+                ++G_snippets_cnt;
         }
     }
 
     closedir(dir);
 
-    if ( first_scan && !path ) DBG("");
+    if ( first_scan && !path )
+    {
+        DBG("");
+        DBG("G_snippets_cnt = %d", G_snippets_cnt);
+        DBG("");
+    }
 
     return TRUE;
-}
-
-
-/* --------------------------------------------------------------------------
-   Get snippet index
--------------------------------------------------------------------------- */
-static int get_snippet_idx(int ci, const char *name)
-{
-    int i;
-
-#ifdef NPP_MULTI_HOST
-
-    if ( !G_connections[ci].host_id )    /* main host */
-    {
-        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-        {
-            if ( !G_snippets[i].host[0] && 0==strcmp(G_snippets[i].name, name) )
-                return i;
-        }
-    }
-    else    /* side gig */
-    {
-        for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-        {
-            if ( 0==strcmp(G_snippets[i].host, G_connections[ci].host_normalized) && 0==strcmp(G_snippets[i].name, name) )
-                return i;
-        }
-    }
-
-#else   /* NOT NPP_MULTI_HOST */
-
-    for ( i=0; G_snippets[i].name[0] != '-'; ++i )
-    {
-        if ( 0==strcmp(G_snippets[i].name, name) )
-            return i;
-    }
-
-#endif  /* NPP_MULTI_HOST */
-
-    return -1;
 }
 
 
@@ -2215,7 +2407,11 @@ static int get_snippet_idx(int ci, const char *name)
 -------------------------------------------------------------------------- */
 char *npp_get_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         return G_snippets[i].data;
@@ -2229,7 +2425,11 @@ char *npp_get_snippet(int ci, const char *name)
 -------------------------------------------------------------------------- */
 unsigned npp_get_snippet_len(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         return G_snippets[i].len;
@@ -2241,9 +2441,19 @@ unsigned npp_get_snippet_len(int ci, const char *name)
 /* --------------------------------------------------------------------------
    OUT snippet
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_out_snippet(int ci, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 void npp_out_snippet(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#endif
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
         OUT_BIN(G_snippets[i].data, G_snippets[i].len);
@@ -2253,9 +2463,19 @@ void npp_out_snippet(int ci, const char *name)
 /* --------------------------------------------------------------------------
    OUT markdown snippet
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_out_snippet_md(int ci, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 void npp_out_snippet_md(int ci, const char *name)
 {
-    int i = get_snippet_idx(ci, name);
+#endif
+#ifdef NPP_MULTI_HOST
+    int i = get_snippet_idx(G_connections[ci].host_id, name);
+#else
+    int i = get_snippet_idx(name);
+#endif
 
     if ( i != -1 )
     {
@@ -2348,18 +2568,33 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
 }
 
 
+#ifdef NPP_MULTI_HOST
+/* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+static int compare_hosts(const void *a, const void *b)
+{
+    const npp_host_t *p1 = (npp_host_t*)a;
+    const npp_host_t *p2 = (npp_host_t*)b;
+
+    return strcmp(p1->host, p2->host);
+
+}
+#endif  /* NPP_MULTI_HOST */
+
+
 /* --------------------------------------------------------------------------
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_)
+bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_, char required_auth_level)
 {
     const char *host = host_.c_str();
     const char *res = res_.c_str();
     const char *resmin = resmin_.c_str();
     const char *snippets = snippets_.c_str();
 #else
-bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets)
+bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level)
 {
 #endif
 #ifdef NPP_MULTI_HOST
@@ -2375,7 +2610,13 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
     if ( snippets && snippets[0] )
         COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
 
+    G_hosts[G_hosts_cnt].required_auth_level = required_auth_level;
+
+    G_hosts[G_hosts_cnt].index_present = -1;
+
     ++G_hosts_cnt;
+
+    qsort(G_hosts, G_hosts_cnt, sizeof(G_hosts[0]), compare_hosts);
 
 #endif  /* NPP_MULTI_HOST */
 
@@ -2386,7 +2627,7 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
 /* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */
-static bool get_qs_param_json(int ci, const char *fieldname, char *retbuf, int maxlen)
+static bool get_qs_param_json(int ci, const char *name, char *retbuf, int maxlen)
 {
 static int prev_ci=-1;
 static unsigned prev_req;
@@ -2406,25 +2647,27 @@ static JSON req={0};
         prev_req = G_cnts_today.req;
     }
 
-    if ( !lib_json_present(&req, fieldname) )
+#ifdef NPP_JSON_V1
+    if ( !lib_json_present(&req, name) )
         return FALSE;
 
-    strncpy(retbuf, lib_json_get_str(&req, fieldname, 0), maxlen);
-    retbuf[maxlen] = EOS;
-
+    COPY(retbuf, lib_json_get_str(&req, name, 0), maxlen);
     return TRUE;
+#else
+    return lib_json_get_str(&req, name, 0, retbuf, maxlen);
+#endif
 }
 
 
 /* --------------------------------------------------------------------------
    Get text value from multipart-form-data
 -------------------------------------------------------------------------- */
-static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, size_t maxlen)
+static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, size_t maxlen)
 {
     unsigned char *p;
     size_t len;
 
-    p = npp_lib_get_qs_param_multipart(ci, fieldname, &len, NULL);
+    p = npp_lib_get_qs_param_multipart(ci, name, &len, NULL);
 
     if ( !p ) return FALSE;
 
@@ -2445,23 +2688,23 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
 /* --------------------------------------------------------------------------
    Get the query string value. Return TRUE if found.
 -------------------------------------------------------------------------- */
-static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t maxlen)
+static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxlen)
 {
     char *qs, *end;
 
     G_qs_len = 0;
 
-    DDBG("get_qs_param_raw: fieldname [%s]", fieldname);
+    DDBG("get_qs_param_raw: name [%s]", name);
 
     if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )
     {
         if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_JSON )
         {
-            return get_qs_param_json(ci, fieldname, retbuf, maxlen);
+            return get_qs_param_json(ci, name, retbuf, maxlen);
         }
         else if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_MULTIPART )
         {
-            return get_qs_param_multipart_txt(ci, fieldname, retbuf, maxlen);
+            return get_qs_param_multipart_txt(ci, name, retbuf, maxlen);
         }
         else if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_URLENCODED && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_UNSET )
         {
@@ -2490,7 +2733,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
         DDBG("get_qs_param_raw: qs len = %d", strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
     }
 
-    int fnamelen = strlen(fieldname);
+    int fnamelen = strlen(name);
 
     if ( fnamelen < 1 )
     {
@@ -2504,7 +2747,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
 
     while ( val < end )
     {
-        val = strstr(val, fieldname);
+        val = strstr(val, name);
 
         if ( val == NULL )
         {
@@ -2557,7 +2800,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
 /* --------------------------------------------------------------------------
    Get incoming request data. TRUE if found.
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, size_t maxlen, char esc_type)
+bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type)
 {
 static char interbuf[65536];
 
@@ -2565,7 +2808,7 @@ static char interbuf[65536];
     {
 static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count */
 
-        if ( !get_qs_param_raw(ci, fieldname, rawbuf, maxlen*3-1) )
+        if ( !get_qs_param_raw(ci, name, rawbuf, maxlen*3-1) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -2576,7 +2819,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
     }
     else    /* usually JSON or multipart */
     {
-        if ( !get_qs_param_raw(ci, fieldname, interbuf, maxlen) )
+        if ( !get_qs_param_raw(ci, name, interbuf, maxlen) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -2592,14 +2835,30 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
         else if ( esc_type == NPP_ESC_SQL )
             npp_lib_escape_for_sql(retbuf, interbuf, maxlen);
         else
-        {
-            strncpy(retbuf, interbuf, maxlen);
-            retbuf[maxlen] = EOS;
-        }
+            COPY(retbuf, interbuf, maxlen);
     }
 
     return TRUE;
 }
+
+
+#ifdef NPP_CPP_STRINGS
+/* --------------------------------------------------------------------------
+   Overloaded version for std::string
+-------------------------------------------------------------------------- */
+bool npp_lib_get_qs_param(int ci, const std::string& name_, std::string& retbuf_, size_t maxlen, char esc_type)
+{
+    const char *name = name_.c_str();
+static char retbuf[65536];
+
+    bool ret = npp_lib_get_qs_param(ci, name, retbuf, maxlen, esc_type);
+
+    if ( ret )
+        retbuf_ = retbuf;
+
+    return ret;
+}
+#endif
 
 
 /* --------------------------------------------------------------------------
@@ -2608,7 +2867,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
    If retfname is not NULL then assume binary data and it must be the last
    data element
 -------------------------------------------------------------------------- */
-unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname)
+unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname)
 {
     unsigned blen;           /* boundary length */
     char     *cp;            /* current pointer */
@@ -2723,7 +2982,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
 
 //      DBG("fn: [%s]", fn);
 
-        if ( 0==strcmp(fn, fieldname) )     /* found */
+        if ( 0==strcmp(fn, name) )     /* found */
             break;
 
         cp += b;
@@ -2807,11 +3066,17 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
 /* --------------------------------------------------------------------------
    Get integer value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsi(int ci, const std::string& name_, int *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsi(int ci, const char *name, int *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%d", retbuf);
@@ -2826,11 +3091,17 @@ bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf)
 /* --------------------------------------------------------------------------
    Get unsigned value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsu(int ci, const std::string& name_, unsigned *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%u", retbuf);
@@ -2845,11 +3116,17 @@ bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf)
 /* --------------------------------------------------------------------------
    Get long value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsl(int ci, const std::string& name_, long *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsl(int ci, const char *name, long *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%ld", retbuf);
@@ -2864,11 +3141,17 @@ bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf)
 /* --------------------------------------------------------------------------
    Get float value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsf(int ci, const char *fieldname, float *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsf(int ci, const std::string& name_, float *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsf(int ci, const char *name, float *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%f", retbuf);
@@ -2883,11 +3166,17 @@ bool npp_lib_qsf(int ci, const char *fieldname, float *retbuf)
 /* --------------------------------------------------------------------------
    Get double value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsd(int ci, const char *fieldname, double *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsd(int ci, const std::string& name_, double *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsd(int ci, const char *name, double *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%lf", retbuf);
@@ -2902,11 +3191,17 @@ bool npp_lib_qsd(int ci, const char *fieldname, double *retbuf)
 /* --------------------------------------------------------------------------
    Get bool value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsb(int ci, const char *fieldname, bool *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsb(int ci, const std::string& name_, bool *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsb(int ci, const char *name, bool *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
         {
@@ -2935,8 +3230,15 @@ void npp_lib_set_res_status(int ci, int status)
 /* --------------------------------------------------------------------------
    Set custom header
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_res_header(int ci, const std::string& hdr_, const std::string& val_)
+{
+    const char *hdr = hdr_.c_str();
+    const char *val = val_.c_str();
+#else
 bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 {
+#endif
     int hlen = strlen(hdr);
     int vlen = strlen(val);
     int all = hlen + vlen + 4;
@@ -2961,8 +3263,25 @@ bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 /* --------------------------------------------------------------------------
    Get request cookie
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow value to be char as well as std::string */
+bool npp_lib_get_cookie(int ci, const std::string& key_, char *value)
+{
+    std::string value_;
+    bool ret = npp_lib_get_cookie(ci, key_, value_);
+    if ( value )
+        strcpy(value, value_.c_str());
+    return ret;
+}
+
+bool npp_lib_get_cookie(int ci, const std::string& key_, std::string& value_)
+{
+    const char *key = key_.c_str();
+static char value[NPP_MAX_VALUE_LEN+1];
+#else
 bool npp_lib_get_cookie(int ci, const char *key, char *value)
 {
+#endif
     char nkey[256];
     char *v;
 
@@ -2988,6 +3307,10 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
         value[j] = EOS;
     }
 
+#ifdef NPP_CPP_STRINGS
+    value_ = value;
+#endif
+
     return TRUE;
 }
 
@@ -2995,8 +3318,15 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
 /* --------------------------------------------------------------------------
    Set cookie
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_set_cookie(int ci, const std::string& key_, const std::string& value_, int days)
+{
+    const char *key = key_.c_str();
+    const char *value = value_.c_str();
+#else
 bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
 {
+#endif
     char v[NPP_CUST_HDR_LEN+1];
 
     if ( days )
@@ -3012,8 +3342,14 @@ bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
    Set response content type
    Mirrored print_content_type
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_lib_set_res_content_type(int ci, const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 void npp_lib_set_res_content_type(int ci, const char *str)
 {
+#endif
     if ( 0==strcmp(str, "text/html; charset=utf-8") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(str, "text/plain") )
@@ -3609,12 +3945,6 @@ static bool call_http_parse_url(const char *url, char *host, char *port, char *u
             ERR("url too short (2)");
             return FALSE;
         }
-
-        if ( !M_ssl_ctx && !init_ssl_client() )   /* first time */
-        {
-            ERR("init_ssl_client failed");
-            return FALSE;
-        }
 #else
         ERR("HTTPS is not enabled");
         return FALSE;
@@ -3799,73 +4129,52 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 /* --------------------------------------------------------------------------
    Finish socket operation with timeout
 -------------------------------------------------------------------------- */
-static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
+static int finish_client_io(char oper, char readwrite, char *buffer, int len, int *msec, const void *ssl, int level)
 {
-    int             sockerr;
+    int sockerr = NPP_SOCKET_GET_ERROR;
+
+#ifdef NPP_DEBUG
+    if ( oper == NPP_OPER_READ )
+        DBG("finish_client_io NPP_OPER_READ, level=%d", level);
+    else if ( oper == NPP_OPER_WRITE )
+        DBG("finish_client_io NPP_OPER_WRITE, level=%d", level);
+    else if ( oper == NPP_OPER_CONNECT )
+        DBG("finish_client_io NPP_OPER_CONNECT, level=%d", level);
+    else if ( oper == NPP_OPER_SHUTDOWN )
+        DBG("finish_client_io NPP_OPER_SHUTDOWN, level=%d", level);
+    else
+        ERR("finish_client_io -- unknown operation: %d", oper);
+#endif  /* NPP_DEBUG */
+
+    /* ------------------------------------------------------------------- */
+
+    if ( level > 20 )   /* just in case */
+    {
+        ERR("finish_client_io -- too many levels");
+        return -1;
+    }
+
+    /* ------------------------------------------------------------------- */
+
+    if ( !ssl )
+    {
+        if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
+        {
+            NPP_SOCKET_LOG_ERROR(sockerr);
+            return -1;
+        }
+    }
+
+    /* ------------------------------------------------------------------- */
+
     struct timeval  timeout;
     fd_set          readfds;
     fd_set          writefds;
     int             socks=0;
-#ifdef NPP_HTTPS
     int             bytes;
+#ifdef NPP_HTTPS
     int             ssl_err;
 #endif
-
-#ifdef NPP_DEBUG
-    if ( oper == NPP_OPER_READ )
-        DBG("lib_finish_with_timeout NPP_OPER_READ, level=%d", level);
-    else if ( oper == NPP_OPER_WRITE )
-        DBG("lib_finish_with_timeout NPP_OPER_WRITE, level=%d", level);
-    else if ( oper == NPP_OPER_CONNECT )
-        DBG("lib_finish_with_timeout NPP_OPER_CONNECT, level=%d", level);
-    else if ( oper == NPP_OPER_SHUTDOWN )
-        DBG("lib_finish_with_timeout NPP_OPER_SHUTDOWN, level=%d", level);
-    else
-        ERR("lib_finish_with_timeout -- unknown operation: %d", oper);
-#endif  /* NPP_DEBUG */
-
-    if ( level > 20 )   /* just in case */
-    {
-        ERR("lib_finish_with_timeout -- too many levels");
-        return -1;
-    }
-
-    /* get the error code ------------------------------------------------ */
-    /* note: during SSL operations it will be 0                            */
-
-#ifdef _WIN32   /* Windows */
-    sockerr = WSAGetLastError();
-#else
-    sockerr = errno;
-#endif
-
-    if ( !ssl )
-    {
-#ifdef _WIN32   /* Windows */
-
-//        sockerr = WSAGetLastError();
-
-        if ( sockerr != WSAEWOULDBLOCK )
-        {
-            wchar_t *s = NULL;
-            FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-            ERR("%d (%S)", sockerr, s);
-            LocalFree(s);
-            return -1;
-        }
-
-#else   /* Linux */
-
-//        sockerr = errno;
-
-        if ( sockerr != EWOULDBLOCK && sockerr != EINPROGRESS )
-        {
-            ERR("errno = %d (%s)", sockerr, strerror(sockerr));
-            return -1;
-        }
-
-#endif  /* _WIN32 */
-    }
 
     /* set up timeout for select ----------------------------------------- */
 
@@ -3895,15 +4204,15 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     {
         DDBG("NPP_OPER_READ, waiting on select()...");
         FD_ZERO(&readfds);
-        FD_SET(sock, &readfds);
-        socks = select(sock+1, &readfds, NULL, NULL, &timeout);
+        FD_SET(M_call_http_socket, &readfds);
+        socks = select(M_call_http_socket+1, &readfds, NULL, NULL, &timeout);
     }
     else if ( readwrite == NPP_OPER_WRITE )
     {
         DDBG("NPP_OPER_WRITE, waiting on select()...");
         FD_ZERO(&writefds);
-        FD_SET(sock, &writefds);
-        socks = select(sock+1, NULL, &writefds, NULL, &timeout);
+        FD_SET(M_call_http_socket, &writefds);
+        socks = select(M_call_http_socket+1, NULL, &writefds, NULL, &timeout);
     }
     else if ( readwrite == NPP_OPER_CONNECT || readwrite == NPP_OPER_SHUTDOWN )   /* SSL only! */
     {
@@ -3915,9 +4224,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
         ssl_err = SSL_get_error((SSL*)ssl, len);
 
         if ( ssl_err==SSL_ERROR_WANT_READ )
-            return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+            return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
         else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-            return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+            return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
         else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
         {
             DBG("SSL_connect or SSL_shutdown error %d", ssl_err);
@@ -3932,7 +4241,8 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     }
     else
     {
-        ERR("lib_finish_with_timeout -- invalid readwrite (%d) for this operation (%d)", readwrite, oper);
+        ERR("finish_client_io -- invalid readwrite (%d) for this operation (%d)", readwrite, oper);
+        return -1;
     }
 
     *msec -= npp_elapsed(&start);
@@ -3948,12 +4258,12 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
     }
     else if ( socks == 0 )
     {
-        WAR("lib_finish_with_timeout timeouted (was waiting for %.2f ms)", npp_elapsed(&start));
+        WAR("finish_client_io timeouted (was waiting for %.2f ms)", npp_elapsed(&start));
         return -1;
     }
     else    /* socket is ready for I/O */
     {
-        DDBG("lib_finish_with_timeout socks > 0");
+        DDBG("finish_client_io socks > 0");
 
         if ( readwrite == NPP_OPER_READ )
         {
@@ -3967,7 +4277,7 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
-                if ( bytes > 0 )
+                if ( bytes >= 0 )
                 {
                     return bytes;
                 }
@@ -3978,9 +4288,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_read error %d", ssl_err);
@@ -3990,7 +4300,14 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             }
             else
 #endif  /* NPP_HTTPS */
-                return recv(sock, buffer, len, 0);
+            {
+                bytes = recv(M_call_http_socket, buffer, len, 0);
+
+                if ( bytes >= 0 )
+                    return bytes;
+                else
+                    return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, NULL, level+1);
+            }
         }
         else if ( readwrite == NPP_OPER_WRITE )
         {
@@ -4004,7 +4321,7 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                 else    /* NPP_OPER_SHUTDOWN */
                     bytes = SSL_shutdown((SSL*)ssl);
 
-                if ( bytes > 0 )
+                if ( bytes >= 0 )
                 {
                     return bytes;
                 }
@@ -4015,9 +4332,9 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
                     ssl_err = SSL_get_error((SSL*)ssl, bytes);
 
                     if ( ssl_err==SSL_ERROR_WANT_WRITE )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, ssl, level+1);
                     else if ( ssl_err==SSL_ERROR_WANT_READ )
-                        return lib_finish_with_timeout(sock, oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
+                        return finish_client_io(oper, NPP_OPER_READ, buffer, len, msec, ssl, level+1);
                     else if ( !npp_lib_check_ssl_error(ssl_err) )   /* not cool */
                     {
                         DBG("SSL_write error %d", ssl_err);
@@ -4027,18 +4344,48 @@ static int lib_finish_with_timeout(int sock, char oper, char readwrite, char *bu
             }
             else
 #endif  /* NPP_HTTPS */
-                return send(sock, buffer, len, 0);
+            {
+                bytes = send(M_call_http_socket, buffer, len, 0);
+
+                if ( bytes >= 0 )
+                    return bytes;
+                else
+                    return finish_client_io(oper, NPP_OPER_WRITE, buffer, len, msec, NULL, level+1);
+            }
         }
         else
         {
-            ERR("lib_finish_with_timeout -- should have never reached this!");
+            ERR("finish_client_io -- should have never reached this!");
             return -1;
         }
     }
 
-    DBG("lib_finish_with_timeout reached the end (returning 1)");
+    DBG("finish_client_io reached the end (returning 1)");
 
     return 1;
+}
+
+
+/* --------------------------------------------------------------------------
+   Convert network address to a string
+-------------------------------------------------------------------------- */
+void npp_sockaddr_to_string(struct sockaddr_in6 *in_addr, char *result)
+{
+#ifndef NPP_DONT_MAP_IPV4_ADDRESSES
+    if ( IN6_IS_ADDR_V4MAPPED(&(in_addr->sin6_addr)) )
+    {
+        DDBG("\nIN6_IS_ADDR_V4MAPPED");
+
+        struct sockaddr_in addr_v4={0};
+        addr_v4.sin_family = AF_INET;
+
+        memcpy(&addr_v4.sin_addr, ((char*)&(in_addr->sin6_addr)) + 12, 4);
+
+        inet_ntop(AF_INET, &(addr_v4.sin_addr), result, INET_ADDRSTRLEN);
+    }
+    else
+#endif  /* NPP_DONT_MAP_IPV4_ADDRESSES */
+        inet_ntop(AF_INET6, &(in_addr->sin6_addr), result, INET6_ADDRSTRLEN);
 }
 
 
@@ -4104,13 +4451,13 @@ static int addresses_cnt=0, addresses_last=0;
 #endif
         DBG("getaddrinfo...");   /* TODO: change to asynchronous, i.e. getaddrinfo_a */
 
-        struct addrinfo hints;
-        int s;
+        struct addrinfo hints={0};
 
-        memset(&hints, 0, sizeof(struct addrinfo));
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_protocol = IPPROTO_TCP;
+
+        int s;
 
         if ( (s=getaddrinfo(host, port, &hints, &result)) != 0 )
         {
@@ -4164,7 +4511,28 @@ static int addresses_cnt=0, addresses_last=0;
 
 #ifdef NPP_DEBUG
         int finish_res;
-#endif
+
+        {
+            /* get the remote address */
+
+            char remote_addr[INET6_ADDRSTRLEN]="";
+
+            if ( rp->ai_family == AF_INET6 )
+            {
+                DBG("AF_INET6");
+                struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+                npp_sockaddr_to_string(remote_addr_struct, remote_addr);
+            }
+            else    /* AF_INET */
+            {
+                DBG("AF_INET");
+                struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+                inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
+            }
+
+            DBG("Address [%s]", remote_addr);
+        }
+#endif  /* NPP_DEBUG */
 
         if ( connect(M_call_http_socket, rp->ai_addr, rp->ai_addrlen) != -1 )
         {
@@ -4172,9 +4540,9 @@ static int addresses_cnt=0, addresses_last=0;
             break;  /* immediate success */
         }
 #ifdef NPP_DEBUG
-        else if ( (finish_res=lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0)) == 0 )
+        else if ( (finish_res=finish_client_io(NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0)) == 0 )
 #else
-        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
+        else if ( finish_client_io(NPP_OPER_CONNECT, NPP_OPER_WRITE, NULL, 0, &timeout_tmp, NULL, 0) == 0 )
 #endif
         {
             DDBG("Success within timeout");
@@ -4185,7 +4553,7 @@ static int addresses_cnt=0, addresses_last=0;
 #ifdef NPP_DEBUG
             int last_errno = errno;
 #endif
-            ERR("Couldn't connect with lib_finish_with_timeout");
+            ERR("Couldn't connect with finish_client_io");
 #ifdef NPP_DEBUG
             DDBG("finish_res = %d", finish_res);
             if ( finish_res == -1 )
@@ -4216,20 +4584,31 @@ static int addresses_cnt=0, addresses_last=0;
         strcpy(addresses[addresses_last].host, host);
         strcpy(addresses[addresses_last].port, port);
         memcpy(&addresses[addresses_last].addr, rp, sizeof(struct addrinfo));
+
         /* addrinfo contains pointers -- mind the shallow copy! */
+
         memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr));
-        addresses[addresses_last].addr.ai_addr = &addresses[addresses_last].ai_addr;
+        addresses[addresses_last].addr.ai_addr = &(addresses[addresses_last].ai_addr);
         addresses[addresses_last].addr.ai_next = NULL;
 
         /* get the remote address */
-        char remote_addr[INET_ADDRSTRLEN]="";
-        struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
-#ifdef _WIN32   /* Windows */
-        strcpy(remote_addr, inet_ntoa(remote_addr_struct->sin_addr));
-#else
-        inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
-#endif
-        INF("Connected to %s", remote_addr);
+
+        char remote_addr[INET6_ADDRSTRLEN]="";
+
+        if ( rp->ai_family == AF_INET6 )
+        {
+            DBG("AF_INET6");
+            struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+            npp_sockaddr_to_string(remote_addr_struct, remote_addr);
+        }
+        else    /* AF_INET */
+        {
+            DBG("AF_INET");
+            struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+            inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
+        }
+
+        INF("Connected to [%s]", remote_addr);
 
         DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);
 
@@ -4261,9 +4640,16 @@ static int addresses_cnt=0, addresses_last=0;
 
     if ( secure )
     {
+        if ( !M_ssl_client_ctx && !init_ssl_client() )   /* first time */
+        {
+            ERR("init_ssl_client failed");
+            close_conn(M_call_http_socket);
+            return FALSE;
+        }
+
         DBG("Trying SSL_new...");
 
-        M_call_http_ssl = SSL_new(M_ssl_ctx);
+        M_call_http_ssl = SSL_new(M_ssl_client_ctx);
 
         if ( !M_call_http_ssl )
         {
@@ -4308,7 +4694,7 @@ static int addresses_cnt=0, addresses_last=0;
         {
             DBG("SSL_connect immediate success");
         }
-        else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_CONNECT, NPP_OPER_CONNECT, NULL, ret, timeout_remain, M_call_http_ssl, 0) > 0 )
+        else if ( finish_client_io(NPP_OPER_CONNECT, NPP_OPER_CONNECT, NULL, ret, timeout_remain, M_call_http_ssl, 0) > 0 )
         {
             DBG("SSL_connect successful");
         }
@@ -4322,8 +4708,6 @@ static int addresses_cnt=0, addresses_last=0;
         }
 
         DDBG("elapsed after SSL connect: %.3lf ms", npp_elapsed(start));
-
-//        M_ssl_session = SSL_get_session(M_call_http_ssl);
 
         X509 *server_cert;
         server_cert = SSL_get_peer_certificate(M_call_http_ssl);
@@ -4387,25 +4771,22 @@ static void call_http_disconnect(int ssl_ret)
 
                 if ( ret == 1 )
                     DBG("SSL_shutdown success");
-                else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+                else if ( finish_client_io(NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
                     DBG("SSL_shutdown successful");
                 else
-                    ERR("SSL_shutdown failed (2)");
+                    WAR("SSL_shutdown failed (2)");
             }
-            else if ( lib_finish_with_timeout(M_call_http_socket, NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
+            else if ( finish_client_io(NPP_OPER_SHUTDOWN, NPP_OPER_SHUTDOWN, NULL, ret, &timeout_tmp, M_call_http_ssl, 0) > 0 )
             {
                 DBG("SSL_shutdown successful");
             }
             else
             {
-                ERR("SSL_shutdown failed (1)");
+                WAR("SSL_shutdown failed (1)");
             }
         }
 
         SSL_free(M_call_http_ssl);
-
-/*        if ( M_ssl_session )
-            SSL_SESSION_free(M_ssl_session); */
 
         M_call_http_ssl = NULL;
     }
@@ -4672,6 +5053,88 @@ static bool call_http_res_parse(char *res_header, int bytes)
 
 
 /* --------------------------------------------------------------------------
+   Send through non-blocking socket with timeout
+-------------------------------------------------------------------------- */
+static int client_send(char *buffer, int len, int *timeout_remain, bool secure)
+{
+    if ( *timeout_remain < 2 )
+    {
+        ERR("Operation timeouted");
+        call_http_disconnect(0);
+        return -1;
+    }
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    int bytes;
+
+#ifdef NPP_HTTPS
+    if ( secure )
+        bytes = SSL_write(M_call_http_ssl, buffer, len);
+    else
+#endif  /* NPP_HTTPS */
+        bytes = send(M_call_http_socket, buffer, len, 0);
+
+    if ( bytes < 0 )
+        bytes = finish_client_io(NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+    DBG("client_send returning %d bytes", bytes);
+
+    DDBG("client_send took %.3lf ms", npp_elapsed(&start));
+
+    return bytes;
+}
+
+
+/* --------------------------------------------------------------------------
+   Receive through non-blocking socket with timeout
+-------------------------------------------------------------------------- */
+static int client_recv(char *buffer, int len, int *timeout_remain, bool secure)
+{
+    if ( *timeout_remain < 2 )
+    {
+        ERR("Operation timeouted");
+        call_http_disconnect(0);
+        return -1;
+    }
+
+#ifdef NPP_DEBUG
+    struct timespec start;
+#ifdef _WIN32
+    clock_gettime_win(&start);
+#else
+    clock_gettime(MONOTONIC_CLOCK_NAME, &start);
+#endif
+#endif  /* NPP_DEBUG */
+
+    int bytes;
+
+#ifdef NPP_HTTPS
+    if ( secure )
+        bytes = SSL_read(M_call_http_ssl, buffer, len);
+    else
+#endif  /* NPP_HTTPS */
+        bytes = recv(M_call_http_socket, buffer, len, 0);
+
+    if ( bytes < 0 )
+        bytes = finish_client_io(NPP_OPER_READ, NPP_OPER_READ, buffer, len, timeout_remain, secure?M_call_http_ssl:NULL, 0);
+
+    DBG("client_recv returning %d bytes", bytes);
+
+    DDBG("client_recv took %.3lf ms", npp_elapsed(&start));
+
+    return bytes;
+}
+
+
+/* --------------------------------------------------------------------------
    HTTP call
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -4739,81 +5202,46 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
 
     /* connect if necessary ----------------------------------------------------- */
 
-    if ( !connected && !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
+    if ( !connected && !call_http_connect(host, port, &start, &timeout_remain, secure) )
+        return FALSE;
 
     /* -------------------------------------------------------------------------- */
 
     DBG("Sending request...");
 
-    bool after_reconnect=0;
+    bytes = client_send(buffer, len, &timeout_remain, secure);
 
-    while ( timeout_remain > 1 )
+    if ( bytes < 0 )    /* couldn't send */
     {
-#ifdef NPP_HTTPS
-        if ( secure )
+        if ( was_connected )    /* could have been disconnected since the last time */
         {
-/*            char first_char[2];
-            first_char[0] = buffer[0];
-            first_char[1] = EOS;
+            DBG("Trying to reconnect...");
 
-            bytes = SSL_write(M_call_http_ssl, first_char, 1);
-
-            if ( bytes > 0 )
-                bytes = SSL_write(M_call_http_ssl, buffer+1, len-1) + bytes; */
-
-            bytes = SSL_write(M_call_http_ssl, buffer, len);
-        }
-        else
-#endif  /* NPP_HTTPS */
-            bytes = send(M_call_http_socket, buffer, len, 0);    /* try in one go */
-
-        if ( !secure && bytes <= 0 )
-        {
-            if ( !was_connected || after_reconnect )
+            if ( call_http_connect(host, port, &start, &timeout_remain, secure) )
             {
-                ERR("Send (after fresh connect) failed");
-                call_http_disconnect(0);
-                connected = FALSE;
+                bytes = client_send(buffer, len, &timeout_remain, secure);
+            }
+            else    /* couldn't reconnect */
+            {
                 return FALSE;
             }
-
-            DBG("Disconnected? Trying to reconnect...");
-            call_http_disconnect(0);
-            if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-            after_reconnect = 1;
         }
-        else if ( secure && bytes == -1 )
-        {
-            bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_WRITE, NPP_OPER_WRITE, buffer, len, &timeout_remain, M_call_http_ssl, 0);
+    }
 
-            if ( bytes == -1 )
-            {
-                if ( !was_connected || after_reconnect )
-                {
-                    ERR("Send (after fresh connect) failed");
-                    call_http_disconnect(-1);
-                    connected = FALSE;
-                    return FALSE;
-                }
-
-                DBG("Disconnected? Trying to reconnect...");
-                call_http_disconnect(-1);
-                if ( !call_http_connect(host, port, &start, &timeout_remain, secure) ) return FALSE;
-                after_reconnect = 1;
-            }
-        }
-        else    /* bytes > 0 ==> OK */
-        {
-            break;
-        }
+    if ( bytes < 0 )
+    {
+        ERR("Couldn't send request");
+        call_http_disconnect(-1);
+        connected = FALSE;
+        return FALSE;
     }
 
     DDBG("Sent %d bytes", bytes);
 
     if ( bytes < 15 )
     {
-        ERR("send failed, errno = %d (%s)", errno, strerror(errno));
-        call_http_disconnect(bytes);
+        ERR("Bytes sent < 15, aborting");
+        call_http_disconnect(0);
         connected = FALSE;
         return FALSE;
     }
@@ -4824,24 +5252,14 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
 
     DBG("Reading response...");
 
-#ifdef NPP_HTTPS
-    if ( secure )
-        bytes = SSL_read(M_call_http_ssl, res_header, CALL_HTTP_RES_HEADER_LEN);
-    else
-#endif  /* NPP_HTTPS */
-        bytes = recv(M_call_http_socket, res_header, CALL_HTTP_RES_HEADER_LEN, 0);
+    bytes = client_recv(res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure);
 
-    if ( bytes == -1 )
+    if ( bytes < 0 )
     {
-        bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
-
-        if ( bytes <= 0 )
-        {
-            ERR("recv failed, errno = %d (%s)", errno, strerror(errno));
-            call_http_disconnect(bytes);
-            connected = FALSE;
-            return FALSE;
-        }
+        ERR("Couldn't read response");
+        call_http_disconnect(bytes);
+        connected = FALSE;
+        return FALSE;
     }
 
     DBG("Read %d bytes", bytes);
@@ -4911,15 +5329,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
         {
             DDBG("trying again (content-length)");
 
-#ifdef NPP_HTTPS
-            if ( secure )
-                bytes = SSL_read(M_call_http_ssl, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1);
-            else
-#endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+            bytes = client_recv(res_content+content_read, CALL_HTTP_MAX_RESPONSE_LEN-content_read-1, &timeout_remain, secure);
 
             if ( bytes > 0 )
                 content_read += bytes;
@@ -4974,15 +5384,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
             DDBG("trying again (chunked)");
 
-#ifdef NPP_HTTPS
-            if ( secure )
-                bytes = SSL_read(M_call_http_ssl, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1);
-            else
-#endif  /* NPP_HTTPS */
-                bytes = recv(M_call_http_socket, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, 0);
-
-            if ( bytes == -1 )
-                bytes = lib_finish_with_timeout(M_call_http_socket, NPP_OPER_READ, NPP_OPER_READ, buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, &timeout_remain, secure?M_call_http_ssl:NULL, 0);
+            bytes = client_recv(buffer+buffer_read, CALL_HTTP_MAX_RESPONSE_LEN-buffer_read-1, &timeout_remain, secure);
 
             if ( bytes > 0 )
                 buffer_read += bytes;
@@ -5071,16 +5473,30 @@ void npp_call_http_disconnect()
 
 
 /* --------------------------------------------------------------------------
+   Log Windows socket error
+-------------------------------------------------------------------------- */
+#ifdef _WIN32
+void lib_log_win_socket_error(int sockerr)
+{
+    wchar_t *s = NULL;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
+    DBG("WSAGetLastError() = %d (%S)", sockerr, s);
+    LocalFree(s);
+}
+#endif
+
+
+/* --------------------------------------------------------------------------
    Log SSL error
 
    From openssl.h:
 
 #define SSL_ERROR_NONE        (0)
-#define SSL_ERROR_SSL         (1)
+#define SSL_ERROR_SSL         (1) A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.
 #define SSL_ERROR_WANT_READ   (2)
 #define SSL_ERROR_WANT_WRITE  (3)
-#define SSL_ERROR_SYSCALL     (5)
-#define SSL_ERROR_ZERO_RETURN (6)
+#define SSL_ERROR_SYSCALL     (5) Some non-recoverable, fatal I/O error occurred. SSL_shutdown() must not be called.
+#define SSL_ERROR_ZERO_RETURN (6) The TLS/SSL peer has closed the connection for writing by sending the close_notify alert. No more data can be read.
 
 Return TRUE if everything is cool
 
@@ -5103,24 +5519,13 @@ bool npp_lib_check_ssl_error(int ssl_err)
 
     if ( ssl_err != SSL_ERROR_SYSCALL ) return TRUE;
 
-#ifdef _WIN32   /* Windows */
+    DBG("ssl_err = SSL_ERROR_SYSCALL");
 
-    int sockerr = WSAGetLastError();
+    int sockerr = NPP_SOCKET_GET_ERROR;
 
-    wchar_t *s = NULL;
-    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK, NULL, sockerr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-    DBG("ssl_err=SSL_ERROR_SYSCALL, errno=%d (%S)", sockerr, s);
-    LocalFree(s);
+    NPP_SOCKET_LOG_ERROR(sockerr);
 
-#else   /* Linux */
-
-    int sockerr = errno;
-
-    DBG("ssl_err=SSL_ERROR_SYSCALL, errno=%d (%s)", sockerr, strerror(sockerr));
-
-#endif  /* _WIN32 */
-
-    if ( sockerr == 0 )
+    if ( sockerr == 0 || sockerr == ECONNRESET || sockerr == ECONNABORTED )
         return TRUE;
     else
         return FALSE;
@@ -5229,16 +5634,16 @@ int npp_get_memory()
 
 #ifdef __linux__
 
-    char line[128];
-    FILE* file = fopen("/proc/self/status", "r");
+    char line[256];
+    FILE* fd = fopen("/proc/self/status", "r");
 
-    if ( !file )
+    if ( !fd )
     {
         ERR("fopen(\"/proc/self/status\" failed, errno = %d (%s)", errno, strerror(errno));
         return result;
     }
 
-    while ( fgets(line, 128, file) != NULL )
+    while ( fgets(line, 255, fd) != NULL )
     {
         if ( strncmp(line, "VmHWM:", 6) == 0 )
         {
@@ -5247,7 +5652,7 @@ int npp_get_memory()
         }
     }
 
-    fclose(file);
+    fclose(fd);
 
 #else   /* not Linux */
 
@@ -5619,8 +6024,14 @@ static time_t win_timegm(struct tm *t)
    Tue, 18 Oct 2016 13:13:03 GMT
    Thu, 24 Nov 2016 21:19:40 GMT
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+time_t time_http2epoch(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 time_t time_http2epoch(const char *str)
 {
+#endif
     time_t  epoch;
     char    tmp[8];
 struct tm   tm;
@@ -5709,8 +6120,14 @@ struct tm   tm;
 /* --------------------------------------------------------------------------
    Convert db time (YYYY-MM-DD hh:mm:ss) to epoch
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+time_t time_db2epoch(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 time_t time_db2epoch(const char *str)
 {
+#endif
     time_t  epoch;
     char    tmp[8];
 struct tm   tm={0};
@@ -5780,7 +6197,7 @@ static char dst[32];
 
     G_ptm = gmtime(&G_now);  /* make sure G_ptm is up to date */
 
-    DDBG("time_epoch2http: [%s]", dst);
+//    DDBG("time_epoch2http: [%s]", dst);
 
     return dst;
 }
@@ -6710,9 +7127,9 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, &json_pool[pool_idx], FALSE, index);
+                        lib_json_add_record(json, "", index, &json_pool[pool_idx], FALSE);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], FALSE, 0);
+                        lib_json_add_record(json, key, 0, &json_pool[pool_idx], FALSE);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_bracket(src+i)) )
@@ -6745,9 +7162,9 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, &json_pool[pool_idx], TRUE, index);
+                        lib_json_add_record(json, "", index, &json_pool[pool_idx], TRUE);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], TRUE, 0);
+                        lib_json_add_record(json, key, 0, &json_pool[pool_idx], TRUE);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_square_bracket(src+i)) )
@@ -6793,22 +7210,22 @@ static char tmp[NPP_JSON_BUFSIZE];
             if ( inside_array )
             {
                 if ( type==NPP_JSON_STRING )
-                    lib_json_add_str(json, NULL, value, index);
+                    lib_json_add_str(json, "", index, value);
                 else if ( value[0]=='t' )
-                    lib_json_add_bool(json, NULL, 1, index);
+                    lib_json_add_bool(json, "", index, 1);
                 else if ( value[0]=='f' )
-                    lib_json_add_bool(json, NULL, 0, index);
+                    lib_json_add_bool(json, "", index, 0);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add_float(json, NULL, flo_value, index);
+                        lib_json_add_float(json, "", index, flo_value);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add_double(json, NULL, dbl_value, index);
+                        lib_json_add_double(json, "", index, dbl_value);
                     }
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
@@ -6816,42 +7233,42 @@ static char tmp[NPP_JSON_BUFSIZE];
                 {
                     int num_val;
                     sscanf(value, "%d", &num_val);
-                    lib_json_add_int(json, NULL, num_val, index);
+                    lib_json_add_int(json, "", index, num_val);
                 }
                 else    /* unsigned */
                 {
                     unsigned num_val;
                     sscanf(value, "%u", &num_val);
-                    lib_json_add_uint(json, NULL, num_val, index);
+                    lib_json_add_uint(json, "", index, num_val);
                 }
 #else   /* Linux */
                 else    /* long */
                 {
                     long num_val;
                     sscanf(value, "%ld", &num_val);
-                    lib_json_add_long(json, NULL, num_val, index);
+                    lib_json_add_long(json, "", index, num_val);
                 }
 #endif  /* _WIN32 */
             }
             else    /* not an array */
             {
                 if ( type==NPP_JSON_STRING )
-                    lib_json_add_str(json, key, value, -1);
+                    lib_json_add_str(json, key, -1, value);
                 else if ( value[0]=='t' )
-                    lib_json_add_bool(json, key, 1, -1);
+                    lib_json_add_bool(json, key, -1, 1);
                 else if ( value[0]=='f' )
-                    lib_json_add_bool(json, key, 0, -1);
+                    lib_json_add_bool(json, key, -1, 0);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add_float(json, key, flo_value, -1);
+                        lib_json_add_float(json, key, -1, flo_value);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add_double(json, key, dbl_value, -1);
+                        lib_json_add_double(json, key, -1, dbl_value);
                     }
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
@@ -6859,20 +7276,20 @@ static char tmp[NPP_JSON_BUFSIZE];
                 {
                     int num_val;
                     sscanf(value, "%d", &num_val);
-                    lib_json_add_int(json, key, num_val, -1);
+                    lib_json_add_int(json, key, -1, num_val);
                 }
                 else    /* unsigned */
                 {
                     unsigned num_val;
                     sscanf(value, "%u", &num_val);
-                    lib_json_add_uint(json, key, num_val, -1);
+                    lib_json_add_uint(json, key, -1, num_val);
                 }
 #else   /* Linux */
                 else    /* long */
                 {
                     long num_val;
                     sscanf(value, "%ld", &num_val);
-                    lib_json_add_long(json, key, num_val, -1);
+                    lib_json_add_long(json, key, -1, num_val);
                 }
 #endif  /* _WIN32 */
             }
@@ -6907,7 +7324,7 @@ void lib_json_log_dbg(JSON *json, const char *name)
 
     DBG_LINE;
 
-    if ( name )
+    if ( name && name[0] )
         DBG("%s:", name);
     else
         DBG("JSON record:");
@@ -6955,7 +7372,7 @@ void lib_json_log_inf(JSON *json, const char *name)
 
     INF_LINE;
 
-    if ( name )
+    if ( name && name[0] )
         INF("%s:", name);
     else
         INF("JSON record:");
@@ -6998,7 +7415,7 @@ void lib_json_log_inf(JSON *json, const char *name)
 -------------------------------------------------------------------------- */
 static int json_add_elem(JSON *json, const char *name, int i)
 {
-    if ( name )
+    if ( name && name[0] )
     {
         i = json_get_i(json, name);
 
@@ -7024,8 +7441,15 @@ static int json_add_elem(JSON *json, const char *name, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_str(JSON *json, const char *name, const char *value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_str(JSON *json, const std::string& name_, int i, const std::string& value_)
 {
+    const char *name = name_.c_str();
+    const char *value = value_.c_str();
+#else
+bool lib_json_add_str(JSON *json, const char *name, int i, const char *value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7039,8 +7463,14 @@ bool lib_json_add_str(JSON *json, const char *name, const char *value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_int(JSON *json, const char *name, int value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_int(JSON *json, const std::string& name_, int i, int value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_int(JSON *json, const char *name, int i, int value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7054,8 +7484,14 @@ bool lib_json_add_int(JSON *json, const char *name, int value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_uint(JSON *json, const std::string& name_, int i, unsigned value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_uint(JSON *json, const char *name, int i, unsigned value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7069,8 +7505,14 @@ bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_long(JSON *json, const char *name, long value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_long(JSON *json, const std::string& name_, int i, long value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_long(JSON *json, const char *name, int i, long value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7084,8 +7526,14 @@ bool lib_json_add_long(JSON *json, const char *name, long value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_float(JSON *json, const char *name, float value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_float(JSON *json, const std::string& name_, int i, float value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_float(JSON *json, const char *name, int i, float value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7099,8 +7547,14 @@ bool lib_json_add_float(JSON *json, const char *name, float value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_double(JSON *json, const char *name, double value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_double(JSON *json, const std::string& name_, int i, double value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_double(JSON *json, const char *name, int i, double value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7114,8 +7568,14 @@ bool lib_json_add_double(JSON *json, const char *name, double value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_bool(JSON *json, const char *name, bool value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_bool(JSON *json, const std::string& name_, int i, bool value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_bool(JSON *json, const char *name, int i, bool value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7133,11 +7593,17 @@ bool lib_json_add_bool(JSON *json, const char *name, bool value, int i)
 /* --------------------------------------------------------------------------
    Insert or update value (address) in JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_array, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_record(JSON *json, const std::string& name_, int i, JSON *json_sub, bool is_array)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bool is_array)
+{
+#endif
     DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
-    if ( name )   /* named record */
+    if ( name && name[0] )   /* named record */
     {
         DDBG("named record [%s]", name);
 
@@ -7179,8 +7645,14 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 /* --------------------------------------------------------------------------
    Check value presence in JSON buffer
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_present(JSON *json, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 bool lib_json_present(JSON *json, const char *name)
 {
+#endif
     int i;
 
     for ( i=0; i<json->cnt; ++i )
@@ -7193,6 +7665,8 @@ bool lib_json_present(JSON *json, const char *name)
 }
 
 
+#ifdef NPP_JSON_V1
+
 /* --------------------------------------------------------------------------
    Get value from JSON buffer
 -------------------------------------------------------------------------- */
@@ -7204,7 +7678,7 @@ static char dst[NPP_JSON_STR_LEN+1];
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_str index (%d) out of bounds (max = %d)", i, json->cnt-1);
             dst[0] = EOS;
             return dst;
         }
@@ -7252,7 +7726,7 @@ int lib_json_get_int(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_int index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7284,7 +7758,7 @@ unsigned lib_json_get_uint(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_uint index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7316,7 +7790,7 @@ long lib_json_get_long(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_long index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_long index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7348,7 +7822,7 @@ float lib_json_get_float(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_float index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7380,7 +7854,7 @@ double lib_json_get_double(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_double index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return 0;
         }
 
@@ -7410,7 +7884,7 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     {
         if ( i >= json->cnt )
         {
-            WAR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
+            WAR("lib_json_get_bool index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -7434,21 +7908,349 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     return FALSE;   /* no such field */
 }
 
+#else   /* NOT NPP_JSON_V1 = new version */
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow retval to be char as well as std::string */
+bool lib_json_get_str(JSON *json, const std::string& name_, int i, char *retval, size_t maxlen)
+{
+    std::string retval_;
+    bool ret = lib_json_get_str(json, name_, i, retval_, maxlen);
+    if ( ret && retval )
+        strcpy(retval, retval_.c_str());
+    return ret;
+}
+
+bool lib_json_get_str(JSON *json, const std::string& name_, int i, std::string& retval_, size_t maxlen)
+{
+    const char *name = name_.c_str();
+static char retval[NPP_JSON_STR_LEN+1];
+#else
+bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t maxlen)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+                {
+                    COPY(retval, json->rec[i].value, maxlen);
+#ifdef NPP_CPP_STRINGS
+                    retval_ = retval;
+#endif
+                    return TRUE;
+                }
+                else    /* types don't match */
+                {
+                    return FALSE;   /* types don't match or couldn't convert */
+                }
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_str index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        {
+            COPY(retval, json->rec[i].value, maxlen);
+#ifdef NPP_CPP_STRINGS
+            retval_ = retval;
+#endif
+            return TRUE;
+        }
+        else    /* types don't match */
+        {
+            return FALSE;   /* types don't match or couldn't convert */
+        }
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_int(JSON *json, const std::string& name_, int i, int *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_int(JSON *json, const char *name, int i, int *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%d", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_int index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%d", retval);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_uint(JSON *json, const std::string& name_, int i, unsigned *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_uint(JSON *json, const char *name, int i, unsigned *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%u", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_uint index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%u", retval);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_long(JSON *json, const std::string& name_, int i, long *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_long(JSON *json, const char *name, int i, long *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%ld", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_long index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%ld", retval);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_float(JSON *json, const std::string& name_, int i, float *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_float(JSON *json, const char *name, int i, float *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%f", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_float index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%f", retval);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_double(JSON *json, const std::string& name_, int i, double *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_double(JSON *json, const char *name, int i, double *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                sscanf(json->rec[i].value, "%lf", retval);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_double index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%lf", retval);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_bool(JSON *json, const std::string& name_, int i, bool *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_bool(JSON *json, const char *name, int i, bool *retval)
+{
+#endif
+    if ( name && name[0] )
+    {
+        for ( i=0; i<json->cnt; ++i )
+        {
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+                *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
+                return TRUE;
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_bool index (%d) out of bounds (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
+        return TRUE;
+    }
+
+    return FALSE;   /* not found */
+}
+
+#endif  /* NPP_JSON_V1 */
+
 
 /* --------------------------------------------------------------------------
    Get (copy) value from JSON buffer
    How to change it to returning pointer without confusing beginners?
    It would be better performing without copying all the fields
 -------------------------------------------------------------------------- */
-bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_record(JSON *json, const std::string& name_, int i, JSON *json_sub)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub)
+{
+#endif
     DBG("lib_json_get_record by %s", name?"name":"index");
 
-    if ( !name )    /* array elem */
+    if ( name && name[0] )
     {
-        if ( i >= json->cnt )
+        DDBG("name [%s]", name);
+
+        for ( i=0; i<json->cnt; ++i )
         {
-            WAR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
+            if ( 0==strcmp(json->rec[i].name, name) )
+            {
+    //            DBG("lib_json_get_record, found [%s]", name);
+                if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
+                {
+                    intptr_t jp;
+                    sscanf(json->rec[i].value, "%p", (void**)&jp);
+                    memcpy(json_sub, (JSON*)jp, sizeof(JSON));
+                    return TRUE;
+                }
+
+    //            DBG("lib_json_get_record, types of [%s] don't match", name);
+                return FALSE;   /* types don't match or couldn't convert */
+            }
+        }
+    }
+    else    /* array element */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_record index (%d) out of bounds (max = %d)", i, json->cnt-1);
             return FALSE;
         }
 
@@ -7467,28 +8269,7 @@ bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
         }
     }
 
-    DDBG("name [%s]", name);
-
-    for ( i=0; i<json->cnt; ++i )
-    {
-        if ( 0==strcmp(json->rec[i].name, name) )
-        {
-//            DBG("lib_json_get_record, found [%s]", name);
-            if ( json->rec[i].type == NPP_JSON_RECORD || json->rec[i].type == NPP_JSON_ARRAY )
-            {
-                intptr_t jp;
-                sscanf(json->rec[i].value, "%p", (void**)&jp);
-                memcpy(json_sub, (JSON*)jp, sizeof(JSON));
-                return TRUE;
-            }
-
-//            DBG("lib_json_get_record, types of [%s] don't match", name);
-            return FALSE;   /* types don't match or couldn't convert */
-        }
-    }
-
-//    DBG("lib_json_get_record, [%s] not found", name);
-    return FALSE;   /* no such field */
+    return FALSE;   /* not found */
 }
 
 
@@ -7557,6 +8338,98 @@ void npp_get_byteorder()
 
 
 /* --------------------------------------------------------------------------
+   Get MX server name
+-------------------------------------------------------------------------- */
+#ifdef _WIN32
+#ifdef NPP_EMAIL_FROM_WINDOWS
+static void get_mx_server(const char *server, char *dst)
+{
+    char command[512];
+    char line[256];
+
+    sprintf(command, "nslookup -type=mx %s", server);
+
+    FILE *pipe = popen(command, "r");
+
+    if ( !pipe )
+    {
+        WAR("Couldn't execute nslookup, errno = %d (%s), using domain", errno, strerror(errno));
+        strcpy(dst, server);
+        return;
+    }
+
+/*
+    Linux:
+
+    $ nslookup -type=mx gmail.com
+    Server:         172.31.0.2
+    Address:        172.31.0.2#53
+
+    Non-authoritative answer:
+    gmail.com       mail exchanger = 10 alt1.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 20 alt2.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 30 alt3.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 40 alt4.gmail-smtp-in.l.google.com.
+    gmail.com       mail exchanger = 5 gmail-smtp-in.l.google.com.
+
+    Authoritative answers can be found from:
+
+
+    Windows:
+
+    nslookup -type=mx gmail.com
+    Server:  Linksys09355
+    Address:  192.168.1.1
+
+    Non-authoritative answer:
+    gmail.com       MX preference = 30, mail exchanger = alt3.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 10, mail exchanger = alt1.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 40, mail exchanger = alt4.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 20, mail exchanger = alt2.gmail-smtp-in.l.google.com
+    gmail.com       MX preference = 5, mail exchanger = gmail-smtp-in.l.google.com
+
+*/
+
+    const char *space;
+    int  len;
+    bool found = FALSE;
+
+    while ( fgets(line, 255, pipe) )
+    {
+        if ( !found && strncmp(line, server, strlen(server)) == 0 )
+        {
+            len = strlen(line);
+
+            while ( len && (line[len-1]=='\n' || line[len-1]=='\r' || line[len-1]==' ' || line[len-1]=='.') )
+            {
+                line[len-1] = EOS;
+                len--;
+            }
+
+            DDBG("line [%s]", line);
+
+            if ( (space=strrchr(line, ' ')) != NULL )
+            {
+                strcpy(dst, space+1);
+                DBG("mail exchanger [%s]", dst);
+                found = TRUE;
+            }
+        }
+    }
+
+    if ( !found )
+    {
+        WAR("Couldn't find MX server for %s, using domain", server);
+        strcpy(dst, server);
+    }
+
+    pclose(pipe);
+}
+#endif  /* NPP_EMAIL_FROM_WINDOWS */
+#endif  /* _WIN32 */
+
+
+/* --------------------------------------------------------------------------
    Send an email
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -7564,59 +8437,227 @@ bool npp_email(const std::string& to_, const std::string& subject_, const std::s
 {
     const char *to = to_.c_str();
     const char *subject = subject_.c_str();
+#if !defined _WIN32 || defined NPP_EMAIL_FROM_WINDOWS
     const char *message = message_.c_str();
+#endif
 #else
 bool npp_email(const char *to, const char *subject, const char *message)
 {
 #endif
     DBG("Sending email to [%s], subject [%s]", to, subject);
 
+    char sender_bare[256];
+    char sender_full[512];
+
+    sprintf(sender_bare, "%s@%s", NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(sender_full, "%s <%s>", NPP_EMAIL_FROM_NAME, sender_bare);
+
 #ifndef _WIN32
-    char    sender[512];
-    char    command[1024];
 
-//#ifndef NPP_SVC   /* web server mode */
+    char command[1024];
 
-//    sprintf(sender, "%s <noreply@%s>", G_connections[ci].app_name, G_connections[ci].host);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender_bare);
 
-    /* happens when using non-standard port */
+    FILE *pipe = popen(command, "w");
 
-//    char    *colon;
-//    if ( G_test && (colon=strchr(sender, ':')) )
-//    {
-//        *colon = '>';
-//        *(++colon) = EOS;
-//        DBG("sender truncated to [%s]", sender);
-//    }
-//#else
-    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
-//#endif  /* NPP_SVC */
-
-    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
-
-    FILE *mailpipe = popen(command, "w");
-
-    if ( mailpipe == NULL )
+    if ( pipe == NULL )
     {
         ERR("Failed to invoke sendmail");
         return FALSE;
     }
     else
     {
-        fprintf(mailpipe, "From: %s\n", sender);
-        fprintf(mailpipe, "To: %s\n", to);
-        fprintf(mailpipe, "Subject: %s\n", subject);
-        fprintf(mailpipe, "Content-Type: text/plain; charset=\"utf-8\"\n\n");
-        fwrite(message, strlen(message), 1, mailpipe);
-        fwrite("\n.\n", 3, 1, mailpipe);
-        pclose(mailpipe);
+        fprintf(pipe, "Date: %s\r\n", G_header_date);
+        fprintf(pipe, "From: %s\r\n", sender_full);
+        fprintf(pipe, "To: %s\r\n", to);
+        fprintf(pipe, "Subject: %s\r\n", subject);
+        fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
+        fprintf(pipe, "\r\n");
+        fwrite(message, strlen(message), 1, pipe);
+        fwrite("\r\n.\r\n", 5, 1, pipe);
+        pclose(pipe);
     }
 
     return TRUE;
 
 #else   /* Windows */
 
-    WAR("There's no email service for Windows");
+#ifdef NPP_EMAIL_FROM_WINDOWS
+
+    INF("Experimental simple SMTP client for Windows");
+
+    int len = strlen(message);
+
+    if ( len > 8000 )
+    {
+        ERR("Message too long (%d bytes). Maximum message length is 8000 bytes", len);
+        return FALSE;
+    }
+
+    char server[NPP_MAX_HOST_LEN+1];
+    const char *at = strchr(to, '@');
+
+    if ( at == NULL )
+    {
+        ERR("Invalid address");
+        return FALSE;
+    }
+
+    COPY(server, at+1, NPP_MAX_HOST_LEN);
+
+    DBG("server [%s]", server);
+
+    /* -------------------------------------------------------------------------- */
+
+    char host[NPP_MAX_HOST_LEN+1];
+    char port[]="25";
+
+    get_mx_server(server, host);
+
+    struct timespec start;
+
+    clock_gettime_win(&start);
+
+    int timeout_remain = G_callHTTPTimeout;
+
+    /* -------------------------------------------------------------------------- */
+
+    if ( !call_http_connect(host, port, &start, &timeout_remain, FALSE) )
+        return FALSE;
+
+    if ( timeout_remain < 2 )
+    {
+        ERR("No timeout left");
+        call_http_disconnect(0);
+        return FALSE;
+    }
+
+    /* -------------------------------------------------------------------------- */
+
+    struct {
+        char cmd[8192];
+        char exp[256];
+    } commands[10];
+
+    int  i = 0;
+
+    sprintf(commands[i].cmd, "EHLO %s\r\n", NPP_APP_DOMAIN);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "MAIL FROM:<%s>\r\n", sender_bare);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "RCPT TO:<%s>\r\n", to);
+    strcpy(commands[i++].exp, "250");
+
+    sprintf(commands[i].cmd, "DATA\r\n");
+    strcpy(commands[i++].exp, "354");
+
+    /* -------------------------------------------------------------------------- */
+    /* message itself */
+
+    STRM_BEGIN(commands[i].cmd);
+    STRM("Date: %s\r\n", G_header_date);
+    STRM("From: %s\r\n", sender_full);
+    STRM("To: %s\r\n", to);
+    STRM("Subject: %s\r\n", subject);
+    STRM("Content-Type: text/plain; charset=\"utf-8\"\r\n");
+    STRM("\r\n");
+    STRM(message);
+    STRM("\r\n.\r\n");
+    STRM_END;
+
+    strcpy(commands[i++].exp, "250");
+
+    /* -------------------------------------------------------------------------- */
+
+    sprintf(commands[i].cmd, "QUIT\r\n");
+    commands[i++].exp[0] = EOS;
+
+    commands[i].cmd[0] = EOS;
+    commands[i++].exp[0] = EOS;
+
+    /* -------------------------------------------------------------------------- */
+    /* read greetings */
+
+    char buffer[1024];
+
+    int bytes = client_recv(buffer, 1023, &timeout_remain, FALSE);
+
+    if ( bytes < 0 )
+    {
+        ERR("Couldn't read response");
+        call_http_disconnect(bytes);
+        return FALSE;
+    }
+
+    buffer[bytes] = EOS;
+    DBG("Got %d bytes [%s]", bytes, buffer);
+
+    i = 0;
+
+    /* -------------------------------------------------------------------------- */
+    /* send commands */
+
+    while ( commands[i].cmd[0] && timeout_remain > 1 )
+    {
+        len = strlen(commands[i].cmd);
+
+        DBG("Sending [%s]...", commands[i].cmd);
+
+        bytes = client_send(commands[i].cmd, len, &timeout_remain, FALSE);
+
+        if ( bytes < 0 )
+        {
+            ERR("Couldn't send data (bytes = %d)", bytes);
+            call_http_disconnect(-1);
+            return FALSE;
+        }
+
+        DBG("Sent %d bytes", bytes);
+
+        DBG("Reading response...");
+
+        bytes = client_recv(buffer, 1023, &timeout_remain, FALSE);
+
+        if ( bytes < 0 )
+        {
+            ERR("Couldn't read response");
+            call_http_disconnect(bytes);
+            return FALSE;
+        }
+
+        buffer[bytes] = EOS;
+        DBG("Got %d bytes [%s]", bytes, buffer);
+
+        len = strlen(commands[i].exp);
+
+        if ( len && strncmp(buffer, commands[i].exp, len) != 0 )
+        {
+            ERR("SMTP server rejected our data");
+            call_http_disconnect(0);
+            return FALSE;
+        }
+
+        ++i;
+    }
+
+    /* -------------------------------------------------------------------------- */
+
+    call_http_disconnect(0);
+    
+    if ( bytes < 1 )
+    {
+        ERR("Couldn't send email to %s", to);
+        return FALSE;
+    }
+
+#else
+
+    INF("Sending emails from Windows is off by default. Use NPP_EMAIL_FROM_WINDOWS to use Node++ simple SMTP client.");
+
+#endif  /* NPP_EMAIL_FROM_WINDOWS */
+
     return TRUE;
 
 #endif  /* _WIN32 */
@@ -7631,7 +8672,9 @@ bool npp_email_attach(const std::string& to_, const std::string& subject_, const
 {
     const char *to = to_.c_str();
     const char *subject = subject_.c_str();
+#ifndef _WIN32
     const char *message = message_.c_str();
+#endif
     const char *att_name = att_name_.c_str();
 #else
 bool npp_email_attach(const char *to, const char *subject, const char *message, const char *att_name, const unsigned char *att_data, int att_data_len)
@@ -7641,37 +8684,41 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
 #define NPP_BOUNDARY "nppbndGq7ehJxtz"
 
+    char sender_bare[256];
+    char sender_full[512];
+
+    sprintf(sender_bare, "%s@%s", NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(sender_full, "%s <%s>", NPP_EMAIL_FROM_NAME, sender_bare);
+
 #ifndef _WIN32
-    char    sender[512];
-    char    command[1024];
+    char command[1024];
 
-    sprintf(sender, "%s <%s@%s>", NPP_APP_NAME, NPP_EMAIL_FROM_USER, NPP_APP_DOMAIN);
+    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender_bare);
 
-    sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender);
+    FILE *pipe = popen(command, "w");
 
-    FILE *mailpipe = popen(command, "w");
-
-    if ( mailpipe == NULL )
+    if ( pipe == NULL )
     {
         ERR("Failed to invoke sendmail");
         return FALSE;
     }
     else
     {
-        fprintf(mailpipe, "From: %s\n", sender);
-        fprintf(mailpipe, "To: %s\n", to);
-        fprintf(mailpipe, "Subject: %s\n", subject);
-        fprintf(mailpipe, "Content-Type: multipart/mixed; boundary=%s\n", NPP_BOUNDARY);
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Date: %s\r\n", G_header_date);
+        fprintf(pipe, "From: %s\r\n", sender_full);
+        fprintf(pipe, "To: %s\r\n", to);
+        fprintf(pipe, "Subject: %s\r\n", subject);
+        fprintf(pipe, "Content-Type: multipart/mixed; boundary=%s\r\n", NPP_BOUNDARY);
+        fprintf(pipe, "\r\n");
 
         /* message */
 
-        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
+        fprintf(pipe, "--%s\r\n", NPP_BOUNDARY);
 
-        fprintf(mailpipe, "Content-Type: text/plain; charset=\"utf-8\"\n");
-//        fprintf(mailpipe, "Content-Transfer-Encoding: quoted-printable\n");
-        fprintf(mailpipe, "Content-Disposition: inline\n");
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
+//        fprintf(pipe, "Content-Transfer-Encoding: quoted-printable\n");
+        fprintf(pipe, "Content-Disposition: inline\r\n");
+        fprintf(pipe, "\r\n");
 
 
 /*        char *qpm;
@@ -7687,20 +8734,20 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         DBG("qpm [%s]", qpm); */
 
-        fwrite(message, strlen(message), 1, mailpipe);
-//        fwrite(qpm, 1, strlen(qpm), mailpipe);
+        fwrite(message, strlen(message), 1, pipe);
+//        fwrite(qpm, 1, strlen(qpm), pipe);
 //        free(qpm);
-        fprintf(mailpipe, "\n\n");
+        fprintf(pipe, "\r\n\r\n");
 
 
         /* attachement */
 
-        fprintf(mailpipe, "--%s\n", NPP_BOUNDARY);
+        fprintf(pipe, "--%s\r\n", NPP_BOUNDARY);
 
-        fprintf(mailpipe, "Content-Type: application\n");
-        fprintf(mailpipe, "Content-Transfer-Encoding: base64\n");
-        fprintf(mailpipe, "Content-Disposition: attachment; filename=\"%s\"\n", att_name);
-        fprintf(mailpipe, "\n");
+        fprintf(pipe, "Content-Type: application\r\n");
+        fprintf(pipe, "Content-Transfer-Encoding: base64\r\n");
+        fprintf(pipe, "Content-Disposition: attachment; filename=\"%s\"\r\n", att_name);
+        fprintf(pipe, "\r\n");
 
         char *b64data;
         int b64data_len = ((4 * att_data_len / 3) + 3) & ~3;
@@ -7718,15 +8765,15 @@ bool npp_email_attach(const char *to, const char *subject, const char *message, 
 
         DBG("     Real b64data_len = %d", b64data_len);
 
-        fwrite(b64data, b64data_len, 1, mailpipe);
+        fwrite(b64data, b64data_len, 1, pipe);
 
         free(b64data);
 
         /* finish */
 
-        fprintf(mailpipe, "\n\n--%s--\n", NPP_BOUNDARY);
+        fprintf(pipe, "\r\n\r\n--%s--\r\n", NPP_BOUNDARY);
 
-        pclose(mailpipe);
+        pclose(pipe);
     }
 
     return TRUE;
@@ -8041,6 +9088,15 @@ int datetime_cmp(const char *str1, const char *str2)
 
 
 /* --------------------------------------------------------------------------
+   Compare strings for qsort
+-------------------------------------------------------------------------- */
+int npp_compare_strings(const void *a, const void *b)
+{
+    return strcmp((char*)a, (char*)b);
+}
+
+
+/* --------------------------------------------------------------------------
    Read the config file
 -------------------------------------------------------------------------- */
 bool npp_read_conf(const char *file)
@@ -8090,8 +9146,25 @@ bool npp_read_conf(const char *file)
 /* --------------------------------------------------------------------------
    Get param from config file
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+/* allow dest to be char as well as std::string */
+bool npp_read_param_str(const std::string& param_, char *dest)
+{
+    std::string dest_;
+    bool ret = npp_read_param_str(param_, dest_);
+    if ( ret && dest )
+        strcpy(dest, dest_.c_str());
+    return ret;
+}
+
+bool npp_read_param_str(const std::string& param_, std::string& dest_)
+{
+    const char *param = param_.c_str();
+static char dest[NPP_LIB_STR_BUF];
+#else
 bool npp_read_param_str(const char *param, char *dest)
 {
+#endif
     char *p;
     int  plen = strlen(param);
 
@@ -8137,8 +9210,9 @@ bool npp_read_param_str(const char *param, char *dest)
 
     /* param present ----------------------------------- */
 
+#ifndef NPP_CPP_STRINGS
     if ( !dest ) return TRUE;   /* it's only a presence check */
-
+#endif
 
     /* copy value to dest ------------------------------ */
 
@@ -8149,10 +9223,14 @@ bool npp_read_param_str(const char *param, char *dest)
 
     int i=0;
 
-    while ( *p != '\r' && *p != '\n' && *p != '#' && *p != EOS )
+    while ( *p != '\r' && *p != '\n' && *p != '#' && *p != EOS && i < NPP_LIB_STR_CHECK )
         dest[i++] = *p++;
 
     dest[i] = EOS;
+
+#ifdef NPP_CPP_STRINGS
+    dest_ = dest;
+#endif
 
     if ( strstr(npp_upper(param), "PASSWORD") || strstr(npp_upper(param), "PASSWD") )
         DBG("%s [<...>]", param);
@@ -8166,9 +9244,15 @@ bool npp_read_param_str(const char *param, char *dest)
 /* --------------------------------------------------------------------------
    Get integer param from config file
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+bool npp_read_param_int(const std::string& param_, int *dest)
+{
+    const char *param = param_.c_str();
+#else
 bool npp_read_param_int(const char *param, int *dest)
 {
-    char tmp[256];
+#endif
+    char tmp[NPP_LIB_STR_BUF];
 
     if ( npp_read_param_str(param, tmp) )
     {
@@ -8258,7 +9342,7 @@ void npp_lib_read_conf(bool first)
 
     if ( !conf_read )   /* no NPP_DIR or no npp.conf in bin -- try current dir */
     {
-#ifndef NPP_WATCHER
+#ifndef NPP_CLIENT
         WAR("Couldn't read $NPP_DIR/bin/npp.conf -- trying current directory...");
 #endif
         conf_read = npp_read_conf("npp.conf");
@@ -8374,7 +9458,7 @@ void npp_lib_read_conf(bool first)
                 strcpy(G_certChainFile, tmp_certChainFile);
                 strcpy(G_keyFile, tmp_keyFile);
 
-                SSL_CTX_free(M_ssl_ctx);
+                SSL_CTX_free(M_ssl_client_ctx);
                 EVP_cleanup();
 
                 npp_eng_init_ssl();
@@ -8513,7 +9597,7 @@ void npp_lib_read_conf(bool first)
     }
     else
     {
-#ifndef NPP_WATCHER
+#ifndef NPP_CLIENT
         WAR("Couldn't read npp.conf%s", first?" -- using defaults":"");
 #endif
     }
@@ -8537,13 +9621,12 @@ char *npp_lib_create_pid_file(const char *name)
 {
 static char pidfilename[512];
     FILE    *fpid=NULL;
-    char    command[1024];
 
     if ( G_pid == 0 )
         G_pid = getpid();
 
     if ( G_appdir[0] )
-#ifdef _WIN32   /* Windows */
+#ifdef _WIN32
         sprintf(pidfilename, "%s\\bin\\%s.pid", G_appdir, name);
 #else
         sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
@@ -8556,58 +9639,72 @@ static char pidfilename[512];
     if ( access(pidfilename, F_OK) != -1 )
     {
         WAR("PID file already exists");
+
         INF("Killing the old process...");
-#ifdef _WIN32   /* Windows */
-        /* open the pid file and read process id */
+
+#ifdef _WIN32
         if ( NULL == (fpid=fopen(pidfilename, "rb")) )
-        {
-            ERR("Couldn't open pid file for reading");
-            return NULL;
-        }
-        fseek(fpid, 0, SEEK_END);     /* determine the file size */
-        int fsize = ftell(fpid);
-        if ( fsize < 1 || fsize > 60 )
-        {
-            fclose(fpid);
-            ERR("Something's wrong with the pid file size (%d bytes)", fsize);
-            return NULL;
-        }
-        rewind(fpid);
-        char oldpid[64];
-
-        if ( fread(oldpid, fsize, 1, fpid) != 1 )
-        {
-            ERR("Couldn't read from the old pid file");
-            fclose(fpid);
-            return NULL;
-        }
-
-        fclose(fpid);
-        oldpid[fsize] = EOS;
-        DBG("oldpid [%s]", oldpid);
-
-        msleep(100);
-
-        sprintf(command, "taskkill /pid %s", oldpid);
 #else
-        sprintf(command, "kill `cat %s`", pidfilename);
-#endif  /* _WIN32 */
-
-        INF("Removing pid file...");
-#ifdef _WIN32   /* Windows */
-        sprintf(command, "del %s", pidfilename);
-#else
-        sprintf(command, "rm %s", pidfilename);
+        if ( NULL == (fpid=fopen(pidfilename, "r")) )
 #endif
-        if ( system(command) != EXIT_SUCCESS )
-            WAR("Couldn't execute %s", command);
+        {
+            WAR("Couldn't open old pid file for reading");
+        }
+        else
+        {
+            fseek(fpid, 0, SEEK_END);     /* determine the file size */
 
-        msleep(100);
+            int fsize = ftell(fpid);
+
+            if ( fsize < 1 || fsize > 60 )
+            {
+                fclose(fpid);
+                WAR("Invalid old pid file size (%d bytes)", fsize);
+            }
+            else
+            {
+                rewind(fpid);
+
+                char oldpidstr[64];
+
+                if ( fread(oldpidstr, fsize, 1, fpid) != 1 )
+                {
+                    WAR("Couldn't read from the old pid file");
+                    fclose(fpid);
+                }
+                else
+                {
+                    fclose(fpid);
+                    oldpidstr[fsize] = EOS;
+                    DBG("oldpidstr [%s]", oldpidstr);
+
+                    int oldpid;
+
+                    sscanf(oldpidstr, "%d", &oldpid);
+
+                    DBG("oldpid = %d", oldpid);
+
+                    if ( oldpid > 1 )
+                    {
+                        char command[512];
+#ifdef _WIN32
+                        sprintf(command, "taskkill /pid %d", oldpid);
+#else
+                        sprintf(command, "kill %d", oldpid);
+#endif
+                        INF("Removing old pid file...");
+                        remove(pidfilename);
+
+                        msleep(250);
+                    }
+                }
+            }
+        }
     }
 
     /* create a pid file */
 
-#ifdef _WIN32   /* Windows */
+#ifdef _WIN32
     if ( NULL == (fpid=fopen(pidfilename, "wb")) )
 #else
     if ( NULL == (fpid=fopen(pidfilename, "w")) )
@@ -9242,11 +10339,19 @@ static unsigned char get_random_number()
    Generate random string
    Generates FIPS-compliant random sequences (tested with Burp)
 -------------------------------------------------------------------------- */
-void npp_random(char *dest, size_t len)
+char *npp_random(size_t len)
 {
+static char dst[NPP_LIB_STR_BUF];
 const char *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 static unsigned since_seed=0;
     unsigned i;
+
+    if ( len > NPP_LIB_STR_CHECK )
+    {
+        WAR("npp_random: len too big");
+        dst[0] = EOS;
+        return dst;
+    }
 
 #ifdef NPP_DEBUG
     struct timespec start;
@@ -9284,28 +10389,30 @@ static unsigned since_seed=0;
     {
         /* source random numbers from two different sets: 'normal' and 'lucky' */
 
-        if ( get_random_number() % 3 == 0 )
+        if ( get_random_number() % 3 == 0 ) /* lucky */
         {
             DDBG("i=%d lucky", i);
             r = get_random_number();
             while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
         }
-        else
+        else    /* normal */
         {
             DDBG("i=%d normal", i);
             r = rand() % 256;
             while ( r > 247 ) r = rand() % 256;
         }
 
-        dest[i] = chars[r % 62];
+        dst[i] = chars[r % 62];
     }
 
-    dest[i] = EOS;
+    dst[i] = EOS;
 
 #ifdef NPP_DEBUG
     DBG_LINE;
     DBG("npp_random took %.3lf ms", npp_elapsed(&start));
 #endif
+
+    return dst;
 }
 
 
@@ -9322,8 +10429,24 @@ static unsigned since_seed=0;
 /* --------------------------------------------------------------------------
    Base64 encode
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow dst to be char as well as std::string */
 int npp_b64_encode(char *dst, const unsigned char *src, size_t len)
 {
+    std::string dst_;
+    int ret = npp_b64_encode(dst_, src, len);
+    if ( dst )
+        strcpy(dst, dst_.c_str());
+    return ret;
+}
+
+int npp_b64_encode(std::string& dst_, const unsigned char *src, size_t len)
+{
+static char dst[NPP_LIB_STR_BUF];
+#else
+int npp_b64_encode(char *dst, const unsigned char *src, size_t len)
+{
+#endif
 static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     unsigned int i, j=0, k=0, block[3];
 
@@ -9360,6 +10483,10 @@ static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
     }
 
     dst[k] = EOS;
+
+#ifdef NPP_CPP_STRINGS
+    dst_ = dst;
+#endif
 
     return k;
 }
@@ -9554,7 +10681,7 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 
 
 /* ================================================================================================ */
-/* Main process (npp_app) only                                                                      */
+/* Server processes (npp_app & npp_svc) only                                                                      */
 /* ================================================================================================ */
 
 #ifndef NPP_CLIENT
@@ -9579,21 +10706,12 @@ void npp_lib_set_formats(int ci, const char *lang)
 
     if ( 0==strcmp(lang, "EN-US") || 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "TH-TH") )
     {
-//        M_dsep = '.';
-//        M_tsep = ',';
         G_connections[ci].formats |= NPP_NUMBER_DS_DOT;
         G_connections[ci].formats |= NPP_NUMBER_TS_COMMA;
     }
     else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "NB-NO") || 0==strcmp(lang, "ES-ES") )
     {
-//        M_dsep = ',';
-//        M_tsep = '.';
         G_connections[ci].formats |= NPP_NUMBER_TS_DOT;
-    }
-    else
-    {
-//        M_dsep = ',';
-//        M_tsep = ' ';
     }
 
     G_connections[ci].formats |= NPP_FORMATS_SET;
@@ -9791,6 +10909,100 @@ static char dest[256];
 
 
 /* --------------------------------------------------------------------------
+   Compare
+-------------------------------------------------------------------------- */
+int npp_lib_compare_sess_idx(const void *a, const void *b)
+{
+    const sessions_idx_t *p1 = (sessions_idx_t*)a;
+    const sessions_idx_t *p2 = (sessions_idx_t*)b;
+
+#ifdef NPP_MULTI_HOST
+
+    if ( p1->host_id < p2->host_id )
+        return -1;
+    else if ( p1->host_id > p2->host_id )
+        return 1;
+
+#endif
+
+    return strcmp(p1->sessid, p2->sessid);
+}
+
+
+/* --------------------------------------------------------------------------
+   Find session index
+-------------------------------------------------------------------------- */
+#ifdef NPP_MULTI_HOST
+int npp_lib_find_sess_idx_idx(int host_id, const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return -1;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        if ( G_sessions_idx[middle].host_id < host_id )
+        {
+            first = middle + 1;
+        }
+        else if ( G_sessions_idx[middle].host_id == host_id )
+        {
+            result = strcmp(G_sessions_idx[middle].sessid, sessid);
+
+            if ( result < 0 )
+                first = middle + 1;
+            else if ( result == 0 )
+                return middle;
+            else    /* result > 0 */
+                last = middle - 1;
+        }
+        else    /* G_sessions_idx[middle].host_id > host_id */
+        {
+            last = middle - 1;
+        }
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;  /* not found */
+}
+
+#else   /* NOT NPP_MULTI_HOST */
+
+int npp_lib_find_sess_idx_idx(const char *sessid)
+{
+    if ( sessid == NULL || sessid[0] == EOS )
+        return -1;
+
+    int first = 0;
+    int last = G_sessions_cnt - 1;
+    int middle = (first+last) / 2;
+    int result;
+
+    while ( first <= last )
+    {
+        result = strcmp(G_sessions_idx[middle].sessid, sessid);
+
+        if ( result < 0 )
+            first = middle + 1;
+        else if ( result == 0 )
+            return middle;
+        else    /* result > 0 */
+            last = middle - 1;
+
+        middle = (first+last) / 2;
+    }
+
+    return -1;  /* not found */
+}
+#endif  /* NPP_MULTI_HOST */
+
+
+/* --------------------------------------------------------------------------
    Notify admin via email
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -9805,7 +11017,7 @@ void npp_notify_admin(const char *msg)
 
     char tag[16];
 
-    npp_random(tag, 15);
+    strcpy(tag, npp_random(15));
 
     char message[NPP_MAX_LOG_STR_LEN+1];
 
@@ -9822,5 +11034,5 @@ void npp_notify_admin(const char *msg)
 
 
 /* ================================================================================================ */
-/* End of main process (npp_app) only part                                                          */
+/* End of server processes (npp_app & npp_svc) only part                                                          */
 /* ================================================================================================ */

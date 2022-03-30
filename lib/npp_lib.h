@@ -261,6 +261,20 @@
 
 
 
+/* socket errors */
+
+#ifdef _WIN32
+#define NPP_SOCKET_GET_ERROR            WSAGetLastError()
+#define NPP_SOCKET_WOULD_BLOCK(e)       (e==WSAEWOULDBLOCK)
+#define NPP_SOCKET_LOG_ERROR(e)         lib_log_win_socket_error(e)
+#else
+#define NPP_SOCKET_GET_ERROR            errno
+#define NPP_SOCKET_WOULD_BLOCK(e)       (e==EWOULDBLOCK || e==EINPROGRESS)
+#define NPP_SOCKET_LOG_ERROR(e)         DBG("errno = %d (%s)", e, strerror(e))
+#endif
+
+
+
 /* HTTP & RESTful calls */
 
 #define CALL_HTTP_HEADER_KEY_LEN                    255
@@ -276,8 +290,8 @@
 
 #define CALL_HTTP_DEFAULT_TIMEOUT                   10000     /* in ms -- to avoid blocking forever */
 
-#define CALL_HTTP(req, res, method, url)            npp_call_http(req, res, method, url, FALSE, FALSE)
-#define CALL_REST(req, res, method, url)            npp_call_http(req, res, method, url, TRUE, FALSE)
+#define CALL_HTTP(req, res, method, url, keep)      npp_call_http(req, res, method, url, FALSE, keep)
+#define CALL_REST(req, res, method, url, keep)      npp_call_http(req, res, method, url, TRUE, keep)
 
 #ifndef NPP_SILGY_COMPATIBILITY
 #ifndef JSON_NO_AUTO_AMPERSANDS
@@ -326,28 +340,30 @@
 #define JSON_TO_STRING_PRETTY(json)         lib_json_to_string_pretty(json)
 #define JSON_FROM_STRING(json, str)         lib_json_from_string(json, str, 0, 0)
 
-#define JSON_ADD_STR(json, name, val)       lib_json_add_str(json, name, val, -1)
-#define JSON_ADD_STR_A(json, i, val)        lib_json_add_str(json, NULL, val, i)
-#define JSON_ADD_INT(json, name, val)       lib_json_add_int(json, name, val, -1)
-#define JSON_ADD_INT_A(json, i, val)        lib_json_add_int(json, NULL, val, i)
-#define JSON_ADD_UINT(json, name, val)      lib_json_add_uint(json, name, val, -1)
-#define JSON_ADD_UINT_A(json, i, val)       lib_json_add_uint(json, NULL, val, i)
-#define JSON_ADD_LONG(json, name, val)      lib_json_add_long(json, name, val, -1)
-#define JSON_ADD_LONG_A(json, i, val)       lib_json_add_long(json, NULL, val, i)
-#define JSON_ADD_FLOAT(json, name, val)     lib_json_add_float(json, name, val, -1)
-#define JSON_ADD_FLOAT_A(json, i, val)      lib_json_add_float(json, NULL, val, i)
-#define JSON_ADD_DOUBLE(json, name, val)    lib_json_add_double(json, name, val, -1)
-#define JSON_ADD_DOUBLE_A(json, i, val)     lib_json_add_double(json, NULL, val, i)
-#define JSON_ADD_BOOL(json, name, val)      lib_json_add_bool(json, name, val, -1)
-#define JSON_ADD_BOOL_A(json, i, val)       lib_json_add_bool(json, NULL, val, i)
+#define JSON_ADD_STR(json, name, value)     lib_json_add_str(json, name, -1, value)
+#define JSON_ADD_STR_A(json, i, value)      lib_json_add_str(json, "", i, value)
+#define JSON_ADD_INT(json, name, value)     lib_json_add_int(json, name, -1, value)
+#define JSON_ADD_INT_A(json, i, value)      lib_json_add_int(json, "", i, value)
+#define JSON_ADD_UINT(json, name, value)    lib_json_add_uint(json, name, -1, value)
+#define JSON_ADD_UINT_A(json, i, value)     lib_json_add_uint(json, "", i, value)
+#define JSON_ADD_LONG(json, name, value)    lib_json_add_long(json, name, -1, value)
+#define JSON_ADD_LONG_A(json, i, value)     lib_json_add_long(json, "", i, value)
+#define JSON_ADD_FLOAT(json, name, value)   lib_json_add_float(json, name, -1, value)
+#define JSON_ADD_FLOAT_A(json, i, value)    lib_json_add_float(json, "", i, value)
+#define JSON_ADD_DOUBLE(json, name, value)  lib_json_add_double(json, name, -1, value)
+#define JSON_ADD_DOUBLE_A(json, i, value)   lib_json_add_double(json, "", i, value)
+#define JSON_ADD_BOOL(json, name, value)    lib_json_add_bool(json, name, -1, value)
+#define JSON_ADD_BOOL_A(json, i, value)     lib_json_add_bool(json, "", i, value)
 
-#define JSON_ADD_RECORD(json, name, val)    lib_json_add_record(json, name, val, FALSE, 0)
-#define JSON_ADD_RECORD_A(json, i ,val)     lib_json_add_record(json, NULL, val, FALSE, i)
+#define JSON_ADD_RECORD(json, name, value)  lib_json_add_record(json, name, 0, value, FALSE)
+#define JSON_ADD_RECORD_A(json, i, value)   lib_json_add_record(json, "", i, value, FALSE)
 
-#define JSON_ADD_ARRAY(json, name, val)     lib_json_add_record(json, name, val, TRUE, 0)
-#define JSON_ADD_ARRAY_A(json, i, val)      lib_json_add_record(json, NULL, val, TRUE, i)
+#define JSON_ADD_ARRAY(json, name, value)   lib_json_add_record(json, name, 0, value, TRUE)
+#define JSON_ADD_ARRAY_A(json, i, value)    lib_json_add_record(json, "", i, value, TRUE)
 
 #define JSON_PRESENT(json, name)            lib_json_present(json, name)
+
+#ifdef NPP_JSON_V1  /* old version */
 
 #define JSON_GET_STR(json, name)            lib_json_get_str(json, name, -1)
 #define JSON_GET_STR_A(json, i)             lib_json_get_str(json, NULL, i)
@@ -364,11 +380,30 @@
 #define JSON_GET_BOOL(json, name)           lib_json_get_bool(json, name, -1)
 #define JSON_GET_BOOL_A(json, i)            lib_json_get_bool(json, NULL, i)
 
-#define JSON_GET_RECORD(json, name, val)    lib_json_get_record(json, name, val, -1)
-#define JSON_GET_RECORD_A(json, i, val)     lib_json_get_record(json, NULL, val, i)
+#else   /* NOT NPP_JSON_V1 = new version */
 
-#define JSON_GET_ARRAY(json, name, val)     lib_json_get_record(json, name, val, -1)
-#define JSON_GET_ARRAY_A(json, i, val)      lib_json_get_record(json, NULL, val, i)
+#define JSON_GET_STR(json, name, value, maxlen) lib_json_get_str(json, name, -1, value, maxlen)
+#define JSON_GET_STR_A(json, i, value, maxlen)  lib_json_get_str(json, "", i, value, maxlen)
+#define JSON_GET_INT(json, name, value)     lib_json_get_int(json, name, -1, value)
+#define JSON_GET_INT_A(json, i, value)      lib_json_get_int(json, "", i, value)
+#define JSON_GET_UINT(json, name, value)    lib_json_get_uint(json, name, -1, value)
+#define JSON_GET_UINT_A(json, i, value)     lib_json_get_uint(json, "", i, value)
+#define JSON_GET_LONG(json, name, value)    lib_json_get_long(json, name, -1, value)
+#define JSON_GET_LONG_A(json, i, value)     lib_json_get_long(json, "", i, value)
+#define JSON_GET_FLOAT(json, name, value)   lib_json_get_float(json, name, -1, value)
+#define JSON_GET_FLOAT_A(json, i, value)    lib_json_get_float(json, "", i, value)
+#define JSON_GET_DOUBLE(json, name, value)  lib_json_get_double(json, name, -1, value)
+#define JSON_GET_DOUBLE_A(json, i, value)   lib_json_get_double(json, "", i, value)
+#define JSON_GET_BOOL(json, name, value)    lib_json_get_bool(json, name, -1, value)
+#define JSON_GET_BOOL_A(json, i, value)     lib_json_get_bool(json, "", i, value)
+
+#endif  /* NPP_JSON_V1 */
+
+#define JSON_GET_RECORD(json, name, value)  lib_json_get_record(json, name, -1, value)
+#define JSON_GET_RECORD_A(json, i, value)   lib_json_get_record(json, "", i, value)
+
+#define JSON_GET_ARRAY(json, name, value)   lib_json_get_record(json, name, -1, value)
+#define JSON_GET_ARRAY_A(json, i, value)    lib_json_get_record(json, "", i, value)
 
 
 #define JSON_RESET(json)                    lib_json_reset(json)
@@ -422,7 +457,7 @@
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  15      /* in one JSON struct */
+#define NPP_JSON_MAX_ELEMS                  30      /* in one JSON struct */
 #endif
 
 #ifndef NPP_JSON_MAX_LEVELS
@@ -442,6 +477,11 @@
 #define NPP_JSON_BUFSIZE                    256
 #endif
 
+/* npp_email */
+
+#ifndef NPP_EMAIL_FROM_NAME
+#define NPP_EMAIL_FROM_NAME                 NPP_APP_NAME
+#endif
 
 #ifndef NPP_EMAIL_FROM_USER
 #define NPP_EMAIL_FROM_USER                 "noreply"
@@ -449,8 +489,8 @@
 
 /* languages */
 
-#ifndef NPP_MAX_LANGUAGES
-#define NPP_MAX_LANGUAGES                   250
+#ifndef NPP_DEFAULT_LANG
+#define NPP_DEFAULT_LANG                    "EN-US"
 #endif
 
 /* messages */
@@ -467,10 +507,6 @@
 
 #ifndef NPP_STRINGS_SEP
 #define NPP_STRINGS_SEP                     '|'
-#endif
-
-#ifndef NPP_STRINGS_LANG
-#define NPP_STRINGS_LANG                    "EN-US"
 #endif
 
 #ifndef NPP_MAX_STRING_LEN
@@ -496,7 +532,7 @@
 #define NPP_JSON_STR_LEN                    255
 
 #undef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  30
+#define NPP_JSON_MAX_ELEMS                  50
 
 #undef NPP_JSON_MAX_LEVELS
 #define NPP_JSON_MAX_LEVELS                 4
@@ -594,9 +630,9 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    void npp_get_exec_name(char *dst, const std::string& path);
+    char *npp_get_exec_name(const std::string& path);
 #else
-    void npp_get_exec_name(char *dst, const char *path);
+    char *npp_get_exec_name(const char *path);
 #endif
 
     void npp_update_time_globals(void);
@@ -639,8 +675,15 @@ extern "C" {
 
     void date_str2rec(const char *str, date_t *rec);
     void date_rec2str(char *str, date_t *rec);
+
+#ifdef NPP_CPP_STRINGS
+    time_t time_http2epoch(const std::string& str);
+    time_t time_db2epoch(const std::string& str);
+#else
     time_t time_http2epoch(const char *str);
     time_t time_db2epoch(const char *str);
+#endif
+
     char *time_epoch2http(time_t epoch);
     char *time_epoch2db(time_t epoch);
 
@@ -671,13 +714,27 @@ extern "C" {
     double npp_elapsed(struct timespec *start);
     int  npp_get_memory(void);
     void npp_log_memory(void);
+
+#ifndef NPP_CPP_STRINGS
     bool npp_read_param_str(const char *param, char *dest);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_read_param_int(const std::string& param, int *dest);
+#else
     bool npp_read_param_int(const char *param, int *dest);
+#endif
 
 #ifdef NPP_CPP_STRINGS
     bool npp_email(const std::string& to, const std::string& subject, const std::string& message);
 #else
     bool npp_email(const char *to, const char *subject, const char *message);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+//    bool npp_email_telnet(const std::string& to, const std::string& subject, const std::string& message, char *err_msg);
+#else
+//    bool npp_email_telnet(const char *to, const char *subject, const char *message, char *err_msg);
 #endif
 
 #ifdef NPP_CPP_STRINGS
@@ -692,8 +749,11 @@ extern "C" {
     char *npp_convert(const char *src, const char *cp_from, const char *cp_to);
 #endif
 
-    void npp_random(char *dest, size_t len);
+    char *npp_random(size_t len);
+
+#ifndef NPP_CPP_STRINGS
     int  npp_b64_encode(char *dst, const unsigned char* src, size_t len);
+#endif
 
 #ifdef NPP_CPP_STRINGS
     int  npp_b64_decode(unsigned char *dst, const std::string& src);
@@ -707,12 +767,19 @@ extern "C" {
     char *npp_json_escape_string(const char *src);
 #endif
 
-#ifndef NPP_CLIENT  /* web app only */
+#ifdef NPP_CPP_STRINGS
+    char *npp_expand_env_path(const std::string& src);
+#else
+    char *npp_expand_env_path(const char *src);
+#endif
+
+
+#ifndef NPP_CLIENT  /* server processes only */
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets);
+    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
 #else
-    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets);
+    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
 #endif
 
 #ifdef NPP_CPP_STRINGS
@@ -730,6 +797,7 @@ extern "C" {
     void msleep(int msec);
     char *stp_right(char *str);
     bool strdigits(const char *src);
+    int  npp_compare_strings(const void *a, const void *b);
     bool npp_read_conf(const char *file);
 
 #ifdef NPP_CPP_STRINGS
@@ -738,7 +806,7 @@ extern "C" {
     void npp_safe_copy(char *dst, const char *src, size_t dst_len);
 #endif
 
-    void npp_bin2hex(char *dst, const unsigned char *src, int len);
+    char *npp_bin2hex(const unsigned char *src, size_t len);
     char *npp_today_gmt(void);
 
 #ifdef NPP_CPP_STRINGS
@@ -749,7 +817,6 @@ extern "C" {
 
     void npp_sort_messages(void);
     bool npp_is_msg_main_cat(int code, const char *cat);
-    void npp_lib_add_string(const char *lang, const char *str, const char *str_lang);
     void npp_lib_setnonblocking(int sock);
     void npp_call_http_headers_reset(void);
 
@@ -765,6 +832,8 @@ extern "C" {
     void npp_call_http_header_unset(const char *key);
 #endif
 
+    void npp_sockaddr_to_string(struct sockaddr_in6 *in_addr, char *result);
+
 #ifdef NPP_CPP_STRINGS
     bool npp_call_http(const void *req, void *res, const std::string& method, const std::string& url, bool json, bool keep);
 #else
@@ -772,6 +841,9 @@ extern "C" {
 #endif
 
     void npp_call_http_disconnect(void);
+#ifdef _WIN32
+    void lib_log_win_socket_error(int sockerr);
+#endif
     bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
     char npp_lib_get_res_type(const char *fname);
@@ -780,6 +852,7 @@ extern "C" {
     void npp_lib_normalize_float(char *str);
     void npp_lib_escape_for_sql(char *dst, const char *str, int dst_len);
     void npp_lib_escape_for_html(char *dst, const char *str, int dst_len);
+
     int  lib_json_count(JSON *json);
     void lib_json_reset(JSON *json);
     char *lib_json_to_string(JSON *json);
@@ -791,15 +864,34 @@ extern "C" {
     bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned level);
 #endif
 
-    bool lib_json_add_str(JSON *json, const char *name, const char *value, int i);
-    bool lib_json_add_int(JSON *json, const char *name, int value, int i);
-    bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i);
-    bool lib_json_add_long(JSON *json, const char *name, long value, int i);
-    bool lib_json_add_float(JSON *json, const char *name, float value, int i);
-    bool lib_json_add_double(JSON *json, const char *name, double value, int i);
-    bool lib_json_add_bool(JSON *json, const char *name, bool value, int i);
-    bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_array, int i);
+#ifdef NPP_CPP_STRINGS
+    bool lib_json_add_str(JSON *json, const std::string& name, int i, const std::string& value);
+    bool lib_json_add_int(JSON *json, const std::string& name, int i, int value);
+    bool lib_json_add_uint(JSON *json, const std::string& name, int i, unsigned value);
+    bool lib_json_add_long(JSON *json, const std::string& name, int i, long value);
+    bool lib_json_add_float(JSON *json, const std::string& name, int i, float value);
+    bool lib_json_add_double(JSON *json, const std::string& name, int i, double value);
+    bool lib_json_add_bool(JSON *json, const std::string& name, int i, bool value);
+    bool lib_json_add_record(JSON *json, const std::string& name, int i, JSON *json_sub, bool is_array);
+    bool lib_json_present(JSON *json, const std::string& name);
+    bool lib_json_get_int(JSON *json, const std::string& name, int i, int *retval);
+    bool lib_json_get_uint(JSON *json, const std::string& name, int i, unsigned *retval);
+    bool lib_json_get_long(JSON *json, const std::string& name, int i, long *retval);
+    bool lib_json_get_float(JSON *json, const std::string& name, int i, float *retval);
+    bool lib_json_get_double(JSON *json, const std::string& name, int i, double *retval);
+    bool lib_json_get_bool(JSON *json, const std::string& name, int i, bool *retval);
+    bool lib_json_get_record(JSON *json, const std::string& name, int i, JSON *json_sub);
+#else   /* NOT NPP_CPP_STRINGS */
+    bool lib_json_add_str(JSON *json, const char *name, int i, const char *value);
+    bool lib_json_add_int(JSON *json, const char *name, int i, int value);
+    bool lib_json_add_uint(JSON *json, const char *name, int i, unsigned value);
+    bool lib_json_add_long(JSON *json, const char *name, int i, long value);
+    bool lib_json_add_float(JSON *json, const char *name, int i, float value);
+    bool lib_json_add_double(JSON *json, const char *name, int i, double value);
+    bool lib_json_add_bool(JSON *json, const char *name, int i, bool value);
+    bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bool is_array);
     bool lib_json_present(JSON *json, const char *name);
+#ifdef NPP_JSON_V1  /* old version */
     char *lib_json_get_str(JSON *json, const char *name, int i);
     int  lib_json_get_int(JSON *json, const char *name, int i);
     unsigned lib_json_get_uint(JSON *json, const char *name, int i);
@@ -807,9 +899,21 @@ extern "C" {
     float lib_json_get_float(JSON *json, const char *name, int i);
     double lib_json_get_double(JSON *json, const char *name, int i);
     bool lib_json_get_bool(JSON *json, const char *name, int i);
-    bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i);
+#else   /* new version */
+    bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t maxlen);
+    bool lib_json_get_int(JSON *json, const char *name, int i, int *retval);
+    bool lib_json_get_uint(JSON *json, const char *name, int i, unsigned *retval);
+    bool lib_json_get_long(JSON *json, const char *name, int i, long *retval);
+    bool lib_json_get_float(JSON *json, const char *name, int i, float *retval);
+    bool lib_json_get_double(JSON *json, const char *name, int i, double *retval);
+    bool lib_json_get_bool(JSON *json, const char *name, int i, bool *retval);
+#endif  /* NPP_JSON_V1 */
+    bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub);
+#endif  /* NPP_CPP_STRINGS */
+
     void lib_json_log_dbg(JSON *json, const char *name);
     void lib_json_log_inf(JSON *json, const char *name);
+
     void npp_get_byteorder(void);
     int  npp_minify(char *dest, const char *src);
     void date_inc(char *str, int days, int *dow);
@@ -846,26 +950,56 @@ extern "C" {
     char *strnstr(const char *haystack, const char *needle, size_t len);
 #endif  /* _WIN32 */
 
-#ifndef NPP_CLIENT  /* web app only */
+#ifndef NPP_CLIENT  /* server processes only */
     void npp_lib_set_formats(int ci, const char *lang);
-    char *npp_get_message(int ci, int code);
+    const char *npp_get_message(int ci, int code);
     void npp_out_html_header(int ci);
     void npp_out_html_footer(int ci);
     void npp_append_css(int ci, const char *fname, bool first);
     void npp_append_script(int ci, const char *fname, bool first);
-    bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, size_t maxlen, char esc_type);
-    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname);
-    bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf);
-    bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf);
-    bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf);
-    bool npp_lib_qsf(int ci, const char *fieldname, float *retbuf);
-    bool npp_lib_qsd(int ci, const char *fieldname, double *retbuf);
-    bool npp_lib_qsb(int ci, const char *fieldname, bool *retbuf);
+
+    bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type);
+    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_lib_qsi(int ci, const std::string& name, int *retbuf);
+    bool npp_lib_qsu(int ci, const std::string& name, unsigned *retbuf);
+    bool npp_lib_qsl(int ci, const std::string& name, long *retbuf);
+    bool npp_lib_qsf(int ci, const std::string& name, float *retbuf);
+    bool npp_lib_qsd(int ci, const std::string& name, double *retbuf);
+    bool npp_lib_qsb(int ci, const std::string& name, bool *retbuf);
+#else
+    bool npp_lib_qsi(int ci, const char *name, int *retbuf);
+    bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf);
+    bool npp_lib_qsl(int ci, const char *name, long *retbuf);
+    bool npp_lib_qsf(int ci, const char *name, float *retbuf);
+    bool npp_lib_qsd(int ci, const char *name, double *retbuf);
+    bool npp_lib_qsb(int ci, const char *name, bool *retbuf);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_lib_res_header(int ci, const std::string& hdr, const std::string& val);
+#else
     bool npp_lib_res_header(int ci, const char *hdr, const char *val);
+#endif
+
+#ifndef NPP_CPP_STRINGS
     bool npp_lib_get_cookie(int ci, const char *key, char *value);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_lib_set_cookie(int ci, const std::string& key, const std::string& value, int days);
+#else
     bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days);
+#endif
+
     void npp_lib_set_res_status(int ci, int status);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_lib_set_res_content_type(int ci, const std::string& str);
+#else
     void npp_lib_set_res_content_type(int ci, const char *str);
+#endif
 
 #ifndef NPP_CPP_STRINGS
     void npp_lib_set_res_location(int ci, const char *str, ...);
@@ -873,7 +1007,21 @@ extern "C" {
 #endif
 
     void npp_lib_send_msg_description(int ci, int code);
+
+    void lib_sort_strings();
+
+#ifdef NPP_CPP_STRINGS
+    void npp_add_string(const std::string& lang, const std::string& str, const std::string& str_lang);
+#else
+    void npp_add_string(const char *lang, const char *str, const char *str_lang);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    const char *npp_lib_get_string(int ci, const std::string& str);
+#else
     const char *npp_lib_get_string(int ci, const char *str);
+#endif
+
     void npp_set_tz(int ci);
     time_t npp_ua_time(int ci);
     char *npp_today_ua(int ci);
@@ -881,11 +1029,31 @@ extern "C" {
     char *npp_lib_fmt_dec(int ci, double in_val);
     char *npp_lib_fmt_int(int ci, long long in_val);
     bool npp_csrft_ok(int ci);
-    bool npp_lib_read_snippets(const char *host, const char *directory, bool first_scan, const char *path);
+    int  lib_compare_snippets(const void *a, const void *b);
+    bool npp_lib_read_snippets(const char *host, int host_id, const char *directory, bool first_scan, const char *path);
     char *npp_get_snippet(int ci, const char *name);
     unsigned npp_get_snippet_len(int ci, const char *name);
+
+#ifdef NPP_CPP_STRINGS
+    void npp_out_snippet(int ci, const std::string& name);
+#else
     void npp_out_snippet(int ci, const char *name);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    void npp_out_snippet_md(int ci, const std::string& name);
+#else
     void npp_out_snippet_md(int ci, const char *name);
+#endif
+
+    int  npp_lib_compare_sess_idx(const void *a, const void *b);
+
+#ifdef NPP_MULTI_HOST
+    int npp_lib_find_sess_idx_idx(int host_id, const char *sessid);
+#else
+    int npp_lib_find_sess_idx_idx(const char *sessid);
+#endif
+
 #endif  /* NPP_CLIENT */
 
 #ifdef __cplusplus
@@ -905,7 +1073,7 @@ extern char         G_tmp[NPP_TMP_BUFSIZE];
 extern bool         G_initialized;
 extern char         *G_strm;
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
-extern int          G_next_msg;
+extern int          G_messages_cnt;
 extern int          G_logLevel;
 extern FILE         *G_log_fd;
 extern char         G_dt_string_gmt[128];
@@ -923,6 +1091,25 @@ auto cnv_variadic_arg(T&& t)
     else
         return std::forward<T>(t);
 }
+
+
+/* --------------------------------------------------------------------------
+   Overloaded version for std::string
+-------------------------------------------------------------------------- */
+bool npp_lib_get_qs_param(int ci, const std::string& name, std::string& retbuf, size_t maxlen, char esc_type);
+
+
+int  npp_b64_encode(char *dst, const unsigned char *src, size_t len);
+int  npp_b64_encode(std::string& dst, const unsigned char* src, size_t len);
+
+bool npp_lib_get_cookie(int ci, const std::string& key, char *value);
+bool npp_lib_get_cookie(int ci, const std::string& key, std::string& value);
+
+bool npp_read_param_str(const std::string& param, char *dest);
+bool npp_read_param_str(const std::string& param, std::string& dest);
+
+bool lib_json_get_str(JSON *json, const std::string& name, int i, char *retval, size_t maxlen);
+bool lib_json_get_str(JSON *json, const std::string& name, int i, std::string& retval, size_t maxlen);
 
 
 /* --------------------------------------------------------------------------
@@ -997,9 +1184,9 @@ void npp_log_write_time(char level, const std::string& message, Args&& ... args)
 template<typename... Args>
 void npp_add_message(int code, const std::string& lang, const std::string& message, Args&& ... args)
 {
-    if ( G_next_msg >= NPP_MAX_MESSAGES )
+    if ( G_messages_cnt > NPP_MAX_MESSAGES-1 )
     {
-        ERR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
+        WAR("NPP_MAX_MESSAGES (%d) has been reached", NPP_MAX_MESSAGES);
         return;
     }
 
@@ -1009,12 +1196,16 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
 
     std::snprintf(buffer, NPP_MAX_MESSAGE_LEN, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
 
-    G_messages[G_next_msg].code = code;
-    if ( lang.c_str() )
-        strcpy(G_messages[G_next_msg].lang, npp_upper(lang.c_str()));
-    strcpy(G_messages[G_next_msg].message, buffer);
+    G_messages[G_messages_cnt].code = code;
 
-    ++G_next_msg;
+    if ( lang.c_str() && lang.c_str()[0] )
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()), NPP_LANG_LEN);
+    else
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_DEFAULT_LANG), NPP_LANG_LEN);
+
+    strcpy(G_messages[G_messages_cnt].message, buffer);
+
+    ++G_messages_cnt;
 
     /* in case message was added after init */
 
@@ -1038,7 +1229,7 @@ void NPP_CPP_STRINGS_STRM(const std::string& str, Args&& ... args)
 #ifndef NPP_CLIENT  /* web app only */
 
 extern "C" {
-extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];
+extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];
 
 #ifdef NPP_SVC
 void npp_svc_out_check_realloc(const char *str);

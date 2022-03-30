@@ -51,7 +51,7 @@
 #define R_OK    0x04    /* test for read permission */
 #endif  /* _MSC_VER */
 #undef _WIN32_WINNT
-#define _WIN32_WINNT 0x0501 /* Windows XP or higher required */
+#define _WIN32_WINNT _WIN32_WINNT_VISTA  /* Windows Vista or higher required */
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <psapi.h>
@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "1.5.0"
+#define NPP_VERSION                     "2.0.0"
 
 
 #ifndef FALSE
@@ -177,20 +177,32 @@ typedef char                            QSVAL[NPP_QSBUF];
 typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 
-/* socket monitoring method */
-
-#ifdef _WIN32
-#define NPP_FD_MON_SELECT   /* WSAPoll doesn't seem to be a reliable alternative */
-#elif defined __linux__
-#define NPP_FD_MON_EPOLL    /* best option */
-#else
-#define NPP_FD_MON_POLL     /* macOS & other Unixes */
-#endif
-
-
 /* application settings */
 
 #include "npp_app.h"
+
+
+/* socket monitoring method */
+
+#ifdef _WIN32           /* Windows ----------------------------------------------------------- */
+    #define NPP_FD_MON_SELECT   /* default (WSAPoll doesn't seem to be a reliable alternative) */
+#elif defined __linux__ /* Linux ------------------------------------------------------------- */
+    #ifdef NPP_FD_MON_LINUX_SELECT
+        #define NPP_FD_MON_SELECT
+    #elif defined NPP_FD_MON_LINUX_POLL
+        #define NPP_FD_MON_POLL
+    #else
+        #define NPP_FD_MON_EPOLL /* default */
+    #endif
+#else                   /* macOS & other Unixes ---------------------------------------------- */
+    #ifdef NPP_FD_MON_OTHERS_SELECT
+        #define NPP_FD_MON_SELECT
+    #elif defined NPP_FD_MON_OTHERS_EPOLL
+        #define NPP_FD_MON_EPOLL
+    #else
+        #define NPP_FD_MON_POLL /* default */
+    #endif
+#endif
 
 
 /* Silgy compatibility */
@@ -303,8 +315,12 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifndef NPP_MEM_XXLARGE
 #ifndef NPP_MEM_XXXLARGE
 #ifndef NPP_MEM_XXXXLARGE
+#ifndef NPP_MEM_XXXXXLARGE
+#ifndef NPP_MEM_XXXXXXLARGE
 #ifndef NPP_MEM_SMALL
 #define NPP_MEM_SMALL                   /* default memory model */
+#endif
+#endif
 #endif
 #endif
 #endif
@@ -334,7 +350,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define PRINT_HTTP2_STATUS(val)             http2_hdr_status(ci, val)
 
 /* date */
-#define PRINT_HTTP_DATE                     (sprintf(G_tmp, "Date: %s\r\n", M_resp_date), HOUT(G_tmp))
+#define PRINT_HTTP_DATE                     (sprintf(G_tmp, "Date: %s\r\n", G_header_date), HOUT(G_tmp))
 #define PRINT_HTTP2_DATE                    http2_hdr_date(ci)
 
 /* redirection */
@@ -801,43 +817,53 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 /* memory models' specs */
 
 #ifdef NPP_MEM_TINY
-#define NPP_IN_BUFSIZE                      4096            /* incoming request buffer length (4 kB) */
-#define NPP_OUT_BUFSIZE                     65536           /* initial HTTP response buffer length (64 kB) */
+#define NPP_IN_BUFSIZE                      4096            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     65536           /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 10              /* max TCP connections */
 #define NPP_MAX_SESSIONS                    5               /* max user sessions */
 #elif defined NPP_MEM_MEDIUM
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 200             /* max TCP connections (2 per user session) */
 #define NPP_MAX_SESSIONS                    100             /* max user sessions */
 #elif defined NPP_MEM_LARGE
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 1000            /* max TCP connections */
 #define NPP_MAX_SESSIONS                    500             /* max user sessions */
 #elif defined NPP_MEM_XLARGE
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 5000            /* max TCP connections */
 #define NPP_MAX_SESSIONS                    2500            /* max user sessions */
 #elif defined NPP_MEM_XXLARGE
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 10000           /* max TCP connections */
 #define NPP_MAX_SESSIONS                    5000            /* max user sessions */
 #elif defined NPP_MEM_XXXLARGE
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 20000           /* max TCP connections */
 #define NPP_MAX_SESSIONS                    10000           /* max user sessions */
 #elif defined NPP_MEM_XXXXLARGE
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length (256 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 50000           /* max TCP connections */
 #define NPP_MAX_SESSIONS                    25000           /* max user sessions */
+#elif defined NPP_MEM_XXXXXLARGE
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
+#define NPP_MAX_CONNECTIONS                 100000          /* max TCP connections */
+#define NPP_MAX_SESSIONS                    50000           /* max user sessions */
+#elif defined NPP_MEM_XXXXXXLARGE
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     262144          /* initial HTTP response buffer length */
+#define NPP_MAX_CONNECTIONS                 200000          /* max TCP connections */
+#define NPP_MAX_SESSIONS                    100000          /* max user sessions */
 #else   /* NPP_MEM_SMALL -- default */
-#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length (8 kB) */
-#define NPP_OUT_BUFSIZE                     131072          /* initial HTTP response buffer length (128 kB) */
+#define NPP_IN_BUFSIZE                      8192            /* incoming request buffer length */
+#define NPP_OUT_BUFSIZE                     131072          /* initial HTTP response buffer length */
 #define NPP_MAX_CONNECTIONS                 20              /* max TCP connections */
 #define NPP_MAX_SESSIONS                    10              /* max user sessions */
 #endif
@@ -862,7 +888,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 #endif  /* NPP_FD_MON_SELECT */
 
-#define NPP_CLOSING_SESSION_CI              NPP_MAX_CONNECTIONS
+#define NPP_CLOSING_SESSION_CI              NPP_MAX_CONNECTIONS+1
 
 #define NPP_NOT_CONNECTED                   -1
 
@@ -889,7 +915,6 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 /* connection / request state */
 
 #define CONN_STATE_DISCONNECTED             '0'
-#define CONN_STATE_ACCEPTING                'a'
 #define CONN_STATE_CONNECTED                '1'
 #define CONN_STATE_READY_FOR_PARSE          'p'
 #define CONN_STATE_READY_FOR_PROCESS        'P'
@@ -916,7 +941,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
 
 
-#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_TEXT || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_BMP))
+#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_BMP || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_MD || type==NPP_CONTENT_TYPE_PDF || type==NPP_CONTENT_TYPE_XML || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_TEXT))
 
 
 /* errors */
@@ -1152,6 +1177,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #define DT_NOW                          DT_NOW_GMT                          /* convenience alias */
 
+/* RFC 2822 */
+
+#define DT_HEADER                       G_header_date
+
 
 /* CSRFT */
 
@@ -1191,7 +1220,8 @@ typedef struct {
     char res[256];
     char resmin[256];
     char snippets[256];
-    bool index_present;
+    char required_auth_level;
+    int  index_present;
 } npp_host_t;
 
 
@@ -1199,9 +1229,12 @@ typedef struct {
 
 typedef struct {
     /* id */
+#ifdef NPP_MULTI_HOST
+    int     host_id;
+#endif
     char    sessid[NPP_SESSID_LEN+1];
     /* connection data */
-    char    ip[INET_ADDRSTRLEN];
+    char    ip[INET6_ADDRSTRLEN];
     char    uagent[NPP_MAX_VALUE_LEN+1];
     char    referer[NPP_MAX_VALUE_LEN+1];
     char    lang[NPP_LANG_LEN+1];
@@ -1223,6 +1256,17 @@ typedef struct {
     /* internal */
     time_t  last_activity;
 } eng_session_data_t;
+
+
+/* sessions' index */
+
+typedef struct {
+#ifdef NPP_MULTI_HOST
+    int     host_id;
+#endif
+    char    sessid[NPP_SESSID_LEN+1];
+    int     si;
+} sessions_idx_t;
 
 
 /* counters */
@@ -1254,7 +1298,7 @@ typedef struct {
     int      ci;
     char     service[NPP_SVC_NAME_LEN+1];
     /* pass some request details over */
-    char     ip[INET_ADDRSTRLEN];
+    char     ip[INET6_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
@@ -1430,7 +1474,7 @@ typedef struct {
 
 #ifdef NPP_SVC
 typedef struct {                            /* request details for npp_svc */
-    char     ip[INET_ADDRSTRLEN];
+    char     ip[INET6_ADDRSTRLEN];
     char     method[NPP_METHOD_LEN+1];
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
@@ -1489,7 +1533,7 @@ typedef struct {
 #else
     int      fd;                                    /* file descriptor */
 #endif  /* _WIN32 */
-    char     ip[INET_ADDRSTRLEN];                   /* client IP */
+    char     ip[INET6_ADDRSTRLEN];                  /* client IP */
     char     in[NPP_IN_BUFSIZE];                    /* the whole incoming request */
     char     method[NPP_METHOD_LEN+1];              /* HTTP method */
     unsigned was_read;                              /* request bytes read so far */
@@ -1577,7 +1621,7 @@ typedef struct {
     unsigned req;                                   /* request count */
     struct timespec proc_start;                     /* start processing time */
     double   elapsed;                               /* processing time in ms */
-    char     conn_state;                            /* connection state (STATE_XXX) */
+    char     state;                                 /* connection state (STATE_XXX) */
     char     *p_header;                             /* current header pointer */
     char     *p_content;                            /* current content pointer */
 #ifdef NPP_HTTPS
@@ -1589,6 +1633,9 @@ typedef struct {
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
     int      pi;                                    /* M_pollfds array index */
+#endif
+#ifdef NPP_FD_MON_EPOLL
+//    bool     epoll_out_ready;
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];
@@ -1605,6 +1652,7 @@ typedef struct {
 
 typedef struct {
     char     host[NPP_MAX_HOST_LEN+1];
+    int      host_id;
     char     name[NPP_STATIC_PATH_LEN+1];
     char     type;
     char     *data;
@@ -1616,10 +1664,21 @@ typedef struct {
 } static_res_t;
 
 
+/* authorization levels */
+
+typedef struct {
+    char host[NPP_MAX_HOST_LEN+1];
+    int  host_id;
+    char path[NPP_STATIC_PATH_LEN+1];
+    char level;
+} auth_level_t;
+
+
 /* snippets */
 
 typedef struct {
     char     host[NPP_MAX_HOST_LEN+1];
+    int      host_id;
     char     name[NPP_STATIC_PATH_LEN+1];
     char     type;
     char     *data;
@@ -1703,7 +1762,8 @@ extern bool         G_endianness;
 extern int          G_pid;                                      /* pid */
 extern char         G_appdir[256];                              /* application root dir */
 extern int          G_days_up;                                  /* web server's days up */
-extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1];   /* HTTP connections & requests -- the main structure */
+extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];   /* HTTP connections & requests -- the main structure */
+                                                                /* The extra 2 slots are for 503 processing and for NPP_CLOSING_SESSION_CI */
 extern int          G_connections_cnt;                          /* number of open connections */
 extern int          G_connections_hwm;                          /* highest number of open connections (high water mark) */
 extern char         G_tmp[NPP_TMP_BUFSIZE];                     /* temporary string buffer */
@@ -1711,9 +1771,12 @@ extern eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1];       /* engine sessio
 extern app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]; /* app session data, using the same index (si) */
 extern int          G_sessions_cnt;                             /* number of active user sessions */
 extern int          G_sessions_hwm;                             /* highest number of active user sessions (high water mark) */
+extern sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS];         /* G_sessions' index, this starts from 0 */
+
 extern time_t       G_now;                                      /* current GMT time (epoch) */
 extern struct tm    *G_ptm;                                     /* human readable current time */
 extern char         G_last_modified[32];                        /* response header field with server's start time */
+extern char         G_header_date[32];                          /* RFC 2822 datetime format */
 extern bool         G_initialized;                              /* is server initialization complete? */
 extern char         *G_strm;                                    /* for STRM macro */
 
@@ -1725,15 +1788,11 @@ extern int          G_hosts_cnt;
 
 /* messages */
 extern npp_message_t G_messages[NPP_MAX_MESSAGES];
-extern int          G_next_msg;
-extern npp_lang_t   G_msg_lang[NPP_MAX_LANGUAGES];
-extern int          G_next_msg_lang;
+extern int          G_messages_cnt;
 
 /* strings */
 extern npp_string_t G_strings[NPP_MAX_STRINGS];
-extern int          G_next_str;
-extern npp_lang_t   G_str_lang[NPP_MAX_LANGUAGES];
-extern int          G_next_str_lang;
+extern int          G_strings_cnt;
 
 /* snippets */
 extern snippet_t    G_snippets[NPP_MAX_SNIPPETS];
@@ -1760,7 +1819,6 @@ extern int          G_async_res_data_size;      /* how many bytes are left for d
 #endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
-extern bool         G_index_present;            /* index.html present in res? */
 
 #ifdef NPP_SVC
 extern async_req_t  G_svc_req;
@@ -1774,10 +1832,10 @@ extern int          G_error_code;
 extern int          G_svc_si;
 #endif  /* NPP_SVC */
 
-extern char         G_blacklist[NPP_MAX_BLACKLIST+1][INET_ADDRSTRLEN];
+extern char         G_blacklist[NPP_MAX_BLACKLIST+1][INET6_ADDRSTRLEN];
 extern int          G_blacklist_cnt;            /* G_blacklist length */
 
-extern char         G_whitelist[NPP_MAX_WHITELIST+1][INET_ADDRSTRLEN];
+extern char         G_whitelist[NPP_MAX_WHITELIST+1][INET6_ADDRSTRLEN];
 extern int          G_whitelist_cnt;            /* G_whitelist length */
 /* counters */
 extern npp_counters_t G_cnts_today;             /* today's counters */
@@ -1804,18 +1862,28 @@ extern int          G_qs_len;
    prototypes
 -------------------------------------------------------------------------- */
 
+#ifdef NPP_CPP_STRINGS
+    void npp_require_auth(const char *host, const std::string& path, char level);
+    void npp_require_auth(const std::string& host, const std::string& path, char level);
+
+    void npp_add_to_static_res(const char *host, const std::string& name, const std::string& src);
+    void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);
+
+#ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
+    int  npp_app_custom_activation_email(int ci, int user_id, const std::string& email, const std::string& linkkey);
+#endif
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
     /* public */
 
-    void npp_require_auth(const char *path, char level);
-
-#ifdef NPP_CPP_STRINGS
-    void npp_add_to_static_res(const std::string& name_, const std::string& src_);
-#else
-    void npp_add_to_static_res(const char *name, const char *src);
+#ifndef NPP_CPP_STRINGS
+    void npp_require_auth(const char *host, const char *path, char level);
+    void npp_add_to_static_res(const char *host, const char *name, const char *src);
 #endif
 
     /* public internal */
@@ -1823,7 +1891,15 @@ extern "C" {
 #ifdef NPP_HTTPS
     bool npp_eng_init_ssl(void);
 #endif
+
     int  npp_eng_session_start(int ci, const char *sessid);
+
+#ifdef NPP_MULTI_HOST
+    int  npp_eng_find_si(int host_id, const char *sessid);
+#else
+    int  npp_eng_find_si(const char *sessid);
+#endif
+
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
     bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_read_blocked_ips(void);
@@ -1868,7 +1944,9 @@ extern "C" {
 #endif
 
 #ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
+#ifndef NPP_CPP_STRINGS
     int  npp_app_custom_activation_email(int ci, int user_id, const char *email, const char *linkkey);
+#endif
 #endif
 
 #ifdef NPP_USERS

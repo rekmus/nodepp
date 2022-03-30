@@ -52,14 +52,6 @@ static int  M_watcherLogRestart;
 -------------------------------------------------------------------------- */
 static void restart()
 {
-    if ( M_watcherLogRestart > G_logLevel )
-    {
-        int old_level = G_logLevel;
-        G_logLevel = M_watcherLogRestart;
-        if ( old_level < 1 )
-            npp_log_start("watcher", FALSE, FALSE);
-    }
-
     ALWAYS_T("Restarting...");
 
     INF_T("Stopping...");
@@ -143,10 +135,20 @@ int main(int argc, char *argv[])
 
     CALL_HTTP_HEADER_SET("User-Agent", "Node++ Watcher Bot");
 
-    if ( !CALL_HTTP(NULL, NULL, "GET", url) )
+    if ( !CALL_HTTP(NULL, NULL, "GET", url, FALSE) )
     {
         npp_update_time_globals();
+
+        if ( M_watcherLogRestart > G_logLevel )
+        {
+            int old_level = G_logLevel;
+            G_logLevel = M_watcherLogRestart;
+            if ( old_level < 1 )
+                npp_log_start("watcher", FALSE, FALSE);
+        }
+
         ERR_T("Couldn't connect");
+
         restart();
     }
 

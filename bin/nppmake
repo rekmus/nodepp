@@ -44,7 +44,7 @@ fi
 # Functions
 
 get_presence () {
-    local present=`grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
+    local present=`grep "^#define\s*$1[[:cntrl:]]*$" npp_app.h | head -1 | awk '{ print $2 }' | sed 's/\r$//'`
 
     if [ "$present" = "$1" ]
     then
@@ -55,11 +55,11 @@ get_presence () {
 }
 
 get_value () {
-    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
+    echo `grep "^#define\s*$1\s" npp_app.h | head -1 | awk '{ print $3 }' | sed 's/\r$//'`
 }
 
 get_quoted_value () {
-    echo `grep "^#define\s*$1" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
+    echo `grep "^#define\s*$1\s" npp_app.h | head -1 | awk -F'"' '{ print $2 }'`
 }
 
 
@@ -121,8 +121,8 @@ fi
 
 if [ $NPP_USERS -eq 1 ]
 then
-    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ../lib/npp_usr.c"
-    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ../lib/npp_usr.c"
+    NPP_M_MODULES_APP="${NPP_M_MODULES_APP} ../lib/npp_usr.cpp ../lib/Cusers.cpp ../lib/Cusers_avatars.cpp ../lib/Cusers_groups.cpp ../lib/Cusers_settings.cpp ../lib/Cusers_logins.cpp ../lib/Cusers_activations.cpp ../lib/Cusers_p_resets.cpp ../lib/Cusers_messages.cpp"
+    NPP_M_MODULES_SVC="${NPP_M_MODULES_SVC} ../lib/npp_usr.cpp ../lib/Cusers.cpp ../lib/Cusers_avatars.cpp ../lib/Cusers_groups.cpp ../lib/Cusers_settings.cpp ../lib/Cusers_logins.cpp ../lib/Cusers_activations.cpp ../lib/Cusers_p_resets.cpp ../lib/Cusers_messages.cpp"
 fi
 
 if [ $NPP_VERBOSE -eq 1 ]
@@ -147,48 +147,51 @@ fi
 # ----------------------------------------------------------------------------
 # Include paths
 
-NPP_M_INCLUDE="-I. -I../lib"
+NPP_INCLUDE="-I. -I../lib"
 
 if [ $NPP_VERBOSE -eq 1 ]
 then
-    echo "NPP_M_INCLUDE=${NPP_M_INCLUDE}"
+    echo "NPP_INCLUDE=${NPP_INCLUDE}"
 fi
 
 
 # ----------------------------------------------------------------------------
 # System and third-party libraries
 
-if [ $NPP_ASYNC -eq 1 ] && [ "$NPP_OS" = "debian" ]
+NPP_LIBS_APP=""
+NPP_LIBS_SVC=""
+
+if [ $NPP_ASYNC -eq 1 ]
 then
-    NPP_M_LIBS_APP="-lrt"
-    NPP_M_LIBS_SVC="-lrt"
-else
-    NPP_M_LIBS_APP=""
-    NPP_M_LIBS_SVC=""
+    if [ "$NPP_OS" = "debian" ] || [ -z "${NPP_OS##*rhel*}" ] || [ -z "${NPP_OS##*fedora*}" ]
+    then
+        NPP_LIBS_APP="-lrt"
+        NPP_LIBS_SVC="-lrt"
+    fi
 fi
 
-NPP_M_LIBS_UPDATE=""
+NPP_LIBS_UPDATE=""
 
 if [ $NPP_HTTPS -eq 1 ]
 then
-   NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lssl -lcrypto"
-   NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lssl -lcrypto"
-   NPP_M_LIBS_UPDATE="${NPP_M_LIBS_UPDATE} -lssl -lcrypto"
+   NPP_LIBS_APP="${NPP_LIBS_APP} -lssl -lcrypto"
+   NPP_LIBS_SVC="${NPP_LIBS_SVC} -lssl -lcrypto"
+   NPP_LIBS_UPDATE="${NPP_LIBS_UPDATE} -lssl -lcrypto"
 fi
 
 if [ $NPP_MYSQL -eq 1 ]
 then
-   NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lmysqlclient"
-   NPP_M_LIBS_SVC="${NPP_M_LIBS_SVC} -lmysqlclient"
+   NPP_LIBS_APP="${NPP_LIBS_APP} -lmysqlclient"
+   NPP_LIBS_SVC="${NPP_LIBS_SVC} -lmysqlclient"
 fi
 
-NPP_M_LIBS_APP="${NPP_M_LIBS_APP} -lz"
+NPP_LIBS_APP="${NPP_LIBS_APP} -lz"
 
 if [ $NPP_VERBOSE -eq 1 ]
 then
-    echo "NPP_M_LIBS_APP=${NPP_M_LIBS_APP}"
-    echo "NPP_M_LIBS_SVC=${NPP_M_LIBS_SVC}"
-    echo "NPP_M_LIBS_UPDATE=${NPP_M_LIBS_UPDATE}"
+    echo "NPP_LIBS_APP=${NPP_LIBS_APP}"
+    echo "NPP_LIBS_SVC=${NPP_LIBS_SVC}"
+    echo "NPP_LIBS_UPDATE=${NPP_LIBS_UPDATE}"
 fi
 
 
@@ -208,8 +211,8 @@ echo Making npp_app...
 
 g++ $NPP_M_MODULES_APP \
 -D NPP_APP \
-$NPP_M_INCLUDE \
-$NPP_M_LIBS_APP \
+$NPP_INCLUDE \
+$NPP_LIBS_APP \
 -O3 \
 -o ../bin/npp_app
 
@@ -226,8 +229,8 @@ then
 
     g++ $NPP_M_MODULES_SVC \
     -D NPP_SVC \
-    $NPP_M_INCLUDE \
-    $NPP_M_LIBS_SVC \
+    $NPP_INCLUDE \
+    $NPP_LIBS_SVC \
     -O3 \
     -o ../bin/npp_svc
 fi
@@ -240,7 +243,7 @@ then
     gcc ../lib/npp_watcher.c \
     ../lib/npp_lib.c \
     -D NPP_WATCHER \
-    $NPP_M_INCLUDE \
+    $NPP_INCLUDE \
     -O3 \
     -o ../bin/npp_watcher
 
@@ -250,8 +253,8 @@ then
     gcc ../lib/npp_update.c \
     ../lib/npp_lib.c \
     -D NPP_UPDATE \
-    $NPP_M_INCLUDE \
-    $NPP_M_LIBS_UPDATE \
+    $NPP_INCLUDE \
+    $NPP_LIBS_UPDATE \
     -O3 \
     -o ../bin/npp_update
 fi

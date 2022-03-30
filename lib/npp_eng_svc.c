@@ -57,7 +57,7 @@ async_res_t G_svc_res;
 char        *G_svc_out_data=NULL;
 #endif
 char        *G_svc_p_content=NULL;
-npp_connection_t G_connections[NPP_MAX_CONNECTIONS+1]={0};  /* request details */
+npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2]={0};  /* request details */
 eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};      /* sessions -- they start from 1 */
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0}; /* app session data, using the same index (si) */
 
@@ -173,13 +173,12 @@ int main(int argc, char *argv[])
 
     /* load snippets ----------------------------------------------------- */
 
-    if ( !npp_lib_read_snippets("", "snippets", TRUE, NULL) )
+    if ( !npp_lib_read_snippets("", 0, "snippets", TRUE, NULL) )
     {
         ERR("npp_lib_read_snippets() failed");
         npp_lib_done();
         return EXIT_FAILURE;
     }
-
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
 
@@ -187,7 +186,7 @@ int main(int argc, char *argv[])
 
     for ( i=1; i<G_hosts_cnt; ++i )
     {
-        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, G_hosts[i].snippets, TRUE, NULL) )
+        if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, TRUE, NULL) )
         {
             ERR("reading %s's snippets failed", G_hosts[i].host);
             npp_lib_done();
@@ -196,6 +195,8 @@ int main(int argc, char *argv[])
     }
 
 #endif  /* NPP_MULTI_HOST */
+
+    qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
 
 
     /* open queues ------------------------------------------------------- */
@@ -261,7 +262,16 @@ int main(int argc, char *argv[])
 
     /* ------------------------------------------------------------------- */
 
+    INF("Sorting messages...");
+
     npp_sort_messages();
+
+
+    INF("Sorting strings...");
+
+    lib_sort_strings();
+
+    /* ------------------------------------------------------------------- */
 
     G_initialized = 1;
 
@@ -269,7 +279,7 @@ int main(int argc, char *argv[])
 
     INF("\nWaiting...\n");
 
-    while (1)
+    while ( TRUE )
     {
         G_call_http_req_cnt = 0;
         G_call_http_elapsed = 0;
@@ -295,12 +305,28 @@ int main(int argc, char *argv[])
 
                 npp_lib_init_random_numbers();
 
-                if ( !npp_lib_read_snippets("", "snippets", FALSE, NULL) )
+                if ( !npp_lib_read_snippets("", 0, "snippets", FALSE, NULL) )
                 {
                     ERR("npp_lib_read_snippets() failed");
                     clean_up();
                     return EXIT_FAILURE;
                 }
+
+#ifdef NPP_MULTI_HOST   /* side gigs */
+
+                for ( i=1; i<G_hosts_cnt; ++i )
+                {
+                    if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, TRUE, NULL) )
+                    {
+                        ERR("reading %s's snippets failed", G_hosts[i].host);
+                        npp_lib_done();
+                        return EXIT_FAILURE;
+                    }
+                }
+
+#endif  /* NPP_MULTI_HOST */
+
+                qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
             }
 
             DBG_T("Message received");
@@ -369,7 +395,7 @@ int main(int argc, char *argv[])
             /* For POST, the payload can be in the data space of the message,
                or -- if it's bigger -- in the shared memory */
 
-            if ( NPP_CONN_IS_PAYLOAD(G_svc_req.hdr.flags) )
+            if ( NPP_CONN_IS_PAYLOAD(G_svc_req.hdr.flags) && G_svc_req.hdr.clen > 0 )
             {
                 if ( !NPP_ASYNC_IS_PAYLOAD_IN_SHM(G_svc_req.hdr.async_flags) )
                 {
@@ -613,7 +639,7 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     G_connections[ci].si = 1;
 
-    npp_random(new_sessid, NPP_SESSID_LEN);
+    strcpy(new_sessid, npp_random(NPP_SESSID_LEN));
 
 #ifdef NPP_DEBUG
     INF("Starting new session, sessid [%s]", new_sessid);
@@ -632,7 +658,7 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     strcpy(G_connections[ci].cookie_out_a, new_sessid);
 
-    DBG("%d user session(s)", G_sessions_cnt);
+    DBG("%d session(s)", G_sessions_cnt);
 
     if ( G_sessions_cnt > G_sessions_hwm )
         G_sessions_hwm = G_sessions_cnt;
@@ -755,14 +781,7 @@ static void clean_up()
     if ( access(M_pidfile, F_OK) != -1 )
     {
         DBG("Removing pid file...");
-        char command[1024];
-#ifdef _WIN32   /* Windows */
-        sprintf(command, "del %s", M_pidfile);
-#else
-        sprintf(command, "rm %s", M_pidfile);
-#endif
-        if ( system(command) != EXIT_SUCCESS )
-            WAR("Couldn't execute %s", command);
+        remove(M_pidfile);
     }
 
 #ifdef NPP_ASYNC
