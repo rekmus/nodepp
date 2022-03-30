@@ -331,11 +331,19 @@ void npp_safe_copy(char *dst, const char *src, size_t dst_len)
 /* --------------------------------------------------------------------------
    Binary to string
 ---------------------------------------------------------------------------*/
-void npp_bin2hex(char *dst, const unsigned char *src, int len)
+char *npp_bin2hex(const unsigned char *src, size_t len)
 {
+static char dst[NPP_LIB_STR_BUF];
     char *d=dst;
     char hex[4];
-    int i;
+    unsigned i;
+
+    if ( len > NPP_LIB_STR_CHECK/2 )
+    {
+        WAR("npp_bin2hex: src too long");
+        dst[0] = EOS;
+        return dst;
+    }
 
     for ( i=0; i<len; ++i )
     {
@@ -344,6 +352,8 @@ void npp_bin2hex(char *dst, const unsigned char *src, int len)
     }
 
     *d = EOS;
+
+    return dst;
 }
 
 
@@ -1806,15 +1816,23 @@ bool npp_file_exists(const char *fname)
    Get the last part of path
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_get_exec_name(char *dst, const std::string& path_)
+char *npp_get_exec_name(const std::string& path_)
 {
     const char *path = path_.c_str();
 #else
-void npp_get_exec_name(char *dst, const char *path)
+char *npp_get_exec_name(const char *path)
 {
 #endif
+static char dst[NPP_LIB_STR_BUF];
     const char *p=path;
     const char *pd=NULL;
+
+    if ( strlen(path) > NPP_LIB_STR_CHECK )
+    {
+        WAR("npp_get_exec_name: path too long");
+        dst[0] = EOS;
+        return dst;
+    }
 
     while ( *p )
     {
@@ -1835,7 +1853,7 @@ void npp_get_exec_name(char *dst, const char *path)
     else
         strcpy(dst, path);
 
-//    DBG("exec name [%s]", dst);
+    return dst;
 }
 
 
@@ -2423,8 +2441,14 @@ unsigned npp_get_snippet_len(int ci, const char *name)
 /* --------------------------------------------------------------------------
    OUT snippet
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_out_snippet(int ci, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 void npp_out_snippet(int ci, const char *name)
 {
+#endif
 #ifdef NPP_MULTI_HOST
     int i = get_snippet_idx(G_connections[ci].host_id, name);
 #else
@@ -2439,8 +2463,14 @@ void npp_out_snippet(int ci, const char *name)
 /* --------------------------------------------------------------------------
    OUT markdown snippet
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_out_snippet_md(int ci, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 void npp_out_snippet_md(int ci, const char *name)
 {
+#endif
 #ifdef NPP_MULTI_HOST
     int i = get_snippet_idx(G_connections[ci].host_id, name);
 #else
@@ -2597,7 +2627,7 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
 /* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */
-static bool get_qs_param_json(int ci, const char *fieldname, char *retbuf, int maxlen)
+static bool get_qs_param_json(int ci, const char *name, char *retbuf, int maxlen)
 {
 static int prev_ci=-1;
 static unsigned prev_req;
@@ -2617,25 +2647,27 @@ static JSON req={0};
         prev_req = G_cnts_today.req;
     }
 
-    if ( !lib_json_present(&req, fieldname) )
+#ifdef NPP_JSON_V1
+    if ( !lib_json_present(&req, name) )
         return FALSE;
 
-    strncpy(retbuf, lib_json_get_str(&req, fieldname, 0), maxlen);
-    retbuf[maxlen] = EOS;
-
+    COPY(retbuf, lib_json_get_str(&req, name, 0), maxlen);
     return TRUE;
+#else
+    return lib_json_get_str(&req, name, 0, retbuf, maxlen);
+#endif
 }
 
 
 /* --------------------------------------------------------------------------
    Get text value from multipart-form-data
 -------------------------------------------------------------------------- */
-static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retbuf, size_t maxlen)
+static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, size_t maxlen)
 {
     unsigned char *p;
     size_t len;
 
-    p = npp_lib_get_qs_param_multipart(ci, fieldname, &len, NULL);
+    p = npp_lib_get_qs_param_multipart(ci, name, &len, NULL);
 
     if ( !p ) return FALSE;
 
@@ -2656,23 +2688,23 @@ static bool get_qs_param_multipart_txt(int ci, const char *fieldname, char *retb
 /* --------------------------------------------------------------------------
    Get the query string value. Return TRUE if found.
 -------------------------------------------------------------------------- */
-static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t maxlen)
+static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxlen)
 {
     char *qs, *end;
 
     G_qs_len = 0;
 
-    DDBG("get_qs_param_raw: fieldname [%s]", fieldname);
+    DDBG("get_qs_param_raw: name [%s]", name);
 
     if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )
     {
         if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_JSON )
         {
-            return get_qs_param_json(ci, fieldname, retbuf, maxlen);
+            return get_qs_param_json(ci, name, retbuf, maxlen);
         }
         else if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_MULTIPART )
         {
-            return get_qs_param_multipart_txt(ci, fieldname, retbuf, maxlen);
+            return get_qs_param_multipart_txt(ci, name, retbuf, maxlen);
         }
         else if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_URLENCODED && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_UNSET )
         {
@@ -2701,7 +2733,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
         DDBG("get_qs_param_raw: qs len = %d", strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
     }
 
-    int fnamelen = strlen(fieldname);
+    int fnamelen = strlen(name);
 
     if ( fnamelen < 1 )
     {
@@ -2715,7 +2747,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
 
     while ( val < end )
     {
-        val = strstr(val, fieldname);
+        val = strstr(val, name);
 
         if ( val == NULL )
         {
@@ -2768,7 +2800,7 @@ static bool get_qs_param_raw(int ci, const char *fieldname, char *retbuf, size_t
 /* --------------------------------------------------------------------------
    Get incoming request data. TRUE if found.
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const char *fieldname, char *retbuf, size_t maxlen, char esc_type)
+bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type)
 {
 static char interbuf[65536];
 
@@ -2776,7 +2808,7 @@ static char interbuf[65536];
     {
 static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count */
 
-        if ( !get_qs_param_raw(ci, fieldname, rawbuf, maxlen*3-1) )
+        if ( !get_qs_param_raw(ci, name, rawbuf, maxlen*3-1) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -2787,7 +2819,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
     }
     else    /* usually JSON or multipart */
     {
-        if ( !get_qs_param_raw(ci, fieldname, interbuf, maxlen) )
+        if ( !get_qs_param_raw(ci, name, interbuf, maxlen) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -2814,17 +2846,17 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
 /* --------------------------------------------------------------------------
    Overloaded version for std::string
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const std::string& fieldname_, std::string& retbuf_, size_t maxlen, char esc_type)
+bool npp_lib_get_qs_param(int ci, const std::string& name_, std::string& retbuf_, size_t maxlen, char esc_type)
 {
-    const char *fieldname = fieldname_.c_str();
+    const char *name = name_.c_str();
 static char retbuf[65536];
 
-    bool ok = npp_lib_get_qs_param(ci, fieldname, retbuf, maxlen, esc_type);
+    bool ret = npp_lib_get_qs_param(ci, name, retbuf, maxlen, esc_type);
 
-    if ( ok )
+    if ( ret )
         retbuf_ = retbuf;
 
-    return ok;
+    return ret;
 }
 #endif
 
@@ -2835,7 +2867,7 @@ static char retbuf[65536];
    If retfname is not NULL then assume binary data and it must be the last
    data element
 -------------------------------------------------------------------------- */
-unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, size_t *retlen, char *retfname)
+unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname)
 {
     unsigned blen;           /* boundary length */
     char     *cp;            /* current pointer */
@@ -2950,7 +2982,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
 
 //      DBG("fn: [%s]", fn);
 
-        if ( 0==strcmp(fn, fieldname) )     /* found */
+        if ( 0==strcmp(fn, name) )     /* found */
             break;
 
         cp += b;
@@ -3034,11 +3066,17 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *fieldname, siz
 /* --------------------------------------------------------------------------
    Get integer value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsi(int ci, const std::string& name_, int *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsi(int ci, const char *name, int *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%d", retbuf);
@@ -3053,11 +3091,17 @@ bool npp_lib_qsi(int ci, const char *fieldname, int *retbuf)
 /* --------------------------------------------------------------------------
    Get unsigned value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsu(int ci, const std::string& name_, unsigned *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%u", retbuf);
@@ -3072,11 +3116,17 @@ bool npp_lib_qsu(int ci, const char *fieldname, unsigned *retbuf)
 /* --------------------------------------------------------------------------
    Get long value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsl(int ci, const std::string& name_, long *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsl(int ci, const char *name, long *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%ld", retbuf);
@@ -3091,11 +3141,17 @@ bool npp_lib_qsl(int ci, const char *fieldname, long *retbuf)
 /* --------------------------------------------------------------------------
    Get float value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsf(int ci, const char *fieldname, float *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsf(int ci, const std::string& name_, float *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsf(int ci, const char *name, float *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%f", retbuf);
@@ -3110,11 +3166,17 @@ bool npp_lib_qsf(int ci, const char *fieldname, float *retbuf)
 /* --------------------------------------------------------------------------
    Get double value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsd(int ci, const char *fieldname, double *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsd(int ci, const std::string& name_, double *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsd(int ci, const char *name, double *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%lf", retbuf);
@@ -3129,11 +3191,17 @@ bool npp_lib_qsd(int ci, const char *fieldname, double *retbuf)
 /* --------------------------------------------------------------------------
    Get bool value from the query string
 -------------------------------------------------------------------------- */
-bool npp_lib_qsb(int ci, const char *fieldname, bool *retbuf)
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_qsb(int ci, const std::string& name_, bool *retbuf)
 {
+    const char *name = name_.c_str();
+#else
+bool npp_lib_qsb(int ci, const char *name, bool *retbuf)
+{
+#endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, fieldname, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
         {
@@ -3162,8 +3230,15 @@ void npp_lib_set_res_status(int ci, int status)
 /* --------------------------------------------------------------------------
    Set custom header
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_res_header(int ci, const std::string& hdr_, const std::string& val_)
+{
+    const char *hdr = hdr_.c_str();
+    const char *val = val_.c_str();
+#else
 bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 {
+#endif
     int hlen = strlen(hdr);
     int vlen = strlen(val);
     int all = hlen + vlen + 4;
@@ -3188,8 +3263,25 @@ bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 /* --------------------------------------------------------------------------
    Get request cookie
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow value to be char as well as std::string */
+bool npp_lib_get_cookie(int ci, const std::string& key_, char *value)
+{
+    std::string value_;
+    bool ret = npp_lib_get_cookie(ci, key_, value_);
+    if ( value )
+        strcpy(value, value_.c_str());
+    return ret;
+}
+
+bool npp_lib_get_cookie(int ci, const std::string& key_, std::string& value_)
+{
+    const char *key = key_.c_str();
+static char value[NPP_MAX_VALUE_LEN+1];
+#else
 bool npp_lib_get_cookie(int ci, const char *key, char *value)
 {
+#endif
     char nkey[256];
     char *v;
 
@@ -3215,6 +3307,10 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
         value[j] = EOS;
     }
 
+#ifdef NPP_CPP_STRINGS
+    value_ = value;
+#endif
+
     return TRUE;
 }
 
@@ -3222,8 +3318,15 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
 /* --------------------------------------------------------------------------
    Set cookie
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_set_cookie(int ci, const std::string& key_, const std::string& value_, int days)
+{
+    const char *key = key_.c_str();
+    const char *value = value_.c_str();
+#else
 bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
 {
+#endif
     char v[NPP_CUST_HDR_LEN+1];
 
     if ( days )
@@ -3239,8 +3342,14 @@ bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
    Set response content type
    Mirrored print_content_type
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_lib_set_res_content_type(int ci, const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 void npp_lib_set_res_content_type(int ci, const char *str)
 {
+#endif
     if ( 0==strcmp(str, "text/html; charset=utf-8") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(str, "text/plain") )
@@ -5915,8 +6024,14 @@ static time_t win_timegm(struct tm *t)
    Tue, 18 Oct 2016 13:13:03 GMT
    Thu, 24 Nov 2016 21:19:40 GMT
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+time_t time_http2epoch(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 time_t time_http2epoch(const char *str)
 {
+#endif
     time_t  epoch;
     char    tmp[8];
 struct tm   tm;
@@ -6005,8 +6120,14 @@ struct tm   tm;
 /* --------------------------------------------------------------------------
    Convert db time (YYYY-MM-DD hh:mm:ss) to epoch
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+time_t time_db2epoch(const std::string& str_)
+{
+    const char *str = str_.c_str();
+#else
 time_t time_db2epoch(const char *str)
 {
+#endif
     time_t  epoch;
     char    tmp[8];
 struct tm   tm={0};
@@ -7006,9 +7127,9 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, &json_pool[pool_idx], FALSE, index);
+                        lib_json_add_record(json, NULL, index, &json_pool[pool_idx], FALSE);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], FALSE, 0);
+                        lib_json_add_record(json, key, 0, &json_pool[pool_idx], FALSE);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_bracket(src+i)) )
@@ -7041,9 +7162,9 @@ static char tmp[NPP_JSON_BUFSIZE];
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
-                        lib_json_add_record(json, NULL, &json_pool[pool_idx], TRUE, index);
+                        lib_json_add_record(json, NULL, index, &json_pool[pool_idx], TRUE);
                     else
-                        lib_json_add_record(json, key, &json_pool[pool_idx], TRUE, 0);
+                        lib_json_add_record(json, key, 0, &json_pool[pool_idx], TRUE);
                     /* fill in the destination (children) */
                     char *closing;
                     if ( (closing=get_json_closing_square_bracket(src+i)) )
@@ -7089,22 +7210,22 @@ static char tmp[NPP_JSON_BUFSIZE];
             if ( inside_array )
             {
                 if ( type==NPP_JSON_STRING )
-                    lib_json_add_str(json, NULL, value, index);
+                    lib_json_add_str(json, NULL, index, value);
                 else if ( value[0]=='t' )
-                    lib_json_add_bool(json, NULL, 1, index);
+                    lib_json_add_bool(json, NULL, index, 1);
                 else if ( value[0]=='f' )
-                    lib_json_add_bool(json, NULL, 0, index);
+                    lib_json_add_bool(json, NULL, index, 0);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add_float(json, NULL, flo_value, index);
+                        lib_json_add_float(json, NULL, index, flo_value);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add_double(json, NULL, dbl_value, index);
+                        lib_json_add_double(json, NULL, index, dbl_value);
                     }
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
@@ -7112,42 +7233,42 @@ static char tmp[NPP_JSON_BUFSIZE];
                 {
                     int num_val;
                     sscanf(value, "%d", &num_val);
-                    lib_json_add_int(json, NULL, num_val, index);
+                    lib_json_add_int(json, NULL, index, num_val);
                 }
                 else    /* unsigned */
                 {
                     unsigned num_val;
                     sscanf(value, "%u", &num_val);
-                    lib_json_add_uint(json, NULL, num_val, index);
+                    lib_json_add_uint(json, NULL, index, num_val);
                 }
 #else   /* Linux */
                 else    /* long */
                 {
                     long num_val;
                     sscanf(value, "%ld", &num_val);
-                    lib_json_add_long(json, NULL, num_val, index);
+                    lib_json_add_long(json, NULL, index, num_val);
                 }
 #endif  /* _WIN32 */
             }
             else    /* not an array */
             {
                 if ( type==NPP_JSON_STRING )
-                    lib_json_add_str(json, key, value, -1);
+                    lib_json_add_str(json, key, -1, value);
                 else if ( value[0]=='t' )
-                    lib_json_add_bool(json, key, 1, -1);
+                    lib_json_add_bool(json, key, -1, 1);
                 else if ( value[0]=='f' )
-                    lib_json_add_bool(json, key, 0, -1);
+                    lib_json_add_bool(json, key, -1, 0);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
                     {
                         sscanf(value, "%f", &flo_value);
-                        lib_json_add_float(json, key, flo_value, -1);
+                        lib_json_add_float(json, key, -1, flo_value);
                     }
                     else    /* double */
                     {
                         sscanf(value, "%lf", &dbl_value);
-                        lib_json_add_double(json, key, dbl_value, -1);
+                        lib_json_add_double(json, key, -1, dbl_value);
                     }
                 }
 #ifdef _WIN32   /* sizeof(long) == sizeof(int) */
@@ -7155,20 +7276,20 @@ static char tmp[NPP_JSON_BUFSIZE];
                 {
                     int num_val;
                     sscanf(value, "%d", &num_val);
-                    lib_json_add_int(json, key, num_val, -1);
+                    lib_json_add_int(json, key, -1, num_val);
                 }
                 else    /* unsigned */
                 {
                     unsigned num_val;
                     sscanf(value, "%u", &num_val);
-                    lib_json_add_uint(json, key, num_val, -1);
+                    lib_json_add_uint(json, key, -1, num_val);
                 }
 #else   /* Linux */
                 else    /* long */
                 {
                     long num_val;
                     sscanf(value, "%ld", &num_val);
-                    lib_json_add_long(json, key, num_val, -1);
+                    lib_json_add_long(json, key, -1, num_val);
                 }
 #endif  /* _WIN32 */
             }
@@ -7320,8 +7441,15 @@ static int json_add_elem(JSON *json, const char *name, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_str(JSON *json, const char *name, const char *value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_str(JSON *json, const std::string& name_, int i, const std::string& value_)
 {
+    const char *name = name_.c_str();
+    const char *value = value_.c_str();
+#else
+bool lib_json_add_str(JSON *json, const char *name, int i, const char *value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7335,8 +7463,14 @@ bool lib_json_add_str(JSON *json, const char *name, const char *value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_int(JSON *json, const char *name, int value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_int(JSON *json, const std::string& name_, int i, int value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_int(JSON *json, const char *name, int i, int value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7350,8 +7484,14 @@ bool lib_json_add_int(JSON *json, const char *name, int value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_uint(JSON *json, const std::string& name_, int i, unsigned value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_uint(JSON *json, const char *name, int i, unsigned value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7365,8 +7505,14 @@ bool lib_json_add_uint(JSON *json, const char *name, unsigned value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_long(JSON *json, const char *name, long value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_long(JSON *json, const std::string& name_, int i, long value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_long(JSON *json, const char *name, int i, long value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7380,8 +7526,14 @@ bool lib_json_add_long(JSON *json, const char *name, long value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_float(JSON *json, const char *name, float value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_float(JSON *json, const std::string& name_, int i, float value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_float(JSON *json, const char *name, int i, float value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7395,8 +7547,14 @@ bool lib_json_add_float(JSON *json, const char *name, float value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_double(JSON *json, const char *name, double value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_double(JSON *json, const std::string& name_, int i, double value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_double(JSON *json, const char *name, int i, double value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7410,8 +7568,14 @@ bool lib_json_add_double(JSON *json, const char *name, double value, int i)
 /* --------------------------------------------------------------------------
    Add/set value to a JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_bool(JSON *json, const char *name, bool value, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_bool(JSON *json, const std::string& name_, int i, bool value)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_bool(JSON *json, const char *name, int i, bool value)
+{
+#endif
     if ( (i=json_add_elem(json, name, i)) == -1 )
         return FALSE;
 
@@ -7429,8 +7593,14 @@ bool lib_json_add_bool(JSON *json, const char *name, bool value, int i)
 /* --------------------------------------------------------------------------
    Insert or update value (address) in JSON buffer
 -------------------------------------------------------------------------- */
-bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_array, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_record(JSON *json, const std::string& name_, int i, JSON *json_sub, bool is_array)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bool is_array)
+{
+#endif
     DDBG("lib_json_add_record (%s)", is_array?"ARRAY":"RECORD");
 
     if ( name )   /* named record */
@@ -7475,8 +7645,14 @@ bool lib_json_add_record(JSON *json, const char *name, JSON *json_sub, bool is_a
 /* --------------------------------------------------------------------------
    Check value presence in JSON buffer
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_present(JSON *json, const std::string& name_)
+{
+    const char *name = name_.c_str();
+#else
 bool lib_json_present(JSON *json, const char *name)
 {
+#endif
     int i;
 
     for ( i=0; i<json->cnt; ++i )
@@ -7488,6 +7664,8 @@ bool lib_json_present(JSON *json, const char *name)
     return FALSE;
 }
 
+
+#ifdef NPP_JSON_V1
 
 /* --------------------------------------------------------------------------
    Get value from JSON buffer
@@ -7730,19 +7908,311 @@ bool lib_json_get_bool(JSON *json, const char *name, int i)
     return FALSE;   /* no such field */
 }
 
+#else   /* NOT NPP_JSON_V1 = new version */
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow retval to be char as well as std::string */
+bool lib_json_get_str(JSON *json, const std::string& name_, int i, char *retval, size_t maxlen)
+{
+    std::string retval_;
+    bool ret = lib_json_get_str(json, name_, i, retval_, maxlen);
+    if ( ret && retval )
+        strcpy(retval, retval_.c_str());
+    return ret;
+}
+
+bool lib_json_get_str(JSON *json, const std::string& name_, int i, std::string& retval_, size_t maxlen)
+{
+    const char *name = name_.c_str();
+static char retval[NPP_JSON_STR_LEN+1];
+#else
+bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t maxlen)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_str index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        {
+            COPY(retval, json->rec[i].value, maxlen);
+#ifdef NPP_CPP_STRINGS
+            retval_ = retval;
+#endif
+            return TRUE;
+        }
+        else    /* types don't match */
+        {
+            return FALSE;   /* types don't match or couldn't convert */
+        }
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+            {
+                COPY(retval, json->rec[i].value, maxlen);
+#ifdef NPP_CPP_STRINGS
+                retval_ = retval;
+#endif
+                return TRUE;
+            }
+            else    /* types don't match */
+            {
+                return FALSE;   /* types don't match or couldn't convert */
+            }
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_int(JSON *json, const std::string& name_, int i, int *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_int(JSON *json, const char *name, int i, int *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_int index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%d", retval);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            sscanf(json->rec[i].value, "%d", retval);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_uint(JSON *json, const std::string& name_, int i, unsigned *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_uint(JSON *json, const char *name, int i, unsigned *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_uint index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%u", retval);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            sscanf(json->rec[i].value, "%u", retval);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_long(JSON *json, const std::string& name_, int i, long *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_long(JSON *json, const char *name, int i, long *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_long index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%ld", retval);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            sscanf(json->rec[i].value, "%ld", retval);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_float(JSON *json, const std::string& name_, int i, float *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_float(JSON *json, const char *name, int i, float *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_float index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%f", retval);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            sscanf(json->rec[i].value, "%f", retval);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_double(JSON *json, const std::string& name_, int i, double *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_double(JSON *json, const char *name, int i, double *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_double index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        sscanf(json->rec[i].value, "%lf", retval);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            sscanf(json->rec[i].value, "%lf", retval);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+
+/* --------------------------------------------------------------------------
+   Get value from JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_bool(JSON *json, const std::string& name_, int i, bool *retval)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_bool(JSON *json, const char *name, int i, bool *retval)
+{
+#endif
+    if ( !name )    /* array elem */
+    {
+        if ( i < 0 || i >= json->cnt )
+        {
+            WAR("lib_json_get_bool index (%d) out of bound (max = %d)", i, json->cnt-1);
+            return FALSE;
+        }
+
+        *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
+        return TRUE;
+    }
+
+    for ( i=0; i<json->cnt; ++i )
+    {
+        if ( 0==strcmp(json->rec[i].name, name) )
+        {
+            *retval = NPP_IS_THIS_TRUE(json->rec[i].value[0]);
+            return TRUE;
+        }
+    }
+
+    return FALSE;   /* no such field */
+}
+
+#endif  /* NPP_JSON_V1 */
+
 
 /* --------------------------------------------------------------------------
    Get (copy) value from JSON buffer
    How to change it to returning pointer without confusing beginners?
    It would be better performing without copying all the fields
 -------------------------------------------------------------------------- */
-bool lib_json_get_record(JSON *json, const char *name, JSON *json_sub, int i)
+#ifdef NPP_CPP_STRINGS
+bool lib_json_get_record(JSON *json, const std::string& name_, int i, JSON *json_sub)
 {
+    const char *name = name_.c_str();
+#else
+bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub)
+{
+#endif
     DBG("lib_json_get_record by %s", name?"name":"index");
 
     if ( !name )    /* array elem */
     {
-        if ( i >= json->cnt )
+        if ( i < 0 || i >= json->cnt )
         {
             WAR("lib_json_get_record index (%d) out of bound (max = %d)", i, json->cnt-1);
             return FALSE;
@@ -8661,8 +9131,25 @@ bool npp_read_conf(const char *file)
 /* --------------------------------------------------------------------------
    Get param from config file
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+/* allow dest to be char as well as std::string */
+bool npp_read_param_str(const std::string& param_, char *dest)
+{
+    std::string dest_;
+    bool ret = npp_read_param_str(param_, dest_);
+    if ( ret && dest )
+        strcpy(dest, dest_.c_str());
+    return ret;
+}
+
+bool npp_read_param_str(const std::string& param_, std::string& dest_)
+{
+    const char *param = param_.c_str();
+static char dest[NPP_LIB_STR_BUF];
+#else
 bool npp_read_param_str(const char *param, char *dest)
 {
+#endif
     char *p;
     int  plen = strlen(param);
 
@@ -8708,8 +9195,9 @@ bool npp_read_param_str(const char *param, char *dest)
 
     /* param present ----------------------------------- */
 
+#ifndef NPP_CPP_STRINGS
     if ( !dest ) return TRUE;   /* it's only a presence check */
-
+#endif
 
     /* copy value to dest ------------------------------ */
 
@@ -8720,10 +9208,14 @@ bool npp_read_param_str(const char *param, char *dest)
 
     int i=0;
 
-    while ( *p != '\r' && *p != '\n' && *p != '#' && *p != EOS )
+    while ( *p != '\r' && *p != '\n' && *p != '#' && *p != EOS && i < NPP_LIB_STR_CHECK )
         dest[i++] = *p++;
 
     dest[i] = EOS;
+
+#ifdef NPP_CPP_STRINGS
+    dest_ = dest;
+#endif
 
     if ( strstr(npp_upper(param), "PASSWORD") || strstr(npp_upper(param), "PASSWD") )
         DBG("%s [<...>]", param);
@@ -8737,9 +9229,15 @@ bool npp_read_param_str(const char *param, char *dest)
 /* --------------------------------------------------------------------------
    Get integer param from config file
 ---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+bool npp_read_param_int(const std::string& param_, int *dest)
+{
+    const char *param = param_.c_str();
+#else
 bool npp_read_param_int(const char *param, int *dest)
 {
-    char tmp[256];
+#endif
+    char tmp[NPP_LIB_STR_BUF];
 
     if ( npp_read_param_str(param, tmp) )
     {
@@ -9826,11 +10324,19 @@ static unsigned char get_random_number()
    Generate random string
    Generates FIPS-compliant random sequences (tested with Burp)
 -------------------------------------------------------------------------- */
-void npp_random(char *dest, size_t len)
+char *npp_random(size_t len)
 {
+static char dst[NPP_LIB_STR_BUF];
 const char *chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 static unsigned since_seed=0;
     unsigned i;
+
+    if ( len > NPP_LIB_STR_CHECK )
+    {
+        WAR("npp_random: len too big");
+        dst[0] = EOS;
+        return dst;
+    }
 
 #ifdef NPP_DEBUG
     struct timespec start;
@@ -9868,28 +10374,30 @@ static unsigned since_seed=0;
     {
         /* source random numbers from two different sets: 'normal' and 'lucky' */
 
-        if ( get_random_number() % 3 == 0 )
+        if ( get_random_number() % 3 == 0 ) /* lucky */
         {
             DDBG("i=%d lucky", i);
             r = get_random_number();
             while ( r > 247 ) r = get_random_number();   /* avoid modulo bias -- 62*4 - 1 */
         }
-        else
+        else    /* normal */
         {
             DDBG("i=%d normal", i);
             r = rand() % 256;
             while ( r > 247 ) r = rand() % 256;
         }
 
-        dest[i] = chars[r % 62];
+        dst[i] = chars[r % 62];
     }
 
-    dest[i] = EOS;
+    dst[i] = EOS;
 
 #ifdef NPP_DEBUG
     DBG_LINE;
     DBG("npp_random took %.3lf ms", npp_elapsed(&start));
 #endif
+
+    return dst;
 }
 
 
@@ -9906,8 +10414,24 @@ static unsigned since_seed=0;
 /* --------------------------------------------------------------------------
    Base64 encode
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow dst to be char as well as std::string */
 int npp_b64_encode(char *dst, const unsigned char *src, size_t len)
 {
+    std::string dst_;
+    int ret = npp_b64_encode(dst_, src, len);
+    if ( dst )
+        strcpy(dst, dst_.c_str());
+    return ret;
+}
+
+int npp_b64_encode(std::string& dst_, const unsigned char *src, size_t len)
+{
+static char dst[NPP_LIB_STR_BUF];
+#else
+int npp_b64_encode(char *dst, const unsigned char *src, size_t len)
+{
+#endif
 static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     unsigned int i, j=0, k=0, block[3];
 
@@ -9944,6 +10468,10 @@ static const char b64set[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
     }
 
     dst[k] = EOS;
+
+#ifdef NPP_CPP_STRINGS
+    dst_ = dst;
+#endif
 
     return k;
 }
@@ -10474,7 +11002,7 @@ void npp_notify_admin(const char *msg)
 
     char tag[16];
 
-    npp_random(tag, 15);
+    strcpy(tag, npp_random(15));
 
     char message[NPP_MAX_LOG_STR_LEN+1];
 

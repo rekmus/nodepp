@@ -7299,7 +7299,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     }
     else    /* generate sessid */
     {
-        npp_random(new_sessid, NPP_SESSID_LEN);
+        strcpy(new_sessid, npp_random(NPP_SESSID_LEN));
     }
 
 #ifdef NPP_DEBUG
@@ -7324,7 +7324,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* -------------------------------------------- */
     /* generate CSRF token */
 
-    npp_random(SESSION.csrft, NPP_CSRFT_LEN);
+    strcpy(SESSION.csrft, npp_random(NPP_CSRFT_LEN));
 
 #ifdef NPP_DEBUG
     DBG("New CSRFT generated [%s]", SESSION.csrft);

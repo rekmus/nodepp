@@ -288,8 +288,15 @@ static int check_latest_version()
 
     char verstr[32];
 
+#ifdef NPP_JSON_V1
     COPY(verstr, JSON_GET_STR(&M_j, "version"), 31);
-
+#else
+    if ( !JSON_GET_STR(&M_j, "version", verstr, 31) )
+    {
+        ERR("Couldn't find version in response");
+        return FAIL;
+    }
+#endif
     ret = parse_verstr(verstr, &M_latest_major, &M_latest_minor, &M_latest_patch);
 
     return ret;
@@ -328,8 +335,16 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
         JSON_RESET(&j_rec);
 
         JSON_GET_RECORD_A(&j_files, i, &j_rec);
-        COPY(path, JSON_GET_STR(&j_rec, "path"), NPP_JSON_STR_LEN);
 
+#ifdef NPP_JSON_V1
+        COPY(path, JSON_GET_STR(&j_rec, "path"), NPP_JSON_STR_LEN);
+#else
+        if ( !JSON_GET_STR(&j_rec, "path", path, NPP_JSON_STR_LEN) )
+        {
+            ERR("Couldn't find path in response");
+            return FAIL;
+        }
+#endif
         COPY(fname, npp_get_fname_from_path(path), 127);
 
         DDBG("fname [%s]", fname);
@@ -384,8 +399,14 @@ static char data[CALL_HTTP_MAX_RESPONSE_LEN];
 
         char flags[NPP_JSON_STR_LEN+1]="";
 
+#ifdef NPP_JSON_V1
         strcpy(flags, JSON_GET_STR(&j_rec, "flags"));
-
+#else
+        if ( !JSON_GET_STR(&j_rec, "flags", flags, NPP_JSON_STR_LEN) )
+        {
+            WAR("Couldn't find flags in response");
+        }
+#endif
         /* ------------------------------------------------ */
         /* delete? */
 

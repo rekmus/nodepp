@@ -298,6 +298,8 @@ int libusr_luses_ok(int ci)
 
     /* not found in memory -- try database */
 
+    DBG("Trying database (users_logins)...");
+
     time_t created;
 
     eng_session_data_t us={0};   /* pass user information (in this case user_id) over to do_login */
@@ -376,9 +378,9 @@ static Cusers_logins ul;
         if ( 0 != strcmp(sanuagent, ul.uagent) )
         {
 #ifdef NPP_DEBUG
-            INF("Different uagent in database for sessid [%s]", sanlscookie);
+            DBG("Different uagent in database for sessid [%s]", sanlscookie);
 #else
-            INF("Different uagent in database");
+            DBG("Different uagent in database");
 #endif
             strcpy(G_connections[ci].cookie_out_l, "x");
             strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
@@ -854,7 +856,7 @@ static int send_activation_link(int ci, int user_id, const char *email)
 
     /* generate the key */
 
-    npp_random(linkkey, NPP_PASSWD_RESET_KEY_LEN);
+    strcpy(linkkey, npp_random(NPP_PASSWD_RESET_KEY_LEN));
 
     try
     {
@@ -1491,7 +1493,7 @@ static bool first=TRUE;
             int idx = npp_lib_find_sess_idx_idx(SESSION.sessid);
 #endif
 #endif  /* NPP_APP */
-            npp_random(SESSION.sessid, NPP_SESSID_LEN);
+            strcpy(SESSION.sessid, npp_random(NPP_SESSID_LEN));
 #ifdef NPP_DEBUG
             DBG("Using current session si=%d, generated new sessid [%s]", G_connections[ci].si, SESSION.sessid);
 #else
@@ -1745,7 +1747,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
         if ( passwd )   /* use the one supplied */
             strcpy(password, passwd);
         else    /* generate */
-            npp_random(password, NPP_MIN_PASSWORD_LEN);
+            strcpy(password, npp_random(NPP_MIN_PASSWORD_LEN));
 
         /* --------------------------------------------------------------- */
 
@@ -2421,7 +2423,7 @@ static bool first=TRUE;
 
         char linkkey[NPP_PASSWD_RESET_KEY_LEN+1];
 
-        npp_random(linkkey, NPP_PASSWD_RESET_KEY_LEN);
+        strcpy(linkkey, npp_random(NPP_PASSWD_RESET_KEY_LEN));
 
 static Cusers_p_resets upr;
 
@@ -3028,6 +3030,7 @@ static Cusers_settings us;
    Read user string setting
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
+/* allow us_val to be char as well as std::string */
 int npp_usr_get_str(int ci, const std::string& us_key_, char *us_val)
 {
     std::string us_val_;
@@ -3037,7 +3040,7 @@ int npp_usr_get_str(int ci, const std::string& us_key_, char *us_val)
     return ret;
 }
 
-int npp_usr_get_str(int ci, const std::string& us_key_, std::string& us_val)
+int npp_usr_get_str(int ci, const std::string& us_key_, std::string& us_val_)
 {
     const char *us_key = us_key_.c_str();
 #else
@@ -3052,7 +3055,7 @@ static Cusers_settings us;
             return ERR_NOT_FOUND;
 
 #ifdef NPP_CPP_STRINGS
-        us_val = us.us_val;
+        us_val_ = us.us_val;
 #else
         if ( us_val )
             strcpy(us_val, us.us_val);
