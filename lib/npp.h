@@ -782,6 +782,12 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_MAX_SNIPPETS                    1000            /* max snippets */
 #endif
 
+/* menu */
+
+#ifndef NPP_MAX_MENU_ITEMS
+#define NPP_MAX_MENU_ITEMS                  100             /* max menu items */
+#endif
+
 #ifndef NPP_REQUIRED_AUTH_LEVEL
 #define NPP_REQUIRED_AUTH_LEVEL             AUTH_LEVEL_NONE /* default resource authorization level */
 #endif
@@ -1688,6 +1694,17 @@ typedef struct {
 } snippet_t;
 
 
+/* menu */
+
+typedef struct {
+    int  id;
+    int  parent;
+    char resource[256];
+    char title[256];
+    char snippet[256];
+} menu_item_t;
+
+
 /* admin info */
 
 typedef struct {
@@ -1820,6 +1837,9 @@ extern int          G_async_res_data_size;      /* how many bytes are left for d
 #endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
+
+extern menu_item_t  G_menu[NPP_MAX_MENU_ITEMS+1];
+extern int          G_menu_cnt;
 
 #ifdef NPP_SVC
 extern async_req_t  G_svc_req;

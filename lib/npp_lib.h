@@ -777,6 +777,14 @@ extern "C" {
 #ifndef NPP_CLIENT  /* server processes only */
 
 #ifdef NPP_CPP_STRINGS
+    void npp_menu_add_item(int id, int parent, const std::string& resource, const std::string& title, const std::string& snippet);
+#else
+    void npp_menu_add_item(int id, int parent, const char *resource, const char *title, const char *snippet);
+#endif
+
+    int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet);
+
+#ifdef NPP_CPP_STRINGS
     bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
 #else
     bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);

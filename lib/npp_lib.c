@@ -98,6 +98,8 @@ bool        G_ssl_lib_initialized=FALSE;
 #endif
 
 char        G_dt_string_gmt[128]="";
+menu_item_t G_menu[NPP_MAX_MENU_ITEMS+1]={0};
+int         G_menu_cnt=0;
 unsigned    G_call_http_req_cnt=0;
 double      G_call_http_elapsed=0;
 double      G_call_http_average=0;
@@ -2565,6 +2567,268 @@ static char *uri_decode(char *src, int srclen, char *dest, int maxlen)
     G_qs_len = written;
 
     return dest;
+}
+
+
+/* --------------------------------------------------------------------------
+   Add an item
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+void npp_menu_add_item(int id, int parent, const std::string& resource_, const std::string& title_, const std::string& snippet_)
+{
+    const char *resource = resource_.c_str();
+    const char *title = title_.c_str();
+    const char *snippets = snippets_.c_str();
+#else
+void npp_menu_add_item(int id, int parent, const char *resource, const char *title, const char *snippet)
+{
+#endif
+    if ( G_menu_cnt >= NPP_MAX_MENU_ITEMS )
+    {
+        WAR("Couldn't add item to the menu (already full)");
+        return;
+    }
+
+    G_menu[G_menu_cnt].id = id;
+    G_menu[G_menu_cnt].parent = parent;
+
+    strcpy(G_menu[G_menu_cnt].resource, resource);
+
+    if ( title )
+        strcpy(G_menu[G_menu_cnt].title, title);
+    else
+        G_menu[G_menu_cnt].title[0] = EOS;
+
+    if ( snippet )
+        strcpy(G_menu[G_menu_cnt].snippet, snippet);
+    else
+        G_menu[G_menu_cnt].snippet[0] = EOS;
+
+    ++G_menu_cnt;
+
+    G_menu[G_menu_cnt].id = -1;
+}
+
+
+/* --------------------------------------------------------------------------
+   Get navigation path and page title from the menu structure
+-------------------------------------------------------------------------- */
+int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet)
+{
+    int  id=-1;
+    int  i=0;
+    int  j=0;
+    bool j_found=FALSE;
+    bool k_found=FALSE;
+#if NPP_RESOURCE_LEVELS > 2
+    int  k=0;
+    bool l_found=FALSE;
+#if NPP_RESOURCE_LEVELS > 3
+    int  l=0;
+    bool m_found=FALSE;
+#if NPP_RESOURCE_LEVELS > 4
+    int  m=0;
+    bool n_found=FALSE;
+#if NPP_RESOURCE_LEVELS > 5
+    int  n=0;
+#endif  /* NPP_RESOURCE_LEVELS > 5 */
+#endif  /* NPP_RESOURCE_LEVELS > 4 */
+#endif  /* NPP_RESOURCE_LEVELS > 3 */
+#endif  /* NPP_RESOURCE_LEVELS > 2 */
+
+    /* in case the item will not be found */
+
+    if ( path )
+        path[0] = EOS;
+
+    if ( title )
+        title[0] = EOS;
+
+    if ( snippet )
+        snippet[0] = EOS;
+
+    char sep[32];   /* items separator */
+
+    if ( path_sep && path_sep[0] )
+        COPY(sep, path_sep, 31);
+    else
+        strcpy(sep, "&nbsp; / &nbsp;");
+
+    while ( G_menu[i].id != -1 )
+    {
+        if ( REQ(G_menu[i].resource) && G_menu[i].parent<1 )
+        {
+            if ( !REQ1("") )
+            {
+                while ( G_menu[j].id != -1 )
+                {
+                    if ( REQ1(G_menu[j].resource) && G_menu[j].parent==G_menu[i].id )
+                    {
+#if NPP_RESOURCE_LEVELS > 2
+                        if ( !REQ2("") )
+                        {
+                            while ( G_menu[k].id != -1 )
+                            {
+                                if ( REQ2(G_menu[k].resource) && G_menu[k].parent==G_menu[j].id )
+                                {
+#if NPP_RESOURCE_LEVELS > 3
+                                    if ( !REQ3("") )
+                                    {
+                                        while ( G_menu[l].id != -1 )
+                                        {
+                                            if ( REQ3(G_menu[l].resource) && G_menu[l].parent==G_menu[k].id )
+                                            {
+#if NPP_RESOURCE_LEVELS > 4
+                                                if ( !REQ4("") )
+                                                {
+                                                    while ( G_menu[m].id != -1 )
+                                                    {
+                                                        if ( REQ4(G_menu[m].resource) && G_menu[m].parent==G_menu[l].id )
+                                                        {
+#if NPP_RESOURCE_LEVELS > 5
+                                                            if ( !REQ5("") )
+                                                            {
+                                                                while ( G_menu[n].id != -1 )
+                                                                {
+                                                                    if ( REQ5(G_menu[n].resource) && G_menu[n].parent==G_menu[m].id )
+                                                                    {
+                                                                        id = G_menu[n].id;
+
+                                                                        if ( title )
+                                                                            strcpy(title, G_menu[n].title);
+
+                                                                        if ( snippet )
+                                                                            strcpy(snippet, G_menu[n].snippet);
+
+                                                                        if ( path )
+                                                                            sprintf(path, "<a href=\"/\">%s</a>%s<a href=\"/%s\">%s</a>%s<a href=\"/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s/%s/%s\">%s</a>%s%s", G_menu[0].title, sep, G_menu[i].resource, G_menu[i].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[j].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[k].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[l].resource, G_menu[l].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[l].resource, G_menu[m].resource, G_menu[m].title, sep, title);
+
+                                                                        n_found = TRUE;
+
+                                                                        break;
+                                                                    }
+
+                                                                    ++n;
+                                                                }
+                                                            }
+#endif  /* NPP_RESOURCE_LEVELS > 5 */
+                                                            if ( !n_found )
+                                                            {
+                                                                id = G_menu[m].id;
+
+                                                                if ( title )
+                                                                    strcpy(title, G_menu[m].title);
+
+                                                                if ( snippet )
+                                                                    strcpy(snippet, G_menu[m].snippet);
+
+                                                                if ( path )
+                                                                    sprintf(path, "<a href=\"/\">%s</a>%s<a href=\"/%s\">%s</a>%s<a href=\"/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s/%s\">%s</a>%s%s", G_menu[0].title, sep, G_menu[i].resource, G_menu[i].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[j].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[k].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[l].resource, G_menu[l].title, sep, title);
+                                                            }
+
+                                                            m_found = TRUE;
+
+                                                            break;
+                                                        }
+
+                                                        ++m;
+                                                    }
+                                                }
+#endif  /* NPP_RESOURCE_LEVELS > 4 */
+                                                if ( !m_found )
+                                                {
+                                                    id = G_menu[l].id;
+
+                                                    if ( title )
+                                                        strcpy(title, G_menu[l].title);
+
+                                                    if ( snippet )
+                                                        strcpy(snippet, G_menu[l].snippet);
+
+                                                    if ( path )
+                                                        sprintf(path, "<a href=\"/\">%s</a>%s<a href=\"/%s\">%s</a>%s<a href=\"/%s/%s\">%s</a>%s<a href=\"/%s/%s/%s\">%s</a>%s%s", G_menu[0].title, sep, G_menu[i].resource, G_menu[i].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[j].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[k].resource, G_menu[k].title, sep, title);
+                                                }
+
+                                                l_found = TRUE;
+
+                                                break;
+                                            }
+
+                                            ++l;
+                                        }
+                                    }
+
+#endif  /* NPP_RESOURCE_LEVELS > 3 */
+
+                                    if ( !l_found )
+                                    {
+                                        id = G_menu[k].id;
+
+                                        if ( title )
+                                            strcpy(title, G_menu[k].title);
+
+                                        if ( snippet )
+                                            strcpy(snippet, G_menu[k].snippet);
+
+                                        if ( path )
+                                            sprintf(path, "<a href=\"/\">%s</a>%s<a href=\"/%s\">%s</a>%s<a href=\"/%s/%s\">%s</a>%s%s", G_menu[0].title, sep, G_menu[i].resource, G_menu[i].title, sep, G_menu[i].resource, G_menu[j].resource, G_menu[j].title, sep, title);
+                                    }
+
+                                    k_found = TRUE;
+
+                                    break;
+                                }
+
+                                ++k;
+                            }
+                        }
+
+#endif  /* NPP_RESOURCE_LEVELS > 2 */
+
+                        if ( !k_found )
+                        {
+                            id = G_menu[j].id;
+
+                            if ( title )
+                                strcpy(title, G_menu[j].title);
+
+                            if ( snippet )
+                                strcpy(snippet, G_menu[j].snippet);
+
+                            if ( path )
+                                sprintf(path, "<a href=\"/\">%s</a>%s<a href=\"/%s\">%s</a>%s%s", G_menu[0].title, sep, G_menu[i].resource, G_menu[i].title, sep, title);
+                        }
+
+                        j_found = TRUE;
+
+                        break;
+                    }
+
+                    ++j;
+                }
+            }
+
+            if ( !j_found )
+            {
+                id = G_menu[i].id;
+
+                if ( title )
+                    strcpy(title, G_menu[i].title);
+
+                if ( snippet )
+                    strcpy(snippet, G_menu[i].snippet);
+
+                if ( path )
+                    sprintf(path, "<a href=\"/\">%s</a>%s%s", G_menu[0].title, sep, title);
+            }
+
+            break;
+        }
+
+        ++i;
+    }
+
+    return id;
 }
 
 
