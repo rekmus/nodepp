@@ -35,7 +35,6 @@ static void header(int ci)
     OUT("<style>");
 
     if ( REQ_DSK )
-//        OUT("body{margin-left:25px;margin-bottom:40px;}");   /* for desktop only */
         OUT("body{margin:0 25px 40px 25px;}");   /* for desktop only */
 
     OUT("code{font-size:1.1em;}");

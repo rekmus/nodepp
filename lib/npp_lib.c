@@ -3366,8 +3366,8 @@ void npp_lib_set_res_content_type(int ci, const char *str)
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(str, "image/png") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PNG;
-    else if ( 0==strcmp(str, "image/bmp") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_BMP;
+    else if ( 0==strcmp(str, "application/font-woff2") )
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_WOFF2;
     else if ( 0==strcmp(str, "image/svg+xml") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(str, "application/json") )
@@ -3386,6 +3386,8 @@ void npp_lib_set_res_content_type(int ci, const char *str)
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ZIP;
     else if ( 0==strcmp(str, "application/gzip") )
         G_connections[ci].out_ctype = NPP_CONTENT_TYPE_GZIP;
+    else if ( 0==strcmp(str, "image/bmp") )
+        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_BMP;
     else    /* custom */
     {
         if ( 0==strncmp(str, "text/html", 9) )
@@ -5863,7 +5865,7 @@ char npp_lib_get_res_type(const char *fname)
 
     strcpy(uext, npp_upper(ext));
 
-    if ( 0==strcmp(uext, "HTML") || 0==strcmp(uext, "HTM") )
+    if ( 0==strncmp(uext, "HTM", 3) )
         return NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(uext, "CSS") )
         return NPP_CONTENT_TYPE_CSS;
@@ -5877,8 +5879,8 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(uext, "PNG") )
         return NPP_CONTENT_TYPE_PNG;
-    else if ( 0==strcmp(uext, "BMP") )
-        return NPP_CONTENT_TYPE_BMP;
+    else if ( 0==strcmp(uext, "WOFF2") )
+        return NPP_CONTENT_TYPE_WOFF2;
     else if ( 0==strcmp(uext, "SVG") )
         return NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(uext, "JSON") )
@@ -5897,6 +5899,8 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_ZIP;
     else if ( 0==strcmp(uext, "GZ") )
         return NPP_CONTENT_TYPE_GZIP;
+    else if ( 0==strcmp(uext, "BMP") )
+        return NPP_CONTENT_TYPE_BMP;
 
     return NPP_CONTENT_TYPE_TEXT;
 }

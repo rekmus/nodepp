@@ -5396,8 +5396,8 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "image/x-icon");
     else if ( type == NPP_CONTENT_TYPE_PNG )
         strcpy(http_type, "image/png");
-    else if ( type == NPP_CONTENT_TYPE_BMP )
-        strcpy(http_type, "image/bmp");
+    else if ( type == NPP_CONTENT_TYPE_WOFF2 )
+        strcpy(http_type, "application/font-woff2");
     else if ( type == NPP_CONTENT_TYPE_SVG )
         strcpy(http_type, "image/svg+xml");
     else if ( type == NPP_CONTENT_TYPE_JSON )
@@ -5416,6 +5416,8 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "application/zip");
     else if ( type == NPP_CONTENT_TYPE_GZIP )
         strcpy(http_type, "application/gzip");
+    else if ( type == NPP_CONTENT_TYPE_BMP )
+        strcpy(http_type, "image/bmp");
     else
         strcpy(http_type, "text/plain");
 
