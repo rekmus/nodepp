@@ -3998,6 +3998,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
     char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2];
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -4049,11 +4050,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     }
     else    /* recursive call */
     {
-#ifdef _WIN32
-        sprintf(ressubdir, "%s\\%s", resdir, path);
-#else
         sprintf(ressubdir, "%s/%s", resdir, path);
-#endif
     }
 
 #ifdef NPP_DEBUG
@@ -4083,12 +4080,8 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 //            DDBG("Checking %s...", M_statics[i].name);
 
-            char fullpath[NPP_STATIC_PATH_LEN*2];
-#ifdef _WIN32
-            sprintf(fullpath, "%s\\%s", resdir, M_statics[i].name);
-#else
             sprintf(fullpath, "%s/%s", resdir, M_statics[i].name);
-#endif
+
             if ( !npp_file_exists(fullpath) )
             {
                 INF("Removing %s from static resources", M_statics[i].name);
@@ -4152,11 +4145,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         if ( !path )
             strcpy(resname, dirent->d_name);
         else
-#ifdef _WIN32
-            sprintf(resname, "%s\\%s", path, dirent->d_name);
-#else
             sprintf(resname, "%s/%s", path, dirent->d_name);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -4166,11 +4155,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
-#ifdef _WIN32
-        sprintf(namewpath, "%s\\%s", resdir, resname);
-#else
         sprintf(namewpath, "%s/%s", resdir, resname);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )

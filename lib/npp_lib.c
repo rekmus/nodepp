@@ -2097,6 +2097,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
     char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2];
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -2146,11 +2147,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     }
     else    /* recursive call */
     {
-#ifdef _WIN32
-        sprintf(ressubdir, "%s\\%s", resdir, path);
-#else
         sprintf(ressubdir, "%s/%s", resdir, path);
-#endif
     }
 
 #ifdef NPP_DEBUG
@@ -2180,12 +2177,8 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 
 //            DDBG("Checking %s...", G_snippets[i].name);
 
-            char fullpath[NPP_STATIC_PATH_LEN*2];
-#ifdef _WIN32
-            sprintf(fullpath, "%s\\%s", resdir, G_snippets[i].name);
-#else
             sprintf(fullpath, "%s/%s", resdir, G_snippets[i].name);
-#endif
+
             if ( !npp_file_exists(fullpath) )
             {
                 INF("Removing %s from snippets", G_snippets[i].name);
@@ -2232,11 +2225,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
         if ( !path )
             strcpy(resname, dirent->d_name);
         else
-#ifdef _WIN32
-            sprintf(resname, "%s\\%s", path, dirent->d_name);
-#else
             sprintf(resname, "%s/%s", path, dirent->d_name);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -2246,11 +2235,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
-#ifdef _WIN32
-        sprintf(namewpath, "%s\\%s", resdir, resname);
-#else
         sprintf(namewpath, "%s/%s", resdir, resname);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -2613,9 +2598,9 @@ void npp_menu_add_item(int id, int parent, const char *resource, const char *tit
 /* --------------------------------------------------------------------------
    Get navigation path and page title from the menu structure
 -------------------------------------------------------------------------- */
-int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet)
+bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet)
 {
-    int  id=-1;
+    int  found=FALSE;
     int  i=0;
     int  j=0;
     bool j_found=FALSE;
@@ -2692,7 +2677,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
                                                                 {
                                                                     if ( REQ5(G_menu[n].resource) && G_menu[n].parent==G_menu[m].id )
                                                                     {
-                                                                        id = G_menu[n].id;
+                                                                        found = TRUE;
 
                                                                         if ( title )
                                                                             strcpy(title, G_menu[n].title);
@@ -2714,7 +2699,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
                                                             if ( !n_found )
                                                             {
-                                                                id = G_menu[m].id;
+                                                                found = TRUE;
 
                                                                 if ( title )
                                                                     strcpy(title, G_menu[m].title);
@@ -2737,7 +2722,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
                                                 if ( !m_found )
                                                 {
-                                                    id = G_menu[l].id;
+                                                    found = TRUE;
 
                                                     if ( title )
                                                         strcpy(title, G_menu[l].title);
@@ -2762,7 +2747,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
 
                                     if ( !l_found )
                                     {
-                                        id = G_menu[k].id;
+                                        found = TRUE;
 
                                         if ( title )
                                             strcpy(title, G_menu[k].title);
@@ -2787,7 +2772,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
 
                         if ( !k_found )
                         {
-                            id = G_menu[j].id;
+                            found = TRUE;
 
                             if ( title )
                                 strcpy(title, G_menu[j].title);
@@ -2810,7 +2795,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
 
             if ( !j_found )
             {
-                id = G_menu[i].id;
+                found = TRUE;
 
                 if ( title )
                     strcpy(title, G_menu[i].title);
@@ -2828,7 +2813,7 @@ int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, cha
         ++i;
     }
 
-    return id;
+    return found;
 }
 
 

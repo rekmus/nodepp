@@ -782,7 +782,7 @@ extern "C" {
     void npp_menu_add_item(int id, int parent, const char *resource, const char *title, const char *snippet);
 #endif
 
-    int npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet);
+    bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet);
 
 #ifdef NPP_CPP_STRINGS
     bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
