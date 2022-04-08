@@ -2563,7 +2563,7 @@ void npp_menu_add_item(int id, int parent, const std::string& resource_, const s
 {
     const char *resource = resource_.c_str();
     const char *title = title_.c_str();
-    const char *snippets = snippets_.c_str();
+    const char *snippet = snippet_.c_str();
 #else
 void npp_menu_add_item(int id, int parent, const char *resource, const char *title, const char *snippet)
 {
@@ -6109,7 +6109,7 @@ char npp_lib_get_res_type(const char *fname)
 
     ++ext;
 
-    if ( strlen(ext) > 4 )                          /* extension too long */
+    if ( strlen(ext) > 5 )                          /* extension too long */
         return NPP_CONTENT_TYPE_TEXT;
 
     strcpy(uext, npp_upper(ext));
@@ -10934,7 +10934,7 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 
 
 /* ================================================================================================ */
-/* Server processes (npp_app & npp_svc) only                                                                      */
+/* Server processes (npp_app & npp_svc) only                                                        */
 /* ================================================================================================ */
 
 #ifndef NPP_CLIENT
@@ -10945,6 +10945,8 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
 void npp_lib_set_formats(int ci, const char *lang)
 {
     DBG("npp_lib_set_formats, lang [%s]", lang);
+
+    G_connections[ci].formats = 0;
 
     /* date format */
 
@@ -11287,5 +11289,5 @@ void npp_notify_admin(const char *msg)
 
 
 /* ================================================================================================ */
-/* End of server processes (npp_app & npp_svc) only part                                                          */
+/* End of server processes (npp_app & npp_svc) only part                                            */
 /* ================================================================================================ */

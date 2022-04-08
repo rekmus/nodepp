@@ -1225,7 +1225,9 @@ int main(int argc, char **argv)
                 {
                     DBG("New session has been started in npp_svc, trying to add it to G_sessions...");
 
-                    if ( npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid) == OK )
+                    int session_start_ret = npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid);
+
+                    if ( session_start_ret == OK )
                     {
                         memcpy(&G_sessions[G_connections[res.ci].si], &res.hdr.eng_session_data, sizeof(eng_session_data_t));
 #ifdef NPP_ASYNC_INCLUDE_SESSION_DATA
@@ -1233,9 +1235,13 @@ int main(int argc, char **argv)
 #endif
                         DBG("Session added to G_sessions");
                     }
-                    else
+                    else if ( session_start_ret == ERR_SERVER_TOOBUSY )
                     {
                         ERR("Couldn't start session after npp_svc had started it. Your memory model may be too low.");
+                    }
+                    else    /* ERR_INT_SERVER_ERROR? */
+                    {
+                        ERR("Couldn't start session after npp_svc had started it.");
                     }
                 }
 
@@ -4360,7 +4366,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) && M_statics[i].source != STATIC_SOURCE_SNIPPETS )
+            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) )
             {
                 if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
@@ -4715,7 +4721,9 @@ static void process_req(int ci)
             if ( !G_connections[ci].cookie_in_a[0] || !a_session_ok(ci) )       /* valid anonymous sessid cookie not present */
             {
                 ret = npp_eng_session_start(ci, NULL);
-                fresh_session = TRUE;
+
+                if ( ret == OK )
+                    fresh_session = TRUE;
             }
 #ifndef NPP_START_SESSIONS_FOR_BOTS
         }
@@ -4788,7 +4796,7 @@ static void process_req(int ci)
             if ( !LOGGED ) close_uses(G_connections[ci].si, ci);
 #else
             close_uses(G_connections[ci].si, ci);
-#endif  /* NPP_USERS */
+#endif
         }
 
         if ( !NPP_CONN_IS_KEEP_CONTENT(G_connections[ci].flags) )   /* reset out buffer pointer as it could have contained something already */
@@ -5466,11 +5474,13 @@ static bool a_session_ok(int ci)
 #endif
             return TRUE;
         }
+#ifndef NPP_MULTI_HOST
         else    /* session was closed */
         {
             WAR("si > 0 and no session!");
             G_connections[ci].si = 0;
         }
+#endif
     }
     else    /* fresh connection */
     {
@@ -6939,20 +6949,28 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "ACCEPT-LANGUAGE") )    /* en-US en-GB pl-PL */
     {
+        i = 0;
+        while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
+        {
+            G_connections[ci].lang[i] = toupper(value[i]);
+            ++i;
+        }
+
+        G_connections[ci].lang[i] = EOS;
+
+        DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
+
+        if ( IS_SESSION && G_connections[ci].lang[0] && strcmp(SESSION.lang, G_connections[ci].lang) != 0 )
+        {
+            DBG("Changing session language to [%s] and setting formats", G_connections[ci].lang);
+
+            npp_lib_set_formats(ci, G_connections[ci].lang);
+            strcpy(SESSION.lang, G_connections[ci].lang);
+        }
+
         if ( !IS_SESSION || SESSION.lang[0]==EOS )    /* session data has priority */
         {
             DDBG("No session or no language in session, setting formats");
-
-            i = 0;
-            while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
-            {
-                G_connections[ci].lang[i] = toupper(value[i]);
-                ++i;
-            }
-
-            G_connections[ci].lang[i] = EOS;
-
-            DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
 
             if ( G_connections[ci].lang[0] )
             {
@@ -7194,7 +7212,7 @@ static void find_first_free_si()
         }
     }
 
-    ERR("Sequential search through G_sessions (checked %d record(s)), none was free", i-1);
+    WAR("Sequential search through G_sessions (checked %d record(s)), none was free", i-1);
 }
 
 
