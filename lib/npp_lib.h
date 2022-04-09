@@ -782,7 +782,9 @@ extern "C" {
     void npp_menu_add_item(int id, int parent, const char *resource, const char *title, const char *snippet);
 #endif
 
+#ifndef NPP_CPP_STRINGS
     bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet);
+#endif
 
 #ifdef NPP_CPP_STRINGS
     bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
@@ -1118,6 +1120,16 @@ bool npp_read_param_str(const std::string& param, std::string& dest);
 
 bool lib_json_get_str(JSON *json, const std::string& name, int i, char *retval, size_t maxlen);
 bool lib_json_get_str(JSON *json, const std::string& name, int i, std::string& retval, size_t maxlen);
+
+bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, char *title, char *snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, char *title, std::string& snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, std::string& title, char *snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, std::string& title, std::string& snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, char *title, char *snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, char *title, std::string& snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, std::string& title, char *snippet);
+bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, std::string& title, std::string& snippet);
+
 
 
 /* --------------------------------------------------------------------------

@@ -2598,8 +2598,122 @@ void npp_menu_add_item(int id, int parent, const char *resource, const char *tit
 /* --------------------------------------------------------------------------
    Get navigation path and page title from the menu structure
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+/* allow return values to be char as well as std::string */
+bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *title, char *snippet)
+{
+    std::string path_;
+    std::string title_;
+    std::string snippet_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( path )
+        strcpy(path, path_.c_str());
+
+    if ( title )
+        strcpy(title, title_.c_str());
+
+    if ( snippet )
+        strcpy(snippet, snippet_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *title, std::string& snippet_)
+{
+    std::string path_;
+    std::string title_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( path )
+        strcpy(path, path_.c_str());
+
+    if ( title )
+        strcpy(title, title_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::string& title_, char *snippet)
+{
+    std::string path_;
+    std::string snippet_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( path )
+        strcpy(path, path_.c_str());
+
+    if ( snippet )
+        strcpy(snippet, snippet_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::string& title_, std::string& snippet_)
+{
+    std::string path_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( path )
+        strcpy(path, path_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, char *title, char *snippet)
+{
+    std::string title_;
+    std::string snippet_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( title )
+        strcpy(title, title_.c_str());
+
+    if ( snippet )
+        strcpy(snippet, snippet_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, char *title, std::string& snippet_)
+{
+    std::string title_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( title )
+        strcpy(title, title_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, std::string& title_, char *snippet)
+{
+    std::string snippet_;
+
+    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+
+    if ( snippet )
+        strcpy(snippet, snippet_.c_str());
+
+    return ret;
+}
+
+bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, std::string& title_, std::string& snippet_)
+{
+    const char *path_sep = path_sep_.c_str();
+static char path[4096];
+static char title[256];
+static char snippet[256];
+#else
 bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet)
 {
+#endif
     int  found=FALSE;
     int  i=0;
     int  j=0;
@@ -2812,6 +2926,12 @@ bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, ch
 
         ++i;
     }
+
+#ifdef NPP_CPP_STRINGS
+    path_ = path;
+    title_ = title;
+    snippet_ = snippet;
+#endif
 
     return found;
 }
