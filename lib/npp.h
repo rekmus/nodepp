@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.0.0"
+#define NPP_VERSION                     "2.1.0"
 
 
 #ifndef FALSE
@@ -782,6 +782,12 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_MAX_SNIPPETS                    1000            /* max snippets */
 #endif
 
+/* menu */
+
+#ifndef NPP_MAX_MENU_ITEMS
+#define NPP_MAX_MENU_ITEMS                  100             /* max menu items */
+#endif
+
 #ifndef NPP_REQUIRED_AUTH_LEVEL
 #define NPP_REQUIRED_AUTH_LEVEL             AUTH_LEVEL_NONE /* default resource authorization level */
 #endif
@@ -941,7 +947,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
 
 
-#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_BMP || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_MD || type==NPP_CONTENT_TYPE_PDF || type==NPP_CONTENT_TYPE_XML || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_TEXT))
+#define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_MD || type==NPP_CONTENT_TYPE_PDF || type==NPP_CONTENT_TYPE_XML || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_BMP || type==NPP_CONTENT_TYPE_TEXT))
 
 
 /* errors */
@@ -1042,7 +1048,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_JPG            'j'
 #define NPP_CONTENT_TYPE_ICO            'i'
 #define NPP_CONTENT_TYPE_PNG            'p'
-#define NPP_CONTENT_TYPE_BMP            'b'
+#define NPP_CONTENT_TYPE_WOFF2          'w'
 #define NPP_CONTENT_TYPE_SVG            'v'
 //#define NPP_CONTENT_TYPE_JSON           'o'
 #define NPP_CONTENT_TYPE_MD             'm'
@@ -1052,6 +1058,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_EXE            'e'
 #define NPP_CONTENT_TYPE_ZIP            'z'
 #define NPP_CONTENT_TYPE_GZIP           'k'
+#define NPP_CONTENT_TYPE_BMP            'b'
 
 
 /* request macros */
@@ -1687,6 +1694,17 @@ typedef struct {
 } snippet_t;
 
 
+/* menu */
+
+typedef struct {
+    int  id;
+    int  parent;
+    char resource[256];
+    char title[256];
+    char snippet[256];
+} menu_item_t;
+
+
 /* admin info */
 
 typedef struct {
@@ -1819,6 +1837,9 @@ extern int          G_async_res_data_size;      /* how many bytes are left for d
 #endif  /* NPP_ASYNC */
 
 extern char         G_dt_string_gmt[128];       /* datetime string for database or log (YYYY-MM-DD hh:mm:ss) */
+
+extern menu_item_t  G_menu[NPP_MAX_MENU_ITEMS+1];
+extern int          G_menu_cnt;
 
 #ifdef NPP_SVC
 extern async_req_t  G_svc_req;

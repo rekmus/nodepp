@@ -1225,7 +1225,9 @@ int main(int argc, char **argv)
                 {
                     DBG("New session has been started in npp_svc, trying to add it to G_sessions...");
 
-                    if ( npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid) == OK )
+                    int session_start_ret = npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid);
+
+                    if ( session_start_ret == OK )
                     {
                         memcpy(&G_sessions[G_connections[res.ci].si], &res.hdr.eng_session_data, sizeof(eng_session_data_t));
 #ifdef NPP_ASYNC_INCLUDE_SESSION_DATA
@@ -1233,9 +1235,13 @@ int main(int argc, char **argv)
 #endif
                         DBG("Session added to G_sessions");
                     }
-                    else
+                    else if ( session_start_ret == ERR_SERVER_TOOBUSY )
                     {
                         ERR("Couldn't start session after npp_svc had started it. Your memory model may be too low.");
+                    }
+                    else    /* ERR_INT_SERVER_ERROR? */
+                    {
+                        ERR("Couldn't start session after npp_svc had started it.");
                     }
                 }
 
@@ -3998,6 +4004,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
     char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2];
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -4049,11 +4056,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     }
     else    /* recursive call */
     {
-#ifdef _WIN32
-        sprintf(ressubdir, "%s\\%s", resdir, path);
-#else
         sprintf(ressubdir, "%s/%s", resdir, path);
-#endif
     }
 
 #ifdef NPP_DEBUG
@@ -4083,12 +4086,8 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 //            DDBG("Checking %s...", M_statics[i].name);
 
-            char fullpath[NPP_STATIC_PATH_LEN*2];
-#ifdef _WIN32
-            sprintf(fullpath, "%s\\%s", resdir, M_statics[i].name);
-#else
             sprintf(fullpath, "%s/%s", resdir, M_statics[i].name);
-#endif
+
             if ( !npp_file_exists(fullpath) )
             {
                 INF("Removing %s from static resources", M_statics[i].name);
@@ -4152,11 +4151,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         if ( !path )
             strcpy(resname, dirent->d_name);
         else
-#ifdef _WIN32
-            sprintf(resname, "%s\\%s", path, dirent->d_name);
-#else
             sprintf(resname, "%s/%s", path, dirent->d_name);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -4166,11 +4161,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
-#ifdef _WIN32
-        sprintf(namewpath, "%s\\%s", resdir, resname);
-#else
         sprintf(namewpath, "%s/%s", resdir, resname);
-#endif
 
 #ifdef NPP_DEBUG
         if ( first_scan )
@@ -4375,7 +4366,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) && M_statics[i].source != STATIC_SOURCE_SNIPPETS )
+            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) )
             {
                 if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
@@ -4730,7 +4721,9 @@ static void process_req(int ci)
             if ( !G_connections[ci].cookie_in_a[0] || !a_session_ok(ci) )       /* valid anonymous sessid cookie not present */
             {
                 ret = npp_eng_session_start(ci, NULL);
-                fresh_session = TRUE;
+
+                if ( ret == OK )
+                    fresh_session = TRUE;
             }
 #ifndef NPP_START_SESSIONS_FOR_BOTS
         }
@@ -4803,7 +4796,7 @@ static void process_req(int ci)
             if ( !LOGGED ) close_uses(G_connections[ci].si, ci);
 #else
             close_uses(G_connections[ci].si, ci);
-#endif  /* NPP_USERS */
+#endif
         }
 
         if ( !NPP_CONN_IS_KEEP_CONTENT(G_connections[ci].flags) )   /* reset out buffer pointer as it could have contained something already */
@@ -5396,8 +5389,8 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "image/x-icon");
     else if ( type == NPP_CONTENT_TYPE_PNG )
         strcpy(http_type, "image/png");
-    else if ( type == NPP_CONTENT_TYPE_BMP )
-        strcpy(http_type, "image/bmp");
+    else if ( type == NPP_CONTENT_TYPE_WOFF2 )
+        strcpy(http_type, "application/font-woff2");
     else if ( type == NPP_CONTENT_TYPE_SVG )
         strcpy(http_type, "image/svg+xml");
     else if ( type == NPP_CONTENT_TYPE_JSON )
@@ -5416,6 +5409,8 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "application/zip");
     else if ( type == NPP_CONTENT_TYPE_GZIP )
         strcpy(http_type, "application/gzip");
+    else if ( type == NPP_CONTENT_TYPE_BMP )
+        strcpy(http_type, "image/bmp");
     else
         strcpy(http_type, "text/plain");
 
@@ -5479,11 +5474,13 @@ static bool a_session_ok(int ci)
 #endif
             return TRUE;
         }
+#ifndef NPP_MULTI_HOST
         else    /* session was closed */
         {
             WAR("si > 0 and no session!");
             G_connections[ci].si = 0;
         }
+#endif
     }
     else    /* fresh connection */
     {
@@ -6952,20 +6949,28 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     }
     else if ( 0==strcmp(ulabel, "ACCEPT-LANGUAGE") )    /* en-US en-GB pl-PL */
     {
+        i = 0;
+        while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
+        {
+            G_connections[ci].lang[i] = toupper(value[i]);
+            ++i;
+        }
+
+        G_connections[ci].lang[i] = EOS;
+
+        DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
+
+        if ( IS_SESSION && G_connections[ci].lang[0] && strcmp(SESSION.lang, G_connections[ci].lang) != 0 )
+        {
+            DBG("Changing session language to [%s] and setting formats", G_connections[ci].lang);
+
+            npp_lib_set_formats(ci, G_connections[ci].lang);
+            strcpy(SESSION.lang, G_connections[ci].lang);
+        }
+
         if ( !IS_SESSION || SESSION.lang[0]==EOS )    /* session data has priority */
         {
             DDBG("No session or no language in session, setting formats");
-
-            i = 0;
-            while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
-            {
-                G_connections[ci].lang[i] = toupper(value[i]);
-                ++i;
-            }
-
-            G_connections[ci].lang[i] = EOS;
-
-            DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
 
             if ( G_connections[ci].lang[0] )
             {
@@ -7207,7 +7212,7 @@ static void find_first_free_si()
         }
     }
 
-    ERR("Sequential search through G_sessions (checked %d record(s)), none was free", i-1);
+    WAR("Sequential search through G_sessions (checked %d record(s)), none was free", i-1);
 }
 
 

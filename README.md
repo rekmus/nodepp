@@ -173,6 +173,8 @@ You can also add your own and read them in `npp_app_init()` with [npp_read_param
 
 ## Documentation
 
+### [Step-by-step tutorial how to set up complete system on AWS EC2 Linux instance](https://nodepp.org/docs/tutorials)
+
 ### [Getting Started on Linux](https://github.com/rekmus/nodepp/wiki/Node++-Hello-World-%E2%80%93-Getting-Started-on-Linux)
 
 ### [Getting Started on Windows](https://github.com/rekmus/nodepp/wiki/Node++-Hello-World-%E2%80%93-Getting-Started-on-Windows)
@@ -246,14 +248,14 @@ sudo apt install g++        # debian / ubuntu
 2. Get the package
 
 ```source.sh
-wget https://nodepp.org/nodepp_1.5.0.tar.gz
+wget https://nodepp.org/nodepp_2.1.0.tar.gz
 ```
 
 3. Extract the package:
 
 ```source.sh
 mkdir npp_hello
-tar xpzf nodepp_1.5.0.tar.gz -C npp_hello
+tar xpzf nodepp_2.1.0.tar.gz -C npp_hello
 ```
 
 4. Compile:
@@ -302,7 +304,7 @@ Although not necessary, it's good to have **$NPP_DIR** set in the environment, p
 *(Required only for development)*
 
 * Application sources. It has to contain at least `npp_app.h` and `npp_app.cpp` with `npp_app_main()` inside.
-* Compilation script: `m`
+* Customizable compilation script: `m`
 
 ### `lib`
 
@@ -314,7 +316,7 @@ Although not necessary, it's good to have **$NPP_DIR** set in the environment, p
 ### `bin`
 
 * Main compilation script: `nppmake`
-* Executables, i.e. `npp_app`, `npp_svc`, `npp_watcher`
+* Executables, i.e. `npp_app`, `npp_svc`, `npp_watcher`, `npp_update`
 * Runtime scripts, i.e. `nppstart`, `nppstop`
 * Configuration: `npp.conf`
 * Strings in additional languages: `strings.LL-CC`
