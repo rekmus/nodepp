@@ -253,11 +253,19 @@
 
 /* format amount */
 
+#ifdef NPP_CLIENT
+#define AMT(val)                        npp_lib_fmt_dec_generic(val)
+#else
 #define AMT(val)                        npp_lib_fmt_dec(ci, val)
+#endif
 
 /* format integer */
 
+#ifdef NPP_CLIENT
+#define INT(val)                        npp_lib_fmt_int_generic(val)
+#else
 #define INT(val)                        npp_lib_fmt_int(ci, val)
+#endif
 
 
 
@@ -857,8 +865,8 @@ extern "C" {
     bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
     char npp_lib_get_res_type(const char *fname);
-    void npp_lib_fmt_int_generic(char *stramt, long long in_amt);
-    void npp_lib_fmt_dec_generic(char *stramt, double in_amt);
+    char *npp_lib_fmt_dec_generic(double in_amt);
+    char *npp_lib_fmt_int_generic(long long in_amt);
     void npp_lib_normalize_float(char *str);
     void npp_lib_escape_for_sql(char *dst, const char *str, int dst_len);
     void npp_lib_escape_for_html(char *dst, const char *str, int dst_len);

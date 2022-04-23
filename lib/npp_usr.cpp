@@ -1919,34 +1919,32 @@ int npp_usr_send_message(int ci)
     if ( QS_HTML_ESCAPE("email", email) )
         stp_right(email);
 
-static char sanmessage[MAX_LONG_URI_VAL_LEN+1];
-
-    sprintf(sanmessage, "From %s\n\n", G_connections[ci].ip);
-    COPY(sanmessage+strlen(sanmessage), npp_sql_esc(message), MAX_LONG_URI_VAL_LEN);
-
     try
     {
 static Cusers_messages um;
 
         um.user_id = SESSION.user_id;
         um.msg_id = get_max_message(ci, "messages") + 1;
-        strcpy(um.email, email);
-        strcpy(um.message, sanmessage);
+        COPY(um.email, email, NPP_EMAIL_LEN);
+
+        sprintf(um.message, "[From %s] ", G_connections[ci].ip);
+        COPY(um.message+strlen(um.message), message, 65000);
+
         strcpy(um.created, DT_NOW_GMT);
 
         um.Insert();
+
+        /* email admin */
+
+#ifdef NPP_CONTACT_EMAIL
+        npp_email(NPP_CONTACT_EMAIL, "New message!", um.message);
+#endif
     }
     catch (std::exception& e)
     {
         ERR(e.what());
         return ERR_INT_SERVER_ERROR;
     }
-
-    /* email admin */
-
-#ifdef NPP_CONTACT_EMAIL
-    npp_email(NPP_CONTACT_EMAIL, "New message!", sanmessage);
-#endif
 
     return OK;
 }
