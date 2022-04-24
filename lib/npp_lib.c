@@ -4329,7 +4329,7 @@ static bool call_http_parse_url(const char *url, char *host, char *port, char *u
     colon = strchr((char*)url, ':');
     slash = strchr((char*)url, '/');
 
-    if ( colon )    /* port specified */
+    if ( colon && (slash && slash > colon) )  /* port specified */
     {
         strncpy(host, url, colon-url);
         host[colon-url] = EOS;
