@@ -331,11 +331,6 @@
 #define NPP_JSON_RECORD                     'r'
 #define NPP_JSON_ARRAY                      'a'
 
-#ifdef NPP_MEM_TINY
-#define NPP_JSON_POOL_SIZE                  100     /* for storing sub-JSONs */
-#else
-#define NPP_JSON_POOL_SIZE                  1000    /* for storing sub-JSONs */
-#endif
 
 #define NPP_JSON_MAX_FLOAT_LEN              8
 #define NPP_JSON_PRETTY_INDENT              "    "
@@ -461,7 +456,7 @@
 
 #if NPP_JSON_STR_LEN < 31
 #undef NPP_JSON_STR_LEN
-#define NPP_JSON_STR_LEN                    31      /* the memory address as hex must fit in */
+#define NPP_JSON_STR_LEN                    31      /* the memory address must fit in */
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
@@ -483,6 +478,10 @@
 #if NPP_JSON_BUFSIZE < 256
 #undef NPP_JSON_BUFSIZE
 #define NPP_JSON_BUFSIZE                    256
+#endif
+
+#ifndef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS*4    /* for storing sub-JSONs in lib_json_from_string */
 #endif
 
 /* npp_email */
