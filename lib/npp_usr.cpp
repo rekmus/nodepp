@@ -1036,7 +1036,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     /* ------------------------------------------------ */
     /* get the basics */
 
-    if ( QS_SQL_ESCAPE("login", qsval) )
+    if ( QS_DONT_ESCAPE("login", qsval) )
     {
         COPY(login, qsval, NPP_LOGIN_LEN);
         stp_right(login);
@@ -1047,7 +1047,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("email", qsval) )
+    if ( QS_DONT_ESCAPE("email", qsval) )
     {
         COPY(email, qsval, NPP_EMAIL_LEN);
         stp_right(email);
@@ -1093,8 +1093,8 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
-    if ( !QS_SQL_ESCAPE("passwd", passwd)
-            || !QS_SQL_ESCAPE("rpasswd", rpasswd) )
+    if ( !QS_DONT_ESCAPE("passwd", passwd)
+            || !QS_DONT_ESCAPE("rpasswd", rpasswd) )
     {
         ERR("Invalid request (passwd or rpasswd missing)");
         return ERR_INVALID_REQUEST;
@@ -1103,7 +1103,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     /* ------------------------------------------------ */
     /* optional */
 
-    if ( QS_SQL_ESCAPE("name", qsval) )
+    if ( QS_DONT_ESCAPE("name", qsval) )
     {
         COPY(name, qsval, NPP_UNAME_LEN);
         stp_right(name);
@@ -1114,7 +1114,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("phone", qsval) )
+    if ( QS_DONT_ESCAPE("phone", qsval) )
     {
         COPY(phone, qsval, NPP_PHONE_LEN);
         stp_right(phone);
@@ -1125,7 +1125,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("lang", qsval) )
+    if ( QS_DONT_ESCAPE("lang", qsval) )
     {
         COPY(lang, qsval, NPP_LANG_LEN);
         stp_right(lang);
@@ -1145,7 +1145,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("about", qsval) )
+    if ( QS_DONT_ESCAPE("about", qsval) )
     {
         COPY(about, qsval, NPP_ABOUT_LEN);
         stp_right(about);
@@ -1156,7 +1156,7 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ----------------------------------------------------------------- */
 
-    if ( QS_SQL_ESCAPE("message", message) && message[0] )
+    if ( QS_DONT_ESCAPE("message", message) && message[0] )
         return ERR_ROBOT;
 
 #ifdef NPP_USERS_BY_EMAIL
@@ -1273,7 +1273,7 @@ int npp_usr_login(int ci)
 
 #ifdef NPP_USERS_BY_EMAIL
 
-    if ( !QS_SQL_ESCAPE("email", email) || !QS_SQL_ESCAPE("passwd", passwd) )
+    if ( !QS_DONT_ESCAPE("email", email) || !QS_DONT_ESCAPE("passwd", passwd) )
     {
         WAR("Invalid request (email or passwd missing)");
         return ERR_INVALID_REQUEST;
@@ -1283,7 +1283,7 @@ int npp_usr_login(int ci)
 
 #else    /* by login */
 
-    if ( !QS_SQL_ESCAPE("login", login) || !QS_SQL_ESCAPE("passwd", passwd) )
+    if ( !QS_DONT_ESCAPE("login", login) || !QS_DONT_ESCAPE("passwd", passwd) )
     {
         WAR("Invalid request (login or passwd missing)");
         return ERR_INVALID_REQUEST;
@@ -1549,7 +1549,7 @@ static Cusers_logins ul;
 
     /* Keep me logged in -- set cookie expiry date */
 
-    if ( QS_SQL_ESCAPE("keep", keep) && 0==strcmp(keep, "on") )
+    if ( QS_DONT_ESCAPE("keep", keep) && 0==strcmp(keep, "on") )
     {
         DBG("keep is ON");
         set_ls_cookie_expiration(ci, G_now);
@@ -1701,7 +1701,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
             return ret;
         }
 
-        QS_SQL_ESCAPE("passwd", password);
+        QS_DONT_ESCAPE("passwd", password);
     }
     else    /* use function arguments */
     {
@@ -1747,7 +1747,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
         else if ( !valid_email(email) )                 /* invalid email format */
             return ERR_EMAIL_FORMAT;
 #else   /* NPP_USERS_BY_LOGIN */
-        if ( strlen(dst_login) < NPP_MIN_USERNAME_LEN )     /* user name too short */
+        if ( strlen(dst_login) < NPP_MIN_USERNAME_LEN ) /* user name too short */
             return ERR_USERNAME_TOO_SHORT;
         else if ( !valid_username(dst_login) )          /* only certain chars are allowed in user name */
             return ERR_USERNAME_CHARS;
@@ -1835,7 +1835,7 @@ static Cusers u;
     QSVAL notif_email;
 
     if ( use_qs )
-        QS("email", notif_email);
+        QS_DONT_ESCAPE("email", notif_email);
     else
         strcpy(notif_email, email);
 
@@ -1909,7 +1909,7 @@ int npp_usr_send_message(int ci)
 
     QSVAL email="";   /* optional */
 
-    if ( QS_SQL_ESCAPE("email", email) )
+    if ( QS_DONT_ESCAPE("email", email) )
         stp_right(email);
 
     try
@@ -1970,7 +1970,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( !QS_SQL_ESCAPE("opasswd", opasswd) )
+    if ( !QS_DONT_ESCAPE("opasswd", opasswd) )
     {
         WAR("Invalid request (opasswd missing)");
         return ERR_INVALID_REQUEST;
@@ -1978,7 +1978,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("login", qsval) )
+    if ( QS_DONT_ESCAPE("login", qsval) )
     {
         COPY(login, qsval, NPP_LOGIN_LEN);
         stp_right(login);
@@ -1988,7 +1988,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("email", qsval) )
+    if ( QS_DONT_ESCAPE("email", qsval) )
     {
         COPY(email, qsval, NPP_EMAIL_LEN);
         stp_right(email);
@@ -2015,15 +2015,15 @@ int npp_usr_save_account(int ci)
     /* ------------------------------------------------ */
     /* optional */
 
-    if ( !QS_SQL_ESCAPE("passwd", passwd) )
+    if ( !QS_DONT_ESCAPE("passwd", passwd) )
         passwd[0] = EOS;
 
-    if ( !QS_SQL_ESCAPE("rpasswd", rpasswd) )
+    if ( !QS_DONT_ESCAPE("rpasswd", rpasswd) )
         rpasswd[0] = EOS;
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("name", qsval) )
+    if ( QS_DONT_ESCAPE("name", qsval) )
     {
         COPY(name, qsval, NPP_UNAME_LEN);
         stp_right(name);
@@ -2033,7 +2033,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("phone", qsval) )
+    if ( QS_DONT_ESCAPE("phone", qsval) )
     {
         COPY(phone, qsval, NPP_PHONE_LEN);
         stp_right(phone);
@@ -2043,7 +2043,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("lang", qsval) )
+    if ( QS_DONT_ESCAPE("lang", qsval) )
     {
         COPY(lang, qsval, NPP_LANG_LEN);
         stp_right(lang);
@@ -2063,7 +2063,7 @@ int npp_usr_save_account(int ci)
 
     /* ------------------------------------------------ */
 
-    if ( QS_SQL_ESCAPE("about", qsval) )
+    if ( QS_DONT_ESCAPE("about", qsval) )
     {
         COPY(about, qsval, NPP_ABOUT_LEN);
         stp_right(about);
@@ -2156,9 +2156,9 @@ static bool first=TRUE;
 
         DBG("Old password OK");
 
-        if ( QS_SQL_ESCAPE("delete", strdelete) && 0==strcmp(strdelete, "on") )    /* delete user account */
+        if ( QS_DONT_ESCAPE("delete", strdelete) && 0==strcmp(strdelete, "on") )    /* delete user account */
         {
-            if ( !QS_SQL_ESCAPE("delconf", strdelconf) || 0 != strcmp(strdelconf, "1") )
+            if ( !QS_DONT_ESCAPE("delconf", strdelconf) || 0 != strcmp(strdelconf, "1") )
                 return WAR_BEFORE_DELETE;
             else
             {
@@ -2245,7 +2245,7 @@ int npp_usr_email_registered(int ci)
 
     DBG("npp_usr_email_registered");
 
-    if ( !QS_SQL_ESCAPE("email", email) )
+    if ( !QS_DONT_ESCAPE("email", email) )
     {
         WAR("Invalid request (email missing)");
         return ERR_INVALID_REQUEST;
@@ -2371,7 +2371,7 @@ int npp_usr_send_passwd_reset_email(int ci)
 
     DBG("npp_usr_send_passwd_reset_email");
 
-    if ( !QS_SQL_ESCAPE("email", email) )
+    if ( !QS_DONT_ESCAPE("email", email) )
     {
         WAR("Invalid request (email missing)");
         return ERR_INVALID_REQUEST;
@@ -2549,7 +2549,7 @@ int npp_usr_activate(int ci)
 
     DBG("npp_usr_activate");
 
-    if ( !QS_SQL_ESCAPE("k", linkkey) )
+    if ( !QS_DONT_ESCAPE("k", linkkey) )
     {
         WAR("Invalid request (k missing)");
         return ERR_INVALID_REQUEST;
@@ -2703,9 +2703,9 @@ int npp_usr_change_password(int ci)
 
     DBG("npp_usr_change_password");
 
-    if ( !QS_SQL_ESCAPE("opasswd", opasswd)
-            || !QS_SQL_ESCAPE("passwd", passwd)
-            || !QS_SQL_ESCAPE("rpasswd", rpasswd) )
+    if ( !QS_DONT_ESCAPE("opasswd", opasswd)
+            || !QS_DONT_ESCAPE("passwd", passwd)
+            || !QS_DONT_ESCAPE("rpasswd", rpasswd) )
     {
         WAR("Invalid request (opasswd or passwd or rpasswd missing)");
         return ERR_INVALID_REQUEST;
@@ -2802,10 +2802,10 @@ int npp_usr_reset_password(int ci)
 
     DBG("npp_usr_reset_password");
 
-    if ( !QS_SQL_ESCAPE("email", email)
-            || !QS_SQL_ESCAPE("k", linkkey)
-            || !QS_SQL_ESCAPE("passwd", passwd)
-            || !QS_SQL_ESCAPE("rpasswd", rpasswd) )
+    if ( !QS_DONT_ESCAPE("email", email)
+            || !QS_DONT_ESCAPE("k", linkkey)
+            || !QS_DONT_ESCAPE("passwd", passwd)
+            || !QS_DONT_ESCAPE("rpasswd", rpasswd) )
     {
         WAR("Invalid request (email or k or passwd or rpasswd missing)");
         return ERR_INVALID_REQUEST;
