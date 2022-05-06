@@ -7482,7 +7482,7 @@ bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned leve
 
     if ( len == 0 ) len = strlen(src);
 
-    if ( len > NPP_JSON_BUFSIZE -1 )
+    if ( len > NPP_JSON_BUFSIZE-1 )
     {
         ERR("This JSON string is too long (%d). You need to increase NPP_JSON_BUFSIZE (currently %d).", len, NPP_JSON_BUFSIZE);
         return FALSE;
@@ -10693,10 +10693,7 @@ static unsigned int prev_seed=0;
         time_remainder = rand() % 63 + 1;
     }
 
-#ifdef NPP_DEBUG
-    DBG("seed = %s", npp_lib_fmt_int_generic(seed));
-    DBG("");
-#endif  /* NPP_DEBUG */
+    DDBG("seed = %s\n", npp_lib_fmt_int_generic(seed));
 
     prev_seed = seed;
 
