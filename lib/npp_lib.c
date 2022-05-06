@@ -4924,7 +4924,7 @@ static int addresses_cnt=0, addresses_last=0;
 #ifdef NPP_DEBUG
             int last_errno = errno;
 #endif
-            ERR("Couldn't connect with finish_client_io");
+            DBG("Couldn't connect with finish_client_io, will try the next address...");
 #ifdef NPP_DEBUG
             DDBG("finish_res = %d", finish_res);
             if ( finish_res == -1 )
@@ -5351,7 +5351,7 @@ static bool call_http_res_parse(char *res_header, int bytes)
     strncpy(status, res_header+9, 3);
     status[3] = EOS;
     G_call_http_status = atoi(status);
-    INF("CALL_HTTP response status: %s", status);
+    DBG("CALL_HTTP response status: %s", status);
 
     char u_res_header[CALL_HTTP_RES_HEADER_LEN+1];   /* uppercase */
     strcpy(u_res_header, npp_upper(res_header));
@@ -5957,9 +5957,9 @@ void npp_log_memory()
 
     mem_used = npp_get_memory();
 
-    npp_lib_fmt_int_generic(mem_used_kib, mem_used);
-    npp_lib_fmt_dec_generic(mem_used_mib, (double)mem_used/1024);
-    npp_lib_fmt_dec_generic(mem_used_gib, (double)mem_used/1024/1024);
+    strcpy(mem_used_kib, npp_lib_fmt_int_generic(mem_used));
+    strcpy(mem_used_mib, npp_lib_fmt_dec_generic((double)mem_used/1024));
+    strcpy(mem_used_gib, npp_lib_fmt_dec_generic((double)mem_used/1024/1024));
 
     ALWAYS_LINE;
     ALWAYS("Memory: %s KiB (%s MiB / %s GiB)", mem_used_kib, mem_used_mib, mem_used_gib);
@@ -6598,9 +6598,11 @@ static char dst[20];
 /* --------------------------------------------------------------------------
    Format decimal amount (generic US format)
 ---------------------------------------------------------------------------*/
-void npp_lib_fmt_dec_generic(char *dest, double in_val)
+char *npp_lib_fmt_dec_generic(double in_val)
 {
-    char    in_val_str[64];
+static char dest[256];
+
+    char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
 
@@ -6625,14 +6627,18 @@ void npp_lib_fmt_dec_generic(char *dest, double in_val)
     }
 
     dest[j] = EOS;
+
+    return dest;
 }
 
 
 /* --------------------------------------------------------------------------
    Format integer amount (generic US format)
 ---------------------------------------------------------------------------*/
-void npp_lib_fmt_int_generic(char *dest, long long in_val)
+char *npp_lib_fmt_int_generic(long long in_val)
 {
+static char dest[256];
+
     char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
@@ -6656,6 +6662,8 @@ void npp_lib_fmt_int_generic(char *dest, long long in_val)
     }
 
     dest[j] = EOS;
+
+    return dest;
 }
 
 
@@ -7064,49 +7072,121 @@ static int json_get_i(JSON *json, const char *name)
 -------------------------------------------------------------------------- */
 static void json_to_string(char *dst, JSON *json, bool array)
 {
-    char    *p=dst;
-    int     i;
+    char *p=dst;
+    int  i;
+
+#ifdef NPP_DEBUG
+    DBG_LINE;
+    DBG("json_to_string%s", array?" (parent is array)":"");
+    DBG("json->cnt = %d", json->cnt);
+    JSON_LOG_DBG(json, "json");
+#endif
 
     p = stpcpy(p, array?"[":"{");
 
     for ( i=0; i<json->cnt; ++i )
     {
+#ifdef NPP_DEBUG
+        if ( i > 0 )
+            DBG_LINE;
+        DBG("   i = %d", i);
+        DBG("type = %c", json->rec[i].type);
+#endif
         /* key */
 
         if ( !array )
         {
+            DDBG("(named member)");
+            DDBG(json->rec[i].name);
+
             p = stpcpy(p, "\"");
             p = stpcpy(p, json->rec[i].name);
             p = stpcpy(p, "\":");
+        }
+        else
+        {
+            DDBG("(array item)");
         }
 
         /* value */
 
         if ( json->rec[i].type == NPP_JSON_STRING )
         {
+            DDBG("(string)");
+
             p = stpcpy(p, "\"");
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
         else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
         {
+            DDBG("(number)");
+
             p = stpcpy(p, json->rec[i].value);
         }
         else if ( json->rec[i].type == NPP_JSON_RECORD )
         {
+            DDBG("(record)");
+
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
+            {
+                ERR("json_to_string: malloc for tmp failed");
+                return;
+            }
+#else   /* faster */
             char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string(tmp, (JSON*)jp, FALSE);
+
+#ifdef NPP_DEBUG
+            int len = strlen(tmp);
+
+            if ( len < 1024 )
+                DBG("tmp [%s]", tmp);
+#endif
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            free(tmp);
+#endif
         }
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
+            DDBG("(array)");
+
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
+            {
+                ERR("json_to_string: malloc for tmp failed");
+                return;
+            }
+#else   /* faster */
             char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string(tmp, (JSON*)jp, TRUE);
+
+#ifdef NPP_DEBUG
+            int len = strlen(tmp);
+
+            if ( len < 1024 )
+                DBG("tmp [%s]", tmp);
+#endif
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            free(tmp);
+#endif
         }
 
         if ( i < json->cnt-1 )
@@ -7116,6 +7196,17 @@ static void json_to_string(char *dst, JSON *json, bool array)
     p = stpcpy(p, array?"]":"}");
 
     *p = EOS;
+
+#ifdef NPP_DEBUG
+//    int len = strlen(dst);
+
+//    if ( len < 1024 )
+//        DBG("json_to_string result [%s]", dst);
+//    else
+        DBG("End of json_to_string");
+
+    DBG_LINE;
+#endif
 }
 
 
@@ -7142,8 +7233,15 @@ static char dst[NPP_LIB_STR_BUF];
 -------------------------------------------------------------------------- */
 static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
 {
-    char    *p=dst;
-    int     i;
+    char *p=dst;
+    int  i;
+
+#ifdef NPP_DEBUG
+//    DBG_LINE;
+    DBG("json_to_string_pretty%s", array?" (parent is array)":"");
+    DBG("json->cnt = %d", json->cnt);
+    JSON_LOG_DBG(json, "json");
+#endif
 
     p = stpcpy(p, array?"[\n":"{\n");
 
@@ -7181,9 +7279,24 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
+            {
+                ERR("json_to_string_pretty: malloc for tmp failed");
+                return;
+            }
+#else   /* faster */
             char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string_pretty(tmp, (JSON*)jp, FALSE, level+1);
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            free(tmp);
+#endif
         }
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
@@ -7194,9 +7307,24 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
+            {
+                ERR("json_to_string_pretty: malloc for tmp failed");
+                return;
+            }
+#else   /* faster */
             char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string_pretty(tmp, (JSON*)jp, TRUE, level+1);
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
+            free(tmp);
+#endif
         }
 
         if ( i < json->cnt-1 )
@@ -7230,7 +7358,7 @@ static char dst[NPP_JSON_BUFSIZE];
 -------------------------------------------------------------------------- */
 char *lib_json_to_string_pretty(JSON *json)
 {
-static char dst[NPP_JSON_BUFSIZE];
+static char dst[NPP_JSON_BUFSIZE*8];
 
     json_to_string_pretty(dst, json, FALSE, 1);
 
@@ -7370,10 +7498,13 @@ bool lib_json_from_string(JSON *json, const char *src, size_t len, unsigned leve
     float   flo_value;
     double  dbl_value;
 
-static JSON json_pool[NPP_JSON_POOL_SIZE*NPP_JSON_MAX_LEVELS];
-static int  json_pool_cnt[NPP_JSON_MAX_LEVELS]={0};
-
     if ( len == 0 ) len = strlen(src);
+
+    if ( len > NPP_JSON_BUFSIZE-1 )
+    {
+        ERR("This JSON string is too long (%d). You need to increase NPP_JSON_BUFSIZE (currently %d).", len, NPP_JSON_BUFSIZE);
+        return FALSE;
+    }
 
     if ( level == 0 )
     {
@@ -7400,15 +7531,20 @@ static int  json_pool_cnt[NPP_JSON_MAX_LEVELS]={0};
         index = -1;
     }
 
+
 #ifdef NPP_DEBUG
 static char tmp[NPP_JSON_BUFSIZE];
-    strncpy(tmp, src+i, len-i);
-    tmp[len-i] = EOS;
+    COPY(tmp, src+i, NPP_JSON_BUFSIZE-1);
     char debug[64];
     sprintf(debug, "lib_json_from_string level %u", level);
     npp_log_long(tmp, len, debug);
     if ( inside_array ) DBG("inside_array");
 #endif  /* NPP_DEBUG */
+
+
+static JSON json_pool[NPP_JSON_POOL_SIZE];
+static int json_pool_cnt=0;
+
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
@@ -7494,9 +7630,16 @@ static char tmp[NPP_JSON_BUFSIZE];
 
                 if ( level < NPP_JSON_MAX_LEVELS-1 )
                 {
-                    if ( json_pool_cnt[level] >= NPP_JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
+                    DDBG("json_pool_cnt = %d", json_pool_cnt);
 
-                    int pool_idx = NPP_JSON_POOL_SIZE*level + json_pool_cnt[level];
+                    if ( json_pool_cnt >= NPP_JSON_POOL_SIZE )
+                    {
+                        WAR("json_pool full, resetting");
+                        json_pool_cnt = 0;
+                    }
+
+                    int pool_idx = json_pool_cnt++;
+
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
@@ -7507,18 +7650,20 @@ static char tmp[NPP_JSON_BUFSIZE];
                     char *closing;
                     if ( (closing=get_json_closing_bracket(src+i)) )
                     {
-//                        DBG("closing [%s], len=%d", closing, closing-(src+i));
                         if ( !lib_json_from_string(&json_pool[pool_idx], src+i, closing-(src+i)+1, level+1) )
                             return FALSE;
-                        ++json_pool_cnt[level];
                         i += closing-(src+i);
-//                        DBG("after closing record bracket [%s]", src+i);
                     }
                     else    /* syntax error */
                     {
                         WAR("No closing bracket in JSON record");
                         return FALSE;
                     }
+                }
+                else
+                {
+                    WAR("Couldn't add new JSON level (NPP_JSON_MAX_LEVELS=%d)", NPP_JSON_MAX_LEVELS);
+                    return FALSE;
                 }
             }
             else if ( src[i]=='[' )     /* NPP_JSON_ARRAY */
@@ -7529,9 +7674,16 @@ static char tmp[NPP_JSON_BUFSIZE];
 
                 if ( level < NPP_JSON_MAX_LEVELS-1 )
                 {
-                    if ( json_pool_cnt[level] >= NPP_JSON_POOL_SIZE ) json_pool_cnt[level] = 0;   /* overwrite previous ones */
+                    DDBG("json_pool_cnt = %d", json_pool_cnt);
 
-                    int pool_idx = NPP_JSON_POOL_SIZE*level + json_pool_cnt[level];
+                    if ( json_pool_cnt >= NPP_JSON_POOL_SIZE )
+                    {
+                        WAR("json_pool full, resetting");
+                        json_pool_cnt = 0;
+                    }
+
+                    int pool_idx = json_pool_cnt++;
+
                     lib_json_reset(&json_pool[pool_idx]);
                     /* save the pointer first as a parent record */
                     if ( inside_array )
@@ -7542,18 +7694,23 @@ static char tmp[NPP_JSON_BUFSIZE];
                     char *closing;
                     if ( (closing=get_json_closing_square_bracket(src+i)) )
                     {
-//                        DBG("closing [%s], len=%d", closing, closing-(src+i));
                         if ( !lib_json_from_string(&json_pool[pool_idx], src+i, closing-(src+i)+1, level+1) )
                             return FALSE;
-                        ++json_pool_cnt[level];
+#ifdef NPP_DEBUG
+//                        JSON_LOG_DBG(&json_pool[pool_idx], "json_pool record");
+#endif
                         i += closing-(src+i);
-//                        DBG("after closing array bracket [%s]", src+i);
                     }
                     else    /* syntax error */
                     {
                         WAR("No closing square bracket in JSON array");
                         return FALSE;
                     }
+                }
+                else
+                {
+                    WAR("Couldn't add new JSON level (NPP_JSON_MAX_LEVELS=%d)", NPP_JSON_MAX_LEVELS);
+                    return FALSE;
                 }
             }
             else    /* number */
@@ -7794,7 +7951,11 @@ static int json_add_elem(JSON *json, const char *name, int i)
 
         if ( i==-1 )    /* not present -- append new */
         {
-            if ( json->cnt >= NPP_JSON_MAX_ELEMS ) return -1;
+            if ( json->cnt >= NPP_JSON_MAX_ELEMS )
+            {
+                WAR("Couldn't add new item to JSON object due to NPP_JSON_MAX_ELEMS reached (%d)", NPP_JSON_MAX_ELEMS);
+                return -1;
+            }
             i = json->cnt++;
             COPY(json->rec[i].name, name, NPP_JSON_KEY_LEN);
             json->array = FALSE;
@@ -7802,7 +7963,11 @@ static int json_add_elem(JSON *json, const char *name, int i)
     }
     else    /* array */
     {
-        if ( i >= NPP_JSON_MAX_ELEMS-1 ) return -1;
+        if ( i >= NPP_JSON_MAX_ELEMS-1 )
+        {
+            WAR("Couldn't add new array element to JSON object due to NPP_JSON_MAX_ELEMS reached (%d)", NPP_JSON_MAX_ELEMS);
+            return -1;
+        }
         json->array = TRUE;
         if ( json->cnt < i+1 ) json->cnt = i + 1;
     }
@@ -7984,7 +8149,11 @@ bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bo
 
         if ( i==-1 )    /* not present -- append new */
         {
-            if ( json->cnt >= NPP_JSON_MAX_ELEMS ) return FALSE;
+            if ( json->cnt >= NPP_JSON_MAX_ELEMS )
+            {
+                WAR("Couldn't add new item to JSON object due to NPP_JSON_MAX_ELEMS reached (%d)", NPP_JSON_MAX_ELEMS);
+                return FALSE;
+            }
             i = json->cnt;
             ++json->cnt;
             COPY(json->rec[i].name, name, NPP_JSON_KEY_LEN);
@@ -7995,7 +8164,11 @@ bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bo
     {
         DDBG("array element %d", i);
 
-        if ( i >= NPP_JSON_MAX_ELEMS-1 ) return FALSE;
+        if ( i >= NPP_JSON_MAX_ELEMS-1 )
+        {
+            WAR("Couldn't add new array element to JSON object due to NPP_JSON_MAX_ELEMS reached (%d)", NPP_JSON_MAX_ELEMS);
+            return FALSE;
+        }
         json->array = TRUE;
         if ( json->cnt < i+1 ) json->cnt = i + 1;
     }
@@ -8595,7 +8768,7 @@ bool lib_json_get_record(JSON *json, const std::string& name_, int i, JSON *json
 bool lib_json_get_record(JSON *json, const char *name, int i, JSON *json_sub)
 {
 #endif
-    DBG("lib_json_get_record by %s", name?"name":"index");
+    DDBG("lib_json_get_record by %s", name?"name":"index");
 
     if ( name && name[0] )
     {
@@ -10392,7 +10565,10 @@ void npp_lib_log_switch_to_file()
 void npp_log_finish()
 {
     if ( G_logLevel > 0 )
-        INF_T("Closing log");
+    {
+        if ( G_log_fd != NULL && G_log_fd != stdout )
+            INF_T("Closing log");
+    }
 
     npp_lib_log_switch_to_stdout();
 }
@@ -10535,12 +10711,7 @@ static unsigned int prev_seed=0;
         time_remainder = rand() % 63 + 1;
     }
 
-#ifdef NPP_DEBUG
-    char f[256];
-    npp_lib_fmt_int_generic(f, seed);
-    DBG("seed = %s", f);
-    DBG("");
-#endif  /* NPP_DEBUG */
+    DDBG("seed = %s\n", npp_lib_fmt_int_generic(seed));
 
     prev_seed = seed;
 
@@ -11204,9 +11375,9 @@ static char get_tsep(int ci)
 ---------------------------------------------------------------------------*/
 char *npp_lib_fmt_dec(int ci, double in_val)
 {
-static char dest[64];
+static char dest[256];
 
-    char    in_val_str[64];
+    char    in_val_str[256];
     int     i, j=0;
     bool    minus=FALSE;
 

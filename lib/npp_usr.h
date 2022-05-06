@@ -41,7 +41,7 @@
 #define NPP_PASSWD_HASH_BUFLEN          45                      /* SHA256 digest in base64 + EOS */
 
 
-#define NPP_DB_UAGENT_LEN               250                     /* User-Agent length stored in ulogins table */
+#define NPP_DB_UAGENT_LEN               250                     /* User-Agent length stored in users_logins table */
 #define NPP_PASSWD_RESET_KEY_LEN        20                      /* password reset key length */
 
 

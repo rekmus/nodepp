@@ -253,11 +253,19 @@
 
 /* format amount */
 
+#ifdef NPP_CLIENT
+#define AMT(val)                        npp_lib_fmt_dec_generic(val)
+#else
 #define AMT(val)                        npp_lib_fmt_dec(ci, val)
+#endif
 
 /* format integer */
 
+#ifdef NPP_CLIENT
+#define INT(val)                        npp_lib_fmt_int_generic(val)
+#else
 #define INT(val)                        npp_lib_fmt_int(ci, val)
+#endif
 
 
 
@@ -323,11 +331,6 @@
 #define NPP_JSON_RECORD                     'r'
 #define NPP_JSON_ARRAY                      'a'
 
-#ifdef NPP_MEM_TINY
-#define NPP_JSON_POOL_SIZE                  100     /* for storing sub-JSONs */
-#else
-#define NPP_JSON_POOL_SIZE                  1000    /* for storing sub-JSONs */
-#endif
 
 #define NPP_JSON_MAX_FLOAT_LEN              8
 #define NPP_JSON_PRETTY_INDENT              "    "
@@ -453,7 +456,7 @@
 
 #if NPP_JSON_STR_LEN < 31
 #undef NPP_JSON_STR_LEN
-#define NPP_JSON_STR_LEN                    31      /* the memory address as hex must fit in */
+#define NPP_JSON_STR_LEN                    31      /* the memory address must fit in */
 #endif
 
 #ifndef NPP_JSON_MAX_ELEMS
@@ -475,6 +478,10 @@
 #if NPP_JSON_BUFSIZE < 256
 #undef NPP_JSON_BUFSIZE
 #define NPP_JSON_BUFSIZE                    256
+#endif
+
+#ifndef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS*4    /* for storing sub-JSONs in lib_json_from_string */
 #endif
 
 /* npp_email */
@@ -518,12 +525,12 @@
 #endif
 
 
-/* overwrite for NPP_UPDATE */
+/* overwrite for NPP_UPDATE and NPP_WATCHER */
 
 #ifdef NPP_UPDATE
 
 #undef CALL_HTTP_MAX_RESPONSE_LEN
-#define CALL_HTTP_MAX_RESPONSE_LEN          2097152
+#define CALL_HTTP_MAX_RESPONSE_LEN          65568
 
 #undef NPP_JSON_KEY_LEN
 #define NPP_JSON_KEY_LEN                    31
@@ -532,7 +539,7 @@
 #define NPP_JSON_STR_LEN                    255
 
 #undef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  50
+#define NPP_JSON_MAX_ELEMS                  100
 
 #undef NPP_JSON_MAX_LEVELS
 #define NPP_JSON_MAX_LEVELS                 4
@@ -540,7 +547,36 @@
 #undef NPP_JSON_BUFSIZE
 #define NPP_JSON_BUFSIZE                    65568
 
+#undef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS
+
 #endif  /* NPP_UPDATE */
+
+
+#ifdef NPP_WATCHER
+
+#undef CALL_HTTP_MAX_RESPONSE_LEN
+#define CALL_HTTP_MAX_RESPONSE_LEN          1048576
+
+#undef NPP_JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                    31
+
+#undef NPP_JSON_STR_LEN
+#define NPP_JSON_STR_LEN                    128
+
+#undef NPP_JSON_MAX_ELEMS
+#define NPP_JSON_MAX_ELEMS                  10
+
+#undef NPP_JSON_MAX_LEVELS
+#define NPP_JSON_MAX_LEVELS                 2
+
+#undef NPP_JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                    65568
+
+#undef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS
+
+#endif  /* NPP_WATCHER */
 
 
 
@@ -857,8 +893,8 @@ extern "C" {
     bool npp_lib_check_ssl_error(int ssl_err);
     void npp_lib_get_app_dir(void);
     char npp_lib_get_res_type(const char *fname);
-    void npp_lib_fmt_int_generic(char *stramt, long long in_amt);
-    void npp_lib_fmt_dec_generic(char *stramt, double in_amt);
+    char *npp_lib_fmt_dec_generic(double in_amt);
+    char *npp_lib_fmt_int_generic(long long in_amt);
     void npp_lib_normalize_float(char *str);
     void npp_lib_escape_for_sql(char *dst, const char *str, int dst_len);
     void npp_lib_escape_for_html(char *dst, const char *str, int dst_len);

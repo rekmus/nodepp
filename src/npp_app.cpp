@@ -214,7 +214,7 @@ void render_performance(int ci)
     {
         long long requests_daily = 86400000 / G_cnts_today.average;
 
-        OUT("<p>Based on %d requests the average rendering time is %0.3lf ms.</p>", G_cnts_today.req, G_cnts_today.average);
+        OUT("<p>Based on %s requests, the average rendering time is %0.3lf ms.</p>", INT(G_cnts_today.req), G_cnts_today.average);
 
         OUT("<p>It seems that this Node++ application could handle up to <b>%s</b> requests per day on your server.</p>", INT(requests_daily));
 
