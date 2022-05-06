@@ -7130,12 +7130,17 @@ static void json_to_string(char *dst, JSON *json, bool array)
 
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
             char *tmp;  /* it can be too big for stack */
-            if ( !(tmp = (char*)malloc(NPP_JSON_BUFSIZE)) )
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
                 ERR("malloc for tmp failed");
                 return;
             }
+#else   /* faster */
+            char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string(tmp, (JSON*)jp, FALSE);
 
 #ifdef NPP_DEBUG
@@ -7146,7 +7151,10 @@ static void json_to_string(char *dst, JSON *json, bool array)
 #endif
 
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
             free(tmp);
+#endif
         }
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
@@ -7154,12 +7162,17 @@ static void json_to_string(char *dst, JSON *json, bool array)
 
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char *tmp;
-            if ( !(tmp = (char*)malloc(NPP_JSON_BUFSIZE)) )
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
                 ERR("malloc for tmp failed");
                 return;
             }
+#else   /* faster */
+            char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string(tmp, (JSON*)jp, TRUE);
 
 #ifdef NPP_DEBUG
@@ -7170,7 +7183,10 @@ static void json_to_string(char *dst, JSON *json, bool array)
 #endif
 
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
             free(tmp);
+#endif
         }
 
         if ( i < json->cnt-1 )
@@ -7508,19 +7524,8 @@ static char tmp[NPP_JSON_BUFSIZE];
 #endif  /* NPP_DEBUG */
 
 
-static JSON *json_pool=NULL;
+static JSON json_pool[NPP_JSON_POOL_SIZE];
 static int json_pool_cnt=0;
-
-    if ( json_pool == NULL )    /* first time */
-    {
-        DBG("Initializing json_pool...");
-
-        if ( !(json_pool = (JSON*)malloc(NPP_JSON_POOL_SIZE*sizeof(JSON))) )
-        {
-            ERR("malloc for json_pool failed");
-            return FALSE;
-        }
-    }
 
 
 #pragma GCC diagnostic push

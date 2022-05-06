@@ -525,12 +525,12 @@
 #endif
 
 
-/* overwrite for NPP_UPDATE */
+/* overwrite for NPP_UPDATE and NPP_WATCHER */
 
 #ifdef NPP_UPDATE
 
 #undef CALL_HTTP_MAX_RESPONSE_LEN
-#define CALL_HTTP_MAX_RESPONSE_LEN          2097152
+#define CALL_HTTP_MAX_RESPONSE_LEN          65568
 
 #undef NPP_JSON_KEY_LEN
 #define NPP_JSON_KEY_LEN                    31
@@ -539,7 +539,7 @@
 #define NPP_JSON_STR_LEN                    255
 
 #undef NPP_JSON_MAX_ELEMS
-#define NPP_JSON_MAX_ELEMS                  50
+#define NPP_JSON_MAX_ELEMS                  100
 
 #undef NPP_JSON_MAX_LEVELS
 #define NPP_JSON_MAX_LEVELS                 4
@@ -547,7 +547,36 @@
 #undef NPP_JSON_BUFSIZE
 #define NPP_JSON_BUFSIZE                    65568
 
+#undef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS
+
 #endif  /* NPP_UPDATE */
+
+
+#ifdef NPP_WATCHER
+
+#undef CALL_HTTP_MAX_RESPONSE_LEN
+#define CALL_HTTP_MAX_RESPONSE_LEN          1048576
+
+#undef NPP_JSON_KEY_LEN
+#define NPP_JSON_KEY_LEN                    31
+
+#undef NPP_JSON_STR_LEN
+#define NPP_JSON_STR_LEN                    128
+
+#undef NPP_JSON_MAX_ELEMS
+#define NPP_JSON_MAX_ELEMS                  10
+
+#undef NPP_JSON_MAX_LEVELS
+#define NPP_JSON_MAX_LEVELS                 2
+
+#undef NPP_JSON_BUFSIZE
+#define NPP_JSON_BUFSIZE                    65568
+
+#undef NPP_JSON_POOL_SIZE
+#define NPP_JSON_POOL_SIZE                  NPP_JSON_MAX_ELEMS*NPP_JSON_MAX_LEVELS
+
+#endif  /* NPP_WATCHER */
 
 
 
