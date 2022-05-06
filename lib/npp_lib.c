@@ -7135,7 +7135,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
             char *tmp;  /* it can be too big for stack */
             if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
-                ERR("malloc for tmp failed");
+                ERR("json_to_string: malloc for tmp failed");
                 return;
             }
 #else   /* faster */
@@ -7167,7 +7167,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
             char *tmp;  /* it can be too big for stack */
             if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
-                ERR("malloc for tmp failed");
+                ERR("json_to_string: malloc for tmp failed");
                 return;
             }
 #else   /* faster */
@@ -7279,15 +7279,24 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
+
+#if NPP_JSON_BUFSIZE > 65568
             char *tmp;  /* it can be too big for stack */
-            if ( !(tmp = (char*)malloc(NPP_JSON_BUFSIZE)) )
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
-                ERR("malloc for tmp failed");
+                ERR("json_to_string_pretty: malloc for tmp failed");
                 return;
             }
+#else   /* faster */
+            char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string_pretty(tmp, (JSON*)jp, FALSE, level+1);
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
             free(tmp);
+#endif
         }
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
         {
@@ -7298,15 +7307,24 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             }
             intptr_t jp;
             sscanf(json->rec[i].value, "%p", (void**)&jp);
-            char *tmp;
-            if ( !(tmp = (char*)malloc(NPP_JSON_BUFSIZE)) )
+
+#if NPP_JSON_BUFSIZE > 65568
+            char *tmp;  /* it can be too big for stack */
+            if ( (tmp=(char*)malloc(NPP_JSON_BUFSIZE))==NULL )
             {
-                ERR("malloc for tmp failed");
+                ERR("json_to_string_pretty: malloc for tmp failed");
                 return;
             }
+#else   /* faster */
+            char tmp[NPP_JSON_BUFSIZE];
+#endif
             json_to_string_pretty(tmp, (JSON*)jp, TRUE, level+1);
+
             p = stpcpy(p, tmp);
+
+#if NPP_JSON_BUFSIZE > 65568
             free(tmp);
+#endif
         }
 
         if ( i < json->cnt-1 )
