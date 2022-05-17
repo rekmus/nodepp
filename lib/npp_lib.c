@@ -6066,7 +6066,9 @@ static char dst[NPP_LIB_STR_BUF];
     {
         if ( (src[i] >= 65 && src[i] <= 90)
                 || (src[i] >= 97 && src[i] <= 122)
-                || isdigit(src[i]) )
+                || isdigit(src[i])
+                || src[i] == '.'
+                || src[i] == '_' )
             dst[j++] = src[i];
         else if ( src[i] == ' ' || src[i] == '\t' || src[i] == '\n' )
             dst[j++] = '_';

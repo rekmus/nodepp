@@ -1909,7 +1909,7 @@ static bool first=true;
         return 0;
     }
 
-    DBG("get_max for user_id=%d  max = %d", SESSION.user_id, max);
+    DBG("max_msg_id for user_id=%d  max = %d", SESSION.user_id, max);
 
     return max;
 }
@@ -2628,11 +2628,11 @@ int npp_usr_save_avatar(int ci, int user_id)
 
     DBG("npp_usr_save_avatar");
 
-    unsigned char *data = QS_FILE("data", &len, name);
+    unsigned char *file = QS_FILE("file", &len, name);
 
-    if ( !data || len < 1 )
+    if ( !file || len < 1 )
     {
-        WAR("data is required");
+        WAR("file is required");
         return ERR_INVALID_REQUEST;
     }
 
@@ -2654,7 +2654,8 @@ static Cusers_avatars ua;
             if ( ua.Get(user_id) )
             {
                 strcpy(ua.avatar_name, name_filtered);
-                memcpy(ua.avatar_data, (char*)data, len);
+                memcpy(ua.avatar_data, (char*)file, len);
+                ua.avatar_data_len = len;
                 ua.avatar_len = len;
                 ua.Update(user_id);
             }
@@ -2662,7 +2663,8 @@ static Cusers_avatars ua;
             {
                 ua.user_id = user_id;
                 strcpy(ua.avatar_name, name_filtered);
-                memcpy(ua.avatar_data, (char*)data, len);
+                memcpy(ua.avatar_data, (char*)file, len);
+                ua.avatar_data_len = len;
                 ua.avatar_len = len;
                 ua.Insert();
             }
