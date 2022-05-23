@@ -1857,7 +1857,7 @@ static int max_msg_id(int ci)
 {
     int max=0;
 static bool first=true;
-    MYSQL_STMT *stmt;
+static MYSQL_STMT *stmt;
     MYSQL_BIND bndi[1];
     MYSQL_BIND bndo[1];
 
