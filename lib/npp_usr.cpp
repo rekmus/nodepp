@@ -2656,7 +2656,6 @@ static Cusers_avatars ua;
                 strcpy(ua.avatar_name, name_filtered);
                 memcpy(ua.avatar_data, (char*)file, len);
                 ua.avatar_data_len = len;
-                ua.avatar_len = len;
                 ua.Update(user_id);
             }
             else    /* new record */
@@ -2665,7 +2664,6 @@ static Cusers_avatars ua;
                 strcpy(ua.avatar_name, name_filtered);
                 memcpy(ua.avatar_data, (char*)file, len);
                 ua.avatar_data_len = len;
-                ua.avatar_len = len;
                 ua.Insert();
             }
         }
@@ -2697,11 +2695,11 @@ static Cusers_avatars ua;
             return ERR_NOT_FOUND;
         }
 
-        OUT_BIN(ua.avatar_data, ua.avatar_len);
+        OUT_BIN(ua.avatar_data, ua.avatar_data_len);
 
         RES_CONTENT_TYPE_FROM_FILE_EXTENSION(ua.avatar_name);
 
-        DBG("File: [%s], size = %d", ua.avatar_name, ua.avatar_len);
+        DBG("File: [%s], size = %d", ua.avatar_name, ua.avatar_data_len);
     }
     catch (std::exception& e)
     {

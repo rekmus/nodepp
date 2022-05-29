@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-29 20:06:23, generator v.2.0.1
+   Generated on nodepp.org on 2022-05-29 10:02:34, generator v.2.0.1
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -22,8 +22,7 @@ Cusers_avatars::Cusers_avatars()
 
     columnList_ =   "user_id,"
                     "avatar_name,"
-                    "avatar_data,"
-                    "avatar_len";
+                    "avatar_data";
 
     if ( !(s_=mysql_stmt_init(dbConn_)) )
         ThrowSQL("mysql_stmt_init");
@@ -102,7 +101,7 @@ bool Cusers_avatars::Get(int arg_user_id)
     if ( firstGet_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "SELECT user_id,avatar_name,avatar_data,avatar_len FROM users_avatars WHERE user_id=?");
+        sprintf(q, "SELECT user_id,avatar_name,avatar_data FROM users_avatars WHERE user_id=?");
         ret = mysql_stmt_prepare(sGet_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_avatars::Get | mysql_stmt_prepare");
@@ -145,7 +144,7 @@ unsigned Cusers_avatars::Insert()
     if ( firstInsert_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "INSERT INTO users_avatars (user_id,avatar_name,avatar_data,avatar_len) VALUES (?,?,?,?)");
+        sprintf(q, "INSERT INTO users_avatars (user_id,avatar_name,avatar_data) VALUES (?,?,?)");
         ret = mysql_stmt_prepare(sInsert_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_avatars::Insert | mysql_stmt_prepare");
@@ -173,7 +172,7 @@ void Cusers_avatars::Update(int arg_user_id)
     if ( firstUpdate_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "UPDATE users_avatars SET user_id=?,avatar_name=?,avatar_data=?,avatar_len=? WHERE user_id=?");
+        sprintf(q, "UPDATE users_avatars SET user_id=?,avatar_name=?,avatar_data=? WHERE user_id=?");
         ret = mysql_stmt_prepare(sUpdate_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_avatars::Update | mysql_stmt_prepare");
@@ -297,15 +296,12 @@ void Cusers_avatars::bindInput(MYSQL_STMT *s, bool withKey, int arg_user_id)
     bndi_[2].buffer = (char*)avatar_data;
     bndi_[2].length = &avatar_data_len;
 
-    bndi_[3].buffer_type = MYSQL_TYPE_LONG;
-    bndi_[3].buffer = (char*)&avatar_len;
-
     if ( withKey )   /* after WHERE */
     {
         k_user_id_ = arg_user_id;
 
-        bndi_[4].buffer_type = MYSQL_TYPE_LONG;
-        bndi_[4].buffer = (char*)&k_user_id_;
+        bndi_[3].buffer_type = MYSQL_TYPE_LONG;
+        bndi_[3].buffer = (char*)&k_user_id_;
 
     }
 
@@ -335,10 +331,6 @@ void Cusers_avatars::bindOutput(MYSQL_STMT *s)
     bndo_[2].buffer_length = 65536;
     bndo_[2].length = &avatar_data_len;
     bndo_[2].is_null = &avatar_data_is_null_;
-
-    bndo_[3].buffer_type = MYSQL_TYPE_LONG;
-    bndo_[3].buffer = (char*)&avatar_len;
-    bndo_[3].is_null = &avatar_len_is_null_;
 
     if ( mysql_stmt_bind_result(s, bndo_) )
         Cdb::ThrowSQL("Cusers_avatars::bindOutput | mysql_stmt_bind_result");
@@ -378,5 +370,4 @@ void Cusers_avatars::Reset()
     user_id = 0;
     avatar_name[0] = EOS;
     avatar_data[0] = EOS;
-    avatar_len = 0;
 }

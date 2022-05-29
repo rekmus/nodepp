@@ -39,8 +39,7 @@ CREATE TABLE users_avatars
 (
     user_id INT PRIMARY KEY,
     avatar_name VARCHAR(120),
-    avatar_data BLOB,               -- 64 KiB
-    avatar_len INT
+    avatar_data BLOB                -- 64 KiB
 );
 
 
