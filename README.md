@@ -248,14 +248,14 @@ sudo apt install g++        # debian / ubuntu
 2. Get the package
 
 ```source.sh
-wget https://nodepp.org/nodepp_2.1.0.tar.gz
+wget https://nodepp.org/nodepp_2.1.2.tar.gz
 ```
 
 3. Extract the package:
 
 ```source.sh
 mkdir npp_hello
-tar xpzf nodepp_2.1.0.tar.gz -C npp_hello
+tar xpzf nodepp_2.1.2.tar.gz -C npp_hello
 ```
 
 4. Compile:

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-29 20:06:23, generator v.2.0.1
+   Generated on nodepp.org on 2022-05-29 10:02:34, generator v.2.0.1
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -21,7 +21,6 @@ typedef struct
     int                       user_id;
     USERS_AVATARS_AVATAR_NAME avatar_name;
     USERS_AVATARS_AVATAR_DATA avatar_data;
-    int                       avatar_len;
 } USERS_AVATARS_REC;
 
 
@@ -68,11 +67,10 @@ static bool slots_[CDB_MAX_INSTANCES];
     my_bool user_id_is_null_;
     my_bool avatar_name_is_null_;
     my_bool avatar_data_is_null_;
-    my_bool avatar_len_is_null_;
 
     MYSQL_BIND bndk_[1];
-    MYSQL_BIND bndi_[5];
-    MYSQL_BIND bndo_[4];
+    MYSQL_BIND bndi_[4];
+    MYSQL_BIND bndo_[3];
 
     void bindKey(MYSQL_STMT *s, int arg_user_id);
     void bindInput(MYSQL_STMT *s, bool withKey=false, int arg_user_id=0);

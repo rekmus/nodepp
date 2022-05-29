@@ -1853,40 +1853,63 @@ static Cusers u;
 /* --------------------------------------------------------------------------
    Get MAX(msg_id) from users_messages for current user
 -------------------------------------------------------------------------- */
-static int get_max_message(int ci, const char *table)
+static int max_msg_id(int ci)
 {
-    char       sql[NPP_SQLBUF];
-    MYSQL_RES  *result;
-    MYSQL_ROW  row;
-    int        max=0;
+    int max=0;
+static bool first=true;
+static MYSQL_STMT *stmt;
+    MYSQL_BIND bndi[1];
+    MYSQL_BIND bndo[1];
 
-    /* SESSION.user_id = 0 for anonymous session */
-
-    if ( 0==strcmp(table, "messages") )
-        sprintf(sql, "SELECT MAX(msg_id) FROM users_messages WHERE user_id=%d", SESSION.user_id);
-    else
-        return 0;
-
-    DBG("sql: %s", sql);
-
-    mysql_query(G_dbconn, sql);
-
-    result = mysql_store_result(G_dbconn);
-
-    if ( !result )
+    if ( first )
     {
-        ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
-        return ERR_INT_SERVER_ERROR;
+        stmt = mysql_stmt_init(G_dbconn);
+        const char sql[]="SELECT MAX(msg_id) FROM users_messages WHERE user_id=?";
+        mysql_stmt_prepare(stmt, sql, strlen(sql));
+        first = false;
     }
 
-    row = mysql_fetch_row(result);
+    memset(&bndi, 0, sizeof(bndi));
 
-    if ( row[0] )
-        max = atoi(row[0]);
+    bndi[0].buffer_type = MYSQL_TYPE_LONG;
+    bndi[0].buffer = (char*)&SESSION.user_id;
 
-    mysql_free_result(result);
+    if ( mysql_stmt_bind_param(stmt, bndi) )
+    {
+        ERR("mysql_stmt_bind_param for user_id=%d failed", SESSION.user_id);
+        return 0;
+    }
 
-    DBG("get_max_message for user_id=%d  max = %d", SESSION.user_id, max);
+    if ( mysql_stmt_execute(stmt) )
+    {
+        ERR("mysql_stmt_execute for user_id=%d failed", SESSION.user_id);
+        return 0;
+    }
+
+    memset(&bndo, 0, sizeof(bndo));
+
+    bndo[0].buffer_type = MYSQL_TYPE_LONG;
+    bndo[0].buffer = (char*)&max;
+
+    if ( mysql_stmt_bind_result(stmt, bndo) )
+    {
+        ERR("mysql_stmt_bind_result for user_id=%d failed", SESSION.user_id);
+        return 0;
+    }
+
+    if ( mysql_stmt_store_result(stmt) )
+    {
+        ERR("mysql_stmt_store_result for user_id=%d failed", SESSION.user_id);
+        return 0;
+    }
+
+    if ( mysql_stmt_fetch(stmt) )
+    {
+        ERR("mysql_stmt_fetch for user_id=%d failed", SESSION.user_id);
+        return 0;
+    }
+
+    DBG("max_msg_id for user_id=%d  max = %d", SESSION.user_id, max);
 
     return max;
 }
@@ -1917,7 +1940,7 @@ int npp_usr_send_message(int ci)
 static Cusers_messages um;
 
         um.user_id = SESSION.user_id;
-        um.msg_id = get_max_message(ci, "messages") + 1;
+        um.msg_id = max_msg_id(ci) + 1;
         COPY(um.email, email, NPP_EMAIL_LEN);
 
         sprintf(um.message, "[From %s] ", G_connections[ci].ip);
@@ -2600,20 +2623,20 @@ static Cusers_activations ua;
 int npp_usr_save_avatar(int ci, int user_id)
 {
     QSVAL  name;
-    QSVAL  name_filtered;
+    char   name_filtered[128];
     size_t len;
 
     DBG("npp_usr_save_avatar");
 
-    unsigned char *data = QS_FILE("data", &len, name);
+    unsigned char *file = QS_FILE("file", &len, name);
 
-    if ( !data || len < 1 )
+    if ( !file || len < 1 )
     {
-        WAR("data is required");
+        WAR("file is required");
         return ERR_INVALID_REQUEST;
     }
 
-    strcpy(name_filtered, npp_filter_strict(name));
+    COPY(name_filtered, npp_filter_strict(name), 120);
 
     DBG("Image file name [%s], size = %d", name_filtered, len);
 
@@ -2631,16 +2654,16 @@ static Cusers_avatars ua;
             if ( ua.Get(user_id) )
             {
                 strcpy(ua.avatar_name, name_filtered);
-                memcpy(ua.avatar_data, (char*)data, len);
-                ua.avatar_len = len;
+                memcpy(ua.avatar_data, (char*)file, len);
+                ua.avatar_data_len = len;
                 ua.Update(user_id);
             }
             else    /* new record */
             {
                 ua.user_id = user_id;
                 strcpy(ua.avatar_name, name_filtered);
-                memcpy(ua.avatar_data, (char*)data, len);
-                ua.avatar_len = len;
+                memcpy(ua.avatar_data, (char*)file, len);
+                ua.avatar_data_len = len;
                 ua.Insert();
             }
         }
@@ -2672,11 +2695,11 @@ static Cusers_avatars ua;
             return ERR_NOT_FOUND;
         }
 
-        OUT_BIN(ua.avatar_data, ua.avatar_len);
+        OUT_BIN(ua.avatar_data, ua.avatar_data_len);
 
         RES_CONTENT_TYPE_FROM_FILE_EXTENSION(ua.avatar_name);
 
-        DBG("File: [%s], size = %d", ua.avatar_name, ua.avatar_len);
+        DBG("File: [%s], size = %d", ua.avatar_name, ua.avatar_data_len);
     }
     catch (std::exception& e)
     {
