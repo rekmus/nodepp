@@ -3417,8 +3417,39 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
     }
     else    /* potentially binary content -- calculate rather than use strstr */
     {
+#ifdef NPP_QS_MULTIPART_FAST
         len = G_connections[ci].clen - (cp - G_connections[ci].in_data) - blen - 8;  /* fast version */
                                                                 /* Note that the file content must come as last! */
+#else   /* look for the next boundary */
+
+        bool found = FALSE;
+        int  rem = G_connections[ci].clen - (cp - G_connections[ci].in_data);
+
+        len = 0;
+
+        for ( ; len<rem; ++len )
+        {
+            if ( 0 == memcmp(G_connections[ci].boundary, cp+len, blen) )
+            {
+                found = TRUE;
+                break;
+            }
+        }
+
+        if ( !found )
+        {
+            WAR("No closing boundary found");
+            return NULL;
+        }
+
+        if ( len < 4 )     /* minus CRLF-- */
+        {
+            WAR("Data too short (%u)", len);
+            return NULL;
+        }
+
+        len -= 4;
+#endif  /* NPP_MULTIPART_FAST */
     }
 
     /* everything looks good so far */
