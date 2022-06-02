@@ -1964,6 +1964,35 @@ void npp_lib_setnonblocking(int sock)
 }
 
 
+/* --------------------------------------------------------------------------
+   Find string in a binary data
+   Return pointer to string or NULL
+-------------------------------------------------------------------------- */
+const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, const char *str)
+{
+    if ( data  == NULL )
+        return NULL;
+
+    const unsigned char *d = data;
+
+    size_t len = strlen(str);
+
+    if ( len > data_len )
+        return NULL;
+
+    while ( data_len > 0 )
+    {
+        if ( 0 == memcmp(d, str, len) )
+            return d;
+
+        ++d;
+        data_len--;
+    }
+
+    return NULL;
+}
+
+
 #ifndef NPP_CLIENT
 /* --------------------------------------------------------------------------
    Output standard HTML header
@@ -3033,7 +3062,7 @@ static JSON req={0};
 -------------------------------------------------------------------------- */
 static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, size_t maxlen)
 {
-    unsigned char *p;
+    const unsigned char *p;
     size_t len;
 
     p = npp_lib_get_qs_param_multipart(ci, name, &len, NULL);
@@ -3048,7 +3077,7 @@ static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, s
         DDBG("len reduced to %d", len);
     }
 
-    COPY(retbuf, (char*)p, len);
+    COPY(retbuf, (const char*)p, len);
 
     return TRUE;
 }
@@ -3232,107 +3261,104 @@ static char retbuf[65536];
 
 /* --------------------------------------------------------------------------
    multipart-form-data receipt
-   Return length or -1 if error
-   If retfname is not NULL then assume binary data and it must be the last
-   data element
+   Return data pointer or NULL if error
+   If retfname is not NULL then assume binary data
 -------------------------------------------------------------------------- */
-unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname)
+const unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname)
 {
-    unsigned blen;           /* boundary length */
-    char     *cp;            /* current pointer */
-    char     *p;             /* tmp pointer */
-    unsigned b;              /* tmp bytes count */
-    char     fn[NPP_MAX_LABEL_LEN+1];    /* field name */
-    char     *end;
+    const unsigned char *cp;            /* current pointer */
+    const unsigned char *p;             /* tmp pointer */
+static unsigned blen;                   /* boundary length */
+    unsigned b;                         /* tmp bytes count */
+    char     fn[NPP_MAX_LABEL_LEN+1];   /* field name */
+    const unsigned char *end;           /* end of data */
     size_t   len;
 
-    /* Couple of checks to make sure it's properly formatted multipart content */
-
-    if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART )
+    if ( G_connections[ci].boundary[0] == EOS )   /* first time in this request */
     {
-        WAR("This is not multipart/form-data");
-        return NULL;
-    }
+        /* Couple of checks to make sure it's properly formatted multipart content */
 
-    if ( !G_connections[ci].in_data )
-        return NULL;
+        if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART )
+        {
+            WAR("This is not multipart/form-data");
+            return NULL;
+        }
 
-    if ( G_connections[ci].clen < 10 )
-    {
-        WAR("Content length seems to be too small for multipart (%u)", G_connections[ci].clen);
-        return NULL;
-    }
+        if ( !G_connections[ci].in_data )
+            return NULL;
 
-    cp = G_connections[ci].in_data;
+        if ( G_connections[ci].clen < 10 )
+        {
+            WAR("Content length seems to be too small for multipart (%u)", G_connections[ci].clen);
+            return NULL;
+        }
 
-    if ( !G_connections[ci].boundary[0] )    /* find first end of line -- that would be end of boundary */
-    {
-        if ( NULL == (p=strchr(cp, '\n')) )
+        if ( G_connections[ci].in_data[G_connections[ci].clen-4] != '-' || G_connections[ci].in_data[G_connections[ci].clen-3] != '-' )
+        {
+            WAR("Content doesn't end with '--'");
+            return NULL;
+        }
+
+        /* find first end of line -- that would be end of boundary */
+
+        cp = (unsigned char*)G_connections[ci].in_data;
+
+        if ( NULL == (p=(unsigned char*)strchr((char*)cp, '\n')) )
         {
             WAR("Request syntax error");
             return NULL;
         }
 
-        b = p - cp - 2;     /* skip -- */
+        blen = p - cp - 2;    /* skip -- */
 
-        if ( b < 2 )
+        if ( blen < 2 )
         {
-            WAR("Boundary appears to be too short (%u)", b);
+            WAR("Boundary appears to be too short (%u)", blen);
             return NULL;
         }
-        else if ( b > NPP_MAX_BOUNDARY_LEN )
+        else if ( blen > NPP_MAX_BOUNDARY_LEN )
         {
-            WAR("Boundary appears to be too long (%u)", b);
+            WAR("Boundary appears to be too long (%u)", blen);
             return NULL;
         }
 
-        strncpy(G_connections[ci].boundary, cp+2, b);
-        if ( G_connections[ci].boundary[b-1] == '\r' )
-            G_connections[ci].boundary[b-1] = EOS;
-        else
-            G_connections[ci].boundary[b] = EOS;
+        strncpy(G_connections[ci].boundary, (char*)cp+2, blen);
+
+        if ( G_connections[ci].boundary[blen-1] == '\r' )
+            blen--;
+
+        G_connections[ci].boundary[blen] = EOS;
     }
 
-    blen = strlen(G_connections[ci].boundary);
+    DDBG("Looking for [%s] in multipart content...", name);
 
-    if ( G_connections[ci].in_data[G_connections[ci].clen-4] != '-' || G_connections[ci].in_data[G_connections[ci].clen-3] != '-' )
+    cp = (unsigned char*)G_connections[ci].in_data + blen;   /* skip the first boundary */
+
+    bool found = FALSE;
+
+    while ( TRUE )   /* find the right section */
     {
-        WAR("Content doesn't end with '--'");
-        return NULL;
-    }
+//        int rem = G_connections[ci].clen - (cp - G_connections[ci].in_data);
 
-    while (TRUE)    /* find the right section */
-    {
-        if ( NULL == (p=strstr(cp, G_connections[ci].boundary)) )
-        {
-            WAR("No (next) boundary found");
-            return NULL;
-        }
+//        DDBG("rem = %d", rem);   /* remaining bytes */
 
-        b = p - cp + blen;
-        cp += b;
-
-        if ( NULL == (p=strstr(cp, "Content-Disposition: form-data;")) )
+        if ( NULL == (p=(unsigned char*)strstr((char*)cp, "Content-Disposition: form-data;")) )
         {
             WAR("No Content-Disposition label");
             return NULL;
         }
 
-        b = p - cp + 30;
-        cp += b;
+        cp = p + 31;
 
-        if ( NULL == (p=strstr(cp, "name=\"")) )
+        if ( NULL == (p=(unsigned char*)strstr((char*)cp, "name=\"")) )
         {
             WAR("No field name");
             return NULL;
         }
 
-        b = p - cp + 6;
-        cp += b;
+        cp = p + 6;
 
-//      DBG("field name starts from: [%s]", cp);
-
-        if ( NULL == (p=strchr(cp, '"')) )
+        if ( NULL == (p=(unsigned char*)strchr((char*)cp, '"')) )
         {
             WAR("No field name closing quote");
             return NULL;
@@ -3346,22 +3372,37 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
             return NULL;
         }
 
-        strncpy(fn, cp, b);
+        strncpy(fn, (char*)cp, b);
         fn[b] = EOS;
 
-//      DBG("fn: [%s]", fn);
-
-        if ( 0==strcmp(fn, name) )     /* found */
-            break;
+        DDBG("fn: [%s]", fn);
 
         cp += b;
+
+        if ( 0==strcmp(fn, name) )    /* this is it! */
+        {
+            DDBG("[%s] has been found", name);
+            break;
+        }
+
+        /* keep looking */
+
+        int rem = G_connections[ci].clen - (cp - (unsigned char*)G_connections[ci].in_data);
+
+        if ( NULL == (p=npp_binstr(cp, rem, G_connections[ci].boundary)) )
+        {
+            WAR("No next boundary found");
+            return NULL;
+        }
+
+        cp = p + blen;
     }
 
-    /* find a file name */
+    /* find a file name if requested */
 
     if ( retfname )
     {
-        if ( NULL == (p=strstr(cp, "filename=\"")) )
+        if ( NULL == (p=(unsigned char*)strstr((char*)cp, "filename=\"")) )
         {
             WAR("No file name");
             return NULL;
@@ -3372,7 +3413,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
 
     //  DBG("file name starts from: [%s]", cp);
 
-        if ( NULL == (p=strchr(cp, '"')) )
+        if ( NULL == (p=(unsigned char*)strchr((char*)cp, '"')) )
         {
             WAR("No file name closing quote");
             return NULL;
@@ -3386,15 +3427,15 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
             return NULL;
         }
 
-        strncpy(fn, cp, b);
-        fn[b] = EOS;        /* fn now contains file name */
+        strncpy(fn, (char*)cp, b);
+        fn[b] = EOS;        /* fn now contains the file name */
 
         cp += b;
     }
 
     /* now look for the section header end where the actual data begins */
 
-    if ( NULL == (p=strstr(cp, "\r\n\r\n")) )
+    if ( NULL == (p=(unsigned char*)strstr((char*)cp, "\r\n\r\n")) )
     {
         WAR("No section header end");
         return NULL;
@@ -3407,41 +3448,39 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
 
     if ( !retfname )    /* text */
     {
-        if ( NULL == (end=strstr(cp, G_connections[ci].boundary)) )
+        if ( NULL == (end=(unsigned char*)strstr((char*)cp, G_connections[ci].boundary)) )
         {
             WAR("No closing boundary found");
             return NULL;
         }
 
-        len = end - cp - 4;     /* minus CRLF-- */
+        len = end - cp;
+        
+        if ( len < 4 )     /* minus CRLF-- */
+        {
+            WAR("Data too short (%u)", len);
+            return NULL;
+        }
+
+        len -= 4;
     }
-    else    /* potentially binary content -- calculate rather than use strstr */
+    else    /* binary */
     {
 #ifdef NPP_QS_MULTIPART_FAST
         len = G_connections[ci].clen - (cp - G_connections[ci].in_data) - blen - 8;  /* fast version */
                                                                 /* Note that the file content must come as last! */
 #else   /* look for the next boundary */
 
-        bool found = FALSE;
-        int  rem = G_connections[ci].clen - (cp - G_connections[ci].in_data);
+        int rem = G_connections[ci].clen - (cp - (unsigned char*)G_connections[ci].in_data);
 
-        len = 0;
-
-        for ( ; len<rem; ++len )
-        {
-            if ( 0 == memcmp(G_connections[ci].boundary, cp+len, blen) )
-            {
-                found = TRUE;
-                break;
-            }
-        }
-
-        if ( !found )
+        if ( NULL == (end=npp_binstr(cp, rem, G_connections[ci].boundary)) )
         {
             WAR("No closing boundary found");
             return NULL;
         }
 
+        len = end - cp;
+        
         if ( len < 4 )     /* minus CRLF-- */
         {
             WAR("Data too short (%u)", len);
@@ -3459,7 +3498,7 @@ unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *
     if ( retfname )
         strcpy(retfname, fn);
 
-    return (unsigned char*)cp;
+    return cp;
 }
 
 
@@ -6009,9 +6048,9 @@ static int mem_parse_line(const char* line)
     char    strret[64];
     const char* p=line;
 
-    while (!isdigit(*p)) ++p;     /* skip non-digits */
+    while ( !isdigit(*p) ) ++p;     /* skip non-digits */
 
-    while (isdigit(*p)) strret[i++] = *p++;
+    while ( isdigit(*p) ) strret[i++] = *p++;
 
     strret[i] = EOS;
 
@@ -10646,7 +10685,7 @@ static char dst[NPP_LIB_STR_BUF];
             strcpy(dst, "iconv failed");
             return dst;
         }
-    } while (in_left > 0 && out_left > 0);
+    } while ( in_left > 0 && out_left > 0 );
 
     iconv_close(cd);
 
@@ -10697,7 +10736,7 @@ static int seeded=0;    /* 8 bits */
     unsigned int seed;
 static unsigned int prev_seed=0;
 
-    while ( 1 )
+    while ( TRUE )
     {
         if ( seeded >= NPP_SEEDS_MEM )
             seeded = 1;
@@ -11200,7 +11239,7 @@ char *stpcpy(char *dest, const char *src)
 
     do
         *d++ = *s;
-    while (*s++ != '\0');
+    while ( *s++ != EOS );
 
     return d-1;
 }
@@ -11222,7 +11261,7 @@ char *stpncpy(char *dest, const char *src, size_t len)
 
     do
         *d++ = *s;
-    while (*s++ != '\0' && ++count<len);
+    while ( *s++ != EOS && ++count<len );
 
     if ( *(s-1) == EOS )
         return d-1;
