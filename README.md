@@ -1,6 +1,6 @@
 # Node++
 
-Node++ is an asynchronous HTTP(S) engine and framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/generators/mysqldao) (see [live demo](https://nodepp.org/products)).
+Node++ is an asynchronous HTTP(S) engine and backend framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/generators/mysqldao) (see [live demo](https://nodepp.org/products)).
 
 It can act as:
 
@@ -248,14 +248,14 @@ sudo apt install g++        # debian / ubuntu
 2. Get the package
 
 ```source.sh
-wget https://nodepp.org/nodepp_2.1.2.tar.gz
+wget https://nodepp.org/nodepp_2.1.3.tar.gz
 ```
 
 3. Extract the package:
 
 ```source.sh
 mkdir npp_hello
-tar xpzf nodepp_2.1.2.tar.gz -C npp_hello
+tar xpzf nodepp_2.1.3.tar.gz -C npp_hello
 ```
 
 4. Compile:

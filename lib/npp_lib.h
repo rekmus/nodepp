@@ -117,7 +117,7 @@
 #define QS_TEXT_SQL_ESCAPE(param, val)  npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
 #define QS_TEXT_HTML_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
 
-#define QS_FILE(param, retlen, retfname) npp_lib_get_qs_param_multipart(ci, param, retlen, retfname)
+#define QS_FILE(param, retlen, retfname) (unsigned char*)npp_lib_get_qs_param_multipart(ci, param, retlen, retfname)
 
 #ifdef QS_DEF_HTML_ESCAPE
 #define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
@@ -996,6 +996,8 @@ extern "C" {
     char *strnstr(const char *haystack, const char *needle, size_t len);
 #endif  /* _WIN32 */
 
+const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, const char *str);
+
 #ifndef NPP_CLIENT  /* server processes only */
     void npp_lib_set_formats(int ci, const char *lang);
     const char *npp_get_message(int ci, int code);
@@ -1005,7 +1007,7 @@ extern "C" {
     void npp_append_script(int ci, const char *fname, bool first);
 
     bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type);
-    unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname);
+    const unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname);
 
 #ifdef NPP_CPP_STRINGS
     bool npp_lib_qsi(int ci, const std::string& name, int *retbuf);
