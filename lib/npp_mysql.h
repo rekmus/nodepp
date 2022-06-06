@@ -69,6 +69,10 @@
 #define CDB_SQLBUF                      16384           /* SQL statement buffer length */
 #endif
 
+#ifndef CDB_DEFAULT_PORT
+#define CDB_DEFAULT_PORT                3306
+#endif
+
 
 #include <stdio.h>
 #include <string.h>

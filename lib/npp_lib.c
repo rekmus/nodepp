@@ -1750,18 +1750,40 @@ bool npp_open_db()
 //    unsigned long max_packet=33554432;  /* 32 MB */
 //    mysql_options(G_dbconn, MYSQL_OPT_MAX_ALLOWED_PACKET, &max_packet);
 
-    if ( NULL == mysql_real_connect(G_dbconn, G_dbHost[0]?G_dbHost:NULL, G_dbUser, G_dbPassword, G_dbName, G_dbPort, NULL, 0) )
+#ifdef NPP_MYSQL_SSL_MODE
+    unsigned ssl_mode=NPP_MYSQL_SSL_MODE;
+    mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
+#endif
+
+    bool localhost;
+    int  port;
+
+    if ( G_dbHost[0] == EOS || 0==strcmp(G_dbHost, "localhost") || 0==strcmp(G_dbHost, "127.0.0.1") )
+        localhost = TRUE;
+    else
+        localhost = FALSE;
+
+    if ( !localhost && G_dbPort == 0 )
+        port = NPP_MYSQL_DEFAULT_PORT;
+
+    DBG("Trying mysql_real_connect for G_dbconn...");
+
+    if ( NULL == mysql_real_connect(G_dbconn, localhost?NULL:G_dbHost, G_dbUser, G_dbPassword, G_dbName, port, NULL, 0) )
     {
         ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
         return FALSE;
     }
+
+    DBG("mysql_real_connect OK");
 
     /* for backward compatibility maintain two db connections for the time being */
 
 #ifdef __cplusplus
     try
     {
-        Cdb::DBOpen(G_dbName, G_dbUser, G_dbPassword);
+        DBG("Trying Cdb::DBOpen...");
+        Cdb::DBOpen(G_dbName, G_dbUser, G_dbPassword, G_dbHost, port);
+        DBG("Cdb::DBOpen OK");
     }
     catch (std::exception& e)
     {

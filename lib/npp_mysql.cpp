@@ -106,7 +106,22 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
     mysql_options(dbConn_, MYSQL_OPT_RECONNECT, &reconnect);
 #endif
 
-    if ( NULL == mysql_real_connect(dbConn_, host.empty()?NULL:host.c_str(), user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
+#ifdef NPP_MYSQL_SSL_MODE
+    unsigned ssl_mode=NPP_MYSQL_SSL_MODE;
+    mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+#endif
+
+    bool localhost;
+
+    if ( host.empty() || host=="localhost" || host=="127.0.0.1" )
+        localhost = true;
+    else
+        localhost = false;
+
+    if ( !localhost && port == 0 )
+        port = CDB_DEFAULT_PORT;
+
+    if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
     {
         ThrowSQL("mysql_real_connect");
         return;
