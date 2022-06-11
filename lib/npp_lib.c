@@ -53,6 +53,17 @@ int         G_dbPort=0;
 char        G_dbName[128]="";
 char        G_dbUser[128]="";
 char        G_dbPassword[128]="";
+int         G_dbDisableEncryption=0;
+char        G_dbSSLKey[256]="";
+char        G_dbSSLCert[256]="";
+char        G_dbSSLCA[256]="";
+char        G_dbSSLCAPath[256]="";
+char        G_dbSSLCRL[256]="";
+char        G_dbSSLCRLPath[256]="";
+char        G_dbSSLTLSVersion[256]="";
+char        G_dbSSLCipher[256]="";
+char        G_dbSSLCipherSuites[256]="";
+int         G_dbSSLMode=0;
 #ifdef NPP_MYSQL
 MYSQL       *G_dbconn=NULL;
 #endif
@@ -1743,17 +1754,74 @@ bool npp_open_db()
     }
 
 #ifdef NPP_MYSQL_RECONNECT
-    my_bool reconnect=1;
+    my_bool reconnect = 1;
     mysql_options(G_dbconn, MYSQL_OPT_RECONNECT, &reconnect);
 #endif
 
-//    unsigned long max_packet=33554432;  /* 32 MB */
+//    unsigned timeout=31536000;
+//    mysql_options(G_dbconn, MYSQL_OPT_CONNECT_TIMEOUT, &timeout);
+
+//    unsigned long max_packet=33554432;  /* 32 MiB */
 //    mysql_options(G_dbconn, MYSQL_OPT_MAX_ALLOWED_PACKET, &max_packet);
 
-#ifdef NPP_MYSQL_SSL_MODE
-    unsigned ssl_mode=NPP_MYSQL_SSL_MODE;
-    mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
+    if ( G_dbDisableEncryption > 0 )
+    {
+        unsigned ssl_mode = SSL_MODE_DISABLED;
+        mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
+    }
+    else
+    {
+#ifdef MYSQL_OPT_SSL_KEY
+        if ( G_dbSSLKey[0] )    /* The path name of the client private key file */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_KEY, G_dbSSLKey);
 #endif
+
+#ifdef MYSQL_OPT_SSL_CERT
+        if ( G_dbSSLCert[0] )   /* The path name of the client public key certificate file */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CERT, G_dbSSLCert);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CA
+        if ( G_dbSSLCA[0] )     /* The path name of the Certificate Authority (CA) certificate file */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CA, G_dbSSLCA);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CAPATH
+        if ( G_dbSSLCAPath[0] ) /* The path name of the directory that contains trusted SSL CA certificate files */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CAPATH, G_dbSSLCAPath);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CRL
+        if ( G_dbSSLCRL[0] )    /* The path name of the file containing certificate revocation lists */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CRL, G_dbSSLCRL);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CRLPATH
+        if ( G_dbSSLCRLPath[0] )    /* The path name of the directory that contains certificate revocation list files */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CRLPATH, G_dbSSLCRLPath);
+#endif
+
+#ifdef MYSQL_OPT_TLS_VERSION
+        if ( G_dbSSLTLSVersion[0] ) /* The encryption protocols the client permits */
+            mysql_options(G_dbconn, MYSQL_OPT_TLS_VERSION, G_dbSSLTLSVersion);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CIPHER
+        if ( G_dbSSLCipher[0] ) /* The list of encryption ciphers the client permits for connections that use TLS protocols up through TLSv1.2 */
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_CIPHER, G_dbSSLCipher);
+#endif
+
+#ifdef MYSQL_OPT_TLS_CIPHERSUITES
+        if ( G_dbSSLCipherSuites[0] )   /* The list of encryption ciphersuites the client permits for connections that use TLSv1.3 */
+            mysql_options(G_dbconn, MYSQL_OPT_TLS_CIPHERSUITES, G_dbSSLCipherSuites);
+#endif
+
+        if ( G_dbSSLMode > 0 )
+        {
+            unsigned ssl_mode = (unsigned)G_dbSSLMode;
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
+        }
+    }
 
     bool localhost;
     int  port;
@@ -1768,10 +1836,21 @@ bool npp_open_db()
 
     DBG("Trying mysql_real_connect for G_dbconn...");
 
-    if ( NULL == mysql_real_connect(G_dbconn, localhost?NULL:G_dbHost, G_dbUser, G_dbPassword, G_dbName, port, NULL, 0) )
+    if ( NULL == mysql_real_connect(G_dbconn, localhost?NULL:G_dbHost, G_dbUser[0]?G_dbUser:"root", G_dbPassword, G_dbName, port, NULL, 0) )
     {
-        ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
-        return FALSE;
+        if ( mysql_errno(G_dbconn) == CR_SSL_CONNECTION_ERROR )
+        {
+            WAR("Couldn't connect to the database with SSL. Falling back to unencrypted connection...");
+
+            unsigned ssl_mode = SSL_MODE_DISABLED;
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
+
+            if ( NULL == mysql_real_connect(G_dbconn, localhost?NULL:G_dbHost, G_dbUser[0]?G_dbUser:"root", G_dbPassword, G_dbName, port, NULL, 0) )
+            {
+                ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
+                return FALSE;
+            }
+        }
     }
 
     DBG("mysql_real_connect OK");
@@ -9873,7 +9952,7 @@ bool npp_read_param_str(const char *param, char *dest)
 #endif
 
     if ( strstr(npp_upper(param), "PASSWORD") || strstr(npp_upper(param), "PASSWD") )
-        DBG("%s [<...>]", param);
+        DBG("%s [...]", param);
     else
         DBG("%s [%s]", param, dest);
 
@@ -9947,6 +10026,17 @@ void npp_lib_read_conf(bool first)
         G_dbName[0] = EOS;
         G_dbUser[0] = EOS;
         G_dbPassword[0] = EOS;
+        G_dbDisableEncryption = 0;
+        G_dbSSLKey[0] = EOS;
+        G_dbSSLCert[0] = EOS;
+        G_dbSSLCA[0] = EOS;
+        G_dbSSLCAPath[0] = EOS;
+        G_dbSSLCRL[0] = EOS;
+        G_dbSSLCRLPath[0] = EOS;
+        G_dbSSLTLSVersion[0] = EOS;
+        G_dbSSLCipher[0] = EOS;
+        G_dbSSLCipherSuites[0] = EOS;
+        G_dbSSLMode = 0;
 
 #ifdef NPP_USERS
         G_usersRequireActivation = 0;
@@ -10118,6 +10208,17 @@ void npp_lib_read_conf(bool first)
             npp_read_param_str("dbName", G_dbName);
             npp_read_param_str("dbUser", G_dbUser);
             npp_read_param_str("dbPassword", G_dbPassword);
+            npp_read_param_int("dbDisableEncryption", &G_dbDisableEncryption);
+            npp_read_param_str("dbSSLKey", G_dbSSLKey);
+            npp_read_param_str("dbSSLCert", G_dbSSLCert);
+            npp_read_param_str("dbSSLCA", G_dbSSLCA);
+            npp_read_param_str("dbSSLCAPath", G_dbSSLCAPath);
+            npp_read_param_str("dbSSLCRL", G_dbSSLCRL);
+            npp_read_param_str("dbSSLCRLPath", G_dbSSLCRLPath);
+            npp_read_param_str("dbSSLTLSVersion", G_dbSSLTLSVersion);
+            npp_read_param_str("dbSSLCipher", G_dbSSLCipher);
+            npp_read_param_str("dbSSLCipherSuites", G_dbSSLCipherSuites);
+            npp_read_param_int("dbSSLMode", &G_dbSSLMode);
         }
         else    /* reconnect MySQL if changed */
         {
@@ -10126,24 +10227,68 @@ void npp_lib_read_conf(bool first)
             char tmp_dbName[128]="";
             char tmp_dbUser[128]="";
             char tmp_dbPassword[128]="";
+            int  tmp_dbDisableEncryption=0;
+            char tmp_dbSSLKey[256]="";
+            char tmp_dbSSLCert[256]="";
+            char tmp_dbSSLCA[256]="";
+            char tmp_dbSSLCAPath[256]="";
+            char tmp_dbSSLCRL[256]="";
+            char tmp_dbSSLCRLPath[256]="";
+            char tmp_dbSSLTLSVersion[256]="";
+            char tmp_dbSSLCipher[256]="";
+            char tmp_dbSSLCipherSuites[256]="";
+            int  tmp_dbSSLMode=0;
 
             npp_read_param_str("dbHost", tmp_dbHost);
             npp_read_param_int("dbPort", &tmp_dbPort);
             npp_read_param_str("dbName", tmp_dbName);
             npp_read_param_str("dbUser", tmp_dbUser);
             npp_read_param_str("dbPassword", tmp_dbPassword);
+            npp_read_param_int("dbDisableEncryption", &tmp_dbDisableEncryption);
+            npp_read_param_str("dbSSLKey", tmp_dbSSLKey);
+            npp_read_param_str("dbSSLCert", tmp_dbSSLCert);
+            npp_read_param_str("dbSSLCA", tmp_dbSSLCA);
+            npp_read_param_str("dbSSLCAPath", tmp_dbSSLCAPath);
+            npp_read_param_str("dbSSLCRL", tmp_dbSSLCRL);
+            npp_read_param_str("dbSSLCRLPath", tmp_dbSSLCRLPath);
+            npp_read_param_str("dbSSLTLSVersion", tmp_dbSSLTLSVersion);
+            npp_read_param_str("dbSSLCipher", tmp_dbSSLCipher);
+            npp_read_param_str("dbSSLCipherSuites", tmp_dbSSLCipherSuites);
+            npp_read_param_int("dbSSLMode", &tmp_dbSSLMode);
 
             if ( strcmp(tmp_dbHost, G_dbHost) != 0
                     || tmp_dbPort != G_dbPort
                     || strcmp(tmp_dbName, G_dbName) != 0
                     || strcmp(tmp_dbUser, G_dbUser) != 0
-                    || strcmp(tmp_dbPassword, G_dbPassword) != 0 )
+                    || strcmp(tmp_dbPassword, G_dbPassword) != 0
+                    || tmp_dbDisableEncryption != G_dbDisableEncryption
+                    || strcmp(tmp_dbSSLKey, G_dbSSLKey) != 0
+                    || strcmp(tmp_dbSSLCert, G_dbSSLCert) != 0
+                    || strcmp(tmp_dbSSLCA, G_dbSSLCA) != 0
+                    || strcmp(tmp_dbSSLCAPath, G_dbSSLCAPath) != 0
+                    || strcmp(tmp_dbSSLCRL, G_dbSSLCRL) != 0
+                    || strcmp(tmp_dbSSLCRLPath, G_dbSSLCRLPath) != 0
+                    || strcmp(tmp_dbSSLTLSVersion, G_dbSSLTLSVersion) != 0
+                    || strcmp(tmp_dbSSLCipher, G_dbSSLCipher) != 0
+                    || strcmp(tmp_dbSSLCipherSuites, G_dbSSLCipherSuites) != 0
+                    || tmp_dbSSLMode != G_dbSSLMode )
             {
                 strcpy(G_dbHost, tmp_dbHost);
                 G_dbPort = tmp_dbPort;
                 strcpy(G_dbName, tmp_dbName);
                 strcpy(G_dbUser, tmp_dbUser);
                 strcpy(G_dbPassword, tmp_dbPassword);
+                G_dbDisableEncryption = tmp_dbDisableEncryption;
+                strcpy(G_dbSSLKey, tmp_dbSSLKey);
+                strcpy(G_dbSSLCert, tmp_dbSSLCert);
+                strcpy(G_dbSSLCA, tmp_dbSSLCA);
+                strcpy(G_dbSSLCAPath, tmp_dbSSLCAPath);
+                strcpy(G_dbSSLCRL, tmp_dbSSLCRL);
+                strcpy(G_dbSSLCRLPath, tmp_dbSSLCRLPath);
+                strcpy(G_dbSSLTLSVersion, tmp_dbSSLTLSVersion);
+                strcpy(G_dbSSLCipher, tmp_dbSSLCipher);
+                strcpy(G_dbSSLCipherSuites, tmp_dbSSLCipherSuites);
+                G_dbSSLMode = tmp_dbSSLMode;
 #ifdef NPP_MYSQL
                 npp_close_db();
 

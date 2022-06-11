@@ -63,22 +63,30 @@
 #define CDB_STR_LEN                     255             /* search string length */
 #endif
 
-#define CDB_STR_BUF_LEN                 CDB_STR_LEN+1
+#define CDB_STR_BUF_LEN                 256             /* search string buffer size */
 
 #ifndef CDB_SQLBUF
 #define CDB_SQLBUF                      16384           /* SQL statement buffer length */
 #endif
 
 #ifndef CDB_DEFAULT_PORT
-#define CDB_DEFAULT_PORT                3306
+#define CDB_DEFAULT_PORT                3306            /* default MySQL port */
 #endif
 
 
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
-#include <cstdlib>      /* atoi */
 #include <mysql.h>
+
+
+#ifndef SSL_MODE_DISABLED
+#define SSL_MODE_DISABLED               1
+#endif
+
+#ifndef CR_SSL_CONNECTION_ERROR
+#define CR_SSL_CONNECTION_ERROR         2026
+#endif
 
 
 class Cdb

@@ -36,6 +36,7 @@
 #ifdef NPP_MYSQL
 
 #include <stdexcept>
+#include <cstdlib>      /* atoi */
 
 #include "npp_mysql.h"
 
@@ -102,14 +103,68 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
     dbName_ = dbName;
 
 #ifdef NPP_MYSQL_RECONNECT
-    my_bool reconnect=1;
+    my_bool reconnect = 1;
     mysql_options(dbConn_, MYSQL_OPT_RECONNECT, &reconnect);
 #endif
 
-#ifdef NPP_MYSQL_SSL_MODE
-    unsigned ssl_mode=NPP_MYSQL_SSL_MODE;
-    mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+    if ( G_dbDisableEncryption > 0 )
+    {
+        unsigned ssl_mode = SSL_MODE_DISABLED;
+        mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+    }
+    else
+    {
+#ifdef MYSQL_OPT_SSL_KEY
+        if ( G_dbSSLKey[0] )    /* The path name of the client private key file */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_KEY, G_dbSSLKey);
 #endif
+
+#ifdef MYSQL_OPT_SSL_CERT
+        if ( G_dbSSLCert[0] )   /* The path name of the client public key certificate file */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CERT, G_dbSSLCert);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CA
+        if ( G_dbSSLCA[0] )     /* The path name of the Certificate Authority (CA) certificate file */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CA, G_dbSSLCA);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CAPATH
+        if ( G_dbSSLCAPath[0] ) /* The path name of the directory that contains trusted SSL CA certificate files */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CAPATH, G_dbSSLCAPath);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CRL
+        if ( G_dbSSLCRL[0] )    /* The path name of the file containing certificate revocation lists */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CRL, G_dbSSLCRL);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CRLPATH
+        if ( G_dbSSLCRLPath[0] )    /* The path name of the directory that contains certificate revocation list files */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CRLPATH, G_dbSSLCRLPath);
+#endif
+
+#ifdef MYSQL_OPT_TLS_VERSION
+        if ( G_dbSSLTLSVersion[0] ) /* The encryption protocols the client permits */
+            mysql_options(dbConn_, MYSQL_OPT_TLS_VERSION, G_dbSSLTLSVersion);
+#endif
+
+#ifdef MYSQL_OPT_SSL_CIPHER
+        if ( G_dbSSLCipher[0] ) /* The list of encryption ciphers the client permits for connections that use TLS protocols up through TLSv1.2 */
+            mysql_options(dbConn_, MYSQL_OPT_SSL_CIPHER, G_dbSSLCipher);
+#endif
+
+#ifdef MYSQL_OPT_TLS_CIPHERSUITES
+        if ( G_dbSSLCipherSuites[0] )   /* The list of encryption ciphersuites the client permits for connections that use TLSv1.3 */
+            mysql_options(dbConn_, MYSQL_OPT_TLS_CIPHERSUITES, G_dbSSLCipherSuites);
+#endif
+
+        if ( G_dbSSLMode > 0 )
+        {
+            unsigned ssl_mode = (unsigned)G_dbSSLMode;
+            mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+        }
+    }
 
     bool localhost;
 
@@ -121,7 +176,7 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
     if ( !localhost && port == 0 )
         port = CDB_DEFAULT_PORT;
 
-    if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
+    if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
     {
         ThrowSQL("mysql_real_connect");
         return;
