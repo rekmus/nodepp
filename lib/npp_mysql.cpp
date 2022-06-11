@@ -176,10 +176,20 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
     if ( !localhost && port == 0 )
         port = CDB_DEFAULT_PORT;
 
+    DBG("Trying mysql_real_connect for dbConn_...");
+
     if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
     {
-        ThrowSQL("mysql_real_connect");
-        return;
+        WAR("Couldn't connect to the database with SSL. Falling back to unencrypted connection...");
+
+        unsigned ssl_mode = SSL_MODE_DISABLED;
+        mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+
+        if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
+        {
+            ThrowSQL("mysql_real_connect");
+            return;
+        }
     }
 
 //    std::cout << "DBOpen successful\n";
