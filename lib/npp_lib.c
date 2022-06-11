@@ -1817,10 +1817,7 @@ bool npp_open_db()
 #endif
 
         if ( G_dbSSLMode > 0 )
-        {
-            unsigned ssl_mode = (unsigned)G_dbSSLMode;
-            mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
-        }
+            mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &G_dbSSLMode);
     }
 
     bool localhost;

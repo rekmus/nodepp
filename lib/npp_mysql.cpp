@@ -160,10 +160,7 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
 #endif
 
         if ( G_dbSSLMode > 0 )
-        {
-            unsigned ssl_mode = (unsigned)G_dbSSLMode;
-            mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
-        }
+            mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &G_dbSSLMode);
     }
 
     bool localhost;
@@ -191,6 +188,8 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
             return;
         }
     }
+
+    DBG("mysql_real_connect OK");
 
 //    std::cout << "DBOpen successful\n";
 
