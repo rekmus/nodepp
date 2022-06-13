@@ -30,6 +30,8 @@ Application stop|`npp_app_done()`
 
 [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp) has to contain these definitions (even if empty).
 
+As Node++ is single-threaded, the application code does not need to be thread-safe. Horizontal scaling is done through [adding processes](https://github.com/rekmus/nodepp/wiki/Node++-ASYNC), not threads.
+
 The whole user session and sessid cookie management is handled by the engine.
 
 By default sessions are not started. To change this [add one line to npp_app.h](https://github.com/rekmus/nodepp/wiki/Sessions-in-Node++).
