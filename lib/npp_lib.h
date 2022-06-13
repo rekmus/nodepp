@@ -419,6 +419,13 @@
 #endif  /* NPP_SILGY_COMPATIBILITY */
 
 
+/* MySQL */
+
+#ifdef NPP_MYSQL
+#define NPP_MYSQL_DEFAULT_PORT              CDB_DEFAULT_PORT
+#endif
+
+
 /* Admin Info */
 
 #define AI_USERS_ALL                        'a'     /* all users */
