@@ -24,13 +24,15 @@ Application start|`npp_app_init()`
 **HTTP request**|**`npp_app_main()`**
 Session start|`npp_app_session_init()`
 Session authentication (login)|`npp_app_user_login()`
-Session stop|`npp_app_session_done()`
 Session logout|`npp_app_user_logout()`
+Session stop|`npp_app_session_done()`
 Application stop|`npp_app_done()`
 
 [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp) has to contain these definitions (even if empty).
 
-The whole session and sessid cookie management is handled by the engine.
+The whole user session and sessid cookie management is handled by the engine.
+
+By default sessions are not started. To change this [add one line to npp_app.h](https://github.com/rekmus/nodepp/wiki/Sessions-in-Node++).
 
 
 ## Performance
