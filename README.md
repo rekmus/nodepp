@@ -16,17 +16,17 @@ There is a [RESTful API generator](https://nodepp.org/generators) to generate al
 
 ## Framework
 
-The "backend framework" means that there are 7 server-side events you can react to:
+The *backend framework* means that there are **7 server-side events** you can react to:
 
 Event|Function called
 -----|----
-HTTP request|`npp_app_main`
-Application start|`npp_app_init`
-Application stop|`npp_app_done`
-Session start|`npp_app_session_init`
-Session stop|`npp_app_session_done`
-Session authentication (login)|`npp_app_user_login`
-Session logout|`npp_app_user_logout`
+Application start|`npp_app_init()`
+**HTTP request**|**`npp_app_main()`**
+Session start|`npp_app_session_init()`
+Session authentication (login)|`npp_app_user_login()`
+Session stop|`npp_app_session_done()`
+Session logout|`npp_app_user_logout()`
+Application stop|`npp_app_done()`
 
 [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp) has to contain these definitions (even if empty).
 
