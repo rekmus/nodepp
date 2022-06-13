@@ -2848,37 +2848,66 @@ static bool init(int argc, char **argv)
     ALWAYS("");
 #endif  /* NPP_DEBUG */
 
+    ALWAYS_LINE_LONG;
+
+    ALWAYS("");
+
     ALWAYS("Configuration:");
     ALWAYS("--------------");
-    ALWAYS("test = %d", G_test);
-    ALWAYS("logLevel = %d", G_logLevel);
-    ALWAYS("logToStdout = %d", G_logToStdout);
-    ALWAYS("logCombined = %d", G_logCombined);
+    ALWAYS("                   test = %d", G_test);
+    ALWAYS("               logLevel = %d", G_logLevel);
+    ALWAYS("            logToStdout = %d", G_logToStdout);
+    ALWAYS("            logCombined = %d", G_logCombined);
 
     if ( argc > 1 )
     {
-        ALWAYS("--------------------------------------------------------------------");
-        WAR("httpPort = %d -- overwritten by a command line argument", G_httpPort);
-        ALWAYS("--------------------------------------------------------------------");
+        ALWAYS("------------------------------------------------------------------------");
+        WAR("      httpPort = %d -- overwritten by a command line argument", G_httpPort);
+        ALWAYS("------------------------------------------------------------------------");
     }
     else
-        ALWAYS("httpPort = %d", G_httpPort);
+        ALWAYS("               httpPort = %d", G_httpPort);
 
-    ALWAYS("httpsPort = %d", G_httpsPort);
-    ALWAYS("cipherList [%s]", G_cipherList);
-    ALWAYS("certFile [%s]", G_certFile);
-    ALWAYS("certChainFile [%s]", G_certChainFile);
-    ALWAYS("keyFile [%s]", G_keyFile);
-    ALWAYS("dbHost [%s]", G_dbHost);
-    ALWAYS("dbPort = %d", G_dbPort);
-    ALWAYS("dbName [%s]", G_dbName);
-    ALWAYS("usersRequireActivation = %d", G_usersRequireActivation);
-    ALWAYS("IPBlackList [%s]", G_IPBlackList);
-    ALWAYS("IPWhiteList [%s]", G_IPWhiteList);
-    ALWAYS("ASYNCId = %d", G_ASYNCId);
-    ALWAYS("ASYNCSvcProcesses = %d", G_ASYNCSvcProcesses);
-    ALWAYS("ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
-    ALWAYS("callHTTPTimeout = %d", G_callHTTPTimeout);
+#ifdef NPP_HTTPS
+    ALWAYS("              httpsPort = %d", G_httpsPort);
+    ALWAYS("             cipherList = %s", G_cipherList);
+    ALWAYS("               certFile = %s", G_certFile);
+    ALWAYS("          certChainFile = %s", G_certChainFile);
+    ALWAYS("                keyFile = %s", G_keyFile);
+#endif
+
+#ifdef NPP_MYSQL
+    ALWAYS("                 dbHost = %s", G_dbHost);
+    ALWAYS("                 dbPort = %d", G_dbPort);
+    ALWAYS("                 dbName = %s", G_dbName);
+    ALWAYS("                 dbUser = %s", G_dbUser);
+    ALWAYS("    dbDisableEncryption = %d", G_dbDisableEncryption);
+    ALWAYS("               dbSSLKey = %s", G_dbSSLKey);
+    ALWAYS("              dbSSLCert = %s", G_dbSSLCert);
+    ALWAYS("                dbSSLCA = %s", G_dbSSLCA);
+    ALWAYS("            dbSSLCAPath = %s", G_dbSSLCAPath);
+    ALWAYS("               dbSSLCRL = %s", G_dbSSLCRL);
+    ALWAYS("           dbSSLCRLPath = %s", G_dbSSLCRLPath);
+    ALWAYS("        dbSSLTLSVersion = %s", G_dbSSLTLSVersion);
+    ALWAYS("            dbSSLCipher = %s", G_dbSSLCipher);
+    ALWAYS("      dbSSLCipherSuites = %s", G_dbSSLCipherSuites);
+    ALWAYS("              dbSSLMode = %d", G_dbSSLMode);
+#endif
+
+#ifdef NPP_USERS
+    ALWAYS(" usersRequireActivation = %d", G_usersRequireActivation);
+#endif
+
+    ALWAYS("            IPBlackList = %s", G_IPBlackList);
+    ALWAYS("            IPWhiteList = %s", G_IPWhiteList);
+
+#ifdef NPP_ASYNC
+    ALWAYS("                ASYNCId = %d", G_ASYNCId);
+    ALWAYS("      ASYNCSvcProcesses = %d", G_ASYNCSvcProcesses);
+    ALWAYS("        ASYNCDefTimeout = %d", G_ASYNCDefTimeout);
+#endif
+
+    ALWAYS("        callHTTPTimeout = %d", G_callHTTPTimeout);
 
     ALWAYS("");
     ALWAYS_LINE_LONG;

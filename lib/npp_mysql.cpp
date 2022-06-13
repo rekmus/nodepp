@@ -112,7 +112,7 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
         unsigned ssl_mode = SSL_MODE_DISABLED;
         mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
     }
-    else
+    else    /* explore encryption options */
     {
 #ifdef MYSQL_OPT_SSL_KEY
         if ( G_dbSSLKey[0] )    /* The path name of the client private key file */
@@ -177,12 +177,20 @@ void Cdb::DBOpen(const std::string& dbName, const std::string& user, const std::
 
     if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
     {
-        WAR("Couldn't connect to the database with SSL. Falling back to unencrypted connection...");
+        if ( mysql_errno(dbConn_) == CR_SSL_CONNECTION_ERROR && G_dbDisableEncryption == 0 )
+        {
+            WAR("Couldn't connect to the database with SSL. Falling back to unencrypted connection...");
 
-        unsigned ssl_mode = SSL_MODE_DISABLED;
-        mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
+            unsigned ssl_mode = SSL_MODE_DISABLED;
+            mysql_options(dbConn_, MYSQL_OPT_SSL_MODE, &ssl_mode);
 
-        if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
+            if ( NULL == mysql_real_connect(dbConn_, localhost?NULL:host.c_str(), user.empty()?"root":user.c_str(), password.c_str(), dbName.c_str(), port, NULL, 0) )
+            {
+                ThrowSQL("mysql_real_connect");
+                return;
+            }
+        }
+        else    /* different error */
         {
             ThrowSQL("mysql_real_connect");
             return;

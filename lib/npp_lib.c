@@ -1769,7 +1769,7 @@ bool npp_open_db()
         unsigned ssl_mode = SSL_MODE_DISABLED;
         mysql_options(G_dbconn, MYSQL_OPT_SSL_MODE, &ssl_mode);
     }
-    else
+    else    /* explore encryption options */
     {
 #ifdef MYSQL_OPT_SSL_KEY
         if ( G_dbSSLKey[0] )    /* The path name of the client private key file */
@@ -1833,9 +1833,12 @@ bool npp_open_db()
 
     DBG("Trying mysql_real_connect for G_dbconn...");
 
+    if ( !localhost && (G_dbDisableEncryption > 0 || G_dbSSLMode == SSL_MODE_DISABLED) )
+        WAR("Remote database connection will not be encrypted");
+
     if ( NULL == mysql_real_connect(G_dbconn, localhost?NULL:G_dbHost, G_dbUser[0]?G_dbUser:"root", G_dbPassword, G_dbName, port, NULL, 0) )
     {
-        if ( mysql_errno(G_dbconn) == CR_SSL_CONNECTION_ERROR )
+        if ( mysql_errno(G_dbconn) == CR_SSL_CONNECTION_ERROR && G_dbDisableEncryption == 0 )
         {
             WAR("Couldn't connect to the database with SSL. Falling back to unencrypted connection...");
 
@@ -1847,6 +1850,11 @@ bool npp_open_db()
                 ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
                 return FALSE;
             }
+        }
+        else    /* different error */
+        {
+            ERR("%u: %s", mysql_errno(G_dbconn), mysql_error(G_dbconn));
+            return FALSE;
         }
     }
 
