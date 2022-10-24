@@ -66,6 +66,16 @@ get_quoted_value () {
 # ----------------------------------------------------------------------------
 # Determine the OS family
 
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     machine=Linux;;
+    Darwin*)    machine=Mac;;
+    CYGWIN*)    machine=Cygwin;;
+    MINGW*)     machine=MinGw;;
+    *)          machine="UNKNOWN:${unameOut}"
+esac
+echo ${machine}
+
 NPP_OS=`grep ID_LIKE /etc/os-release | head -1 | cut -d '=' -f 2`
 
 if [ $NPP_VERBOSE -eq 1 ]

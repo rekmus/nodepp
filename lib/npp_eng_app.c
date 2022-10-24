@@ -2516,6 +2516,8 @@ bool npp_eng_init_ssl()
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
+    INF(SSLeay_version(SSLEAY_VERSION));
+
     G_ssl_lib_initialized = TRUE;
 
     method = SSLv23_server_method();    /* negotiate the highest protocol version supported by both the server and the client */
