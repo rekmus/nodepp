@@ -423,6 +423,9 @@
 
 #ifdef NPP_MYSQL
 #define NPP_MYSQL_DEFAULT_PORT              CDB_DEFAULT_PORT
+#ifndef MYSQL_OPT_SSL_MODE
+#define MYSQL_OPT_SSL_MODE                  (mysql_option)42
+#endif
 #endif
 
 
