@@ -21,6 +21,25 @@
 #define NPP_SVC_MODULES                 NPP_APP_MODULES
 
 
+/* These are the most common switches */
+/* The full list is at https://github.com/rekmus/nodepp/wiki/Node++-switches-and-constants */
+
+/* uncomment to enable HTTPS */
+//#define NPP_HTTPS
+
+/* uncomment to enable sessions */
+//#define NPP_REQUIRED_AUTH_LEVEL         AUTH_LEVEL_ANONYMOUS
+
+/* uncomment to enable MySQL connection */
+//#define NPP_MYSQL
+
+/* uncomment to enable USERS module */
+//#define NPP_USERS
+
+/* uncomment to enable CALL_ASYNC (multi-process) */
+//#define NPP_ASYNC
+
+
 /* app session data */
 /* accessible via SESSION_DATA macro */
 
