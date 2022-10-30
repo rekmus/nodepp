@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.1.4"
+#define NPP_VERSION                     "2.1.5"
 
 
 #ifndef FALSE
@@ -309,7 +309,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 /* defaults */
 
 #ifndef NPP_MEM_TINY
-#ifndef NPP_MEM_MEDIUM
+#ifndef NPP_MEM_SMALL
 #ifndef NPP_MEM_LARGE
 #ifndef NPP_MEM_XLARGE
 #ifndef NPP_MEM_XXLARGE
@@ -317,8 +317,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #ifndef NPP_MEM_XXXXLARGE
 #ifndef NPP_MEM_XXXXXLARGE
 #ifndef NPP_MEM_XXXXXXLARGE
-#ifndef NPP_MEM_SMALL
-#define NPP_MEM_SMALL                   /* default memory model */
+#ifndef NPP_MEM_MEDIUM
+#define NPP_MEM_MEDIUM                  /* default memory model */
 #endif
 #endif
 #endif
@@ -1875,6 +1875,7 @@ extern npp_counters_t G_cnts_yesterday;         /* yesterday's counters */
 extern npp_counters_t G_cnts_day_before;        /* day before's counters */
 /* CALL_HTTP */
 extern int          G_call_http_status;         /* last HTTP call response status */
+extern char         G_call_http_res_header[CALL_HTTP_RES_HEADER_LEN+1];
 extern unsigned     G_call_http_req_cnt;        /* HTTP calls counter */
 extern double       G_call_http_elapsed;        /* HTTP calls elapsed for calculating average */
 extern double       G_call_http_average;        /* HTTP calls average elapsed */

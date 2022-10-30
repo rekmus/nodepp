@@ -115,6 +115,7 @@ unsigned    G_call_http_req_cnt=0;
 double      G_call_http_elapsed=0;
 double      G_call_http_average=0;
 int         G_call_http_status;
+char        G_call_http_res_header[CALL_HTTP_RES_HEADER_LEN+1];
 char        G_call_http_content_type[NPP_MAX_VALUE_LEN+1];
 int         G_call_http_res_len=0;
 int         G_qs_len=0;
@@ -2006,6 +2007,8 @@ static bool init_ssl_client()
         /* libcrypto init */
         OpenSSL_add_all_algorithms();
         ERR_load_crypto_strings();
+
+        DBG(SSLeay_version(SSLEAY_VERSION));
 
         G_ssl_lib_initialized = TRUE;
     }
@@ -4393,26 +4396,39 @@ void npp_call_http_header_set(const char *key, const char *value)
     {
         if ( M_call_http_headers[i].key[0]==EOS )
         {
-            strncpy(M_call_http_headers[M_call_http_headers_cnt].key, key, CALL_HTTP_HEADER_KEY_LEN);
-            M_call_http_headers[M_call_http_headers_cnt].key[CALL_HTTP_HEADER_KEY_LEN] = EOS;
+            strncpy(M_call_http_headers[i].key, key, CALL_HTTP_HEADER_KEY_LEN);
+            M_call_http_headers[i].key[CALL_HTTP_HEADER_KEY_LEN] = EOS;
             strncpy(M_call_http_headers[i].value, value, CALL_HTTP_HEADER_VAL_LEN);
             M_call_http_headers[i].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
+
+//            DBG("SET (1) %d, [%s] [%s]", i, M_call_http_headers[i].key, M_call_http_headers[i].value);
+
             return;
         }
         else if ( 0==strcmp(M_call_http_headers[i].key, key) )
         {
             strncpy(M_call_http_headers[i].value, value, CALL_HTTP_HEADER_VAL_LEN);
             M_call_http_headers[i].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
+
+//            DBG("SET (2) %d, [%s] [%s]", i, M_call_http_headers[i].key, M_call_http_headers[i].value);
+
             return;
         }
     }
 
-    if ( M_call_http_headers_cnt >= CALL_HTTP_MAX_HEADERS ) return;
+    if ( M_call_http_headers_cnt >= CALL_HTTP_MAX_HEADERS )
+    {
+        WAR("M_call_http_headers_cnt >= CALL_HTTP_MAX_HEADERS");
+        return;
+    }
 
     strncpy(M_call_http_headers[M_call_http_headers_cnt].key, key, CALL_HTTP_HEADER_KEY_LEN);
     M_call_http_headers[M_call_http_headers_cnt].key[CALL_HTTP_HEADER_KEY_LEN] = EOS;
     strncpy(M_call_http_headers[M_call_http_headers_cnt].value, value, CALL_HTTP_HEADER_VAL_LEN);
     M_call_http_headers[M_call_http_headers_cnt].value[CALL_HTTP_HEADER_VAL_LEN] = EOS;
+
+//    DBG("SET (3) %d, [%s] [%s]", i, M_call_http_headers[M_call_http_headers_cnt].key, M_call_http_headers[M_call_http_headers_cnt].value);
+
     ++M_call_http_headers_cnt;
 }
 
@@ -4609,7 +4625,7 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 
     char jtmp[NPP_JSON_BUFSIZE];
 
-    if ( 0 != strcmp(method, "GET") && req )
+    if ( 0 != strcmp(method, "GET") && req )    /* send data */
     {
         if ( json )     /* JSON -> string conversion */
         {
@@ -4618,7 +4634,7 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 
             strcpy(jtmp, lib_json_to_string((JSON*)req));
         }
-        else
+        else    /* not JSON */
         {
             if ( !call_http_header_present("Content-Type") )
                 p = stpcpy(p, "Content-Type: application/x-www-form-urlencoded; charset=utf-8\r\n");
@@ -4635,6 +4651,8 @@ static int call_http_render_req(char *buffer, const char *method, const char *ho
 
     for ( i=0; i<M_call_http_headers_cnt; ++i )
     {
+//        DBG("%d, [%s] [%s]", i, M_call_http_headers[i].key, M_call_http_headers[i].value);
+
         if ( M_call_http_headers[i].key[0] )
         {
             p = stpcpy(p, M_call_http_headers[i].key);
@@ -5026,6 +5044,8 @@ static int addresses_cnt=0, addresses_last=0;
 
     struct addrinfo *rp;
 
+    char remote_addr_str[INET6_ADDRSTRLEN]="";
+
     for ( rp=result; rp!=NULL; rp=rp->ai_next )
     {
         DDBG("Trying socket...");
@@ -5057,28 +5077,33 @@ static int addresses_cnt=0, addresses_last=0;
         /* plain socket connection --------------------------------------- */
 
 #ifdef NPP_DEBUG
+
         int finish_res;
 
+        /* get the remote address */
+
+        if ( rp->ai_family == AF_INET6 )
         {
-            /* get the remote address */
-
-            char remote_addr[INET6_ADDRSTRLEN]="";
-
-            if ( rp->ai_family == AF_INET6 )
-            {
-                DBG("AF_INET6");
-                struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
-                npp_sockaddr_to_string(remote_addr_struct, remote_addr);
-            }
-            else    /* AF_INET */
-            {
-                DBG("AF_INET");
-                struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
-                inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
-            }
-
-            DBG("Address [%s]", remote_addr);
+            DBG("AF_INET6");
+            struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+            npp_sockaddr_to_string(remote_addr_struct, remote_addr_str);
         }
+        else    /* AF_INET */
+        {
+            DBG("AF_INET");
+            struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+            inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr_str, INET_ADDRSTRLEN);
+        }
+
+//        DBG("Address [%s]", remote_addr_str);
+
+        DBG_LINE;
+        DBG("sizeof(struct addrinfo)     = %u", sizeof(struct addrinfo));
+        DBG("sizeof(struct sockaddr)     = %u", sizeof(struct sockaddr));
+        DBG("sizeof(struct sockaddr_in)  = %u", sizeof(struct sockaddr_in));
+        DBG("sizeof(struct sockaddr_in6) = %u", sizeof(struct sockaddr_in6));
+        DBG_LINE;
+
 #endif  /* NPP_DEBUG */
 
         if ( connect(M_call_http_socket, rp->ai_addr, rp->ai_addrlen) != -1 )
@@ -5125,6 +5150,25 @@ static int addresses_cnt=0, addresses_last=0;
 
     /* -------------------------------------------------------------------------- */
 
+#ifndef NPP_DEBUG
+
+    if ( rp->ai_family == AF_INET6 )
+    {
+        DBG("AF_INET6");
+        struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
+        npp_sockaddr_to_string(remote_addr_struct, remote_addr_str);
+    }
+    else    /* AF_INET */
+    {
+        DBG("AF_INET");
+        struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
+        inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr_str, INET_ADDRSTRLEN);
+    }
+
+#endif
+
+    DBG("Connected to [%s]", remote_addr_str);
+
     if ( !addr_cached )   /* add to cache */
     {
 #ifndef CALL_HTTP_DONT_CACHE_ADDRINFO
@@ -5134,28 +5178,9 @@ static int addresses_cnt=0, addresses_last=0;
 
         /* addrinfo contains pointers -- mind the shallow copy! */
 
-        memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr));
+        memcpy(&addresses[addresses_last].ai_addr, rp->ai_addr, sizeof(struct sockaddr_in6));
         addresses[addresses_last].addr.ai_addr = &(addresses[addresses_last].ai_addr);
         addresses[addresses_last].addr.ai_next = NULL;
-
-        /* get the remote address */
-
-        char remote_addr[INET6_ADDRSTRLEN]="";
-
-        if ( rp->ai_family == AF_INET6 )
-        {
-            DBG("AF_INET6");
-            struct sockaddr_in6 *remote_addr_struct = (struct sockaddr_in6*)rp->ai_addr;
-            npp_sockaddr_to_string(remote_addr_struct, remote_addr);
-        }
-        else    /* AF_INET */
-        {
-            DBG("AF_INET");
-            struct sockaddr_in *remote_addr_struct = (struct sockaddr_in*)rp->ai_addr;
-            inet_ntop(AF_INET, &(remote_addr_struct->sin_addr), remote_addr, INET_ADDRSTRLEN);
-        }
-
-        INF("Connected to [%s]", remote_addr);
 
         DBG("Host [%s:%s] added to cache (%d)", host, port, addresses_last);
 
@@ -5176,8 +5201,6 @@ static int addresses_cnt=0, addresses_last=0;
 
         freeaddrinfo(result);
     }
-
-    DBG("Connected");
 
     DDBG("elapsed after plain connect: %.3lf ms", npp_elapsed(start));
 
@@ -5470,10 +5493,19 @@ static int call_http_res_content_length(const char *u_res_header, int len)
 {
     const char *p;
 
-    if ( (p=strstr(u_res_header, "\nCONTENT-LENGTH: ")) == NULL )
-        return -1;
+//    INF("u_res_header [%s]", u_res_header);
 
-    if ( len < (p-u_res_header) + 18 ) return -1;
+    if ( (p=strstr(u_res_header, "\nCONTENT-LENGTH: ")) == NULL )
+    {
+        DBG("No content length");
+        return -1;
+    }
+
+    if ( len < (p-u_res_header) + 18 )
+    {
+        DBG("Content length too short");
+        return -1;
+    }
 
     char result_str[8];
     int  i = 0;
@@ -5503,34 +5535,41 @@ static int call_http_res_content_length(const char *u_res_header, int len)
 /* --------------------------------------------------------------------------
    HTTP call / parse response
 -------------------------------------------------------------------------- */
-static bool call_http_res_parse(char *res_header, int bytes)
+static bool call_http_res_parse(const char *res_header, int bytes)
 {
     /* HTTP/1.1 200 OK <== 15 chars */
-
-    char status[4];
 
     if ( bytes < 14 || 0 != strncmp(res_header, "HTTP/1.", 7) )
     {
         return FALSE;
     }
 
-    res_header[bytes] = EOS;
 #ifdef NPP_DEBUG
     DBG("");
-    DBG("Got %d bytes of response [%s]", bytes, res_header);
+    char descr[64];
+    sprintf(descr, "Got %d bytes of response", bytes);
+    npp_log_long(res_header, bytes, descr);
 #else
     DBG("Got %d bytes of response", bytes);
 #endif  /* NPP_DEBUG */
 
     /* Status */
 
+    char status[4];
+
     strncpy(status, res_header+9, 3);
     status[3] = EOS;
     G_call_http_status = atoi(status);
     DBG("CALL_HTTP response status: %s", status);
 
+//    INF("res_header [%s]", res_header);
+
     char u_res_header[CALL_HTTP_RES_HEADER_LEN+1];   /* uppercase */
-    strcpy(u_res_header, npp_upper(res_header));
+    strcpy(u_res_header, npp_upper(res_header));    /* same length */
+
+//#ifdef NPP_DEBUG
+//    INF("u_res_header [%s]", u_res_header);
+//#endif
 
     /* Content-Type */
 
@@ -5538,10 +5577,12 @@ static bool call_http_res_parse(char *res_header, int bytes)
 
     if ( (p=strstr(u_res_header, "\nCONTENT-TYPE: ")) == NULL )
     {
+        DDBG("No content type");
         G_call_http_content_type[0] = EOS;
     }
-    else if ( bytes < (p-res_header) + 16 )
+    else if ( bytes < (p-u_res_header) + 16 )
     {
+        DDBG("Content type too short");
         G_call_http_content_type[0] = EOS;
     }
     else
@@ -5562,12 +5603,13 @@ static bool call_http_res_parse(char *res_header, int bytes)
 
     /* content length */
 
-    G_call_http_res_len = call_http_res_content_length(u_res_header, bytes);
+    G_call_http_res_len = call_http_res_content_length(u_res_header, bytes>CALL_HTTP_RES_HEADER_LEN?CALL_HTTP_RES_HEADER_LEN:bytes);
 
     if ( G_call_http_res_len > CALL_HTTP_MAX_RESPONSE_LEN-1 )
     {
-        WAR("Response content is too big (%d)", G_call_http_res_len);
-        return FALSE;
+        WAR("Response content is too big (%d), truncating to %d", G_call_http_res_len, CALL_HTTP_MAX_RESPONSE_LEN-1);
+        G_call_http_res_len = CALL_HTTP_MAX_RESPONSE_LEN-1;
+//        return FALSE;
     }
 
     if ( G_call_http_res_len > 0 )     /* Content-Length present in response */
@@ -5670,8 +5712,15 @@ static int client_recv(char *buffer, int len, int *timeout_remain, bool secure)
 #endif  /* NPP_HTTPS */
         bytes = recv(M_call_http_socket, buffer, len, 0);
 
+//    INF("----------- client_recv bytes = %d", bytes);
+
     if ( bytes < 0 )
+    {
+#ifdef _WIN32
+        Sleep(2);
+#endif
         bytes = finish_client_io(NPP_OPER_READ, NPP_OPER_READ, buffer, len, timeout_remain, secure?M_call_http_ssl:NULL, 0);
+    }
 
     DBG("client_recv returning %d bytes", bytes);
 
@@ -5702,7 +5751,7 @@ static bool  prev_secure=FALSE;
     char     uri[NPP_MAX_URI_LEN+1];
 static bool  connected=FALSE;
 static time_t connected_time=0;
-    char     res_header[CALL_HTTP_RES_HEADER_LEN+1];
+//    char     G_call_http_res_header[CALL_HTTP_RES_HEADER_LEN+1];
 static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
     int      bytes=0;
     char     *body;
@@ -5799,7 +5848,7 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
 
     DBG("Reading response...");
 
-    bytes = client_recv(res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure);
+    bytes = client_recv(G_call_http_res_header, CALL_HTTP_RES_HEADER_LEN, &timeout_remain, secure);
 
     if ( bytes < 0 )
     {
@@ -5807,6 +5856,18 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
         call_http_disconnect(bytes);
         connected = FALSE;
         return FALSE;
+    }
+
+    G_call_http_res_header[bytes] = EOS;
+
+    DBG("Read %d bytes", bytes);
+
+    if ( bytes < 30 )   /* try again in case it's Flask default or any other slow server */
+    {
+        int tmp_bytes = client_recv(G_call_http_res_header+bytes, CALL_HTTP_RES_HEADER_LEN-bytes, &timeout_remain, secure);
+
+        if ( tmp_bytes > 0 )
+            bytes += tmp_bytes;
     }
 
     DBG("Read %d bytes", bytes);
@@ -5817,15 +5878,16 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
     /* parse the response                                                         */
     /* we assume that at least response header arrived at once                    */
 
-    if ( !call_http_res_parse(res_header, bytes) )
+    if ( !call_http_res_parse(G_call_http_res_header, bytes) )
     {
         ERR("No or invalid response");
 
 #ifdef NPP_DEBUG
         if ( bytes >= 0 )
         {
-            res_header[bytes] = EOS;
-            DBG("Got %d bytes of response [%s]", bytes, res_header);
+            char descr[64];
+            sprintf(descr, "Got %d bytes of response", bytes);
+            npp_log_long(G_call_http_res_header, bytes, descr);
         }
 #endif  /* NPP_DEBUG */
 
@@ -5839,18 +5901,23 @@ static char  buffer[CALL_HTTP_MAX_RESPONSE_LEN];
     /* at this point we've got something that seems to be a HTTP header,
        possibly with content */
 
+    /* close connection if HTTP version < 1.1 */
+
+    if ( keep && strncmp(G_call_http_res_header, "HTTP/1.0", 8) == 0 )
+        keep = FALSE;
+
 static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
     /* ------------------------------------------------------------------- */
     /* some content may have already been read                             */
 
-    body = strstr(res_header, "\r\n\r\n");
+    body = strstr(G_call_http_res_header, "\r\n\r\n");
 
     if ( body )
     {
         body += 4;
 
-        int was_read = bytes - (body-res_header);
+        int was_read = bytes - (body-G_call_http_res_header);
 
         if ( was_read > 0 )
         {
@@ -5962,7 +6029,7 @@ static char res_content[CALL_HTTP_MAX_RESPONSE_LEN];
 
     /* ------------------------------------------------------------------- */
 
-    if ( !keep || strstr(res_header, "\nConnection: close") != NULL || strstr(res_header, "\nConnection: Close") != NULL )
+    if ( !keep || strstr(G_call_http_res_header, "\nConnection: close") != NULL || strstr(G_call_http_res_header, "\nConnection: Close") != NULL )
     {
         DBG("Closing connection");
         call_http_disconnect(bytes);
@@ -7184,6 +7251,12 @@ bool strdigits(const char *src)
 -------------------------------------------------------------------------- */
 void msleep(int msec)
 {
+#ifdef _WIN32
+
+    Sleep(msec);
+
+#else   /* unix, linux, mac */
+
     struct timeval tv;
 
     if ( msec < 1000 )
@@ -7205,6 +7278,8 @@ void msleep(int msec)
 #endif  /* NPP_DEBUG */
 
     select(0, NULL, NULL, NULL, &tv);
+
+#endif
 }
 
 
