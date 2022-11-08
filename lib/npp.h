@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.1.5"
+#define NPP_VERSION                     "2.2.0"
 
 
 #ifndef FALSE
@@ -189,10 +189,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #elif defined __linux__ /* Linux ------------------------------------------------------------- */
     #ifdef NPP_FD_MON_LINUX_SELECT
         #define NPP_FD_MON_SELECT
-    #elif defined NPP_FD_MON_LINUX_POLL
-        #define NPP_FD_MON_POLL
+    #elif defined NPP_FD_MON_LINUX_EPOLL
+        #define NPP_FD_MON_EPOLL
     #else
-        #define NPP_FD_MON_EPOLL /* default */
+        #define NPP_FD_MON_POLL  /* default */
     #endif
 #else                   /* macOS & other Unixes ---------------------------------------------- */
     #ifdef NPP_FD_MON_OTHERS_SELECT
@@ -200,7 +200,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
     #elif defined NPP_FD_MON_OTHERS_EPOLL
         #define NPP_FD_MON_EPOLL
     #else
-        #define NPP_FD_MON_POLL /* default */
+        #define NPP_FD_MON_POLL  /* default */
     #endif
 #endif
 
