@@ -24,13 +24,13 @@ The *backend framework* means that there are **7 server-side events** you can re
 
 Event|Function called
 -----|----
-Application start|`npp_app_init()`
+application start|`npp_app_init()`
 **HTTP request**|**`npp_app_main()`**
-Session start|`npp_app_session_init()`
-Session authentication (login)|`npp_app_user_login()`
-Session logout|`npp_app_user_logout()`
-Session stop|`npp_app_session_done()`
-Application stop|`npp_app_done()`
+session start|`npp_app_session_init()`
+session authentication (login)|`npp_app_user_login()`
+session logout|`npp_app_user_logout()`
+session stop|`npp_app_session_done()`
+application stop|`npp_app_done()`
 
 [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp) has to contain these definitions (even if empty).
 
