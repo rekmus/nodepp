@@ -45,7 +45,9 @@ By default sessions are not started. To change this [add one line to npp_app.h](
 
 Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance sufficient to host a fully-fledged web application with a database for thousands of users.
 
-Node++ applications consistently get "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
+On a typical server it handles [50,000 requests per second](https://nodepp.org/docs/performance).
+
+Low latency gets Node++ applications "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
 
 <div align="center">
 <img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300>
