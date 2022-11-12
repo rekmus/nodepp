@@ -992,6 +992,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define STATIC_SOURCE_SNIPPETS          '3'
 
 
+#define NPP_RES_CACHE_DEF_TRESHOLD      16777216                /* 16 MiB */
+
+
 /* asynchronous calls */
 
 #define NPP_ASYNC_STATE_FREE            '0'
@@ -1760,6 +1763,7 @@ extern char         G_cipherList[NPP_CIPHER_LIST_LEN+1];
 extern char         G_certFile[256];
 extern char         G_certChainFile[256];
 extern char         G_keyFile[256];
+extern long long    G_resCacheTreshold;
 extern char         G_dbHost[128];
 extern int          G_dbPort;
 extern char         G_dbName[128];

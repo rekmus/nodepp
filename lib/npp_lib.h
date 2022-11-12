@@ -854,6 +854,7 @@ extern "C" {
     char *stp_right(char *str);
     bool strdigits(const char *src);
     int  npp_compare_strings(const void *a, const void *b);
+    long long npp_convenient_size(const char *str);
     bool npp_read_conf(const char *file);
 
 #ifdef NPP_CPP_STRINGS
