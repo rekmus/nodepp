@@ -5172,9 +5172,9 @@ static void gen_response_header(int ci)
 
                                 char *data_tmp=NULL;
 
-                                if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
+                                if ( NULL == (data_tmp=(char*)malloc(M_statics[G_connections[ci].static_res].len)) )
                                 {
-                                    ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
+                                    ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[ci].static_res].len, M_statics[G_connections[ci].static_res].name);
                                 }
                                 else
                                 {
