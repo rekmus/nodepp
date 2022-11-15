@@ -1175,7 +1175,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* datetime strings (YYYY-MM-DD hh:mm:ss) */
 
-#define DT_NULL                         "0000-00-00 00:00:00"               /* null datetime string */
+#define DT_NULL                         "1900-01-01 00:00:00"               /* null datetime string */
 
 #define DT_NOW_GMT                      G_dt_string_gmt                     /* current datetime string (GMT) */
 #define DT_NOW_LOCAL                    time_epoch2db(npp_ua_time(ci))      /* current datetime string (user agent timezone) */
@@ -1763,7 +1763,7 @@ extern char         G_cipherList[NPP_CIPHER_LIST_LEN+1];
 extern char         G_certFile[256];
 extern char         G_certChainFile[256];
 extern char         G_keyFile[256];
-extern long long    G_resCacheTreshold;
+extern int          G_resCacheTreshold;
 extern char         G_dbHost[128];
 extern int          G_dbPort;
 extern char         G_dbName[128];

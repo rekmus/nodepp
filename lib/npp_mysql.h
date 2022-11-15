@@ -80,6 +80,11 @@
 #include <mysql.h>
 
 
+#if MYSQL_VERSION_ID == 80031
+typedef bool my_bool;
+#endif
+
+
 #ifndef SSL_MODE_DISABLED
 #define SSL_MODE_DISABLED               1
 #endif

@@ -57,7 +57,7 @@ char        G_cipherList[NPP_CIPHER_LIST_LEN+1]="";
 char        G_certFile[256]="";
 char        G_certChainFile[256]="";
 char        G_keyFile[256]="";
-long long   G_resCacheTreshold=NPP_RES_CACHE_DEF_TRESHOLD;
+int         G_resCacheTreshold=NPP_RES_CACHE_DEF_TRESHOLD;
 int         G_usersRequireActivation=0;
 char        G_IPBlackList[256]="";
 char        G_IPWhiteList[256]="";
@@ -4063,7 +4063,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name M_statics.name */
-    char    fullpath[NPP_STATIC_PATH_LEN*2];    /* full path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -5131,7 +5131,7 @@ static void gen_response_header(int ci)
                     DBG("Reading %s from disk...", M_statics[G_connections[ci].static_res].name);
 
                     char resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
-                    char fullpath[NPP_STATIC_PATH_LEN*2];    /* full path including file name */
+                    char fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
 
 #ifdef NPP_MULTI_HOST
                     sprintf(resdir, "%s/%s", G_appdir, G_hosts[G_connections[ci].host_id].res);

@@ -236,6 +236,10 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
 
 #ifdef NPP_MYSQL
 
+#ifdef MYSQL_VERSION_ID
+    INF("MYSQL_VERSION_ID = %d", MYSQL_VERSION_ID);
+#endif
+
     if ( !npp_open_db() )
         return FALSE;
 
@@ -1472,7 +1476,7 @@ static bool load_strings()
 {
     int     len;
     char    bindir[NPP_STATIC_PATH_LEN+1];      /* full path to bin */
-    char    fullpath[NPP_STATIC_PATH_LEN*2];    /* full path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -2229,7 +2233,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
-    char    fullpath[NPP_STATIC_PATH_LEN*2];    /* full path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
