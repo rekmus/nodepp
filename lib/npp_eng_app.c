@@ -5202,6 +5202,8 @@ static void gen_response_header(int ci)
 #endif  /* _WIN32 */
                         fclose(fd);
                     }
+
+                    G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data;   /* update */
                 }
             }
 
