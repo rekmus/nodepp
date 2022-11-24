@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.1.5"
+#define NPP_VERSION                     "2.2.0"
 
 
 #ifndef FALSE
@@ -189,10 +189,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #elif defined __linux__ /* Linux ------------------------------------------------------------- */
     #ifdef NPP_FD_MON_LINUX_SELECT
         #define NPP_FD_MON_SELECT
-    #elif defined NPP_FD_MON_LINUX_POLL
-        #define NPP_FD_MON_POLL
+    #elif defined NPP_FD_MON_LINUX_EPOLL
+        #define NPP_FD_MON_EPOLL
     #else
-        #define NPP_FD_MON_EPOLL /* default */
+        #define NPP_FD_MON_POLL  /* default */
     #endif
 #else                   /* macOS & other Unixes ---------------------------------------------- */
     #ifdef NPP_FD_MON_OTHERS_SELECT
@@ -200,7 +200,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
     #elif defined NPP_FD_MON_OTHERS_EPOLL
         #define NPP_FD_MON_EPOLL
     #else
-        #define NPP_FD_MON_POLL /* default */
+        #define NPP_FD_MON_POLL  /* default */
     #endif
 #endif
 
@@ -992,6 +992,9 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define STATIC_SOURCE_SNIPPETS          '3'
 
 
+#define NPP_RES_CACHE_DEF_TRESHOLD      16777216                /* 16 MiB */
+
+
 /* asynchronous calls */
 
 #define NPP_ASYNC_STATE_FREE            '0'
@@ -1172,7 +1175,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* datetime strings (YYYY-MM-DD hh:mm:ss) */
 
-#define DT_NULL                         "0000-00-00 00:00:00"               /* null datetime string */
+#define DT_NULL                         "1900-01-01 00:00:00"               /* null datetime string */
 
 #define DT_NOW_GMT                      G_dt_string_gmt                     /* current datetime string (GMT) */
 #define DT_NOW_LOCAL                    time_epoch2db(npp_ua_time(ci))      /* current datetime string (user agent timezone) */
@@ -1760,6 +1763,7 @@ extern char         G_cipherList[NPP_CIPHER_LIST_LEN+1];
 extern char         G_certFile[256];
 extern char         G_certChainFile[256];
 extern char         G_keyFile[256];
+extern int          G_resCacheTreshold;
 extern char         G_dbHost[128];
 extern int          G_dbPort;
 extern char         G_dbName[128];

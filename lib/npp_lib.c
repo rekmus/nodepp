@@ -236,6 +236,10 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
 
 #ifdef NPP_MYSQL
 
+#ifdef MYSQL_VERSION_ID
+    INF("MYSQL_VERSION_ID = %d", MYSQL_VERSION_ID);
+#endif
+
     if ( !npp_open_db() )
         return FALSE;
 
@@ -1472,7 +1476,7 @@ static bool load_strings()
 {
     int     len;
     char    bindir[NPP_STATIC_PATH_LEN+1];      /* full path to bin */
-    char    namewpath[NPP_STATIC_PATH_LEN*2];   /* full path including file name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -1480,13 +1484,8 @@ static bool load_strings()
 
     DBG("load_strings");
 
-    if ( G_appdir[0] == EOS ) return TRUE;
-
-#ifdef _WIN32
-    sprintf(bindir, "%s\\bin", G_appdir);
-#else
     sprintf(bindir, "%s/bin", G_appdir);
-#endif
+
     if ( (dir=opendir(bindir)) == NULL )
     {
         DBG("Couldn't open directory [%s]", bindir);
@@ -1499,18 +1498,18 @@ static bool load_strings()
             continue;
 
 #ifdef _WIN32
-        sprintf(namewpath, "%s\\%s", bindir, dirent->d_name);
+        sprintf(fullpath, "%s\\%s", bindir, dirent->d_name);
 #else
-        sprintf(namewpath, "%s/%s", bindir, dirent->d_name);
+        sprintf(fullpath, "%s/%s", bindir, dirent->d_name);
 #endif
-        DBG("namewpath [%s]", namewpath);
+        DBG("fullpath [%s]", fullpath);
 
 #ifdef _WIN32   /* Windows */
-        if ( NULL == (fd=fopen(namewpath, "rb")) )
+        if ( NULL == (fd=fopen(fullpath, "rb")) )
 #else
-        if ( NULL == (fd=fopen(namewpath, "r")) )
+        if ( NULL == (fd=fopen(fullpath, "r")) )
 #endif  /* _WIN32 */
-            ERR("Couldn't open %s", namewpath);
+            ERR("Couldn't open %s", fullpath);
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
@@ -2233,19 +2232,14 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     int     i;
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
-    char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
     char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
-    char    fullpath[NPP_STATIC_PATH_LEN*2];
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
     struct stat fstat;
 
     if ( directory == NULL || directory[0] == EOS ) return TRUE;
-
-#ifndef _WIN32
-    if ( G_appdir[0] == EOS ) return TRUE;
-#endif
 
     if ( first_scan && !path ) DBG("");
 
@@ -2257,22 +2251,7 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
     }
 #endif  /* NPP_DEBUG */
 
-#ifdef _WIN32   /* be more forgiving */
-
-    if ( G_appdir[0] )
-    {
-        sprintf(resdir, "%s\\snippets", G_appdir);
-    }
-    else    /* no NPP_DIR */
-    {
-        sprintf(resdir, "..\\snippets");
-    }
-
-#else   /* Linux -- don't fool around */
-
     sprintf(resdir, "%s/%s", G_appdir, directory);
-
-#endif  /* _WIN32 */
 
 #ifdef NPP_DEBUG
     if ( first_scan )
@@ -2373,16 +2352,16 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
-        sprintf(namewpath, "%s/%s", resdir, resname);
+        sprintf(fullpath, "%s/%s", resdir, resname);
 
 #ifdef NPP_DEBUG
         if ( first_scan )
-            DBG("namewpath [%s]", namewpath);
+            DBG("fullpath [%s]", fullpath);
 #endif
 
-        if ( stat(namewpath, &fstat) != 0 )
+        if ( stat(fullpath, &fstat) != 0 )
         {
-            ERR("stat for [%s] failed, errno = %d (%s)", namewpath, errno, strerror(errno));
+            ERR("stat for [%s] failed, errno = %d (%s)", fullpath, errno, strerror(errno));
             closedir(dir);
             return FALSE;
         }
@@ -2457,11 +2436,11 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
         /* size and content */
 
 #ifdef _WIN32   /* Windows */
-        if ( NULL == (fd=fopen(namewpath, "rb")) )
+        if ( NULL == (fd=fopen(fullpath, "rb")) )
 #else
-        if ( NULL == (fd=fopen(namewpath, "r")) )
+        if ( NULL == (fd=fopen(fullpath, "r")) )
 #endif  /* _WIN32 */
-            ERR("Couldn't open %s", namewpath);
+            ERR("Couldn't open %s", fullpath);
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
@@ -6159,13 +6138,13 @@ void npp_lib_get_app_dir()
 
     if ( NULL != (appdir=getenv("NPP_DIR")) )
     {
-        strcpy(G_appdir, appdir);
+        COPY(G_appdir, appdir, 255);
         int len = strlen(G_appdir);
         if ( G_appdir[len-1] == '/' ) G_appdir[len-1] = EOS;
     }
     else
     {
-        G_appdir[0] = EOS;   /* not defined */
+        strcpy(G_appdir, "..");
     }
 }
 
@@ -9896,6 +9875,61 @@ int npp_compare_strings(const void *a, const void *b)
 
 
 /* --------------------------------------------------------------------------
+   Convert convenient size to bytes as int
+   K = KiB, M = MiB, G = GiB
+-------------------------------------------------------------------------- */
+long long npp_convenient_size(const char *str)
+{
+    long long size = 0;
+
+    int len = strlen(str);
+
+    if ( len < 1 )
+    {
+        ERR("String too short");
+        return -1;
+    }
+    else if ( len > 100 )
+    {
+        ERR("String too long");
+        return -1;
+    }
+    else if ( !isdigit(str[0]) )
+    {
+        ERR("Invalid format");
+        return -1;
+    }
+
+
+    if ( len == 1 || isdigit(str[len-1]) )
+        sscanf(str, "%lld", &size);
+    else    /* len > 1 */
+    {
+        char tmp[128];
+
+        strcpy(tmp, str);
+        tmp[len-1] = EOS;
+
+        if ( len > 2 && !isdigit(str[len-2]) )
+            tmp[len-2] = EOS;
+
+        sscanf(tmp, "%lld", &size);
+
+        if ( str[len-1] == 'k' || str[len-1] == 'K' )
+            size *= 1024;
+        else if ( str[len-1] == 'm' || str[len-1] == 'M' )
+            size *= 1048576;
+        else if ( str[len-1] == 'g' || str[len-1] == 'G' )
+            size *= 1073741824;
+    }
+
+    DBG("size = %lld", size);
+
+    return size;
+}
+
+
+/* --------------------------------------------------------------------------
    Read the config file
 -------------------------------------------------------------------------- */
 bool npp_read_conf(const char *file)
@@ -10099,6 +10133,7 @@ void npp_lib_read_conf(bool first)
         G_certFile[0] = EOS;
         G_certChainFile[0] = EOS;
         G_keyFile[0] = EOS;
+        G_resCacheTreshold = NPP_RES_CACHE_DEF_TRESHOLD;
 #endif
 
         G_dbHost[0] = EOS;
@@ -10139,16 +10174,13 @@ void npp_lib_read_conf(bool first)
     /* -------------------------------------------------- */
     /* get the conf file path & name */
 
-    if ( G_appdir[0] )
-    {
-        char conf_path[1024];
+    char conf_path[1024];
 
-        sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
+    sprintf(conf_path, "%s/bin/npp.conf", G_appdir);
 
-        DBG("Trying read %s...", conf_path);
+    DBG("Trying read %s...", conf_path);
 
-        conf_read = npp_read_conf(conf_path);
-    }
+    conf_read = npp_read_conf(conf_path);
 
     if ( !conf_read )   /* no NPP_DIR or no npp.conf in bin -- try current dir */
     {
@@ -10275,6 +10307,10 @@ void npp_lib_read_conf(bool first)
             }
         }
 #endif  /* NPP_HTTPS */
+
+        char str_resCacheTreshold[256];
+        if ( npp_read_param_str("resCacheTreshold", str_resCacheTreshold) )
+            G_resCacheTreshold = npp_convenient_size(str_resCacheTreshold);
 
 #endif  /* NPP_APP */
 
@@ -10490,14 +10526,7 @@ static char pidfilename[512];
     if ( G_pid == 0 )
         G_pid = getpid();
 
-    if ( G_appdir[0] )
-#ifdef _WIN32
-        sprintf(pidfilename, "%s\\bin\\%s.pid", G_appdir, name);
-#else
-        sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
-#endif
-    else    /* empty NPP_DIR */
-        sprintf(pidfilename, "%s.pid", name);
+    sprintf(pidfilename, "%s/bin/%s.pid", G_appdir, name);
 
     /* check if the pid file already exists */
 
@@ -10693,27 +10722,16 @@ bool npp_log_start(const char *prefix, bool test, bool switching)
 
         /* first try in NPP_DIR --------------------------------------------- */
 
-        if ( G_appdir[0] )
-        {
-            char fffname[2048];     /* full file name with path */
+        char fffname[2048];     /* full file name with path */
 
 #ifdef _WIN32
-            sprintf(fffname, "%s\\logs\\%s", G_appdir, ffname);
+        sprintf(fffname, "%s\\logs\\%s", G_appdir, ffname);
 #else
-            sprintf(fffname, "%s/logs/%s", G_appdir, ffname);
+        sprintf(fffname, "%s/logs/%s", G_appdir, ffname);
 #endif
-            if ( NULL == (G_log_fd=fopen(fffname, "a")) )
-            {
-                if ( NULL == (G_log_fd=fopen(ffname, "a")) )  /* try current dir */
-                {
-                    printf("ERROR: Couldn't open log file.\n");
-                    return FALSE;
-                }
-            }
-        }
-        else    /* no NPP_DIR -- try current dir */
+        if ( NULL == (G_log_fd=fopen(fffname, "a")) )
         {
-            if ( NULL == (G_log_fd=fopen(ffname, "a")) )
+            if ( NULL == (G_log_fd=fopen(ffname, "a")) )  /* try current dir */
             {
                 printf("ERROR: Couldn't open log file.\n");
                 return FALSE;

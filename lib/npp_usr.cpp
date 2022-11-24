@@ -1206,6 +1206,8 @@ static Cusers u;
         u.auth_level = auth_level;
         u.status = status;
         strcpy(u.created, DT_NOW_GMT);
+        strcpy(u.last_login, DT_NULL);
+        strcpy(u.ula_time, DT_NULL);
 
         G_new_user_id = u.Insert();
     }
@@ -1813,6 +1815,8 @@ static Cusers u;
             u.auth_level = auth_level;
             u.status = status;
             strcpy(u.created, DT_NOW_GMT);
+            strcpy(u.last_login, DT_NULL);
+            strcpy(u.ula_time, DT_NULL);
 
             G_new_user_id = u.Insert();
         }

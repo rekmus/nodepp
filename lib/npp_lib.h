@@ -854,6 +854,7 @@ extern "C" {
     char *stp_right(char *str);
     bool strdigits(const char *src);
     int  npp_compare_strings(const void *a, const void *b);
+    long long npp_convenient_size(const char *str);
     bool npp_read_conf(const char *file);
 
 #ifdef NPP_CPP_STRINGS
@@ -1197,7 +1198,16 @@ void npp_log_write(char level, const std::string& message, Args&& ... args)
 
     char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(buffer, NPP_MAX_LOG_STR_LEN+64, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
 
     /* write to the log file */
 
@@ -1232,7 +1242,16 @@ void npp_log_write_time(char level, const std::string& message, Args&& ... args)
 
     char buffer[NPP_MAX_LOG_STR_LEN+1+64];
 
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(buffer, NPP_MAX_LOG_STR_LEN+64, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
 
     /* write to the log file */
 
@@ -1262,7 +1281,16 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
 
     char buffer[NPP_MAX_MESSAGE_LEN+1];
 
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(buffer, NPP_MAX_MESSAGE_LEN, message.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
 
     G_messages[G_messages_cnt].code = code;
 
@@ -1288,7 +1316,18 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
 template<typename... Args>
 void NPP_CPP_STRINGS_STRM(const std::string& str, Args&& ... args)
 {
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
+
     G_strm = stpcpy(G_strm, G_tmp);
 }
 
@@ -1313,6 +1352,12 @@ void npp_eng_out_check_realloc(int ci, const char *str);
 template<typename... Args>
 void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
 {
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
 #ifdef NPP_SVC
     std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
     npp_svc_out_check_realloc(G_tmp);
@@ -1320,6 +1365,11 @@ void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
     std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
     npp_eng_out_check_realloc(ci, G_tmp);
 #endif  /* NPP_SVC */
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 
@@ -1329,7 +1379,18 @@ void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
 template<typename... Args>
 void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
 {
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(G_connections[ci].location, NPP_MAX_URI_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 
@@ -1339,7 +1400,18 @@ void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
 template<typename... Args>
 void npp_lib_set_res_content_disposition(int ci, const std::string& str, Args&& ... args)
 {
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#endif
+
     std::snprintf(G_connections[ci].cdisp, NPP_CONTENT_DISP_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+
+#if __GNUC__ > 7
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 #endif  /* NPP_CLIENT */

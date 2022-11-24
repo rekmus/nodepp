@@ -57,6 +57,7 @@ char        G_cipherList[NPP_CIPHER_LIST_LEN+1]="";
 char        G_certFile[256]="";
 char        G_certChainFile[256]="";
 char        G_keyFile[256]="";
+int         G_resCacheTreshold=NPP_RES_CACHE_DEF_TRESHOLD;
 int         G_usersRequireActivation=0;
 char        G_IPBlackList[256]="";
 char        G_IPWhiteList[256]="";
@@ -2046,6 +2047,26 @@ static void http2_hdr_server(int ci)
 
 
 /* --------------------------------------------------------------------------
+   Free static resource
+-------------------------------------------------------------------------- */
+static void free_static_res(int ci)
+{
+    if ( M_statics[G_connections[ci].static_res].data )
+    {
+        free(M_statics[G_connections[ci].static_res].data);
+        M_statics[G_connections[ci].static_res].data = NULL;
+    }
+
+    if ( M_statics[G_connections[ci].static_res].data_deflated )
+    {
+        free(M_statics[G_connections[ci].static_res].data_deflated);
+        M_statics[G_connections[ci].static_res].data_deflated = NULL;
+        M_statics[G_connections[ci].static_res].len_deflated = 0;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
    Set connection state after read or write
 -------------------------------------------------------------------------- */
 static void set_state(int ci, int bytes, bool secure)
@@ -2205,6 +2226,9 @@ static void set_state(int ci, int bytes, bool secure)
             }
             else    /* the whole content has been sent at once */
             {
+                if ( G_connections[ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )
+                    free_static_res(ci);
+
                 log_request(ci);
 
 #ifdef NPP_HTTP2
@@ -2232,6 +2256,9 @@ static void set_state(int ci, int bytes, bool secure)
         }
         else    /* all sent */
         {
+            if ( G_connections[ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )
+                free_static_res(ci);
+
             log_request(ci);
 
 #ifdef NPP_HTTP2
@@ -2877,6 +2904,8 @@ static bool init(int argc, char **argv)
     ALWAYS("          certChainFile = %s", G_certChainFile);
     ALWAYS("                keyFile = %s", G_keyFile);
 #endif
+
+    ALWAYS("       resCacheTreshold = %lld", G_resCacheTreshold);
 
 #ifdef NPP_MYSQL
     ALWAYS("                 dbHost = %s", G_dbHost);
@@ -3585,7 +3614,7 @@ void npp_eng_read_blocked_ips()
     {
         /* full path */
     }
-    else if ( G_appdir[0] )
+    else
     {
         sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
     }
@@ -3733,7 +3762,7 @@ void npp_eng_read_allowed_ips()
     {
         /* full path */
     }
-    else if ( G_appdir[0] )
+    else
     {
         sprintf(fname, "%s/bin/%s", G_appdir, G_IPWhiteList);
     }
@@ -4033,9 +4062,8 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     int     i;
     char    resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
     char    ressubdir[NPP_STATIC_PATH_LEN*2+2]; /* full path to res/subdir */
-    char    namewpath[NPP_STATIC_PATH_LEN*2+2]; /* full path including file name */
-    char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name */
-    char    fullpath[NPP_STATIC_PATH_LEN*2];
+    char    resname[NPP_STATIC_PATH_LEN+1];     /* relative path including file name M_statics.name */
+    char    fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
@@ -4044,10 +4072,6 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     struct stat fstat;
 
     if ( directory == NULL || directory[0] == EOS ) return TRUE;
-
-#ifndef _WIN32
-    if ( G_appdir[0] == EOS ) return TRUE;
-#endif
 
     if ( first_scan && !path ) DBG("");
 
@@ -4059,22 +4083,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     }
 #endif  /* NPP_DEBUG */
 
-#ifdef _WIN32   /* be more forgiving */
-
-    if ( G_appdir[0] )
-    {
-        sprintf(resdir, "%s\\%s", G_appdir, directory);
-    }
-    else    /* no NPP_DIR */
-    {
-        sprintf(resdir, "..\\%s", directory);
-    }
-
-#else   /* Linux -- don't fool around */
-
     sprintf(resdir, "%s/%s", G_appdir, directory);
-
-#endif  /* _WIN32 */
 
 #ifdef NPP_DEBUG
     if ( first_scan )
@@ -4192,16 +4201,16 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         /* ------------------------------------------------------------------- */
         /* additional file info */
 
-        sprintf(namewpath, "%s/%s", resdir, resname);
+        sprintf(fullpath, "%s/%s", resdir, resname);
 
 #ifdef NPP_DEBUG
         if ( first_scan )
-            DBG("namewpath [%s]", namewpath);
+            DBG("fullpath [%s]", fullpath);
 #endif
 
-        if ( stat(namewpath, &fstat) != 0 )
+        if ( stat(fullpath, &fstat) != 0 )
         {
-            ERR("stat for [%s] failed, errno = %d (%s)", namewpath, errno, strerror(errno));
+            ERR("stat for [%s] failed, errno = %d (%s)", fullpath, errno, strerror(errno));
             closedir(dir);
             return FALSE;
         }
@@ -4287,11 +4296,11 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
         /* size and content */
 
 #ifdef _WIN32   /* Windows */
-        if ( NULL == (fd=fopen(namewpath, "rb")) )
+        if ( NULL == (fd=fopen(fullpath, "rb")) )
 #else
-        if ( NULL == (fd=fopen(namewpath, "r")) )
+        if ( NULL == (fd=fopen(fullpath, "r")) )
 #endif  /* _WIN32 */
-            ERR("Couldn't open %s", namewpath);
+            ERR("Couldn't open %s", fullpath);
         else
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
@@ -4345,33 +4354,42 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 }
             }
 
-            M_statics[i].data = (char*)malloc(M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE);
+            /* preload static resources not bigger than resCacheTreshold bytes */
 
-            if ( NULL == M_statics[i].data )
+            if ( M_statics[i].len <= G_resCacheTreshold || M_statics[i].source != STATIC_SOURCE_RES )
             {
-                ERR("Couldn't allocate %u bytes for %s", M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
-                fclose(fd);
-                closedir(dir);
-                return FALSE;
-            }
+                M_statics[i].data = (char*)malloc(M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE);
 
-            if ( minify )   /* STATIC_SOURCE_RESMIN */
-            {
-                memcpy(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[i].len+1);
-                free(data_tmp);
-                data_tmp = NULL;
-                free(data_tmp_min);
-                data_tmp_min = NULL;
-            }
-            else if ( M_statics[i].source == STATIC_SOURCE_RES )
-            {
-                if ( fread(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, M_statics[i].len, 1, fd) != 1 )
+                if ( NULL == M_statics[i].data )
                 {
-                    ERR("Couldn't read from %s", M_statics[i].name);
+                    ERR("Couldn't allocate %u bytes for %s", M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
                     fclose(fd);
                     closedir(dir);
                     return FALSE;
                 }
+
+                if ( minify )   /* STATIC_SOURCE_RESMIN */
+                {
+                    memcpy(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[i].len+1);
+                    free(data_tmp);
+                    data_tmp = NULL;
+                    free(data_tmp_min);
+                    data_tmp_min = NULL;
+                }
+                else if ( M_statics[i].source == STATIC_SOURCE_RES )
+                {
+                    if ( fread(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, M_statics[i].len, 1, fd) != 1 )
+                    {
+                        ERR("Couldn't read from %s", M_statics[i].name);
+                        fclose(fd);
+                        closedir(dir);
+                        return FALSE;
+                    }
+                }
+            }
+            else if ( first_scan )
+            {
+                DBG("%s's size (%d) > resCacheTreshold (%d)", M_statics[i].name, M_statics[i].len, G_resCacheTreshold);
             }
 
             fclose(fd);
@@ -4397,7 +4415,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
 #ifndef _WIN32
 
-            if ( SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) )
+            if ( (M_statics[i].len <= G_resCacheTreshold || M_statics[i].source != STATIC_SOURCE_RES) && SHOULD_BE_COMPRESSED(M_statics[i].len, M_statics[i].type) )
             {
                 if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
@@ -5107,6 +5125,86 @@ static void gen_response_header(int ci)
             {
                 G_connections[ci].clen = M_statics[G_connections[ci].static_res].len;
                 G_connections[ci].out_ctype = M_statics[G_connections[ci].static_res].type;
+
+                if ( M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )    /* read from disk */
+                {
+                    DBG("Reading %s from disk...", M_statics[G_connections[ci].static_res].name);
+
+                    char resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
+                    char fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
+
+#ifdef NPP_MULTI_HOST
+                    sprintf(resdir, "%s/%s", G_appdir, G_hosts[G_connections[ci].host_id].res);
+#else
+                    sprintf(resdir, "%s/res", G_appdir);
+#endif
+
+                    sprintf(fullpath, "%s/%s", resdir, M_statics[G_connections[ci].static_res].name);
+
+                    DDBG("fullpath [%s]", fullpath);
+
+                    FILE *fd;
+
+#ifdef _WIN32   /* Windows */
+                    if ( NULL == (fd=fopen(fullpath, "rb")) )
+#else
+                    if ( NULL == (fd=fopen(fullpath, "r")) )
+#endif  /* _WIN32 */
+                        ERR("Couldn't open %s", fullpath);
+                    else
+                    {
+                        M_statics[G_connections[ci].static_res].data = (char*)malloc(M_statics[G_connections[ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE);
+
+                        if ( NULL == M_statics[G_connections[ci].static_res].data )
+                        {
+                            ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].name);
+                        }
+                        else if ( fread(M_statics[G_connections[ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].len, 1, fd) != 1 )
+                        {
+                            ERR("Couldn't read from %s", M_statics[G_connections[ci].static_res].name);
+                        }
+#ifndef _WIN32
+                        else    /* compress if aplicable */
+                        {
+                            if ( SHOULD_BE_COMPRESSED(G_connections[ci].clen, G_connections[ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[ci].flags) && !NPP_UA_IE )
+                            {
+                                DBG("Compressing static resource");
+
+                                char *data_tmp=NULL;
+
+                                if ( NULL == (data_tmp=(char*)malloc(M_statics[G_connections[ci].static_res].len)) )
+                                {
+                                    ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[ci].static_res].len, M_statics[G_connections[ci].static_res].name);
+                                }
+                                else
+                                {
+                                    int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[G_connections[ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].len);
+
+                                    if ( deflated_len == -1 )
+                                    {
+                                        WAR("Couldn't compress %s", M_statics[G_connections[ci].static_res].name);
+                                    }
+                                    else    /* compressable */
+                                    {
+                                        if ( NULL == (M_statics[G_connections[ci].static_res].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
+                                        {
+                                            ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].name);
+                                        }
+
+                                        memcpy(M_statics[G_connections[ci].static_res].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
+                                        M_statics[G_connections[ci].static_res].len_deflated = deflated_len;
+                                    }
+
+                                    free(data_tmp);
+                                }
+                            }
+                        }
+#endif  /* _WIN32 */
+                        fclose(fd);
+                    }
+
+                    G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data;   /* update */
+                }
             }
 
             /* compress? ------------------------------------------------------------------ */
@@ -7853,7 +7951,7 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
     {
         /* full path */
     }
-    else if ( G_appdir[0] )
+    else
     {
         sprintf(fname, "%s/bin/%s", G_appdir, G_IPBlackList);
     }

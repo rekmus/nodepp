@@ -1,6 +1,10 @@
 # Node++
 
-Node++ is an asynchronous HTTP(S) engine and backend framework for low-latency C/C++ web applications and RESTful APIs. C++ backend can render pages in **microseconds**, even with a database, when used with efficient [DAO/ORM class](https://nodepp.org/generators/mysqldao) (see [live demo](https://nodepp.org/products)).
+Node++ is an asynchronous HTTP(S) engine and backend framework for low-latency C/C++ web applications and RESTful APIs.
+
+It's more than [twice as fast as Spring Boot](https://nodepp.org/docs/performance) and [five times faster than Node.js](https://nodepp.org/docs/performance).
+
+C++ backend can render pages in **microseconds**, even with a database, when used with our efficient [DAO/ORM class](https://nodepp.org/generators/mysqldao) (see [live demo](https://nodepp.org/products)).
 
 It can act as:
 
@@ -20,13 +24,13 @@ The *backend framework* means that there are **7 server-side events** you can re
 
 Event|Function called
 -----|----
-Application start|`npp_app_init()`
+application start|`npp_app_init()`
 **HTTP request**|**`npp_app_main()`**
-Session start|`npp_app_session_init()`
-Session authentication (login)|`npp_app_user_login()`
-Session logout|`npp_app_user_logout()`
-Session stop|`npp_app_session_done()`
-Application stop|`npp_app_done()`
+session start|`npp_app_session_init()`
+session authentication (login)|`npp_app_user_login()`
+session logout|`npp_app_user_logout()`
+session stop|`npp_app_session_done()`
+application stop|`npp_app_done()`
 
 [npp_app.cpp](https://github.com/rekmus/nodepp/blob/master/src/npp_app.cpp) has to contain these definitions (even if empty).
 
@@ -41,7 +45,9 @@ By default sessions are not started. To change this [add one line to npp_app.h](
 
 Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance sufficient to host a fully-fledged web application with a database for thousands of users.
 
-Node++ applications consistently get "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
+On a typical server it handles [50,000 requests per second](https://nodepp.org/docs/performance).
+
+Low latency gets Node++ applications "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
 
 <div align="center">
 <img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300>
