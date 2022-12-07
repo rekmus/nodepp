@@ -269,11 +269,8 @@ int main(int argc, char **argv)
     int         bytes=0;
     int         failed_select_cnt=0;
 #ifdef NPP_DEBUG
-    time_t      dbg_last_time0=0;
-    time_t      dbg_last_time1=0;
-    time_t      dbg_last_time2=0;
-    time_t      dbg_last_time3=0;
-#endif  /* NPP_DEBUG */
+    time_t      dbg_last_time=0;
+#endif
 
     if ( !init(argc, argv) )
     {
@@ -565,7 +562,7 @@ int main(int argc, char **argv)
         else    /* sockets_ready > 0 */
         {
 #ifdef NPP_DEBUG
-            if ( G_now != dbg_last_time0 )   /* only once in a second */
+            if ( G_now != dbg_last_time )   /* only once in a second */
             {
                 DBG("");
                 DBG("     connected = %d", G_connections_cnt);
@@ -577,7 +574,6 @@ int main(int argc, char **argv)
 #endif
                 DBG(" sockets_ready = %d", sockets_ready);
                 DBG("");
-                dbg_last_time0 = G_now;
             }
 #endif  /* NPP_DEBUG */
 #ifdef NPP_FD_MON_SELECT
@@ -621,19 +617,25 @@ int main(int argc, char **argv)
 
             {
 #ifdef NPP_DEBUG
-                DBG("");
-                DBG_LINE_LONG;
-                DBG("sockets_ready = %d", sockets_ready);
-                DBG_LINE_LONG;
+                if ( G_now != dbg_last_time )   /* only once in a second */
+                {
+                    DBG("");
+                    DBG_LINE_LONG;
+                    DBG("sockets_ready = %d", sockets_ready);
+                    DBG_LINE_LONG;
+                }
 #endif
 
 #ifdef NPP_FD_MON_SELECT
                 for ( ci=0; sockets_ready>0; ++ci )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("ci = %d", ci);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("ci = %d", ci);
+                        DBG_LINE;
+                    }
 #endif  /* NPP_DEBUG */
                     if ( G_connections[ci].state == CONN_STATE_DISCONNECTED )
                         continue;
@@ -643,21 +645,23 @@ int main(int argc, char **argv)
                 for ( pi=NPP_LISTENING_FDS; sockets_ready>0; ++pi )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("pi = %d", pi);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("pi = %d", pi);
+                        DBG_LINE;
+                    }
 #endif  /* NPP_DEBUG */
                     ci = M_poll_ci[pi];   /* set G_connections array index */
 #ifdef NPP_DEBUG
 #ifndef NPP_CPP_STRINGS
-                    if ( G_now != dbg_last_time1 )   /* only once in a second */
+                    if ( G_now != dbg_last_time )   /* only once in a second */
                     {
                         int l;
                         DBG_LINE;
                         for ( l=NPP_LISTENING_FDS; l<M_pollfds_cnt; ++l )
                             DBG("ci=%d, pi=%d, M_pollfds[pi].revents = %d", M_poll_ci[l], l, M_pollfds[l].revents);
                         DBG_LINE;
-                        dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_CPP_STRINGS */
 #endif  /* NPP_DEBUG */
@@ -667,11 +671,14 @@ int main(int argc, char **argv)
                 for ( epi=0; sockets_ready>0; ++epi )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("epi = %d", epi);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("epi = %d", epi);
+                        DBG_LINE;
+                    }
 #ifndef NPP_CPP_STRINGS
-                    if ( G_now != dbg_last_time1 )   /* only once in a second */
+                    if ( G_now != dbg_last_time )   /* only once in a second */
                     {
                         int l;
                         DBG_LINE;
@@ -692,7 +699,6 @@ int main(int argc, char **argv)
                             }
                         }
                         DBG_LINE;
-                        dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_CPP_STRINGS */
 #endif  /* NPP_DEBUG */
@@ -736,28 +742,43 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                     if ( FD_ISSET(G_connections[ci].fd, &M_readfds) )     /* incoming data ready */
                     {
-                        DDBG("FD_ISSET (existing) incoming data ready");
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )   /* only once in a second */
+                        {
+                            DBG("FD_ISSET (existing) incoming data ready");
+                        }
+#endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_SELECT */
 
 #ifdef NPP_FD_MON_POLL
                     if ( M_pollfds[pi].revents & POLLIN )
                     {
-                        DDBG("POLLIN (existing)");
-
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )   /* only once in a second */
+                        {
+                            DBG("POLLIN (existing), pi=%d", pi);
+                            DBG("state = %c", G_connections[ci].state);
+                        }
+#endif  /* NPP_DEBUG */
                         M_pollfds[pi].revents = 0;
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
-                        DDBG("EPOLLIN (existing)");
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )   /* only once in a second */
+                        {
+                            DBG("EPOLLIN (existing)");
+                            DBG("state = %c", G_connections[ci].state);
+                        }
+#endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_EPOLL */
 
 #ifdef NPP_DEBUG
-                        if ( G_now != dbg_last_time2 )   /* only once in a second */
+                        if ( G_now != dbg_last_time )   /* only once in a second */
                         {
                             DBG("ci=%d, fd=%d has incoming data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
-                            dbg_last_time2 = G_now;
                         }
 #endif  /* NPP_DEBUG */
 #ifdef NPP_HTTPS
@@ -819,8 +840,11 @@ int main(int argc, char **argv)
                             if ( G_connections[ci].state == CONN_STATE_CONNECTED )
                             {
 #ifdef NPP_DEBUG
-                                DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
-                                DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
+                                if ( G_now != dbg_last_time )   /* only once in a second */
+                                {
+                                    DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
+                                    DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
+                                }
 #endif  /* NPP_DEBUG */
                                 bytes = recv(G_connections[ci].fd, G_connections[ci].in, NPP_IN_BUFSIZE-1, 0);
 
@@ -905,10 +929,9 @@ int main(int argc, char **argv)
                         DDBG("EPOLLOUT");
 #endif  /* NPP_FD_MON_EPOLL */
 #ifdef NPP_DEBUG
-                        if ( G_now != dbg_last_time3 )   /* only once in a second */
+                        if ( G_now != dbg_last_time )   /* only once in a second */
                         {
                             DBG("ci=%d, fd=%d is ready for outgoing data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
-                            dbg_last_time3 = G_now;
                         }
 #endif  /* NPP_DEBUG */
 
@@ -1350,6 +1373,8 @@ int main(int argc, char **argv)
             if ( !housekeeping() )
                 return EXIT_FAILURE;
         }
+
+        dbg_last_time = G_now;
     }
 
     return EXIT_SUCCESS;
@@ -2073,12 +2098,20 @@ static void set_state(int ci, int bytes, bool secure)
 {
     int sockerr = NPP_SOCKET_GET_ERROR;
 
-    DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
+#ifdef NPP_DEBUG
+static time_t dbg_last_time=0;
+    if ( G_now != dbg_last_time )   /* only once in a second */
+        DBG("ci=%d, set_state, bytes=%d", ci, bytes);
+#endif
 
     if ( bytes <= 0 )
     {
 #ifdef NPP_DEBUG
-        NPP_SOCKET_LOG_ERROR(sockerr);
+        if ( G_now != dbg_last_time )   /* only once in a second */
+        {
+            NPP_SOCKET_LOG_ERROR(sockerr);
+            dbg_last_time = G_now;
+        }
 #endif
         if ( !secure )
         {
@@ -4150,9 +4183,12 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 memset(M_statics[i].name, 'z', NPP_STATIC_PATH_LEN);
                 M_statics[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
-                free(M_statics[i].data);
-                M_statics[i].data = NULL;
-                M_statics[i].len = 0;
+                if ( M_statics[i].data )
+                {
+                    free(M_statics[i].data);
+                    M_statics[i].data = NULL;
+                    M_statics[i].len = 0;
+                }
 
                 if ( M_statics[i].data_deflated )
                 {
@@ -4344,13 +4380,17 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
             if ( reread )
             {
-                free(M_statics[i].data);
-                M_statics[i].data = NULL;
+                if ( M_statics[i].data )
+                {
+                    free(M_statics[i].data);
+                    M_statics[i].data = NULL;
+                }
 
                 if ( M_statics[i].data_deflated )
                 {
                     free(M_statics[i].data_deflated);
                     M_statics[i].data_deflated = NULL;
+                    M_statics[i].len_deflated = 0;
                 }
             }
 
@@ -4438,12 +4478,11 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
                     M_statics[i].len_deflated = 0;
                 }
-                else
+                else    /* compression successful */
                 {
                     if ( NULL == (M_statics[i].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
                     {
                         ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
-                        fclose(fd);
                         closedir(dir);
                         free(data_tmp);
                         return FALSE;
