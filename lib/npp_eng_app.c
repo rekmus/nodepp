@@ -1074,16 +1074,19 @@ int main(int argc, char **argv)
                     else    /* not IN nor OUT */
                     {
 #ifdef NPP_DEBUG
-                        DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
+                        if ( G_now != dbg_last_time )   /* only once in a second */
+                        {
+                            DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
 #ifndef NPP_CPP_STRINGS
 #ifdef NPP_FD_MON_POLL
-                        DBG("revents=%d", M_pollfds[pi].revents);
+                            DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                        DBG("events=%d", M_epollevs[epi].events);
+                            DBG("events=%d", M_epollevs[epi].events);
 #endif
 #endif  /* NPP_CPP_STRINGS */
-                        DBG("");
+                            DBG("");
+                        }
 #endif  /* NPP_DEBUG */
                     }
 
