@@ -1374,7 +1374,9 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
         }
 
+#ifdef NPP_DEBUG
         dbg_last_time = G_now;
+#endif
     }
 
     return EXIT_SUCCESS;
