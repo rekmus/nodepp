@@ -7131,7 +7131,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         G_connections[ci].lang[i] = EOS;
 
-        DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
+        DBG("G_connections[ci].lang [%s]", G_connections[ci].lang);
 
         if ( IS_SESSION && G_connections[ci].lang[0] && strcmp(SESSION.lang, G_connections[ci].lang) != 0 )
         {
