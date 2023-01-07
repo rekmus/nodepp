@@ -1295,7 +1295,7 @@ void npp_add_message(int code, const std::string& lang, const std::string& messa
     G_messages[G_messages_cnt].code = code;
 
     if ( lang.c_str() && lang.c_str()[0] )
-        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang.c_str()), NPP_LANG_LEN);
+        COPY(G_messages[G_messages_cnt].lang, npp_upper(lang), NPP_LANG_LEN);
     else
         COPY(G_messages[G_messages_cnt].lang, npp_upper(NPP_DEFAULT_LANG), NPP_LANG_LEN);
 

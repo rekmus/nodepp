@@ -554,8 +554,6 @@ int main(int argc, char **argv)
         {
             /* we have some time now, let's do some housekeeping */
 
-//            DDBG("sockets_ready == 0");
-
             if ( !housekeeping() )
                 return EXIT_FAILURE;
         }
@@ -576,6 +574,7 @@ int main(int argc, char **argv)
                 DBG("");
             }
 #endif  /* NPP_DEBUG */
+
 #ifdef NPP_FD_MON_SELECT
             if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new http connection */
             {
@@ -583,6 +582,7 @@ int main(int argc, char **argv)
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_SELECT */
+
 #ifdef NPP_FD_MON_POLL
             if ( M_pollfds[0].revents & POLLIN )
             {
@@ -591,6 +591,7 @@ int main(int argc, char **argv)
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_POLL */
+
 #ifdef NPP_HTTPS
 #ifdef NPP_FD_MON_SELECT
             else if ( FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new https connection */
@@ -610,12 +611,10 @@ int main(int argc, char **argv)
 #endif  /* NPP_HTTPS */
 
 #ifndef NPP_FD_MON_EPOLL
-
             if ( sockets_ready )    /* existing connections */
-
-#endif  /* NPP_FD_MON_EPOLL */
-
             {
+#endif
+
 #ifdef NPP_DEBUG
                 if ( G_now != dbg_last_time )   /* only once in a second */
                 {
@@ -624,7 +623,7 @@ int main(int argc, char **argv)
                     DBG("sockets_ready = %d", sockets_ready);
                     DBG_LINE_LONG;
                 }
-#endif
+#endif  /* NPP_DEBUG */
 
 #ifdef NPP_FD_MON_SELECT
                 for ( ci=0; sockets_ready>0; ++ci )
@@ -677,6 +676,7 @@ int main(int argc, char **argv)
                         DBG("epi = %d", epi);
                         DBG_LINE;
                     }
+
 #ifndef NPP_CPP_STRINGS
                     if ( G_now != dbg_last_time )   /* only once in a second */
                     {
@@ -701,7 +701,9 @@ int main(int argc, char **argv)
                         DBG_LINE;
                     }
 #endif  /* NPP_CPP_STRINGS */
+
 #endif  /* NPP_DEBUG */
+
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
                         DDBG("EPOLLIN (new?)");
@@ -728,7 +730,9 @@ int main(int argc, char **argv)
 
                     if ( epoll_idx == -1 )
                     {
-#ifndef NPP_CPP_STRINGS
+#ifdef NPP_CPP_STRINGS
+                        DDBG("fd not found in M_epoll_ci");
+#else
                         DDBG("fd=%d not found in M_epoll_ci", M_epollevs[epi].data.fd);
 #endif
                         sockets_ready--;
@@ -1167,7 +1171,11 @@ int main(int argc, char **argv)
 #endif
 #endif  /* NPP_DEBUG */
                 }   /* for on active sockets */
+
+#ifndef NPP_FD_MON_EPOLL
             }   /* some of the existing connections are ready for I/O */
+#endif
+
         }   /* some sockets are ready for I/O (including listening sockets) */
 
 #ifdef NPP_DEBUG
@@ -1412,24 +1420,16 @@ static bool housekeeping()
     /* close expired anonymous user sessions */
     if ( G_sessions_cnt ) uses_close_timeouted();
 
-//#ifdef NPP_DEBUG
 #ifndef NPP_DONT_RESCAN_RES
     if ( G_test )   /* kind of developer mode */
     {
         read_resources(FALSE);
     }
 #endif  /* NPP_DONT_RESCAN_RES */
-//#endif  /* NPP_DEBUG */
 
 #ifdef NPP_APP_EVERY_SPARE_SECOND
-//static time_t every_spare_second_last_time=0;
-
-//    if ( G_now != every_spare_second_last_time )
-//    {
-        npp_app_every_spare_second();
-//        every_spare_second_last_time = G_now;
-//    }
-#endif  /* NPP_APP_EVERY_SPARE_SECOND */
+    npp_app_every_spare_second();
+#endif
 
     if ( G_ptm->tm_min != M_prev_minute )
     {
@@ -3463,10 +3463,7 @@ static void accept_connection(bool secure)
 
         G_connections[M_first_free_ci].flags |= NPP_CONN_FLAG_SECURE;
 
-        /* -------------------------------------------- */
-        /* add connection to monitored set */
-
-#ifdef NPP_FD_MON_POLL
+#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
 
         /* reference ... */
         G_connections[M_first_free_ci].pi = M_pollfds_cnt;
@@ -3568,6 +3565,7 @@ static void accept_connection(bool secure)
         G_connections[M_first_free_ci].flags = G_connections[M_first_free_ci].flags & ~NPP_CONN_FLAG_SECURE;
 
 #ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
+
         /* reference ... */
         G_connections[M_first_free_ci].pi = M_pollfds_cnt;
         /* ... each other to avoid unnecessary looping */
@@ -3576,7 +3574,9 @@ static void accept_connection(bool secure)
         M_pollfds[M_pollfds_cnt].events = POLLIN;
         M_pollfds[M_pollfds_cnt].revents = 0;
         ++M_pollfds_cnt;
+
 #endif  /* NPP_FD_MON_POLL */
+
 
 #ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
         /* add to index */
@@ -3593,6 +3593,7 @@ static void accept_connection(bool secure)
         ev.events = EPOLLIN | EPOLLET;
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 #endif  /* NPP_FD_MON_EPOLL */
+
     }
 
     DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
@@ -3659,7 +3660,11 @@ void npp_eng_read_blocked_ips()
 
     FILE *fd=NULL;
 
+#ifdef _WIN32
+    if ( NULL == (fd=fopen(fname, "rb")) )
+#else
     if ( NULL == (fd=fopen(fname, "r")) )
+#endif
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -3807,7 +3812,11 @@ void npp_eng_read_allowed_ips()
 
     FILE *fd=NULL;
 
+#ifdef _WIN32
+    if ( NULL == (fd=fopen(fname, "rb")) )
+#else
     if ( NULL == (fd=fopen(fname, "r")) )
+#endif
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -6241,13 +6250,13 @@ static int parse_req(int ci, int len)
         char tmp[NPP_MAX_URI_LEN+1];
         strcpy(tmp, G_connections[ci].uri+root_uri_len+1);
 
-        DDBG("tmp: [%s]", tmp);
+        DDBG("tmp [%s]", tmp);
 
         strcpy(G_connections[ci].uri, tmp);
     }
 #endif  /* NPP_ROOT_URI */
 
-    DDBG("URI: [%s]", G_connections[ci].uri);
+    DDBG("URI [%s]", G_connections[ci].uri);
 
     i += 6;   /* skip the space and HTTP/ */
 
@@ -8006,7 +8015,7 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
         ERR("Couldn't open %s", fname);
     else
     {
-        fseek(fd, 0, SEEK_END);
+//        fseek(fd, 0, SEEK_END);
         fprintf(fd, "%s\t# %sblocked on %s\n", value, autoblocked?"auto":"", DT_NOW_GMT);
         fclose(fd);
     }

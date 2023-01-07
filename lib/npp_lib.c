@@ -136,27 +136,36 @@ static int  M_shmid[NPP_MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
 #pragma GCC diagnostic pop  /* end of -Wmissing-braces */
 #endif
 
+
+#ifndef NPP_NO_SOCKETS
+
 #ifdef _WIN32   /* Windows */
 static WSADATA M_wsa;
 static bool M_WSA_initialized=FALSE;
-#endif
+#endif  /* _WIN32 */
 
 static call_http_header_t M_call_http_headers[CALL_HTTP_MAX_HEADERS];
 static int M_call_http_headers_cnt=0;
+
 #ifdef _WIN32   /* Windows */
 static SOCKET M_call_http_socket;
 #else
 static int M_call_http_socket;
 #endif  /* _WIN32 */
+
 #ifdef NPP_HTTPS
 static SSL_CTX *M_ssl_client_ctx=NULL;
 static SSL *M_call_http_ssl=NULL;
 #else
 static void *M_call_http_ssl=NULL;    /* dummy */
 #endif  /* NPP_HTTPS */
+
 static char M_call_http_mode;
 
 static bool M_call_http_proxy=FALSE;
+
+#endif  /* NPP_NO_SOCKETS */
+
 
 static unsigned char M_random_numbers[NPP_RANDOM_NUMBERS];
 static char M_random_initialized=0;
@@ -274,8 +283,10 @@ void npp_lib_done()
 #endif  /* _WIN32 */
 
 #ifdef _WIN32
+#ifndef NPP_NO_SOCKETS
     if ( M_WSA_initialized )
         WSACleanup();
+#endif
 #endif  /* _WIN32 */
 
     npp_log_finish();
@@ -2044,6 +2055,7 @@ static bool init_ssl_client()
 -------------------------------------------------------------------------- */
 void npp_lib_setnonblocking(int sock)
 {
+#ifndef NPP_NO_SOCKETS
 #ifdef _WIN32   /* Windows */
 
     u_long mode = 1;  // 1 to enable non-blocking socket
@@ -2068,7 +2080,8 @@ void npp_lib_setnonblocking(int sock)
         ERR("fcntl(F_SETFL) failed");
         return;
     }
-#endif
+#endif  /* _WIN32 */
+#endif  /* NPP_NO_SOCKETS */
 }
 
 
@@ -3422,7 +3435,7 @@ static unsigned blen;                   /* boundary length */
 
     cp = (unsigned char*)G_connections[ci].in_data + blen;   /* skip the first boundary */
 
-    bool found = FALSE;
+//    bool found = FALSE;
 
     while ( TRUE )   /* find the right section */
     {
@@ -4348,6 +4361,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 #endif  /* NPP_CLIENT */
 
 
+#ifndef NPP_NO_SOCKETS
 /* --------------------------------------------------------------------------
    HTTP call -- reset request headers
 -------------------------------------------------------------------------- */
@@ -6127,6 +6141,7 @@ bool npp_lib_check_ssl_error(int ssl_err)
 
     return TRUE;
 }
+#endif  /* NPP_NO_SOCKETS */
 
 
 /* --------------------------------------------------------------------------
