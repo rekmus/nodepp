@@ -7365,7 +7365,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             DDBG("(number)");
 
@@ -7513,7 +7513,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
@@ -7962,7 +7962,7 @@ static int json_pool_cnt=0;
             }
             else    /* number */
             {
-                DDBG("NPP_JSON_INTEGER || NPP_JSON_UNSIGNED || NPP_JSON_LONG || NPP_JSON_FLOAT || NPP_JSON_DOUBLE || NPP_JSON_BOOL");
+                DDBG("NPP_JSON_INTEGER || NPP_JSON_UNSIGNED || NPP_JSON_LONG || NPP_JSON_FLOAT || NPP_JSON_DOUBLE || NPP_JSON_BOOL || NPP_JSON_NULL");
 
                 type = NPP_JSON_INTEGER;    /* we're not sure yet but need to mark it's definitely not STRING */
 
@@ -7988,10 +7988,12 @@ static int json_pool_cnt=0;
             {
                 if ( type==NPP_JSON_STRING )
                     lib_json_add_str(json, "", index, value);
-                else if ( value[0]=='t' )
+                else if ( value[0]=='t' || value[0]=='T' )
                     lib_json_add_bool(json, "", index, 1);
-                else if ( value[0]=='f' )
+                else if ( value[0]=='f' || value[0]=='F' )
                     lib_json_add_bool(json, "", index, 0);
+                else if ( value[0]=='n' || value[0]=='N' )
+                    lib_json_add_null(json, "", index);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
@@ -8031,10 +8033,12 @@ static int json_pool_cnt=0;
             {
                 if ( type==NPP_JSON_STRING )
                     lib_json_add_str(json, key, -1, value);
-                else if ( value[0]=='t' )
+                else if ( value[0]=='t' || value[0]=='T' )
                     lib_json_add_bool(json, key, -1, 1);
-                else if ( value[0]=='f' )
+                else if ( value[0]=='f' || value[0]=='F' )
                     lib_json_add_bool(json, key, -1, 0);
+                else if ( value[0]=='n' || value[0]=='N' )
+                    lib_json_add_null(json, key, -1);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
@@ -8122,6 +8126,8 @@ void lib_json_log_dbg(JSON *json, const char *name)
             strcpy(type, "NPP_JSON_DOUBLE");
         else if ( json->rec[i].type == NPP_JSON_BOOL )
             strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_NULL )
+            strcpy(type, "NPP_JSON_NULL");
         else if ( json->rec[i].type == NPP_JSON_RECORD )
             strcpy(type, "NPP_JSON_RECORD");
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
@@ -8170,6 +8176,8 @@ void lib_json_log_inf(JSON *json, const char *name)
             strcpy(type, "NPP_JSON_DOUBLE");
         else if ( json->rec[i].type == NPP_JSON_BOOL )
             strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_NULL )
+            strcpy(type, "NPP_JSON_NULL");
         else if ( json->rec[i].type == NPP_JSON_RECORD )
             strcpy(type, "NPP_JSON_RECORD");
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
@@ -8376,6 +8384,28 @@ bool lib_json_add_bool(JSON *json, const char *name, int i, bool value)
 
 
 /* --------------------------------------------------------------------------
+   Add/set value to a JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_null(JSON *json, const std::string& name_, int i)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_null(JSON *json, const char *name, int i)
+{
+#endif
+    if ( (i=json_add_elem(json, name, i)) == -1 )
+        return FALSE;
+
+    strcpy(json->rec[i].value, "null");
+
+    json->rec[i].type = NPP_JSON_NULL;
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
    Insert or update value (address) in JSON buffer
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -8476,7 +8506,7 @@ static char dst[NPP_JSON_STR_LEN+1];
             return dst;
         }
 
-        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             strcpy(dst, json->rec[i].value);
             return dst;
@@ -8492,7 +8522,7 @@ static char dst[NPP_JSON_STR_LEN+1];
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
             {
                 strcpy(dst, json->rec[i].value);
                 return dst;
@@ -8731,7 +8761,7 @@ bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t 
         {
             if ( 0==strcmp(json->rec[i].name, name) )
             {
-                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
                 {
                     COPY(retval, json->rec[i].value, maxlen);
 #ifdef NPP_CPP_STRINGS
@@ -8754,7 +8784,7 @@ bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t 
             return FALSE;
         }
 
-        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             COPY(retval, json->rec[i].value, maxlen);
 #ifdef NPP_CPP_STRINGS

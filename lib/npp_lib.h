@@ -330,6 +330,7 @@
 #define NPP_JSON_BOOL                       'b'
 #define NPP_JSON_RECORD                     'r'
 #define NPP_JSON_ARRAY                      'a'
+#define NPP_JSON_NULL                       'n'
 
 
 #define NPP_JSON_MAX_FLOAT_LEN              8
@@ -357,6 +358,8 @@
 #define JSON_ADD_DOUBLE_A(json, i, value)   lib_json_add_double(json, "", i, value)
 #define JSON_ADD_BOOL(json, name, value)    lib_json_add_bool(json, name, -1, value)
 #define JSON_ADD_BOOL_A(json, i, value)     lib_json_add_bool(json, "", i, value)
+#define JSON_ADD_NULL(json, name)           lib_json_add_null(json, name, -1)
+#define JSON_ADD_NULL_A(json, i)            lib_json_add_null(json, "", i)
 
 #define JSON_ADD_RECORD(json, name, value)  lib_json_add_record(json, name, 0, value, FALSE)
 #define JSON_ADD_RECORD_A(json, i, value)   lib_json_add_record(json, "", i, value, FALSE)
@@ -929,6 +932,7 @@ extern "C" {
     bool lib_json_add_float(JSON *json, const std::string& name, int i, float value);
     bool lib_json_add_double(JSON *json, const std::string& name, int i, double value);
     bool lib_json_add_bool(JSON *json, const std::string& name, int i, bool value);
+    bool lib_json_add_null(JSON *json, const std::string& name, int i);
     bool lib_json_add_record(JSON *json, const std::string& name, int i, JSON *json_sub, bool is_array);
     bool lib_json_present(JSON *json, const std::string& name);
     bool lib_json_get_int(JSON *json, const std::string& name, int i, int *retval);
@@ -946,6 +950,7 @@ extern "C" {
     bool lib_json_add_float(JSON *json, const char *name, int i, float value);
     bool lib_json_add_double(JSON *json, const char *name, int i, double value);
     bool lib_json_add_bool(JSON *json, const char *name, int i, bool value);
+    bool lib_json_add_null(JSON *json, const char *name, int i);
     bool lib_json_add_record(JSON *json, const char *name, int i, JSON *json_sub, bool is_array);
     bool lib_json_present(JSON *json, const char *name);
 #ifdef NPP_JSON_V1  /* old version */
