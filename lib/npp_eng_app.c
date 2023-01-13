@@ -1154,21 +1154,21 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                     if ( ci > NPP_MAX_CONNECTIONS )
                     {
-                        DDBG("ci > NPP_MAX_CONNECTIONS, breaking");
+                        DBG("ci > NPP_MAX_CONNECTIONS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_POLL
                     if ( pi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        DDBG("pi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
+                        DBG("pi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_EPOLL
                     if ( epi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        DDBG("epi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
+                        DBG("epi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
