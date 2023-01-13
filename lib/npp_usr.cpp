@@ -224,8 +224,8 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
     }
 #endif
 
-    strcpy(G_connections[ci].cookie_out_a, "x");                     /* no longer needed */
-    strcpy(G_connections[ci].cookie_out_a_exp, G_last_modified);     /* to be removed by browser */
+    strcpy(G_connections[ci].cookie_out_a, "x");                                /* no longer needed */
+    strcpy(G_connections[ci].cookie_out_a_exp, time_epoch2http(G_start_time));  /* to be removed by browser */
 
     return OK;
 }
@@ -315,7 +315,7 @@ static Cusers_logins ul;
         {
             WAR("No authenticated session in database [%s]", sanlscookie);
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             /* ---------------------------------------------------------------------------------- */
             /* brute force ls cookie attack prevention */
@@ -380,7 +380,7 @@ static Cusers_logins ul;
             DBG("Different uagent in database");
 #endif
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             return ERR_SESSION_EXPIRED;
         }
@@ -405,7 +405,7 @@ static Cusers_logins ul;
             /* tell browser we're logging out */
 
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             INF("Session [%s] expired", sanlscookie);
 
@@ -591,7 +591,7 @@ static Cusers_logins ul;
             if ( ci != NPP_NOT_CONNECTED )   /* still connected */
             {
                 strcpy(G_connections[ci].cookie_out_l, "x");
-                strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* in the past => to be removed by browser straight away */
+                strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* in the past => to be removed by browser straight away */
 
                 strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sessid);
             }

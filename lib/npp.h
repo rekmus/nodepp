@@ -1811,8 +1811,8 @@ extern int          G_sessions_hwm;                             /* highest numbe
 extern sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS];         /* G_sessions' index, this starts from 0 */
 
 extern time_t       G_now;                                      /* current GMT time (epoch) */
+extern time_t       G_start_time;                               /* program start time */
 extern struct tm    *G_ptm;                                     /* human readable current time */
-extern char         G_last_modified[32];                        /* response header field with server's start time */
 extern char         G_header_date[32];                          /* RFC 2822 datetime format */
 extern bool         G_initialized;                              /* is server initialization complete? */
 extern char         *G_strm;                                    /* for STRM macro */

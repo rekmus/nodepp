@@ -75,7 +75,6 @@ eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0};
 int         G_sessions_cnt=0;
 int         G_sessions_hwm=0;
-char        G_last_modified[32]="";
 
 /* asynchorous processing */
 
@@ -3055,16 +3054,7 @@ static bool init(int argc, char **argv)
 
     DBG("read_resources() OK");
 
-    /* calculate Expires and Last-Modified header fields for static resources */
-
-    INF("Setting Last-Modified value...");
-
-#ifdef _WIN32   /* Windows */
-    strftime(G_last_modified, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
-#else
-    strftime(G_last_modified, 32, "%a, %d %b %Y %T GMT", G_ptm);
-#endif  /* _WIN32 */
-    DBG("Now is: %s\n", G_last_modified);
+    /* calculate Expires HTTP header */
 
     INF("Setting Expires value...");
 
@@ -5072,14 +5062,14 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                         PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
                 }
-                else
+                else    /* default modified */
                 {
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                        PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                        PRINT_HTTP_LAST_MODIFIED(G_header_date);
                 }
 
                 if ( NPP_EXPIRES_RENDERED > 0 )
@@ -5153,14 +5143,14 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                             PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
                     }
-                    else
+                    else    /* default modified */
                     {
 #ifdef NPP_HTTP2
                         if ( G_connections[ci].http_ver[0] == '2' )
-                            PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                            PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                         else
 #endif  /* NPP_HTTP2 */
-                            PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                            PRINT_HTTP_LAST_MODIFIED(G_header_date);
                     }
 
                     if ( NPP_EXPIRES_RENDERED > 0 )
@@ -7803,7 +7793,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
     req.hdr.blacklist_cnt = G_blacklist_cnt;
 
-    strcpy(req.hdr.last_modified, G_last_modified);
+    strcpy(req.hdr.last_modified, G_header_date);
 
 
     bool found=0;

@@ -74,6 +74,7 @@ int         G_pid=0;
 char        G_appdir[256]="..";
 char        G_tmp[NPP_TMP_BUFSIZE]="";
 time_t      G_now=0;
+time_t      G_start_time=0;
 struct tm   *G_ptm=NULL;
 char        G_header_date[32]="";
 bool        G_initialized=0;
@@ -197,6 +198,8 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
     /* time globals */
 
     npp_update_time_globals();
+
+    G_start_time = G_now;
 
     /* messages */
 
@@ -4259,7 +4262,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     /* ------------------------------------------------------------------- */
     /* Server info */
 
-    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, INT(G_days_up), NPP_VERSION);
+    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", time_epoch2db(G_start_time), INT(G_days_up), NPP_VERSION);
 
     /* ------------------------------------------------------------------- */
     /* Memory */
