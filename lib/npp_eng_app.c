@@ -576,7 +576,7 @@ int main(int argc, char **argv)
 #endif  /* NPP_DEBUG */
 
 #ifdef NPP_FD_MON_SELECT
-            if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new http connection */
+            if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new HTTP connection */
             {
                 accept_connection(FALSE);
                 sockets_ready--;
@@ -594,7 +594,7 @@ int main(int argc, char **argv)
 
 #ifdef NPP_HTTPS
 #ifdef NPP_FD_MON_SELECT
-            if ( sockets_ready && FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new https connection */
+            if ( sockets_ready && FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new HTTPS connection */
             {
                 accept_connection(TRUE);
                 sockets_ready--;
@@ -4116,8 +4116,6 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
-    char    *data_tmp=NULL;
-    char    *data_tmp_min=NULL;
     struct stat fstat;
 
     if ( directory == NULL || directory[0] == EOS ) return TRUE;
@@ -4352,12 +4350,20 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 #else
         if ( NULL == (fd=fopen(fullpath, "r")) )
 #endif  /* _WIN32 */
+        {
             ERR("Couldn't open %s", fullpath);
-        else
+            /* try again next time */
+            M_statics[i].modified = 0;
+            continue;
+        }
+        else    /* OK */
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
             M_statics[i].len = ftell(fd);
             rewind(fd);
+
+            char *data_tmp;
+            char *data_tmp_min;
 
             if ( minify )
             {
@@ -4367,7 +4373,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
-                    /* try again in the next loop */
+                    /* try again next time */
                     M_statics[i].modified = 0;
                     continue;
                 }
@@ -4377,7 +4383,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
                     free(data_tmp);
-                    /* try again in the next loop */
+                    /* try again next time */
                     M_statics[i].modified = 0;
                     continue;
                 }
@@ -4388,7 +4394,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                     fclose(fd);
                     free(data_tmp);
                     free(data_tmp_min);
-                    /* try again in the next loop */
+                    /* try again next time */
                     M_statics[i].modified = 0;
                     continue;
                 }
@@ -4436,7 +4442,8 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                         free(data_tmp_min);
                     }
 
-                    /* try again in the next loop */
+                    /* try again next time */
+
                     M_statics[i].modified = 0;
                     continue;
                 }
@@ -4453,7 +4460,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                     {
                         ERR("Couldn't read from %s", M_statics[i].name);
                         fclose(fd);
-                        /* try again in the next loop */
+                        /* try again next time */
                         M_statics[i].modified = 0;
                         continue;
                     }
@@ -4492,7 +4499,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
-                    /* try again in the next loop */
+                    /* try again next time */
                     M_statics[i].modified = 0;
                     continue;
                 }
@@ -4517,7 +4524,7 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                     {
                         ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
                         free(data_tmp);
-                        /* try again in the next loop */
+                        /* try again next time */
                         M_statics[i].modified = 0;
                         continue;
                     }
