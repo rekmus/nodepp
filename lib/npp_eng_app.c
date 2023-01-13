@@ -1404,7 +1404,7 @@ static void set_expiry_dates()
     strcpy(M_expires_stat, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_STATICS));
     DBG("New M_expires_stat: %s", M_expires_stat);
 
-    strcpy(M_expires_gen, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_GENERATED));
+    strcpy(M_expires_gen, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_RENDERED));
     DBG("New M_expires_gen: %s", M_expires_gen);
 }
 
@@ -1989,9 +1989,9 @@ static void http2_hdr_expires_statics(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_expires_gen(int ci)
+static void http2_hdr_expires_rendered(int ci)
 {
-/*    DDBG("http2_hdr_expires_gen");
+/*    DDBG("http2_hdr_expires_rendered");
 
     *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
     *G_connections[ci].p_header++ = (char)strlen(M_expires_gen);
@@ -2124,7 +2124,7 @@ static time_t dbg_last_time=0;
         {
             if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
             {
-                DBG("Closing connection\n");
+                DBG("Closing connection ci=%d\n", ci);
                 close_connection(ci, TRUE);
                 return;
             }
@@ -2161,7 +2161,7 @@ static time_t dbg_last_time=0;
 
             if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
             {
-                DBG("Closing connection\n");
+                DBG("Closing connection ci=%d\n", ci);
                 close_connection(ci, TRUE);
                 return;
             }
@@ -2889,7 +2889,7 @@ static bool init(int argc, char **argv)
     ALWAYS("                NPP_MAX_STRINGS = %d", NPP_MAX_STRINGS);
     ALWAYS("               NPP_MAX_SNIPPETS = %d", NPP_MAX_SNIPPETS);
     ALWAYS("            NPP_EXPIRES_STATICS = %d days", NPP_EXPIRES_STATICS);
-    ALWAYS("          NPP_EXPIRES_GENERATED = %d days", NPP_EXPIRES_GENERATED);
+    ALWAYS("           NPP_EXPIRES_RENDERED = %d days", NPP_EXPIRES_RENDERED);
 #ifndef _WIN32
     ALWAYS("          NPP_COMPRESS_TRESHOLD = %d bytes", NPP_COMPRESS_TRESHOLD);
     ALWAYS("             NPP_COMPRESS_LEVEL = %d", NPP_COMPRESS_LEVEL);
@@ -5061,7 +5061,7 @@ static void gen_response_header(int ci)
                the response does not have an ETag field).
             */
 
-            if ( G_connections[ci].static_res == NPP_NOT_STATIC )    /* generated */
+            if ( G_connections[ci].static_res == NPP_NOT_STATIC )    /* rendered */
             {
                 if ( G_connections[ci].modified )
                 {
@@ -5082,14 +5082,14 @@ static void gen_response_header(int ci)
                         PRINT_HTTP_LAST_MODIFIED(G_last_modified);
                 }
 
-                if ( NPP_EXPIRES_GENERATED > 0 )
+                if ( NPP_EXPIRES_RENDERED > 0 )
                 {
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_EXPIRES_GENERATED;
+                        PRINT_HTTP2_EXPIRES_RENDERED;
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_EXPIRES_GENERATED;
+                        PRINT_HTTP_EXPIRES_RENDERED;
                 }
             }
             else    /* static resource */
@@ -5142,7 +5142,7 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                     PRINT_HTTP_VARY_STAT;
 
-                if ( G_connections[ci].static_res == NPP_NOT_STATIC )   /* generated -- moderate caching */
+                if ( G_connections[ci].static_res == NPP_NOT_STATIC )   /* rendered -- moderate caching */
                 {
                     if ( G_connections[ci].modified )
                     {
@@ -5163,14 +5163,14 @@ static void gen_response_header(int ci)
                             PRINT_HTTP_LAST_MODIFIED(G_last_modified);
                     }
 
-                    if ( NPP_EXPIRES_GENERATED > 0 )
+                    if ( NPP_EXPIRES_RENDERED > 0 )
                     {
 #ifdef NPP_HTTP2
                         if ( G_connections[ci].http_ver[0] == '2' )
-                            PRINT_HTTP2_EXPIRES_GENERATED;
+                            PRINT_HTTP2_EXPIRES_RENDERED;
                         else
 #endif  /* NPP_HTTP2 */
-                            PRINT_HTTP_EXPIRES_GENERATED;
+                            PRINT_HTTP_EXPIRES_RENDERED;
                     }
                 }
                 else    /* static resource -- aggressive caching */
