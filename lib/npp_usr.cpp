@@ -136,7 +136,7 @@ void libusr_init()
 
 
 /* --------------------------------------------------------------------------
-   Return TRUE if user name contains only valid characters
+   Return true if user name contains only valid characters
 -------------------------------------------------------------------------- */
 static bool valid_username(const char *login)
 {
@@ -145,15 +145,15 @@ static bool valid_username(const char *login)
     for ( i=0; login[i] != EOS; ++i )
     {
         if ( !isalnum(login[i]) && login[i] != '.' && login[i] != '_' && login[i] != '-' && login[i] != '\'' && login[i] != '@' )
-            return FALSE;
+            return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
 /* --------------------------------------------------------------------------
-   Return TRUE if email has valid format
+   Return true if email has valid format
 -------------------------------------------------------------------------- */
 static bool valid_email(const char *email)
 {
@@ -163,21 +163,21 @@ static bool valid_email(const char *email)
 
     len = strlen(email);
 
-    if ( len < 3 ) return FALSE;
+    if ( len < 3 ) return false;
 
     at = strchr(email, '@');
 
-    if ( !at ) return FALSE;                /* no @ */
-    if ( at==email ) return FALSE;          /* @ is first */
-    if ( at==email+len-1 ) return FALSE;    /* @ is last */
+    if ( !at ) return false;                /* no @ */
+    if ( at==email ) return false;          /* @ is first */
+    if ( at==email+len-1 ) return false;    /* @ is last */
 
     for ( i=0; i<len; ++i )
     {
         if ( !isalnum(email[i]) && email[i] != '@' && email[i] != '.' && email[i] != '_' && email[i] != '-' )
-            return FALSE;
+            return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -219,13 +219,13 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
     if ( !npp_app_user_login(ci) )
     {
         ERR("npp_app_user_login failed");
-        libusr_luses_downgrade(G_connections[ci].si, ci, FALSE);
+        libusr_luses_downgrade(G_connections[ci].si, ci, false);
         return ERR_INT_SERVER_ERROR;
     }
 #endif
 
-    strcpy(G_connections[ci].cookie_out_a, "x");                     /* no longer needed */
-    strcpy(G_connections[ci].cookie_out_a_exp, G_last_modified);     /* to be removed by browser */
+    strcpy(G_connections[ci].cookie_out_a, "x");                                /* no longer needed */
+    strcpy(G_connections[ci].cookie_out_a_exp, time_epoch2http(G_start_time));  /* to be removed by browser */
 
     return OK;
 }
@@ -315,7 +315,7 @@ static Cusers_logins ul;
         {
             WAR("No authenticated session in database [%s]", sanlscookie);
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             /* ---------------------------------------------------------------------------------- */
             /* brute force ls cookie attack prevention */
@@ -336,7 +336,7 @@ static Cusers_logins ul;
                         || failed_cnt[i].cnt > 1000 )                                   /* 1000 failed attempts */
                     {
                         WAR("Looks like brute-force cookie attack, blocking IP");
-                        npp_eng_block_ip(G_connections[ci].ip, TRUE);
+                        npp_eng_block_ip(G_connections[ci].ip, true);
                     }
                     else
                     {
@@ -380,7 +380,7 @@ static Cusers_logins ul;
             DBG("Different uagent in database");
 #endif
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             return ERR_SESSION_EXPIRED;
         }
@@ -405,7 +405,7 @@ static Cusers_logins ul;
             /* tell browser we're logging out */
 
             strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* expire ls cookie */
+            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             INF("Session [%s] expired", sanlscookie);
 
@@ -492,7 +492,7 @@ void libusr_luses_close_timeouted()
     for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
     {
         if ( G_sessions[i].sessid[0] && G_sessions[i].auth_level>AUTH_LEVEL_ANONYMOUS && G_sessions[i].last_activity < last_allowed )
-            libusr_luses_downgrade(i, NPP_NOT_CONNECTED, FALSE);
+            libusr_luses_downgrade(i, NPP_NOT_CONNECTED, false);
     }
 }
 
@@ -591,7 +591,7 @@ static Cusers_logins ul;
             if ( ci != NPP_NOT_CONNECTED )   /* still connected */
             {
                 strcpy(G_connections[ci].cookie_out_l, "x");
-                strcpy(G_connections[ci].cookie_out_l_exp, G_last_modified);     /* in the past => to be removed by browser straight away */
+                strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* in the past => to be removed by browser straight away */
 
                 strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sessid);
             }
@@ -626,12 +626,12 @@ static int user_exists(const char *login)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
             u.PrepareCount("login_u=?");
-            first = FALSE;
+            first = false;
         }
 
         if ( u.GetCount(npp_upper(login)) > 0 )
@@ -657,12 +657,12 @@ static int email_exists(const char *email)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
             u.PrepareCount("email_u=?");
-            first = FALSE;
+            first = false;
         }
 
         if ( u.GetCount(npp_upper(email)) > 0 )
@@ -722,7 +722,7 @@ static Cusers u;
             status = u.status;
             visits = u.visits;
 
-            db = TRUE;
+            db = true;
         }
         else    /* called by npp_usr_login -- user data already read from users */
         {
@@ -735,7 +735,7 @@ static Cusers u;
             SESSION.group_id = us->group_id;
             SESSION.auth_level = us->auth_level;
 
-            db = FALSE;
+            db = false;
         }
 
         if ( SESSION.group_id > 0 )    /* auth_level inherited from a group */
@@ -941,8 +941,7 @@ static Cusers_activations ua;
 static bool load_common_passwd()
 {
     char fname[1024];
-    FILE *fd=NULL;
-    char c;
+    int  c=0;
     int  i=0;
     char value[16];
 
@@ -950,15 +949,18 @@ static bool load_common_passwd()
 
     /* open the file */
 
-    if ( G_appdir[0] )
-        sprintf(fname, "%s/bin/%s", G_appdir, NPP_COMMON_PASSWORDS_FILE);
-    else
-        strcpy(fname, NPP_COMMON_PASSWORDS_FILE);
+    sprintf(fname, "%s/bin/%s", G_appdir, NPP_COMMON_PASSWORDS_FILE);
 
+    FILE *fd=NULL;
+
+#ifdef _WIN32
+    if ( NULL == (fd=fopen(fname, "rb")) )
+#else
     if ( NULL == (fd=fopen(fname, "r")) )
+#endif
     {
         WAR("Couldn't open %s\n", fname);
-        return FALSE;
+        return false;
     }
 
     M_common_cnt = 0;
@@ -1007,7 +1009,7 @@ static bool load_common_passwd()
     DBG_LINE;
 #endif
 
-    return TRUE;
+    return true;
 }
 
 
@@ -1302,7 +1304,7 @@ int npp_usr_login(int ci)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
@@ -1311,7 +1313,7 @@ static bool first=TRUE;
 #else
             u.PrepareCursor("login_u=? OR email_u=?");
 #endif
-            first = FALSE;
+            first = false;
         }
 
 #ifdef NPP_USERS_BY_EMAIL
@@ -1628,7 +1630,7 @@ int npp_usr_create_account(int ci)
     else
         status = USER_STATUS_ACTIVE;
 
-    return create_account(ci, NPP_DEFAULT_USER_AUTH_LEVEL, status, TRUE);
+    return create_account(ci, NPP_DEFAULT_USER_AUTH_LEVEL, status, true);
 }
 
 
@@ -1697,7 +1699,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
     if ( use_qs )   /* use query string / POST payload */
     {
-        if ( (ret=create_account(ci, auth_level, status, FALSE)) != OK )
+        if ( (ret=create_account(ci, auth_level, status, false)) != OK )
         {
             ERR("create_account failed");
             return ret;
@@ -1774,7 +1776,6 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
         QSVAL login_u;
         QSVAL email_u;
-        char sql[NPP_SQLBUF];
 
         strcpy(login_u, npp_upper(dst_login));
         strcpy(email_u, npp_upper(email));
@@ -2149,7 +2150,7 @@ int npp_usr_save_account(int ci)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
@@ -2158,7 +2159,7 @@ static bool first=TRUE;
 #else
             u.PrepareCursor("login_u=?");
 #endif
-            first = FALSE;
+            first = false;
         }
 
 #ifdef NPP_USERS_BY_EMAIL
@@ -2192,7 +2193,7 @@ static bool first=TRUE;
                 u.status = USER_STATUS_DELETED;
                 u.Update(SESSION.user_id);
 
-                libusr_luses_downgrade(G_connections[ci].si, ci, TRUE);   /* log user out */
+                libusr_luses_downgrade(G_connections[ci].si, ci, true);   /* log user out */
 
                 return MSG_ACCOUNT_DELETED;
             }
@@ -2231,12 +2232,12 @@ static bool first=TRUE;
             INF("Password change => invalidating all other session tokens");
 
 static Cusers_logins ul;
-static bool first=TRUE;
+static bool first_inv=true;
 
-            if ( first )
+            if ( first_inv )
             {
                 ul.PrepareCursor("user_id=?");
-                first = FALSE;
+                first_inv = false;
             }
 
             ul.OpenCursor(SESSION.user_id);
@@ -2412,12 +2413,12 @@ int npp_usr_send_passwd_reset_email(int ci)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
             u.PrepareCursor("email_u=?");
-            first = FALSE;
+            first = false;
         }
 
         u.OpenCursor(npp_upper(email));
@@ -2749,7 +2750,7 @@ int npp_usr_change_password(int ci)
     try
     {
 static Cusers u;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
@@ -2758,7 +2759,7 @@ static bool first=TRUE;
 #else
             u.PrepareCursor("login_u=?");
 #endif
-            first = FALSE;
+            first = false;
         }
 
 #ifdef NPP_USERS_BY_EMAIL
@@ -2886,13 +2887,13 @@ static Cusers u;
 
 static Cusers_logins ul;
 static Cusers_p_resets upr;
-static bool first=TRUE;
+static bool first=true;
 
         if ( first )
         {
             ul.PrepareCursor("user_id=?");
             upr.PrepareCursor("user_id=?");
-            first = FALSE;
+            first = false;
         }
 
         ul.OpenCursor(user_id);
@@ -2929,7 +2930,7 @@ static bool first=TRUE;
 void npp_usr_logout(int ci)
 {
     DBG("npp_usr_logout");
-    libusr_luses_downgrade(G_connections[ci].si, ci, TRUE);
+    libusr_luses_downgrade(G_connections[ci].si, ci, true);
 }
 
 
@@ -3015,7 +3016,6 @@ int npp_usr_set_str(int ci, const std::string& us_key_, const std::string& us_va
 int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
 {
 #endif
-    int ret;
 
     try
     {

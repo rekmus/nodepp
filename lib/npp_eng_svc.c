@@ -73,7 +73,6 @@ int         G_connections_hwm=0;            /* highest number of open connection
 int         G_sessions_cnt=0;               /* number of active user sessions */
 int         G_sessions_hwm=0;               /* highest number of active user sessions (high water mark) */
 int         G_blacklist_cnt=0;              /* G_blacklist length */
-char        G_last_modified[32]="";         /* response header field with server's start time */
 
 
 /* locals */
@@ -459,8 +458,6 @@ int main(int argc, char *argv[])
             G_sessions_hwm = G_svc_req.hdr.sessions_hwm;
 
             G_blacklist_cnt = G_svc_req.hdr.blacklist_cnt;
-
-            strcpy(G_last_modified, G_svc_req.hdr.last_modified);
 
             /* response data */
 

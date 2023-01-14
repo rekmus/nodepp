@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.2.0"
+#define NPP_VERSION                     "2.2.1"
 
 
 #ifndef FALSE
@@ -375,8 +375,8 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define PRINT_HTTP_EXPIRES_STATICS          (sprintf(G_tmp, "Expires: %s\r\n", M_expires_stat), HOUT(G_tmp))
 #define PRINT_HTTP2_EXPIRES_STATICS         http2_hdr_expires_statics(ci)
 
-#define PRINT_HTTP_EXPIRES_GENERATED        (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_GENERATED       http2_hdr_expires_gen(ci)
+#define PRINT_HTTP_EXPIRES_RENDERED         (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
+#define PRINT_HTTP2_EXPIRES_RENDERED        http2_hdr_expires_rendered(ci)
 
 #define PRINT_HTTP_LAST_MODIFIED(val)       (sprintf(G_tmp, "Last-Modified: %s\r\n", val), HOUT(G_tmp))
 #define PRINT_HTTP2_LAST_MODIFIED(val)      http2_hdr_last_modified(ci, val)
@@ -758,8 +758,12 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_EXPIRES_STATICS                 90              /* days */
 #endif
 
-#ifndef NPP_EXPIRES_GENERATED
-#define NPP_EXPIRES_GENERATED               30              /* days */
+#ifdef  NPP_EXPIRES_GENERATED               /* deprecated */
+#define NPP_EXPIRES_RENDERED                NPP_EXPIRES_GENERATED
+#endif
+
+#ifndef NPP_EXPIRES_RENDERED
+#define NPP_EXPIRES_RENDERED                0               /* days */
 #endif
 
 /* compression settings */
@@ -1807,8 +1811,8 @@ extern int          G_sessions_hwm;                             /* highest numbe
 extern sessions_idx_t G_sessions_idx[NPP_MAX_SESSIONS];         /* G_sessions' index, this starts from 0 */
 
 extern time_t       G_now;                                      /* current GMT time (epoch) */
+extern time_t       G_start_time;                               /* program start time */
 extern struct tm    *G_ptm;                                     /* human readable current time */
-extern char         G_last_modified[32];                        /* response header field with server's start time */
 extern char         G_header_date[32];                          /* RFC 2822 datetime format */
 extern bool         G_initialized;                              /* is server initialization complete? */
 extern char         *G_strm;                                    /* for STRM macro */

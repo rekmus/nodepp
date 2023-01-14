@@ -75,7 +75,6 @@ eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0};
 int         G_sessions_cnt=0;
 int         G_sessions_hwm=0;
-char        G_last_modified[32]="";
 
 /* asynchorous processing */
 
@@ -161,7 +160,7 @@ static int          M_highsock=0;               /* Highest #'d file descriptor, 
 #ifdef NPP_FD_MON_POLL
 static struct pollfd M_pollfds[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};
 static int          M_pollfds_cnt=0;
-static int          M_poll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* connection indexes -- additional data for M_pollfds */
+static int          M_poll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};  /* connection indexes -- additional data for M_pollfds */
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
@@ -174,7 +173,7 @@ typedef struct {
 static struct epoll_event M_epollevs[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};
 static int          M_epoll_fd=0;
 static int          M_epollfds_cnt=0;
-static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0}; /* connection indexes */
+static epoll_idx_t  M_epoll_ci[NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS+1]={0};  /* connection indexes */
 
 #endif  /* NPP_FD_MON_EPOLL */
 
@@ -269,11 +268,8 @@ int main(int argc, char **argv)
     int         bytes=0;
     int         failed_select_cnt=0;
 #ifdef NPP_DEBUG
-    time_t      dbg_last_time0=0;
-    time_t      dbg_last_time1=0;
-    time_t      dbg_last_time2=0;
-    time_t      dbg_last_time3=0;
-#endif  /* NPP_DEBUG */
+    time_t      dbg_last_time=0;
+#endif
 
     if ( !init(argc, argv) )
     {
@@ -557,15 +553,13 @@ int main(int argc, char **argv)
         {
             /* we have some time now, let's do some housekeeping */
 
-//            DDBG("sockets_ready == 0");
-
             if ( !housekeeping() )
                 return EXIT_FAILURE;
         }
         else    /* sockets_ready > 0 */
         {
 #ifdef NPP_DEBUG
-            if ( G_now != dbg_last_time0 )   /* only once in a second */
+            if ( G_now != dbg_last_time )   /* only once in a second */
             {
                 DBG("");
                 DBG("     connected = %d", G_connections_cnt);
@@ -577,16 +571,17 @@ int main(int argc, char **argv)
 #endif
                 DBG(" sockets_ready = %d", sockets_ready);
                 DBG("");
-                dbg_last_time0 = G_now;
             }
 #endif  /* NPP_DEBUG */
+
 #ifdef NPP_FD_MON_SELECT
-            if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new http connection */
+            if ( FD_ISSET(M_listening_fd, &M_readfds) )   /* new HTTP connection */
             {
                 accept_connection(FALSE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_SELECT */
+
 #ifdef NPP_FD_MON_POLL
             if ( M_pollfds[0].revents & POLLIN )
             {
@@ -595,16 +590,18 @@ int main(int argc, char **argv)
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_POLL */
+
 #ifdef NPP_HTTPS
 #ifdef NPP_FD_MON_SELECT
-            else if ( FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new https connection */
+            if ( sockets_ready && FD_ISSET(M_listening_sec_fd, &M_readfds) )   /* new HTTPS connection */
             {
                 accept_connection(TRUE);
                 sockets_ready--;
             }
 #endif  /* NPP_FD_MON_SELECT */
+
 #ifdef NPP_FD_MON_POLL
-            else if ( M_pollfds[1].revents & POLLIN )
+            if ( sockets_ready && M_pollfds[1].revents & POLLIN )
             {
                 M_pollfds[1].revents = 0;
                 accept_connection(TRUE);
@@ -614,26 +611,30 @@ int main(int argc, char **argv)
 #endif  /* NPP_HTTPS */
 
 #ifndef NPP_FD_MON_EPOLL
-
             if ( sockets_ready )    /* existing connections */
-
-#endif  /* NPP_FD_MON_EPOLL */
-
             {
-#ifdef NPP_DEBUG
-                DBG("");
-                DBG_LINE_LONG;
-                DBG("sockets_ready = %d", sockets_ready);
-                DBG_LINE_LONG;
 #endif
+
+#ifdef NPP_DEBUG
+                if ( G_now != dbg_last_time )   /* only once in a second */
+                {
+                    DBG("");
+                    DBG_LINE_LONG;
+                    DBG("sockets_ready = %d", sockets_ready);
+                    DBG_LINE_LONG;
+                }
+#endif  /* NPP_DEBUG */
 
 #ifdef NPP_FD_MON_SELECT
                 for ( ci=0; sockets_ready>0; ++ci )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("ci = %d", ci);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("ci = %d", ci);
+                        DBG_LINE;
+                    }
 #endif  /* NPP_DEBUG */
                     if ( G_connections[ci].state == CONN_STATE_DISCONNECTED )
                         continue;
@@ -643,21 +644,23 @@ int main(int argc, char **argv)
                 for ( pi=NPP_LISTENING_FDS; sockets_ready>0; ++pi )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("pi = %d", pi);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("pi = %d", pi);
+                        DBG_LINE;
+                    }
 #endif  /* NPP_DEBUG */
                     ci = M_poll_ci[pi];   /* set G_connections array index */
 #ifdef NPP_DEBUG
 #ifndef NPP_CPP_STRINGS
-                    if ( G_now != dbg_last_time1 )   /* only once in a second */
+                    if ( G_now != dbg_last_time )   /* only once in a second */
                     {
                         int l;
                         DBG_LINE;
                         for ( l=NPP_LISTENING_FDS; l<M_pollfds_cnt; ++l )
                             DBG("ci=%d, pi=%d, M_pollfds[pi].revents = %d", M_poll_ci[l], l, M_pollfds[l].revents);
                         DBG_LINE;
-                        dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_CPP_STRINGS */
 #endif  /* NPP_DEBUG */
@@ -667,11 +670,15 @@ int main(int argc, char **argv)
                 for ( epi=0; sockets_ready>0; ++epi )
                 {
 #ifdef NPP_DEBUG
-                    DBG_LINE;
-                    DBG("epi = %d", epi);
-                    DBG_LINE;
+                    if ( G_now != dbg_last_time )   /* only once in a second */
+                    {
+                        DBG_LINE;
+                        DBG("epi = %d", epi);
+                        DBG_LINE;
+                    }
+
 #ifndef NPP_CPP_STRINGS
-                    if ( G_now != dbg_last_time1 )   /* only once in a second */
+                    if ( G_now != dbg_last_time )   /* only once in a second */
                     {
                         int l;
                         DBG_LINE;
@@ -692,10 +699,11 @@ int main(int argc, char **argv)
                             }
                         }
                         DBG_LINE;
-                        dbg_last_time1 = G_now;
                     }
 #endif  /* NPP_CPP_STRINGS */
+
 #endif  /* NPP_DEBUG */
+
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
                         DDBG("EPOLLIN (new?)");
@@ -722,7 +730,9 @@ int main(int argc, char **argv)
 
                     if ( epoll_idx == -1 )
                     {
-#ifndef NPP_CPP_STRINGS
+#ifdef NPP_CPP_STRINGS
+                        DDBG("fd not found in M_epoll_ci");
+#else
                         DDBG("fd=%d not found in M_epoll_ci", M_epollevs[epi].data.fd);
 #endif
                         sockets_ready--;
@@ -736,32 +746,47 @@ int main(int argc, char **argv)
 #ifdef NPP_FD_MON_SELECT
                     if ( FD_ISSET(G_connections[ci].fd, &M_readfds) )     /* incoming data ready */
                     {
-                        DDBG("FD_ISSET (existing) incoming data ready");
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )    /* only once in a second */
+                        {
+                            DBG("FD_ISSET (existing) incoming data ready");
+                        }
+#endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_SELECT */
 
 #ifdef NPP_FD_MON_POLL
                     if ( M_pollfds[pi].revents & POLLIN )
                     {
-                        DDBG("POLLIN (existing)");
-
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )    /* only once in a second */
+                        {
+                            DBG("POLLIN (existing), pi=%d", pi);
+                            DBG("state = %c", G_connections[ci].state);
+                        }
+#endif  /* NPP_DEBUG */
                         M_pollfds[pi].revents = 0;
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
                     if ( M_epollevs[epi].events & EPOLLIN )
                     {
-                        DDBG("EPOLLIN (existing)");
+#ifdef NPP_DEBUG
+                        if ( G_now != dbg_last_time )    /* only once in a second */
+                        {
+                            DBG("EPOLLIN (existing)");
+                            DBG("state = %c", G_connections[ci].state);
+                        }
+#endif  /* NPP_DEBUG */
 #endif  /* NPP_FD_MON_EPOLL */
 
 #ifdef NPP_DEBUG
-                        if ( G_now != dbg_last_time2 )   /* only once in a second */
+                        if ( G_now != dbg_last_time )    /* only once in a second */
                         {
                             DBG("ci=%d, fd=%d has incoming data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
-                            dbg_last_time2 = G_now;
                         }
 #endif  /* NPP_DEBUG */
 #ifdef NPP_HTTPS
-                        if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )   /* HTTPS */
+                        if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )    /* HTTPS */
                         {
                             if ( G_connections[ci].state == CONN_STATE_CONNECTED )
                             {
@@ -784,7 +809,7 @@ int main(int argc, char **argv)
                                 }
 #endif  /* NPP_HTTP2 */
                             }
-                            else if ( G_connections[ci].state == CONN_STATE_READING_DATA )   /* payload */
+                            else if ( G_connections[ci].state == CONN_STATE_READING_DATA )    /* payload */
                             {
 #ifdef NPP_DEBUG
                                 DBG("ci=%d, state == CONN_STATE_READING_DATA", ci);
@@ -819,8 +844,11 @@ int main(int argc, char **argv)
                             if ( G_connections[ci].state == CONN_STATE_CONNECTED )
                             {
 #ifdef NPP_DEBUG
-                                DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
-                                DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
+                                if ( G_now != dbg_last_time )   /* only once in a second */
+                                {
+                                    DBG("ci=%d, state == CONN_STATE_CONNECTED", ci);
+                                    DBG("ci=%d, trying read from fd=%d", ci, G_connections[ci].fd);
+                                }
 #endif  /* NPP_DEBUG */
                                 bytes = recv(G_connections[ci].fd, G_connections[ci].in, NPP_IN_BUFSIZE-1, 0);
 
@@ -905,10 +933,9 @@ int main(int argc, char **argv)
                         DDBG("EPOLLOUT");
 #endif  /* NPP_FD_MON_EPOLL */
 #ifdef NPP_DEBUG
-                        if ( G_now != dbg_last_time3 )   /* only once in a second */
+                        if ( G_now != dbg_last_time )   /* only once in a second */
                         {
                             DBG("ci=%d, fd=%d is ready for outgoing data, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
-                            dbg_last_time3 = G_now;
                         }
 #endif  /* NPP_DEBUG */
 
@@ -1051,16 +1078,19 @@ int main(int argc, char **argv)
                     else    /* not IN nor OUT */
                     {
 #ifdef NPP_DEBUG
-                        DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
+                        if ( G_now != dbg_last_time )    /* only once in a second */
+                        {
+                            DBG("Not IN nor OUT, ci=%d, fd=%d, state = %c", ci, G_connections[ci].fd, G_connections[ci].state);
 #ifndef NPP_CPP_STRINGS
 #ifdef NPP_FD_MON_POLL
-                        DBG("revents=%d", M_pollfds[pi].revents);
+                            DBG("revents=%d", M_pollfds[pi].revents);
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                        DBG("events=%d", M_epollevs[epi].events);
+                            DBG("events=%d", M_epollevs[epi].events);
 #endif
 #endif  /* NPP_CPP_STRINGS */
-                        DBG("");
+                            DBG("");
+                        }
 #endif  /* NPP_DEBUG */
                     }
 
@@ -1116,32 +1146,37 @@ int main(int argc, char **argv)
                         gen_response_header(ci);
                     }
 
-                    /* this should not ever happen */
-#ifdef NPP_DEBUG
+                    /* 100% saturation safety valve in case revents didn't match sockets_ready */
+                    /* this could be directly in for loop definition */
+                    /* however logging this event can be useful */
+
 #ifdef NPP_FD_MON_SELECT
                     if ( ci > NPP_MAX_CONNECTIONS )
                     {
-                        WAR("ci > NPP_MAX_CONNECTIONS, breaking");
+                        DBG("ci > NPP_MAX_CONNECTIONS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_POLL
-                    if ( pi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
+                    if ( pi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        WAR("pi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
+                        DBG("pi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
 #ifdef NPP_FD_MON_EPOLL
-                    if ( epi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
+                    if ( epi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS )
                     {
-                        WAR("epi > NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
+                        DBG("epi == NPP_MAX_CONNECTIONS+NPP_LISTENING_FDS, breaking");
                         break;
                     }
 #endif
-#endif  /* NPP_DEBUG */
                 }   /* for on active sockets */
+
+#ifndef NPP_FD_MON_EPOLL
             }   /* some of the existing connections are ready for I/O */
+#endif
+
         }   /* some sockets are ready for I/O (including listening sockets) */
 
 #ifdef NPP_DEBUG
@@ -1350,6 +1385,10 @@ int main(int argc, char **argv)
             if ( !housekeeping() )
                 return EXIT_FAILURE;
         }
+
+#ifdef NPP_DEBUG
+        dbg_last_time = G_now;
+#endif
     }
 
     return EXIT_SUCCESS;
@@ -1364,7 +1403,7 @@ static void set_expiry_dates()
     strcpy(M_expires_stat, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_STATICS));
     DBG("New M_expires_stat: %s", M_expires_stat);
 
-    strcpy(M_expires_gen, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_GENERATED));
+    strcpy(M_expires_gen, time_epoch2http(G_now + 3600*24*NPP_EXPIRES_RENDERED));
     DBG("New M_expires_gen: %s", M_expires_gen);
 }
 
@@ -1382,24 +1421,16 @@ static bool housekeeping()
     /* close expired anonymous user sessions */
     if ( G_sessions_cnt ) uses_close_timeouted();
 
-//#ifdef NPP_DEBUG
 #ifndef NPP_DONT_RESCAN_RES
     if ( G_test )   /* kind of developer mode */
     {
         read_resources(FALSE);
     }
 #endif  /* NPP_DONT_RESCAN_RES */
-//#endif  /* NPP_DEBUG */
 
 #ifdef NPP_APP_EVERY_SPARE_SECOND
-//static time_t every_spare_second_last_time=0;
-
-//    if ( G_now != every_spare_second_last_time )
-//    {
-        npp_app_every_spare_second();
-//        every_spare_second_last_time = G_now;
-//    }
-#endif  /* NPP_APP_EVERY_SPARE_SECOND */
+    npp_app_every_spare_second();
+#endif
 
     if ( G_ptm->tm_min != M_prev_minute )
     {
@@ -1957,9 +1988,9 @@ static void http2_hdr_expires_statics(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_expires_gen(int ci)
+static void http2_hdr_expires_rendered(int ci)
 {
-/*    DDBG("http2_hdr_expires_gen");
+/*    DDBG("http2_hdr_expires_rendered");
 
     *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
     *G_connections[ci].p_header++ = (char)strlen(M_expires_gen);
@@ -2073,18 +2104,26 @@ static void set_state(int ci, int bytes, bool secure)
 {
     int sockerr = NPP_SOCKET_GET_ERROR;
 
-    DDBG("ci=%d, set_state, bytes=%d", ci, bytes);
+#ifdef NPP_DEBUG
+static time_t dbg_last_time=0;
+    if ( G_now != dbg_last_time )   /* only once in a second */
+        DBG("ci=%d, set_state, bytes=%d", ci, bytes);
+#endif
 
     if ( bytes <= 0 )
     {
 #ifdef NPP_DEBUG
-        NPP_SOCKET_LOG_ERROR(sockerr);
+        if ( G_now != dbg_last_time )   /* only once in a second */
+        {
+            NPP_SOCKET_LOG_ERROR(sockerr);
+            dbg_last_time = G_now;
+        }
 #endif
         if ( !secure )
         {
             if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
             {
-                DBG("Closing connection\n");
+                DBG("Closing connection ci=%d\n", ci);
                 close_connection(ci, TRUE);
                 return;
             }
@@ -2121,7 +2160,7 @@ static void set_state(int ci, int bytes, bool secure)
 
             if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
             {
-                DBG("Closing connection\n");
+                DBG("Closing connection ci=%d\n", ci);
                 close_connection(ci, TRUE);
                 return;
             }
@@ -2849,7 +2888,7 @@ static bool init(int argc, char **argv)
     ALWAYS("                NPP_MAX_STRINGS = %d", NPP_MAX_STRINGS);
     ALWAYS("               NPP_MAX_SNIPPETS = %d", NPP_MAX_SNIPPETS);
     ALWAYS("            NPP_EXPIRES_STATICS = %d days", NPP_EXPIRES_STATICS);
-    ALWAYS("          NPP_EXPIRES_GENERATED = %d days", NPP_EXPIRES_GENERATED);
+    ALWAYS("           NPP_EXPIRES_RENDERED = %d days", NPP_EXPIRES_RENDERED);
 #ifndef _WIN32
     ALWAYS("          NPP_COMPRESS_TRESHOLD = %d bytes", NPP_COMPRESS_TRESHOLD);
     ALWAYS("             NPP_COMPRESS_LEVEL = %d", NPP_COMPRESS_LEVEL);
@@ -3015,16 +3054,7 @@ static bool init(int argc, char **argv)
 
     DBG("read_resources() OK");
 
-    /* calculate Expires and Last-Modified header fields for static resources */
-
-    INF("Setting Last-Modified value...");
-
-#ifdef _WIN32   /* Windows */
-    strftime(G_last_modified, 32, "%a, %d %b %Y %H:%M:%S GMT", G_ptm);
-#else
-    strftime(G_last_modified, 32, "%a, %d %b %Y %T GMT", G_ptm);
-#endif  /* _WIN32 */
-    DBG("Now is: %s\n", G_last_modified);
+    /* calculate Expires HTTP header */
 
     INF("Setting Expires value...");
 
@@ -3425,10 +3455,7 @@ static void accept_connection(bool secure)
 
         G_connections[M_first_free_ci].flags |= NPP_CONN_FLAG_SECURE;
 
-        /* -------------------------------------------- */
-        /* add connection to monitored set */
-
-#ifdef NPP_FD_MON_POLL
+#ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
 
         /* reference ... */
         G_connections[M_first_free_ci].pi = M_pollfds_cnt;
@@ -3530,6 +3557,7 @@ static void accept_connection(bool secure)
         G_connections[M_first_free_ci].flags = G_connections[M_first_free_ci].flags & ~NPP_CONN_FLAG_SECURE;
 
 #ifdef NPP_FD_MON_POLL  /* add connection to monitored set */
+
         /* reference ... */
         G_connections[M_first_free_ci].pi = M_pollfds_cnt;
         /* ... each other to avoid unnecessary looping */
@@ -3538,7 +3566,9 @@ static void accept_connection(bool secure)
         M_pollfds[M_pollfds_cnt].events = POLLIN;
         M_pollfds[M_pollfds_cnt].revents = 0;
         ++M_pollfds_cnt;
+
 #endif  /* NPP_FD_MON_POLL */
+
 
 #ifdef NPP_FD_MON_EPOLL  /* add connection to monitored set */
         /* add to index */
@@ -3555,6 +3585,7 @@ static void accept_connection(bool secure)
         ev.events = EPOLLIN | EPOLLET;
         epoll_ctl(M_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
 #endif  /* NPP_FD_MON_EPOLL */
+
     }
 
     DDBG("ci=%d, changing state to CONN_STATE_CONNECTED", M_first_free_ci);
@@ -3621,7 +3652,11 @@ void npp_eng_read_blocked_ips()
 
     FILE *fd=NULL;
 
+#ifdef _WIN32
+    if ( NULL == (fd=fopen(fname, "rb")) )
+#else
     if ( NULL == (fd=fopen(fname, "r")) )
+#endif
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -3769,7 +3804,11 @@ void npp_eng_read_allowed_ips()
 
     FILE *fd=NULL;
 
+#ifdef _WIN32
+    if ( NULL == (fd=fopen(fname, "rb")) )
+#else
     if ( NULL == (fd=fopen(fname, "r")) )
+#endif
     {
         WAR("Couldn't open %s", fname);
         return;
@@ -4067,8 +4106,6 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
     DIR     *dir;
     struct dirent *dirent;
     FILE    *fd;
-    char    *data_tmp=NULL;
-    char    *data_tmp_min=NULL;
     struct stat fstat;
 
     if ( directory == NULL || directory[0] == EOS ) return TRUE;
@@ -4150,9 +4187,12 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 memset(M_statics[i].name, 'z', NPP_STATIC_PATH_LEN);
                 M_statics[i].name[NPP_STATIC_PATH_LEN] = EOS;
 
-                free(M_statics[i].data);
-                M_statics[i].data = NULL;
-                M_statics[i].len = 0;
+                if ( M_statics[i].data )
+                {
+                    free(M_statics[i].data);
+                    M_statics[i].data = NULL;
+                    M_statics[i].len = 0;
+                }
 
                 if ( M_statics[i].data_deflated )
                 {
@@ -4300,12 +4340,20 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 #else
         if ( NULL == (fd=fopen(fullpath, "r")) )
 #endif  /* _WIN32 */
+        {
             ERR("Couldn't open %s", fullpath);
-        else
+            /* try again next time */
+            M_statics[i].modified = 0;
+            continue;
+        }
+        else    /* OK */
         {
             fseek(fd, 0, SEEK_END);     /* determine the file size */
             M_statics[i].len = ftell(fd);
             rewind(fd);
+
+            char *data_tmp;
+            char *data_tmp_min;
 
             if ( minify )
             {
@@ -4315,25 +4363,33 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
-                    closedir(dir);
-                    return FALSE;
+                    /* try again next time */
+                    M_statics[i].modified = 0;
+                    continue;
                 }
 
                 if ( NULL == (data_tmp_min=(char*)malloc(M_statics[i].len+1)) )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
                     fclose(fd);
-                    closedir(dir);
-                    return FALSE;
+                    free(data_tmp);
+                    /* try again next time */
+                    M_statics[i].modified = 0;
+                    continue;
                 }
 
                 if ( fread(data_tmp, M_statics[i].len, 1, fd) != 1 )
                 {
                     ERR("Couldn't read from %s", M_statics[i].name);
                     fclose(fd);
-                    closedir(dir);
-                    return FALSE;
+                    free(data_tmp);
+                    free(data_tmp_min);
+                    /* try again next time */
+                    M_statics[i].modified = 0;
+                    continue;
                 }
+
+                /* successful read */
 
                 *(data_tmp+M_statics[i].len) = EOS;
 
@@ -4344,13 +4400,17 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
             if ( reread )
             {
-                free(M_statics[i].data);
-                M_statics[i].data = NULL;
+                if ( M_statics[i].data )
+                {
+                    free(M_statics[i].data);
+                    M_statics[i].data = NULL;
+                }
 
                 if ( M_statics[i].data_deflated )
                 {
                     free(M_statics[i].data_deflated);
                     M_statics[i].data_deflated = NULL;
+                    M_statics[i].len_deflated = 0;
                 }
             }
 
@@ -4363,18 +4423,26 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 if ( NULL == M_statics[i].data )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
+
                     fclose(fd);
-                    closedir(dir);
-                    return FALSE;
+
+                    if ( minify )
+                    {
+                        free(data_tmp);
+                        free(data_tmp_min);
+                    }
+
+                    /* try again next time */
+
+                    M_statics[i].modified = 0;
+                    continue;
                 }
 
                 if ( minify )   /* STATIC_SOURCE_RESMIN */
                 {
                     memcpy(M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, data_tmp_min, M_statics[i].len+1);
                     free(data_tmp);
-                    data_tmp = NULL;
                     free(data_tmp_min);
-                    data_tmp_min = NULL;
                 }
                 else if ( M_statics[i].source == STATIC_SOURCE_RES )
                 {
@@ -4382,8 +4450,9 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                     {
                         ERR("Couldn't read from %s", M_statics[i].name);
                         fclose(fd);
-                        closedir(dir);
-                        return FALSE;
+                        /* try again next time */
+                        M_statics[i].modified = 0;
+                        continue;
                     }
                 }
             }
@@ -4420,8 +4489,9 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 if ( NULL == (data_tmp=(char*)malloc(M_statics[i].len)) )
                 {
                     ERR("Couldn't allocate %u bytes for %s", M_statics[i].len, M_statics[i].name);
-                    closedir(dir);
-                    return FALSE;
+                    /* try again next time */
+                    M_statics[i].modified = 0;
+                    continue;
                 }
 
                 int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[i].data+NPP_OUT_HEADER_BUFSIZE, M_statics[i].len);
@@ -4438,15 +4508,15 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
 
                     M_statics[i].len_deflated = 0;
                 }
-                else
+                else    /* compression successful */
                 {
                     if ( NULL == (M_statics[i].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
                     {
                         ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[i].name);
-                        fclose(fd);
-                        closedir(dir);
                         free(data_tmp);
-                        return FALSE;
+                        /* try again next time */
+                        M_statics[i].modified = 0;
+                        continue;
                     }
 
                     memcpy(M_statics[i].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
@@ -4454,7 +4524,6 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 }
 
                 free(data_tmp);
-                data_tmp = NULL;
             }
 
 #endif  /* _WIN32 */
@@ -4982,7 +5051,7 @@ static void gen_response_header(int ci)
                the response does not have an ETag field).
             */
 
-            if ( G_connections[ci].static_res == NPP_NOT_STATIC )    /* generated */
+            if ( G_connections[ci].static_res == NPP_NOT_STATIC )    /* rendered */
             {
                 if ( G_connections[ci].modified )
                 {
@@ -4993,24 +5062,24 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                         PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
                 }
-                else
+                else    /* default modified */
                 {
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                        PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                        PRINT_HTTP_LAST_MODIFIED(G_header_date);
                 }
 
-                if ( NPP_EXPIRES_GENERATED > 0 )
+                if ( NPP_EXPIRES_RENDERED > 0 )
                 {
 #ifdef NPP_HTTP2
                     if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_EXPIRES_GENERATED;
+                        PRINT_HTTP2_EXPIRES_RENDERED;
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_EXPIRES_GENERATED;
+                        PRINT_HTTP_EXPIRES_RENDERED;
                 }
             }
             else    /* static resource */
@@ -5063,7 +5132,7 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                     PRINT_HTTP_VARY_STAT;
 
-                if ( G_connections[ci].static_res == NPP_NOT_STATIC )   /* generated -- moderate caching */
+                if ( G_connections[ci].static_res == NPP_NOT_STATIC )   /* rendered -- moderate caching */
                 {
                     if ( G_connections[ci].modified )
                     {
@@ -5074,24 +5143,24 @@ static void gen_response_header(int ci)
 #endif  /* NPP_HTTP2 */
                             PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
                     }
-                    else
+                    else    /* default modified */
                     {
 #ifdef NPP_HTTP2
                         if ( G_connections[ci].http_ver[0] == '2' )
-                            PRINT_HTTP2_LAST_MODIFIED(G_last_modified);
+                            PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                         else
 #endif  /* NPP_HTTP2 */
-                            PRINT_HTTP_LAST_MODIFIED(G_last_modified);
+                            PRINT_HTTP_LAST_MODIFIED(G_header_date);
                     }
 
-                    if ( NPP_EXPIRES_GENERATED > 0 )
+                    if ( NPP_EXPIRES_RENDERED > 0 )
                     {
 #ifdef NPP_HTTP2
                         if ( G_connections[ci].http_ver[0] == '2' )
-                            PRINT_HTTP2_EXPIRES_GENERATED;
+                            PRINT_HTTP2_EXPIRES_RENDERED;
                         else
 #endif  /* NPP_HTTP2 */
-                            PRINT_HTTP_EXPIRES_GENERATED;
+                            PRINT_HTTP_EXPIRES_RENDERED;
                     }
                 }
                 else    /* static resource -- aggressive caching */
@@ -6197,13 +6266,13 @@ static int parse_req(int ci, int len)
         char tmp[NPP_MAX_URI_LEN+1];
         strcpy(tmp, G_connections[ci].uri+root_uri_len+1);
 
-        DDBG("tmp: [%s]", tmp);
+        DDBG("tmp [%s]", tmp);
 
         strcpy(G_connections[ci].uri, tmp);
     }
 #endif  /* NPP_ROOT_URI */
 
-    DDBG("URI: [%s]", G_connections[ci].uri);
+    DDBG("URI [%s]", G_connections[ci].uri);
 
     i += 6;   /* skip the space and HTTP/ */
 
@@ -7087,7 +7156,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         G_connections[ci].lang[i] = EOS;
 
-        DBG("G_connections[ci].lang: [%s]", G_connections[ci].lang);
+        DBG("G_connections[ci].lang [%s]", G_connections[ci].lang);
 
         if ( IS_SESSION && G_connections[ci].lang[0] && strcmp(SESSION.lang, G_connections[ci].lang) != 0 )
         {
@@ -7724,7 +7793,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
     req.hdr.blacklist_cnt = G_blacklist_cnt;
 
-    strcpy(req.hdr.last_modified, G_last_modified);
+    strcpy(req.hdr.last_modified, G_header_date);
 
 
     bool found=0;
@@ -7962,7 +8031,7 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
         ERR("Couldn't open %s", fname);
     else
     {
-        fseek(fd, 0, SEEK_END);
+//        fseek(fd, 0, SEEK_END);
         fprintf(fd, "%s\t# %sblocked on %s\n", value, autoblocked?"auto":"", DT_NOW_GMT);
         fclose(fd);
     }

@@ -74,6 +74,7 @@ int         G_pid=0;
 char        G_appdir[256]="..";
 char        G_tmp[NPP_TMP_BUFSIZE]="";
 time_t      G_now=0;
+time_t      G_start_time=0;
 struct tm   *G_ptm=NULL;
 char        G_header_date[32]="";
 bool        G_initialized=0;
@@ -136,27 +137,36 @@ static int  M_shmid[NPP_MAX_SHM_SEGMENTS]={0}; /* SHM id-s */
 #pragma GCC diagnostic pop  /* end of -Wmissing-braces */
 #endif
 
+
+#ifndef NPP_NO_SOCKETS
+
 #ifdef _WIN32   /* Windows */
 static WSADATA M_wsa;
 static bool M_WSA_initialized=FALSE;
-#endif
+#endif  /* _WIN32 */
 
 static call_http_header_t M_call_http_headers[CALL_HTTP_MAX_HEADERS];
 static int M_call_http_headers_cnt=0;
+
 #ifdef _WIN32   /* Windows */
 static SOCKET M_call_http_socket;
 #else
 static int M_call_http_socket;
 #endif  /* _WIN32 */
+
 #ifdef NPP_HTTPS
 static SSL_CTX *M_ssl_client_ctx=NULL;
 static SSL *M_call_http_ssl=NULL;
 #else
 static void *M_call_http_ssl=NULL;    /* dummy */
 #endif  /* NPP_HTTPS */
+
 static char M_call_http_mode;
 
 static bool M_call_http_proxy=FALSE;
+
+#endif  /* NPP_NO_SOCKETS */
+
 
 static unsigned char M_random_numbers[NPP_RANDOM_NUMBERS];
 static char M_random_initialized=0;
@@ -188,6 +198,8 @@ bool npp_lib_init(bool start_log, const char *log_prefix)
     /* time globals */
 
     npp_update_time_globals();
+
+    G_start_time = G_now;
 
     /* messages */
 
@@ -274,8 +286,10 @@ void npp_lib_done()
 #endif  /* _WIN32 */
 
 #ifdef _WIN32
+#ifndef NPP_NO_SOCKETS
     if ( M_WSA_initialized )
         WSACleanup();
+#endif
 #endif  /* _WIN32 */
 
     npp_log_finish();
@@ -2044,6 +2058,7 @@ static bool init_ssl_client()
 -------------------------------------------------------------------------- */
 void npp_lib_setnonblocking(int sock)
 {
+#ifndef NPP_NO_SOCKETS
 #ifdef _WIN32   /* Windows */
 
     u_long mode = 1;  // 1 to enable non-blocking socket
@@ -2068,7 +2083,8 @@ void npp_lib_setnonblocking(int sock)
         ERR("fcntl(F_SETFL) failed");
         return;
     }
-#endif
+#endif  /* _WIN32 */
+#endif  /* NPP_NO_SOCKETS */
 }
 
 
@@ -3422,7 +3438,7 @@ static unsigned blen;                   /* boundary length */
 
     cp = (unsigned char*)G_connections[ci].in_data + blen;   /* skip the first boundary */
 
-    bool found = FALSE;
+//    bool found = FALSE;
 
     while ( TRUE )   /* find the right section */
     {
@@ -4246,7 +4262,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     /* ------------------------------------------------------------------- */
     /* Server info */
 
-    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", G_last_modified, INT(G_days_up), NPP_VERSION);
+    OUT("<p>Server started on %s (%s day(s) up) Node++ %s</p>", time_epoch2db(G_start_time), INT(G_days_up), NPP_VERSION);
 
     /* ------------------------------------------------------------------- */
     /* Memory */
@@ -4348,6 +4364,7 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
 #endif  /* NPP_CLIENT */
 
 
+#ifndef NPP_NO_SOCKETS
 /* --------------------------------------------------------------------------
    HTTP call -- reset request headers
 -------------------------------------------------------------------------- */
@@ -6127,6 +6144,7 @@ bool npp_lib_check_ssl_error(int ssl_err)
 
     return TRUE;
 }
+#endif  /* NPP_NO_SOCKETS */
 
 
 /* --------------------------------------------------------------------------
@@ -7350,7 +7368,7 @@ static void json_to_string(char *dst, JSON *json, bool array)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             DDBG("(number)");
 
@@ -7498,7 +7516,7 @@ static void json_to_string_pretty(char *dst, JSON *json, bool array, int level)
             p = stpcpy(p, json->rec[i].value);
             p = stpcpy(p, "\"");
         }
-        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        else if ( json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             p = stpcpy(p, json->rec[i].value);
         }
@@ -7947,7 +7965,7 @@ static int json_pool_cnt=0;
             }
             else    /* number */
             {
-                DDBG("NPP_JSON_INTEGER || NPP_JSON_UNSIGNED || NPP_JSON_LONG || NPP_JSON_FLOAT || NPP_JSON_DOUBLE || NPP_JSON_BOOL");
+                DDBG("NPP_JSON_INTEGER || NPP_JSON_UNSIGNED || NPP_JSON_LONG || NPP_JSON_FLOAT || NPP_JSON_DOUBLE || NPP_JSON_BOOL || NPP_JSON_NULL");
 
                 type = NPP_JSON_INTEGER;    /* we're not sure yet but need to mark it's definitely not STRING */
 
@@ -7973,10 +7991,12 @@ static int json_pool_cnt=0;
             {
                 if ( type==NPP_JSON_STRING )
                     lib_json_add_str(json, "", index, value);
-                else if ( value[0]=='t' )
+                else if ( value[0]=='t' || value[0]=='T' )
                     lib_json_add_bool(json, "", index, 1);
-                else if ( value[0]=='f' )
+                else if ( value[0]=='f' || value[0]=='F' )
                     lib_json_add_bool(json, "", index, 0);
+                else if ( value[0]=='n' || value[0]=='N' )
+                    lib_json_add_null(json, "", index);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
@@ -8016,10 +8036,12 @@ static int json_pool_cnt=0;
             {
                 if ( type==NPP_JSON_STRING )
                     lib_json_add_str(json, key, -1, value);
-                else if ( value[0]=='t' )
+                else if ( value[0]=='t' || value[0]=='T' )
                     lib_json_add_bool(json, key, -1, 1);
-                else if ( value[0]=='f' )
+                else if ( value[0]=='f' || value[0]=='F' )
                     lib_json_add_bool(json, key, -1, 0);
+                else if ( value[0]=='n' || value[0]=='N' )
+                    lib_json_add_null(json, key, -1);
                 else if ( strchr(value, '.') )
                 {
                     if ( strlen(value) <= NPP_JSON_MAX_FLOAT_LEN )
@@ -8107,6 +8129,8 @@ void lib_json_log_dbg(JSON *json, const char *name)
             strcpy(type, "NPP_JSON_DOUBLE");
         else if ( json->rec[i].type == NPP_JSON_BOOL )
             strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_NULL )
+            strcpy(type, "NPP_JSON_NULL");
         else if ( json->rec[i].type == NPP_JSON_RECORD )
             strcpy(type, "NPP_JSON_RECORD");
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
@@ -8155,6 +8179,8 @@ void lib_json_log_inf(JSON *json, const char *name)
             strcpy(type, "NPP_JSON_DOUBLE");
         else if ( json->rec[i].type == NPP_JSON_BOOL )
             strcpy(type, "NPP_JSON_BOOL");
+        else if ( json->rec[i].type == NPP_JSON_NULL )
+            strcpy(type, "NPP_JSON_NULL");
         else if ( json->rec[i].type == NPP_JSON_RECORD )
             strcpy(type, "NPP_JSON_RECORD");
         else if ( json->rec[i].type == NPP_JSON_ARRAY )
@@ -8361,6 +8387,28 @@ bool lib_json_add_bool(JSON *json, const char *name, int i, bool value)
 
 
 /* --------------------------------------------------------------------------
+   Add/set value to a JSON buffer
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool lib_json_add_null(JSON *json, const std::string& name_, int i)
+{
+    const char *name = name_.c_str();
+#else
+bool lib_json_add_null(JSON *json, const char *name, int i)
+{
+#endif
+    if ( (i=json_add_elem(json, name, i)) == -1 )
+        return FALSE;
+
+    strcpy(json->rec[i].value, "null");
+
+    json->rec[i].type = NPP_JSON_NULL;
+
+    return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
    Insert or update value (address) in JSON buffer
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -8461,7 +8509,7 @@ static char dst[NPP_JSON_STR_LEN+1];
             return dst;
         }
 
-        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             strcpy(dst, json->rec[i].value);
             return dst;
@@ -8477,7 +8525,7 @@ static char dst[NPP_JSON_STR_LEN+1];
     {
         if ( 0==strcmp(json->rec[i].name, name) )
         {
-            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+            if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
             {
                 strcpy(dst, json->rec[i].value);
                 return dst;
@@ -8716,7 +8764,7 @@ bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t 
         {
             if ( 0==strcmp(json->rec[i].name, name) )
             {
-                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+                if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
                 {
                     COPY(retval, json->rec[i].value, maxlen);
 #ifdef NPP_CPP_STRINGS
@@ -8739,7 +8787,7 @@ bool lib_json_get_str(JSON *json, const char *name, int i, char *retval, size_t 
             return FALSE;
         }
 
-        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL )
+        if ( json->rec[i].type==NPP_JSON_STRING || json->rec[i].type==NPP_JSON_INTEGER || json->rec[i].type==NPP_JSON_UNSIGNED || json->rec[i].type==NPP_JSON_LONG || json->rec[i].type==NPP_JSON_FLOAT || json->rec[i].type==NPP_JSON_DOUBLE || json->rec[i].type==NPP_JSON_BOOL || json->rec[i].type==NPP_JSON_NULL )
         {
             COPY(retval, json->rec[i].value, maxlen);
 #ifdef NPP_CPP_STRINGS
