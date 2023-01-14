@@ -59,6 +59,8 @@ Or – as they now don't publish the percentage – it shows the **complete page
 <img src="https://minishare.com/show?p=PRRizqb2&i=2" width=600>
 </div>
 
+[Why is Node++ faster than other engines?](https://nodepp.org/docs/design)
+
 
 ## Security
 
