@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
+    Copyright (c) 2020-2024 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.2.1"
+#define NPP_VERSION                     "2.3.0"
 
 
 #ifndef FALSE
@@ -1372,7 +1372,7 @@ typedef struct {
     int      connections_hwm;
     int      sessions_cnt;
     int      sessions_hwm;
-    char     last_modified[32];
+//    char     last_modified[32];
     int      blacklist_cnt;
 } async_req_hdr_t;
 

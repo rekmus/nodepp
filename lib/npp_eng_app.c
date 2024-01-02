@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
+    Copyright (c) 2020-2024 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -7793,7 +7793,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
     req.hdr.blacklist_cnt = G_blacklist_cnt;
 
-    strcpy(req.hdr.last_modified, G_header_date);
+//    strcpy(req.hdr.last_modified, G_header_date);
 
 
     bool found=0;
