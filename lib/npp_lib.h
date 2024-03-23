@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
+    Copyright (c) 2020-2024 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -651,6 +651,14 @@ typedef struct {
 } call_http_header_t;
 
 
+typedef struct {
+    int64_t bytes;
+    int64_t kib;
+    int     mib;
+    int     gib;
+} human_size_t;
+
+
 
 /* --------------------------------------------------------------------------
    prototypes
@@ -854,6 +862,13 @@ extern "C" {
     /* public internal */
 
     void msleep(int msec);
+
+#ifdef NPP_CPP_STRINGS
+    int64_t npp_open_read_file(const std::string& fname, void **data);
+#else
+    int64_t npp_open_read_file(const char *fname, void **data);
+#endif
+
     char *stp_right(char *str);
     bool strdigits(const char *src);
     int  npp_compare_strings(const void *a, const void *b);

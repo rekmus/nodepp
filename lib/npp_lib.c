@@ -2,7 +2,7 @@
 
     MIT License
 
-    Copyright (c) 2020-2022 Jurek Muszynski (rekmus)
+    Copyright (c) 2020-2024 Jurek Muszynski (rekmus)
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -7066,6 +7066,15 @@ void npp_lib_escape_for_html(char *dst, const char *str, int dst_len)
             dst[j++] = 'p';
             dst[j++] = ';';
         }
+        else if ( str[i] == '\\' )
+        {
+            dst[j++] = '&';
+            dst[j++] = 'b';
+            dst[j++] = 's';
+            dst[j++] = 'o';
+            dst[j++] = 'l';
+            dst[j++] = ';';
+        }
 #ifdef HTML_ESCAPE_NEW_LINES
         else if ( str[i] == '\n' )
         {
@@ -7160,6 +7169,27 @@ static char dst[MAX_LONG_URI_VAL_LEN+1];
             j -= 4;
             dst[j++] = '&';
         }
+        else if ( i > 3
+                    && str[i-4]=='&'
+                    && str[i-3]=='s'
+                    && str[i-2]=='o'
+                    && str[i-1]=='l'
+                    && str[i]==';' )
+        {
+            j -= 4;
+            dst[j++] = '/';
+        }
+        else if ( i > 4
+                    && str[i-5]=='&'
+                    && str[i-4]=='b'
+                    && str[i-3]=='s'
+                    && str[i-2]=='o'
+                    && str[i-1]=='l'
+                    && str[i]==';' )
+        {
+            j -= 5;
+            dst[j++] = '\\';
+        }
         else if ( i > 2
                     && str[i-3]=='<'
                     && str[i-2]=='b'
@@ -7197,7 +7227,7 @@ static char dst[NPP_LIB_STR_BUF];
 
     for ( i=0; str[i] && i<NPP_LIB_STR_CHECK; ++i )
     {
-        if ( str[i] >= 97 && str[i] <= 122 )
+        if ( str[i] >= 97 && str[i] <= 122 )    // cppcheck-suppress arrayIndexOutOfBounds
             dst[i] = str[i] - 32;
         else
             dst[i] = str[i];
@@ -7277,6 +7307,145 @@ void msleep(int msec)
     select(0, NULL, NULL, NULL, &tv);
 
 #endif
+}
+
+
+/* --------------------------------------------------------------------------
+   Calculate size to be easily readable
+-------------------------------------------------------------------------- */
+static void human_size(int64_t bytes, human_size_t *hs)
+{
+    hs->bytes = bytes;
+    hs->kib = bytes / 1024;
+    hs->mib = hs->kib / 1024;
+    hs->gib = hs->mib / 1024;
+}
+
+
+/* --------------------------------------------------------------------------
+   Open and read (potentially large) file into data
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+int64_t npp_open_read_file(const std::string& fname_, void **data)
+{
+    const char *fname = fname_.c_str();
+#else
+int64_t npp_open_read_file(const char *fname, void **data)
+{
+#endif
+    int64_t size;
+
+#ifdef _WIN32
+
+    HANDLE fd;
+
+    fd = CreateFile(TEXT(fname), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if ( fd == INVALID_HANDLE_VALUE )
+    {
+        ERR("Couldn't open %s", fname);
+        return -1;
+    }
+
+    /* 64-bit integers complicated by Microsoft... */
+
+    LARGE_INTEGER li_fsize;
+
+    if ( !GetFileSizeEx(fd, &li_fsize) )
+    {
+        ERR("Couldn't read %s's size", fname);
+        CloseHandle(fd);
+        return -1;
+    }
+
+    size = li_fsize.QuadPart;
+
+    human_size_t hs;
+    human_size(size, &hs);
+
+    DBG("File size: %lld bytes (%lld KiB / %d MiB / %d GiB)", size, hs.kib, hs.mib, hs.gib);
+
+#else   /* Linux */
+
+    FILE *fd;
+
+    if ( NULL == (fd=fopen(fname, "r")) )
+    {
+        ERR("Couldn't open %s", fname);
+        return -1;
+    }
+
+    fseek(fd, 0, SEEK_END);     /* determine the file size */
+
+    size = ftell(fd);
+
+    rewind(fd);
+
+    human_size_t hs;
+    human_size(size, &hs);
+
+    DBG("File size: %" PRId64 " bytes (%" PRId64 " KiB / %d MiB / %d GiB)", size, hs.kib, hs.mib, hs.gib);
+
+#endif
+
+    if ( size < 1 )
+    {
+        WAR("This is an empty file");
+#ifdef _WIN32
+        CloseHandle(fd);
+#else   /* Linux */
+        fclose(fd);
+#endif
+        return 0;
+    }
+
+    /* read file into the buffer */
+
+    if ( !(*data=malloc(size+1)) )
+    {
+        ERR("Couldn't allocate %lld bytes for data", size+1);
+#ifdef _WIN32
+        CloseHandle(fd);
+#else   /* Linux */
+        fclose(fd);
+#endif
+        return -1;
+    }
+
+#ifdef _WIN32
+    DWORD bytes;
+    if ( !ReadFile(fd, *data, size, &bytes, NULL) )
+#else   /* Linux */
+    if ( fread(*data, size, 1, fd) != 1 )
+#endif
+    {
+        ERR("Couldn't read from %s", fname);
+        free(*data);
+        *data = NULL;
+#ifdef _WIN32
+        CloseHandle(fd);
+#else   /* Linux */
+        fclose(fd);
+#endif
+        return -1;
+    }
+
+#ifdef _WIN32
+    CloseHandle(fd);
+#else   /* Linux */
+    fclose(fd);
+#endif
+
+    ((char*)*data)[size] = EOS;
+
+    DBG("Successfully read %s", fname);
+
+#ifdef NPP_DEBUG
+    if ( size > 3 )
+        DBG("data begins with: %02x %02x %02x %02x", ((unsigned char*)*data)[0], ((unsigned char*)*data)[1], ((unsigned char*)*data)[2], ((unsigned char*)*data)[3]);
+#endif
+
+    return size;
 }
 
 
@@ -9367,7 +9536,7 @@ bool npp_email(const char *to, const char *subject, const char *message)
 
     int  i = 0;
 
-    sprintf(commands[i].cmd, "EHLO %s\r\n", NPP_APP_DOMAIN);
+    sprintf(commands[i].cmd, "EHLO %s\r\n", NPP_APP_DOMAIN);    // cppcheck-suppress legacyUninitvar
     strcpy(commands[i++].exp, "250");
 
     sprintf(commands[i].cmd, "MAIL FROM:<%s>\r\n", sender_bare);
