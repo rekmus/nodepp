@@ -249,17 +249,17 @@
 #define NPP_MAX_AVATAR_SIZE             65536   /* MySQL's BLOB size */
 
 
-#define SET_USER_STR(key, val)          npp_usr_set_str(ci, key, val)
-#define SET_USR_STR(key, val)           npp_usr_set_str(ci, key, val)
+#define SET_USER_STR(key, val)          npp_usr_set_str(key, val)
+#define SET_USR_STR(key, val)           npp_usr_set_str(key, val)
 
-#define GET_USER_STR(key, val)          npp_usr_get_str(ci, key, val)
-#define GET_USR_STR(key, val)           npp_usr_get_str(ci, key, val)
+#define GET_USER_STR(key, val)          npp_usr_get_str(key, val)
+#define GET_USR_STR(key, val)           npp_usr_get_str(key, val)
 
-#define SET_USER_INT(key, val)          npp_usr_set_int(ci, key, val)
-#define SET_USR_INT(key, val)           npp_usr_set_int(ci, key, val)
+#define SET_USER_INT(key, val)          npp_usr_set_int(key, val)
+#define SET_USR_INT(key, val)           npp_usr_set_int(key, val)
 
-#define GET_USER_INT(key, val)          npp_usr_get_int(ci, key, val)
-#define GET_USR_INT(key, val)           npp_usr_get_int(ci, key, val)
+#define GET_USER_INT(key, val)          npp_usr_get_int(key, val)
+#define GET_USR_INT(key, val)           npp_usr_get_int(key, val)
 
 
 /*
@@ -317,8 +317,8 @@ typedef struct {
     char *npp_usr_name(const char *login, const char *email, const char *name, int user_id);
     char *npp_usr_name(const std::string& login, const std::string& email, const std::string& name, int user_id);
 
-    int  npp_usr_get_str(int ci, const std::string& us_key, char *us_val);
-    int  npp_usr_get_str(int ci, const std::string& us_key, std::string& us_val);
+    int  npp_usr_get_str(const std::string& us_key, char *us_val);
+    int  npp_usr_get_str(const std::string& us_key, std::string& us_val);
 #endif
 
 
@@ -326,7 +326,7 @@ typedef struct {
 extern "C" {
 #endif
 
-    int  npp_usr_login(int ci);
+    int  npp_usr_login();
 
 #ifdef NPP_CPP_STRINGS
     int  npp_usr_password_quality(const std::string& passwd);
@@ -334,63 +334,63 @@ extern "C" {
     int  npp_usr_password_quality(const char *passwd);
 #endif
 
-    int  npp_usr_create_account(int ci);
+    int  npp_usr_create_account();
 
 #ifdef NPP_CPP_STRINGS
-    int  npp_usr_add_user(int ci, bool use_qs, const std::string& login, const std::string& email, const std::string& name, const std::string& passwd, const std::string& phone, const std::string& lang, const std::string& about, char group_id, char auth_level, char status);
+    int  npp_usr_add_user(bool use_qs, const std::string& login, const std::string& email, const std::string& name, const std::string& passwd, const std::string& phone, const std::string& lang, const std::string& about, char group_id, char auth_level, char status);
 #else
-    int  npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, const char *name, const char *passwd, const char *phone, const char *lang, const char *about, char group_id, char auth_level, char status);
+    int  npp_usr_add_user(bool use_qs, const char *login, const char *email, const char *name, const char *passwd, const char *phone, const char *lang, const char *about, char group_id, char auth_level, char status);
 #endif
 
-    int  npp_usr_send_message(int ci);
-    int  npp_usr_save_account(int ci);
-    int  npp_usr_email_registered(int ci);
+    int  npp_usr_send_message();
+    int  npp_usr_save_account();
+    int  npp_usr_email_registered();
 
 #ifndef NPP_CPP_STRINGS
     char *npp_usr_name(const char *login, const char *email, const char *name, int user_id);
 #endif
 
-    int  npp_usr_send_passwd_reset_email(int ci);
+    int  npp_usr_send_passwd_reset_email();
 
 #ifdef NPP_CPP_STRINGS
-    int  npp_usr_verify_passwd_reset_key(int ci, const std::string& linkkey, int *user_id);
+    int  npp_usr_verify_passwd_reset_key(const std::string& linkkey, int *user_id);
 #else
-    int  npp_usr_verify_passwd_reset_key(int ci, const char *linkkey, int *user_id);
+    int  npp_usr_verify_passwd_reset_key(const char *linkkey, int *user_id);
 #endif
 
-    int  npp_usr_activate(int ci);
-    int  npp_usr_save_avatar(int ci, int user_id);
-    int  npp_usr_get_avatar(int ci, int user_id);
-    int  npp_usr_change_password(int ci);
-    int  npp_usr_reset_password(int ci);
-    void npp_usr_logout(int ci);
+    int  npp_usr_activate();
+    int  npp_usr_save_avatar(int user_id);
+    int  npp_usr_get_avatar(int user_id);
+    int  npp_usr_change_password();
+    int  npp_usr_reset_password();
+    void npp_usr_logout();
 
 #ifdef NPP_CPP_STRINGS
-    int  npp_usr_set_str(int ci, const std::string& us_key, const std::string& us_val);
+    int  npp_usr_set_str(const std::string& us_key, const std::string& us_val);
 #else
-    int  npp_usr_set_str(int ci, const char *us_key, const char *us_val);
+    int  npp_usr_set_str(const char *us_key, const char *us_val);
 #endif
 
 #ifndef NPP_CPP_STRINGS
-    int  npp_usr_get_str(int ci, const char *us_key, char *us_val);
+    int  npp_usr_get_str(const char *us_key, char *us_val);
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    int  npp_usr_set_int(int ci, const std::string& us_key, int us_val);
+    int  npp_usr_set_int(const std::string& us_key, int us_val);
 #else
-    int  npp_usr_set_int(int ci, const char *us_key, int us_val);
+    int  npp_usr_set_int(const char *us_key, int us_val);
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    int  npp_usr_get_int(int ci, const std::string& us_key, int *us_val);
+    int  npp_usr_get_int(const std::string& us_key, int *us_val);
 #else
-    int  npp_usr_get_int(int ci, const char *us_key, int *us_val);
+    int  npp_usr_get_int(const char *us_key, int *us_val);
 #endif
 
     /* for the engine */
 
     void libusr_init(void);
-    int  libusr_luses_ok(int ci);
+    int  libusr_luses_ok();
     void libusr_luses_close_timeouted(void);
     void libusr_luses_save_csrft(void);
     void libusr_luses_downgrade(int si, int ci, bool usr_logout);

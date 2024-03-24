@@ -2160,7 +2160,7 @@ static time_t dbg_last_time=0;
             else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_ACCEPT )      /* 8 */
                 DBG("ci=%d, ssl_err = SSL_ERROR_WANT_ACCEPT", G_ci);
             else
-                DBG("ci=%d, ssl_err = %d", ci, G_connections[G_ci].ssl_err);
+                DBG("ci=%d, ssl_err = %d", G_ci, G_connections[G_ci].ssl_err);
 #endif  /* NPP_DEBUG */
 
             if ( G_connections[G_ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[G_ci].ssl_err != SSL_ERROR_WANT_WRITE )
@@ -7613,12 +7613,12 @@ int npp_eng_session_start(const char *sessid)
    Invalidate active user sessions belonging to user_id
    Called after password change
 -------------------------------------------------------------------------- */
-void npp_eng_session_downgrade_by_uid(int user_id, int ci)
+void npp_eng_session_downgrade_by_uid(int user_id, bool keep_current)
 {
 #ifdef NPP_USERS
     int i;
 
-    if ( ci > -1 )  /* keep the current session */
+    if ( keep_current )  /* keep the current session */
     {
         for ( i=1; G_sessions_cnt>0 && i<=NPP_MAX_SESSIONS; ++i )
         {

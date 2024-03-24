@@ -1944,7 +1944,7 @@ extern "C" {
     int  npp_eng_find_si(const char *sessid);
 #endif
 
-    void npp_eng_session_downgrade_by_uid(int user_id, int ci);
+    void npp_eng_session_downgrade_by_uid(int user_id, bool keep_current);
     bool npp_eng_call_async(const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_read_blocked_ips(void);
     void npp_eng_read_allowed_ips(void);

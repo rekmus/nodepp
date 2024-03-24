@@ -40,7 +40,7 @@
 //#define NPP_ASYNC
 
 
-#define NPP_DEBUG
+//#define NPP_DEBUG
 
 
 /* app session data */

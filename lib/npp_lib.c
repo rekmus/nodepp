@@ -1134,7 +1134,7 @@ static char dest[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Verify CSRF token
 -------------------------------------------------------------------------- */
-bool npp_csrft_ok(int ci)
+bool npp_csrft_ok()
 {
 #ifndef NPP_CLIENT
 
@@ -7326,11 +7326,11 @@ static void human_size(int64_t bytes, human_size_t *hs)
    Open and read (potentially large) file into data
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int64_t npp_open_read_file(const std::string& fname_, void **data)
+int64_t npp_read_file(const std::string& fname_, void **data)
 {
     const char *fname = fname_.c_str();
 #else
-int64_t npp_open_read_file(const char *fname, void **data)
+int64_t npp_read_file(const char *fname, void **data)
 {
 #endif
     int64_t size;

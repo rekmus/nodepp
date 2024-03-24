@@ -864,9 +864,9 @@ extern "C" {
     void msleep(int msec);
 
 #ifdef NPP_CPP_STRINGS
-    int64_t npp_open_read_file(const std::string& fname, void **data);
+    int64_t npp_read_file(const std::string& fname, void **data);
 #else
-    int64_t npp_open_read_file(const char *fname, void **data);
+    int64_t npp_read_file(const char *fname, void **data);
 #endif
 
     char *stp_right(char *str);
