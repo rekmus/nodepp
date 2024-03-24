@@ -69,7 +69,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <limits.h>     /* INT_MAX */
-#include <cinttypes>
+//#include <cinttypes>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.3.0"
+#define NPP_VERSION                     "2.3.1"
 
 
 #ifndef FALSE
