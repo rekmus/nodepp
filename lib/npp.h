@@ -69,7 +69,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <limits.h>     /* INT_MAX */
-#include <cinttypes>
+//#include <cinttypes>
 
 #ifndef _WIN32
 #include <unistd.h>

@@ -7384,7 +7384,8 @@ int64_t npp_open_read_file(const char *fname, void **data)
     human_size_t hs;
     human_size(size, &hs);
 
-    DBG("File size: %" PRId64 " bytes (%" PRId64 " KiB / %d MiB / %d GiB)", size, hs.kib, hs.mib, hs.gib);
+//    DBG("File size: %" PRId64 " bytes (%" PRId64 " KiB / %d MiB / %d GiB)", size, hs.kib, hs.mib, hs.gib);
+    DBG("File size: %ld bytes (%ld KiB / %d MiB / %d GiB)", size, hs.kib, hs.mib, hs.gib);
 
 #endif
 
