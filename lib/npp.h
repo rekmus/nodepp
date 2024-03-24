@@ -69,7 +69,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <limits.h>     /* INT_MAX */
-//#include <cinttypes>
+//#include <inttypes.h>   /* PRId64 */
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "2.3.1"
+#define NPP_VERSION                     "3.0.0"
 
 
 #ifndef FALSE
@@ -303,7 +303,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_UA_TYPE_MOB                 (char)2         /* phone (small screen) */
 
 
-#define NPP_PROTOCOL                    (NPP_CONN_IS_SECURE(G_connections[ci].flags)?"https":"http")
+#define NPP_PROTOCOL                    (NPP_CONN_IS_SECURE(G_connections[G_ci].flags)?"https":"http")
 
 
 /* defaults */
@@ -351,11 +351,11 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* date */
 #define PRINT_HTTP_DATE                     (sprintf(G_tmp, "Date: %s\r\n", G_header_date), HOUT(G_tmp))
-#define PRINT_HTTP2_DATE                    http2_hdr_date(ci)
+#define PRINT_HTTP2_DATE                    http2_hdr_date()
 
 /* redirection */
-#define PRINT_HTTP_LOCATION                 (sprintf(G_tmp, "Location: %s\r\n", G_connections[ci].location), HOUT(G_tmp))
-#define PRINT_HTTP2_LOCATION                http2_hdr_location(ci)
+#define PRINT_HTTP_LOCATION                 (sprintf(G_tmp, "Location: %s\r\n", G_connections[G_ci].location), HOUT(G_tmp))
+#define PRINT_HTTP2_LOCATION                http2_hdr_location()
 
 /* content type */
 #define PRINT_HTTP_CONTENT_TYPE(val)        (sprintf(G_tmp, "Content-Type: %s\r\n", val), HOUT(G_tmp))
@@ -367,22 +367,22 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* cache control */
 #define PRINT_HTTP_CACHE_PUBLIC             HOUT("Cache-Control: public, max-age=31536000\r\n")
-#define PRINT_HTTP2_CACHE_PUBLIC            http2_hdr_cache_ctrl_public(ci)
+#define PRINT_HTTP2_CACHE_PUBLIC            http2_hdr_cache_ctrl_public()
 
 #define PRINT_HTTP_NO_CACHE                 HOUT("Cache-Control: private, must-revalidate, no-store, no-cache, max-age=0\r\n")
-#define PRINT_HTTP2_NO_CACHE                http2_hdr_cache_ctrl_private(ci)
+#define PRINT_HTTP2_NO_CACHE                http2_hdr_cache_ctrl_private()
 
 #define PRINT_HTTP_EXPIRES_STATICS          (sprintf(G_tmp, "Expires: %s\r\n", M_expires_stat), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_STATICS         http2_hdr_expires_statics(ci)
+#define PRINT_HTTP2_EXPIRES_STATICS         http2_hdr_expires_statics()
 
 #define PRINT_HTTP_EXPIRES_RENDERED         (sprintf(G_tmp, "Expires: %s\r\n", M_expires_gen), HOUT(G_tmp))
-#define PRINT_HTTP2_EXPIRES_RENDERED        http2_hdr_expires_rendered(ci)
+#define PRINT_HTTP2_EXPIRES_RENDERED        http2_hdr_expires_rendered()
 
 #define PRINT_HTTP_LAST_MODIFIED(val)       (sprintf(G_tmp, "Last-Modified: %s\r\n", val), HOUT(G_tmp))
 #define PRINT_HTTP2_LAST_MODIFIED(val)      http2_hdr_last_modified(ci, val)
 
 /* connection */
-#define PRINT_HTTP_CONNECTION               (sprintf(G_tmp, "Connection: %s\r\n", NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags)?"keep-alive":"close"), HOUT(G_tmp))
+#define PRINT_HTTP_CONNECTION               (sprintf(G_tmp, "Connection: %s\r\n", NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags)?"keep-alive":"close"), HOUT(G_tmp))
 
 /* vary */
 #define PRINT_HTTP_VARY_DYN                 HOUT("Vary: Accept-Encoding, User-Agent\r\n")
@@ -404,7 +404,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* content encoding */
 #define PRINT_HTTP_CONTENT_ENCODING_DEFLATE HOUT("Content-Encoding: deflate\r\n")
-#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE http2_hdr_content_enc_deflate(ci)
+#define PRINT_HTTP2_CONTENT_ENCODING_DEFLATE http2_hdr_content_enc_deflate()
 
 /* Security ------------------------------------------------------------------ */
 
@@ -434,45 +434,45 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #ifdef NPP_HSTS_ON
 
-#define PRINT_HTTP_COOKIE_A(ci)             (sprintf(G_tmp, "Set-Cookie: as=%s; %shttponly\r\n", G_connections[ci].cookie_out_a, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_A(ci)            (sprintf(G_tmp, "as=%s; %shttponly", G_connections[ci].cookie_out_a, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_A                 (sprintf(G_tmp, "Set-Cookie: as=%s; %shttponly\r\n", G_connections[G_ci].cookie_out_a, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A                (sprintf(G_tmp, "as=%s; %shttponly", G_connections[G_ci].cookie_out_a, G_test?"":"secure; "), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_L(ci)             (sprintf(G_tmp, "Set-Cookie: ls=%s; %shttponly\r\n", G_connections[ci].cookie_out_l, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_L(ci)            (sprintf(G_tmp, "ls=%s; %shttponly", G_connections[ci].cookie_out_l, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_L                 (sprintf(G_tmp, "Set-Cookie: ls=%s; %shttponly\r\n", G_connections[G_ci].cookie_out_l, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L                (sprintf(G_tmp, "ls=%s; %shttponly", G_connections[G_ci].cookie_out_l, G_test?"":"secure; "), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_A_EXP(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; %shttponly\r\n", G_connections[ci].cookie_out_a, G_connections[ci].cookie_out_a_exp, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_A_EXP(ci)        (sprintf(G_tmp, "as=%s; expires=%s; %shttponly", G_connections[ci].cookie_out_a, G_connections[ci].cookie_out_a_exp, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_A_EXP             (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; %shttponly\r\n", G_connections[G_ci].cookie_out_a, G_connections[G_ci].cookie_out_a_exp, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A_EXP            (sprintf(G_tmp, "as=%s; expires=%s; %shttponly", G_connections[G_ci].cookie_out_a, G_connections[G_ci].cookie_out_a_exp, G_test?"":"secure; "), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_L_EXP(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; %shttponly\r\n", G_connections[ci].cookie_out_l, G_connections[ci].cookie_out_l_exp, G_test?"":"secure; "), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_L_EXP(ci)        (sprintf(G_tmp, "ls=%s; expires=%s; %shttponly", G_connections[ci].cookie_out_l, G_connections[ci].cookie_out_l_exp, G_test?"":"secure; "), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_L_EXP             (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; %shttponly\r\n", G_connections[G_ci].cookie_out_l, G_connections[G_ci].cookie_out_l_exp, G_test?"":"secure; "), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L_EXP            (sprintf(G_tmp, "ls=%s; expires=%s; %shttponly", G_connections[G_ci].cookie_out_l, G_connections[G_ci].cookie_out_l_exp, G_test?"":"secure; "), http2_hdr_set_cookie(G_tmp))
 
 #else   /* HSTS is off */
 
-#define PRINT_HTTP_COOKIE_A(ci)             (sprintf(G_tmp, "Set-Cookie: as=%s; httponly\r\n", G_connections[ci].cookie_out_a), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_A(ci)            (sprintf(G_tmp, "as=%s; httponly", G_connections[ci].cookie_out_a), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_A                 (sprintf(G_tmp, "Set-Cookie: as=%s; httponly\r\n", G_connections[G_ci].cookie_out_a), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A                (sprintf(G_tmp, "as=%s; httponly", G_connections[G_ci].cookie_out_a), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_L(ci)             (sprintf(G_tmp, "Set-Cookie: ls=%s; httponly\r\n", G_connections[ci].cookie_out_l), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_L(ci)            (sprintf(G_tmp, "ls=%s; httponly", G_connections[ci].cookie_out_l), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_L                 (sprintf(G_tmp, "Set-Cookie: ls=%s; httponly\r\n", G_connections[G_ci].cookie_out_l), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L                (sprintf(G_tmp, "ls=%s; httponly", G_connections[G_ci].cookie_out_l), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_A_EXP(ci)         (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; httponly\r\n", G_connections[ci].cookie_out_a, G_connections[ci].cookie_out_a_exp), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_A_EXP(ci)        (sprintf(G_tmp, "as=%s; expires=%s; httponly", G_connections[ci].cookie_out_a, G_connections[ci].cookie_out_a_exp), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_A_EXP             (sprintf(G_tmp, "Set-Cookie: as=%s; expires=%s; httponly\r\n", G_connections[G_ci].cookie_out_a, G_connections[G_ci].cookie_out_a_exp), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_A_EXP            (sprintf(G_tmp, "as=%s; expires=%s; httponly", G_connections[G_ci].cookie_out_a, G_connections[G_ci].cookie_out_a_exp), http2_hdr_set_cookie(G_tmp))
 
-#define PRINT_HTTP_COOKIE_L_EXP(ci)         (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; httponly\r\n", G_connections[ci].cookie_out_l, G_connections[ci].cookie_out_l_exp), HOUT(G_tmp))
-#define PRINT_HTTP2_COOKIE_L_EXP(ci)        (sprintf(G_tmp, "ls=%s; expires=%s; httponly", G_connections[ci].cookie_out_l, G_connections[ci].cookie_out_l_exp), http2_hdr_set_cookie(ci, G_tmp))
+#define PRINT_HTTP_COOKIE_L_EXP             (sprintf(G_tmp, "Set-Cookie: ls=%s; expires=%s; httponly\r\n", G_connections[G_ci].cookie_out_l, G_connections[G_ci].cookie_out_l_exp), HOUT(G_tmp))
+#define PRINT_HTTP2_COOKIE_L_EXP            (sprintf(G_tmp, "ls=%s; expires=%s; httponly", G_connections[G_ci].cookie_out_l, G_connections[G_ci].cookie_out_l_exp), http2_hdr_set_cookie(G_tmp))
 
 #endif  /* NPP_HSTS_ON */
 
 /* framing */
 #define PRINT_HTTP_SAMEORIGIN               HOUT("X-Frame-Options: SAMEORIGIN\r\n")
-#define PRINT_HTTP2_SAMEORIGIN              //http2_hdr_sameorigin(ci)
+#define PRINT_HTTP2_SAMEORIGIN              //http2_hdr_sameorigin()
 
 /* content type guessing */
 #define PRINT_HTTP_NOSNIFF                  HOUT("X-Content-Type-Options: nosniff\r\n")
-#define PRINT_HTTP2_NOSNIFF                 //http2_hdr_nosniff(ci)
+#define PRINT_HTTP2_NOSNIFF                 //http2_hdr_nosniff()
 
 /* identity */
 #define PRINT_HTTP_SERVER                   HOUT("Server: Node++\r\n")
-#define PRINT_HTTP2_SERVER                  http2_hdr_server(ci)
+#define PRINT_HTTP2_SERVER                  http2_hdr_server()
 
 /* HTTP/2 */
 #define PRINT_HTTP2_UPGRADE_CLEAR           HOUT("Connection: Upgrade\r\nUpgrade: h2c\r\n")
@@ -737,11 +737,11 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif
 
 #ifndef NPP_SESSID_LEN
-#define NPP_SESSID_LEN                      15              /* session id length (15 gives ~ 89 bits of entropy) */
+#define NPP_SESSID_LEN                      20              /* session id length (15 gives ~ 89 bits of entropy) */
 #endif
 
 #ifndef NPP_CSRFT_LEN
-#define NPP_CSRFT_LEN                       7               /* CSRF token length */
+#define NPP_CSRFT_LEN                       15              /* CSRF token length */
 #endif
 
 #ifndef NPP_CIPHER_LIST_LEN
@@ -948,7 +948,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_ASYNC_IS_PAYLOAD_IN_SHM(flags)   ((flags & NPP_ASYNC_FLAG_PAYLOAD_IN_SHM) == NPP_ASYNC_FLAG_PAYLOAD_IN_SHM)
 
 
-#define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[ci].ip, "127.0.0.1"))
+#define NPP_VALID_RELOAD_CONF_REQUEST       (REQ("npp_reload_conf") && REQ_POST && 0==strcmp(G_connections[G_ci].ip, "127.0.0.1"))
 
 
 #define SHOULD_BE_COMPRESSED(len, type)     (len > NPP_COMPRESS_TRESHOLD && (type==NPP_CONTENT_TYPE_HTML || type==NPP_CONTENT_TYPE_CSS || type==NPP_CONTENT_TYPE_JS || type==NPP_CONTENT_TYPE_SVG || type==NPP_CONTENT_TYPE_JSON || type==NPP_CONTENT_TYPE_MD || type==NPP_CONTENT_TYPE_PDF || type==NPP_CONTENT_TYPE_XML || type==NPP_CONTENT_TYPE_EXE || type==NPP_CONTENT_TYPE_BMP || type==NPP_CONTENT_TYPE_TEXT))
@@ -1023,15 +1023,15 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define SVC(svc)                        (0==strcmp(G_service, svc))
 #define ASYNC_ERR_CODE                  G_error_code
 #else
-#define SVC(svc)                        (0==strcmp(G_connections[ci].service, svc))
-#define ASYNC_ERR_CODE                  G_connections[ci].async_err_code
+#define SVC(svc)                        (0==strcmp(G_connections[G_ci].service, svc))
+#define ASYNC_ERR_CODE                  G_connections[G_ci].async_err_code
 #endif  /* NPP_SVC */
 
-#define CALL_ASYNC(svc)                 npp_eng_call_async(ci, svc, NULL, TRUE, G_ASYNCDefTimeout, 0)
-#define CALL_ASYNC_TM(svc, tmout)       npp_eng_call_async(ci, svc, NULL, TRUE, tmout, 0)
-#define CALL_ASYNC_NR(svc)              npp_eng_call_async(ci, svc, NULL, FALSE, 0, 0)
+#define CALL_ASYNC(svc)                 npp_eng_call_async(svc, NULL, TRUE, G_ASYNCDefTimeout, 0)
+#define CALL_ASYNC_TM(svc, tmout)       npp_eng_call_async(svc, NULL, TRUE, tmout, 0)
+#define CALL_ASYNC_NR(svc)              npp_eng_call_async(svc, NULL, FALSE, 0, 0)
 
-#define CALL_ASYNC_BIN(svc, data, size) npp_eng_call_async(ci, svc, data, TRUE, G_ASYNCDefTimeout, size)
+#define CALL_ASYNC_BIN(svc, data, size) npp_eng_call_async(svc, data, TRUE, G_ASYNCDefTimeout, size)
 
 
 /* resource / content types */
@@ -1070,40 +1070,42 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 /* request macros */
 
-#define REQ_METHOD                      G_connections[ci].method
-#define REQ_HEAD                        (0==strcmp(G_connections[ci].method, "HEAD"))
-#define REQ_GET                         (0==strcmp(G_connections[ci].method, "GET"))
-#define REQ_POST                        (0==strcmp(G_connections[ci].method, "POST"))
-#define REQ_PUT                         (0==strcmp(G_connections[ci].method, "PUT"))
-#define REQ_DELETE                      (0==strcmp(G_connections[ci].method, "DELETE"))
-#define REQ_OPTIONS                     (0==strcmp(G_connections[ci].method, "OPTIONS"))
+#define REQ_METHOD                      G_connections[G_ci].method
+#define REQ_HEAD                        (0==strcmp(G_connections[G_ci].method, "HEAD"))
+#define REQ_GET                         (0==strcmp(G_connections[G_ci].method, "GET"))
+#define REQ_POST                        (0==strcmp(G_connections[G_ci].method, "POST"))
+#define REQ_PUT                         (0==strcmp(G_connections[G_ci].method, "PUT"))
+#define REQ_DELETE                      (0==strcmp(G_connections[G_ci].method, "DELETE"))
+#define REQ_OPTIONS                     (0==strcmp(G_connections[G_ci].method, "OPTIONS"))
 
-#define REQ_URI                         G_connections[ci].uri
-#define REQ_CONTENT_TYPE                G_connections[ci].in_ctypestr
-#define REQ_BOT                         NPP_CONN_IS_BOT(G_connections[ci].flags)
-#define REQ_LANG                        G_connections[ci].lang
+#define REQ_URI                         G_connections[G_ci].uri
+#define REQ_CONTENT_TYPE                G_connections[G_ci].in_ctypestr
+#define REQ_BOT                         NPP_CONN_IS_BOT(G_connections[G_ci].flags)
+#define REQ_LANG                        G_connections[G_ci].lang
 
-#define REQ_DSK                         (G_connections[ci].ua_type==NPP_UA_TYPE_DSK)
-#define REQ_TAB                         (G_connections[ci].ua_type==NPP_UA_TYPE_TAB)
-#define REQ_MOB                         (G_connections[ci].ua_type==NPP_UA_TYPE_MOB)
-#define URI(uri)                        npp_eng_is_uri(ci, uri)
-#define REQ(res)                        (0==strcmp(G_connections[ci].resource, res))
-#define REQ0(res)                       (0==strcmp(G_connections[ci].resource, res))
-#define REQ1(res)                       (0==strcmp(G_connections[ci].req1, res))
-#define REQ2(res)                       (0==strcmp(G_connections[ci].req2, res))
-#define REQ3(res)                       (0==strcmp(G_connections[ci].req3, res))
-#define REQ4(res)                       (0==strcmp(G_connections[ci].req4, res))
-#define REQ5(res)                       (0==strcmp(G_connections[ci].req5, res))
-#define REQ_ID                          G_connections[ci].id
-#define SESSION                         G_sessions[G_connections[ci].si]
-#define SESSION_DATA                    G_app_session_data[G_connections[ci].si]
-#define IS_SESSION                      (G_connections[ci].si>0)
-#define HOST(str)                       (0==strcmp(G_connections[ci].host_normalized, npp_upper(str)))
-#define REQ_GET_HEADER(header)          npp_eng_get_header(ci, header)
+#define REQ_DSK                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_DSK)
+#define REQ_TAB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_TAB)
+#define REQ_MOB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_MOB)
+#define URI(uri)                        npp_eng_is_uri(uri)
+#define REQ(res)                        (0==strcmp(G_connections[G_ci].resource, res))
+#define REQ0(res)                       (0==strcmp(G_connections[G_ci].resource, res))
+#define REQ1(res)                       (0==strcmp(G_connections[G_ci].path1, res))
+#define REQ2(res)                       (0==strcmp(G_connections[G_ci].path2, res))
+#define REQ3(res)                       (0==strcmp(G_connections[G_ci].path3, res))
+#define REQ4(res)                       (0==strcmp(G_connections[G_ci].path4, res))
+#define REQ5(res)                       (0==strcmp(G_connections[G_ci].path5, res))
+#define REQ_ID                          G_connections[G_ci].id
+#define SESSION                         G_sessions[G_connections[G_ci].si]
+#define SESSION_DATA                    G_app_session_data[G_connections[G_ci].si]
+#define IS_SESSION                      (G_connections[G_ci].si>0)
+#define HOST(str)                       (0==strcmp(G_connections[G_ci].host_normalized, npp_upper(str)))
+#define REQ_GET_HEADER(header)          npp_eng_get_header(header)
 
-#define REQ_DATA                        G_connections[ci].in_data
+#define REQUEST                         G_connections[G_ci]
 
-#define CALL_HTTP_PASS_HEADER(header)   npp_eng_call_http_pass_header(ci, header)
+#define REQ_DATA                        G_connections[G_ci].in_data
+
+#define CALL_HTTP_PASS_HEADER(header)   npp_eng_call_http_pass_header(header)
 
 
 /* response macros */
@@ -1125,26 +1127,26 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 
 #else   /* NPP_APP */
 
-    #define HOUT(str)                   (G_connections[ci].p_header = stpcpy(G_connections[ci].p_header, str))
-    #define HOUT_BIN(data, len)         (memcpy(G_connections[ci].p_header, data, len), G_connections[ci].p_header += len)
+    #define HOUT(str)                   (G_connections[G_ci].p_header = stpcpy(G_connections[G_ci].p_header, str))
+    #define HOUT_BIN(data, len)         (memcpy(G_connections[G_ci].p_header, data, len), G_connections[G_ci].p_header += len)
 
     #ifdef NPP_OUT_FAST
-        #define OUTSS(str)                  (G_connections[ci].p_content = stpcpy(G_connections[ci].p_content, str))
-        #define OUT_BIN(data, len)          (len=(len>NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE?NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE:len), memcpy(G_connections[ci].p_content, data, len), G_connections[ci].p_content += len)
+        #define OUTSS(str)                  (G_connections[G_ci].p_content = stpcpy(G_connections[G_ci].p_content, str))
+        #define OUT_BIN(data, len)          (len=(len>NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE?NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE:len), memcpy(G_connections[G_ci].p_content, data, len), G_connections[G_ci].p_content += len)
     #else
         #ifdef NPP_OUT_CHECK
             #define OUTSS(str)                  npp_eng_out_check(ci, str)
-            #define OUT_BIN(data, len)          (len=(len>NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE?NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE:len), memcpy(G_connections[ci].p_content, data, len), G_connections[ci].p_content += len)
+            #define OUT_BIN(data, len)          (len=(len>NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE?NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE:len), memcpy(G_connections[G_ci].p_content, data, len), G_connections[G_ci].p_content += len)
         #else   /* NPP_OUT_CHECK_REALLOC */
-            #define OUTSS(str)                  npp_eng_out_check_realloc(ci, str)
-            #define OUT_BIN(data, len)          npp_eng_out_check_realloc_bin(ci, data, len)
+            #define OUTSS(str)                  npp_eng_out_check_realloc(str)
+            #define OUT_BIN(data, len)          npp_eng_out_check_realloc_bin(data, len)
         #endif
     #endif  /* NPP_OUT_FAST */
 
 #endif  /* NPP_SVC */
 
 #ifdef NPP_CPP_STRINGS
-    #define OUT(str, ...)                   NPP_CPP_STRINGS_OUT(ci, str, ##__VA_ARGS__)
+    #define OUT(str, ...)                   NPP_CPP_STRINGS_OUT(str, ##__VA_ARGS__)
 #else
 #ifdef _MSC_VER /* Microsoft compiler */
     #define OUT(...)                        (sprintf(G_tmp, EXPAND_VA(__VA_ARGS__)), OUTSS(G_tmp))
@@ -1156,25 +1158,25 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #endif  /* NPP_CPP_STRINGS */
 
 
-#define RES_STATUS(val)                 npp_lib_set_res_status(ci, val)
-#define RES_CONTENT_TYPE(str)           npp_lib_set_res_content_type(ci, str)
-#define RES_LOCATION(str, ...)          npp_lib_set_res_location(ci, str, ##__VA_ARGS__)
+#define RES_STATUS(val)                 npp_lib_set_res_status(val)
+#define RES_CONTENT_TYPE(str)           npp_lib_set_res_content_type(str)
+#define RES_LOCATION(str, ...)          npp_lib_set_res_location(str, ##__VA_ARGS__)
 #define RES_REDIRECT(str, ...)          RES_LOCATION(str, ##__VA_ARGS__)
-#define RES_KEEP_CONTENT                (G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_CONTENT)
-#define RES_DONT_CACHE                  (G_connections[ci].flags |= NPP_CONN_FLAG_DONT_CACHE)
-#define RES_CONTENT_DISPOSITION(str, ...) npp_lib_set_res_content_disposition(ci, str, ##__VA_ARGS__)
+#define RES_KEEP_CONTENT                (G_connections[G_ci].flags |= NPP_CONN_FLAG_KEEP_CONTENT)
+#define RES_DONT_CACHE                  (G_connections[G_ci].flags |= NPP_CONN_FLAG_DONT_CACHE)
+#define RES_CONTENT_DISPOSITION(str, ...) npp_lib_set_res_content_disposition(str, ##__VA_ARGS__)
 
-#define RES_CONTENT_TYPE_TEXT           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT)
-#define RES_CONTENT_TYPE_HTML           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML)
-#define RES_CONTENT_TYPE_JSON           (G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JSON)
+#define RES_CONTENT_TYPE_TEXT           (G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_TEXT)
+#define RES_CONTENT_TYPE_HTML           (G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_HTML)
+#define RES_CONTENT_TYPE_JSON           (G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_JSON)
 
-#define REDIRECT_TO_LANDING             sprintf(G_connections[ci].location, "%s://%s", NPP_PROTOCOL, G_connections[ci].host)
+#define REDIRECT_TO_LANDING             sprintf(G_connections[G_ci].location, "%s://%s", NPP_PROTOCOL, G_connections[G_ci].host)
 
-#define APPEND_CSS(name, first)         npp_append_css(ci, name, first)
-#define APPEND_SCRIPT(name, first)      npp_append_script(ci, name, first)
+#define APPEND_CSS(name, first)         npp_append_css(name, first)
+#define APPEND_SCRIPT(name, first)      npp_append_script(name, first)
 
 
-#define NPP_UA_IE                       (0==strncmp(G_connections[ci].uagent, "Mozilla/5.0 (Windows NT ", 24) && strstr(G_connections[ci].uagent, "; WOW64; Trident/7.0; rv:11.0) like Gecko"))
+#define NPP_UA_IE                       (0==strncmp(G_connections[G_ci].uagent, "Mozilla/5.0 (Windows NT ", 24) && strstr(G_connections[G_ci].uagent, "; WOW64; Trident/7.0; rv:11.0) like Gecko"))
 
 
 /* datetime strings (YYYY-MM-DD hh:mm:ss) */
@@ -1182,10 +1184,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define DT_NULL                         "1900-01-01 00:00:00"               /* null datetime string */
 
 #define DT_NOW_GMT                      G_dt_string_gmt                     /* current datetime string (GMT) */
-#define DT_NOW_LOCAL                    time_epoch2db(npp_ua_time(ci))      /* current datetime string (user agent timezone) */
+#define DT_NOW_LOCAL                    time_epoch2db(npp_ua_time())        /* current datetime string (user agent timezone) */
 
 #define DT_TODAY_GMT                    npp_today_gmt()                     /* current date only (GMT) (YYYY-MM-DD) */
-#define DT_TODAY_LOCAL                  npp_today_ua(ci)                    /* current date only (user agent timezone) */
+#define DT_TODAY_LOCAL                  npp_today_ua()                      /* current date only (user agent timezone) */
 
 #define DT_IS_NULL(dt)                  (0==strcmp(dt, DT_NULL))            /* is datetime string null? */
 
@@ -1201,7 +1203,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define CSRFT_REFRESH                   npp_random(SESSION.csrft, NPP_CSRFT_LEN)
 #define CSRFT_OUT_INPUT                 OUT("<input type=\"hidden\" name=\"csrft\" value=\"%s\">", SESSION.csrft)
 #define OUT_CSRFT                       CSRFT_OUT_INPUT
-#define CSRFT_OK                        npp_csrft_ok(ci)
+#define CSRFT_OK                        npp_csrft_ok()
 
 
 
@@ -1317,15 +1319,15 @@ typedef struct {
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 1
-    char     req1[NPP_MAX_RESOURCE_LEN+1];
+    char     path1[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 2
-    char     req2[NPP_MAX_RESOURCE_LEN+1];
+    char     path2[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 3
-    char     req3[NPP_MAX_RESOURCE_LEN+1];
+    char     path3[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 4
-    char     req4[NPP_MAX_RESOURCE_LEN+1];
+    char     path4[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 5
-    char     req5[NPP_MAX_RESOURCE_LEN+1];
+    char     path5[NPP_MAX_RESOURCE_LEN+1];
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
@@ -1493,15 +1495,15 @@ typedef struct {                            /* request details for npp_svc */
     char     uri[NPP_MAX_URI_LEN+1];
     char     resource[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 1
-    char     req1[NPP_MAX_RESOURCE_LEN+1];
+    char     path1[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 2
-    char     req2[NPP_MAX_RESOURCE_LEN+1];
+    char     path2[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 3
-    char     req3[NPP_MAX_RESOURCE_LEN+1];
+    char     path3[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 4
-    char     req4[NPP_MAX_RESOURCE_LEN+1];
+    char     path4[NPP_MAX_RESOURCE_LEN+1];
 #if NPP_RESOURCE_LEVELS > 5
-    char     req5[NPP_MAX_RESOURCE_LEN+1];
+    char     path5[NPP_MAX_RESOURCE_LEN+1];
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
@@ -1555,15 +1557,15 @@ typedef struct {
     char     uri[NPP_MAX_URI_LEN+1];                /* requested URI string */
     char     resource[NPP_MAX_RESOURCE_LEN+1];      /* from URI (REQ0) */
 #if NPP_RESOURCE_LEVELS > 1
-    char     req1[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 1 */
+    char     path1[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 1 */
 #if NPP_RESOURCE_LEVELS > 2
-    char     req2[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 2 */
+    char     path2[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 2 */
 #if NPP_RESOURCE_LEVELS > 3
-    char     req3[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 3 */
+    char     path3[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 3 */
 #if NPP_RESOURCE_LEVELS > 4
-    char     req4[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 4 */
+    char     path4[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 4 */
 #if NPP_RESOURCE_LEVELS > 5
-    char     req5[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 5 */
+    char     path5[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
@@ -1803,6 +1805,7 @@ extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];   /* HTTP connecti
                                                                 /* The extra 2 slots are for 503 processing and for NPP_CLOSING_SESSION_CI */
 extern int          G_connections_cnt;                          /* number of open connections */
 extern int          G_connections_hwm;                          /* highest number of open connections (high water mark) */
+extern int          G_ci;                                       /* current connection index */
 extern char         G_tmp[NPP_TMP_BUFSIZE];                     /* temporary string buffer */
 extern eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1];       /* engine session data -- they start from 1 (session 0 is never used) */
 extern app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]; /* app session data, using the same index (si) */
@@ -1911,7 +1914,7 @@ extern int          G_qs_len;
     void npp_add_to_static_res(const std::string& host, const std::string& name, const std::string& src);
 
 #ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
-    int  npp_app_custom_activation_email(int ci, int user_id, const std::string& email, const std::string& linkkey);
+    int  npp_app_custom_activation_email(int user_id, const std::string& email, const std::string& linkkey);
 #endif
 #endif
 
@@ -1933,7 +1936,7 @@ extern "C" {
     bool npp_eng_init_ssl(void);
 #endif
 
-    int  npp_eng_session_start(int ci, const char *sessid);
+    int  npp_eng_session_start(const char *sessid);
 
 #ifdef NPP_MULTI_HOST
     int  npp_eng_find_si(int host_id, const char *sessid);
@@ -1942,16 +1945,16 @@ extern "C" {
 #endif
 
     void npp_eng_session_downgrade_by_uid(int user_id, int ci);
-    bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size);
+    bool npp_eng_call_async(const char *service, const char *data, bool want_response, int timeout, int size);
     void npp_eng_read_blocked_ips(void);
     void npp_eng_read_allowed_ips(void);
     void npp_eng_block_ip(const char *value, bool autoblocked);
-    bool npp_eng_is_uri(int ci, const char *uri);
-    void npp_eng_out_check(int ci, const char *str);
-    void npp_eng_out_check_realloc(int ci, const char *str);
-    void npp_eng_out_check_realloc_bin(int ci, const char *data, int len);
-    char *npp_eng_get_header(int ci, const char *header);
-    void npp_eng_call_http_pass_header(int ci, const char *header);
+    bool npp_eng_is_uri(const char *uri);
+    void npp_eng_out_check(const char *str);
+    void npp_eng_out_check_realloc(const char *str);
+    void npp_eng_out_check_realloc_bin(const char *data, int len);
+    char *npp_eng_get_header(const char *header);
+    void npp_eng_call_http_pass_header(const char *header);
 #ifdef NPP_SVC
     void npp_svc_out_check(const char *str);
     void npp_svc_out_check_realloc(const char *str);
@@ -1963,9 +1966,9 @@ extern "C" {
 #ifdef NPP_APP
     bool npp_app_init(int argc, char *argv[]);
     void npp_app_done(void);
-    void npp_app_main(int ci);
-    bool npp_app_session_init(int ci);
-    void npp_app_session_done(int ci);
+    void npp_app_main();
+    bool npp_app_session_init();
+    void npp_app_session_done();
 #ifdef NPP_APP_EVERY_SPARE_SECOND
     void npp_app_every_spare_second(void);
 #endif
@@ -1976,23 +1979,23 @@ extern "C" {
 
 #ifdef NPP_SVC
     bool npp_svc_init(void);
-    void npp_svc_main(int ci);
+    void npp_svc_main();
     void npp_svc_done(void);
 #endif  /* NPP_SVC */
 
 #ifdef NPP_APP_CUSTOM_MESSAGE_PAGE
-    void npp_app_custom_message_page(int ci, int code);
+    void npp_app_custom_message_page(int code);
 #endif
 
 #ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
 #ifndef NPP_CPP_STRINGS
-    int  npp_app_custom_activation_email(int ci, int user_id, const char *email, const char *linkkey);
+    int  npp_app_custom_activation_email(int user_id, const char *email, const char *linkkey);
 #endif
 #endif
 
 #ifdef NPP_USERS
-    bool npp_app_user_login(int ci);
-    void npp_app_user_logout(int ci);
+    bool npp_app_user_login();
+    void npp_app_user_logout();
 #endif
 
 #ifdef __cplusplus

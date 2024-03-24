@@ -92,12 +92,14 @@ void libusr_init()
     npp_add_message(ERR_EMAIL_FORMAT,             "EN-US", "Please enter valid email address");
     npp_add_message(ERR_EMAIL_FORMAT_OR_EMPTY,    "EN-US", "Please enter valid email address or leave this field empty");
     npp_add_message(ERR_EMAIL_TAKEN,              "EN-US", "This email address has already been registered");
+    npp_add_message(ERR_EMAIL_NOT_REGISTERED,     "EN-US", "This email has not been registered");
     npp_add_message(ERR_INVALID_PASSWORD,         "EN-US", "Please enter your existing password");
     npp_add_message(ERR_PASSWORD_TOO_SHORT,       "EN-US", "Password must be at least %d characters long", NPP_MIN_PASSWORD_LEN);
     npp_add_message(ERR_IN_10_COMMON_PASSWORDS,   "EN-US", "Your password is in 10 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_100_COMMON_PASSWORDS,  "EN-US", "Your password is in 100 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_1000_COMMON_PASSWORDS, "EN-US", "Your password is in 1,000 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_10000_COMMON_PASSWORDS,"EN-US", "Your password is in 10,000 most common passwords, which makes it too easy to guess");
+    npp_add_message(ERR_OTP_EXPIRED,              "EN-US", "Your one-time password has expired");
     npp_add_message(ERR_PASSWORD_DIFFERENT,       "EN-US", "Please retype password exactly like in the previous field");
     npp_add_message(ERR_OLD_PASSWORD,             "EN-US", "Please enter your existing password");
     npp_add_message(ERR_SESSION_EXPIRED,          "EN-US", "Your session has expired. Please log in to continue:");
@@ -128,6 +130,7 @@ void libusr_init()
     npp_add_message(MSG_FEEDBACK_SENT,            "EN-US", "Thank you for your feedback!");
     npp_add_message(MSG_USER_ALREADY_ACTIVATED,   "EN-US", "Your account has already been activated");
     npp_add_message(MSG_ACCOUNT_DELETED,          "EN-US", "Your user account has been deleted. Thank you for trying %s!", NPP_APP_NAME);
+    npp_add_message(MSG_OTP_PASSWORD_SENT,        "EN-US", "Your one-time password has been sent");
 
 #ifndef DONT_REFUSE_COMMON_PASSWORDS
     load_common_passwd();
@@ -1095,12 +1098,16 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
     if ( !QS_DONT_ESCAPE("passwd", passwd)
             || !QS_DONT_ESCAPE("rpasswd", rpasswd) )
     {
         ERR("Invalid request (passwd or rpasswd missing)");
         return ERR_INVALID_REQUEST;
     }
+
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
     /* ------------------------------------------------ */
     /* optional */
@@ -1179,14 +1186,21 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     if ( email[0] && OK != (ret=email_exists(email)) )  /* email in use */
         return ret;
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
     else if ( (ret=npp_usr_password_quality(passwd)) != OK )
         return ret;
     else if ( 0 != strcmp(passwd, rpasswd) )            /* passwords differ */
         return ERR_PASSWORD_DIFFERENT;
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
     /* welcome! -- and generate password hashes ------------------------------------------------------- */
 
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
     get_hashes(str1, str2, login, email, passwd);
+#else
+    str1[0] = EOS;
+    str2[0] = EOS;
+#endif
 
     strcpy(login_u, npp_upper(login));
     strcpy(email_u, npp_upper(email));
@@ -1265,6 +1279,10 @@ int npp_usr_login(int ci)
     QSVAL passwd;
     QSVAL keep;
     char  p1[NPP_PASSWD_HASH_BUFLEN], p2[NPP_PASSWD_HASH_BUFLEN];
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+    char  p3[NPP_PASSWD_HASH_BUFLEN];
+    char  otp_expires[32];
+#endif
     char  str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     char  status;
     int   visits;
@@ -1275,31 +1293,55 @@ int npp_usr_login(int ci)
 
     DBG("npp_usr_login");
 
-#ifdef NPP_USERS_BY_EMAIL
+    /* ------------------------------------------ */
 
-    if ( !QS_DONT_ESCAPE("email", email) || !QS_DONT_ESCAPE("passwd", passwd) )
+#if defined NPP_USERS_BY_EMAIL || defined NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+    if ( !QS_DONT_ESCAPE("email", email) )
     {
-        WAR("Invalid request (email or passwd missing)");
+        WAR("Invalid request (email missing)");
         return ERR_INVALID_REQUEST;
     }
 
     stp_right(email);
 
-#else    /* by login */
+    COPY(SESSION.email, email, NPP_EMAIL_LEN);
 
-    if ( !QS_DONT_ESCAPE("login", login) || !QS_DONT_ESCAPE("passwd", passwd) )
+#endif  /* NPP_USERS_BY_EMAIL */
+
+    /* ------------------------------------------ */
+
+#ifdef NPP_USERS_BY_LOGIN
+
+    if ( !QS_DONT_ESCAPE("login", login) )
     {
-        WAR("Invalid request (login or passwd missing)");
+        WAR("Invalid request (login missing)");
         return ERR_INVALID_REQUEST;
     }
 
     stp_right(login);
 
+    COPY(SESSION.login, login, NPP_LOGIN_LEN);
+
     QSVAL ulogin;
 
     strcpy(ulogin, npp_upper(login));
 
-#endif  /* NPP_USERS_BY_EMAIL */
+#endif  /* NPP_USERS_BY_LOGIN */
+
+    /* ------------------------------------------ */
+
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+    if ( !QS_DONT_ESCAPE("passwd", passwd) )
+    {
+        WAR("Invalid request (passwd missing)");
+        return ERR_INVALID_REQUEST;
+    }
+
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
+
+    /* ------------------------------------------ */
 
     try
     {
@@ -1329,7 +1371,12 @@ static bool first=true;
 #else
             DBG("No records matching login [%s]", login);
 #endif
+
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+            return ERR_EMAIL_NOT_REGISTERED;
+#else
             return ERR_INVALID_LOGIN;   /* invalid user and/or password */
+#endif
         }
 
         /* login/email found */
@@ -1348,6 +1395,10 @@ static bool first=true;
 
         strcpy(p1, u.passwd1);
         strcpy(p2, u.passwd2);
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+        strcpy(p3, u.otp);
+        strcpy(otp_expires, u.otp_expires);
+#endif
         status = u.status;
         visits = u.visits;
         ula_cnt = u.ula_cnt;
@@ -1435,6 +1486,101 @@ static bool first=true;
             }
         }
 
+        /* activated? ------------------------------------- */
+
+        if ( status == USER_STATUS_INACTIVE )
+        {
+            WAR("User not activated");
+            return ERR_INVALID_LOGIN;
+        }
+
+        DBG("User activation status OK");
+
+        /* password --------------------------------------- */
+
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+        if ( !valid_email(email) )    /* invalid email format */
+            return ERR_EMAIL_FORMAT;
+
+        QSVAL qsval;
+        char  otp[NPP_OTP_LEN+1];
+
+        if ( QS_DONT_ESCAPE("passwd", qsval) )  /* validate one-time password */
+        {
+            COPY(otp, qsval, NPP_OTP_LEN);
+
+            DBG("Verifying one-time password...");
+
+            /* expired? */
+
+            time_t otp_expires_epoch = time_db2epoch(otp_expires);
+
+            if ( G_now > otp_expires_epoch )
+            {
+                WAR("One-time password expired");
+
+                u.ula_cnt = ula_cnt + 1;
+                strcpy(u.ula_time, DT_NOW_GMT);
+
+                u.Update(us.user_id);
+
+                return ERR_OTP_EXPIRED;
+            }
+
+            /* correct? */
+
+            get_hashes(str1, str2, us.login, us.email, otp);
+
+            if ( 0 != strcmp(str2, p3) )
+            {
+                WAR("Invalid one-time password");
+
+                u.ula_cnt = ula_cnt + 1;
+                strcpy(u.ula_time, DT_NOW_GMT);
+
+                u.Update(us.user_id);
+
+                return ERR_INVALID_LOGIN;   /* invalid user and/or password */
+            }
+
+            DBG("One-time password OK");
+        }
+        else    /* generate, save and email one-time password */
+        {
+            strcpy(otp, npp_random(NPP_OTP_LEN));
+
+            DBG("OTP [%s] generated", otp);
+
+            char subject[256];
+            char message[4096];
+
+            STRM_BEGIN(message);
+
+            STRM("This is your one-time password:\n\n");
+            STRM("%s\n\n", otp);
+            STRM("Copy and paste it on the login page.\n\n");
+            STRM("Kind Regards\n");
+            STRM("%s\n", NPP_APP_NAME);
+
+            STRM_END;
+
+            sprintf(subject, "%s", STR("One Time Password"));
+
+            npp_email(email, subject, message);
+
+            get_hashes(str1, str2, us.login, us.email, otp);
+
+            strcpy(u.otp, str2);
+            strcpy(u.otp_expires, time_epoch2db((time_t)(G_now+(NPP_OTP_EXPIRATION_MINUTES*60))));
+
+            u.Update(us.user_id);
+
+            return MSG_OTP_PASSWORD_SENT;
+        }
+
+#else   /* normal password */
+
         /* now check username/email and password pairs as they should be */
 
         DBG("Verifying password...");
@@ -1459,17 +1605,11 @@ static bool first=true;
 
         DBG("Password OK");
 
-        /* activated? */
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
-        if ( status == USER_STATUS_INACTIVE )
-        {
-            WAR("User not activated");
-            return ERR_NOT_ACTIVATED;
-        }
-
-        DBG("User activation status OK");
-
+        /* ----------------------------------------------------------------------------- */
         /* successful login ------------------------------------------------------------ */
+        /* ----------------------------------------------------------------------------- */
 
         if ( ula_cnt )   /* clear it */
         {

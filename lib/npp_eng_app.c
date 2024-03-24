@@ -71,6 +71,7 @@ int         G_days_up=0;
 npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2]={0};
 int         G_connections_cnt=0;
 int         G_connections_hwm=0;
+int         G_ci=0;
 eng_session_data_t G_sessions[NPP_MAX_SESSIONS+1]={0};
 app_session_data_t G_app_session_data[NPP_MAX_SESSIONS+1]={0};
 int         G_sessions_cnt=0;
@@ -216,14 +217,14 @@ static int find_epoll_ci(int fd);
 #endif
 static bool housekeeping(void);
 #ifdef NPP_HTTP2
-static void http2_check_client_preface(int ci);
-static void http2_parse_frame(int ci, int bytes);
-static void http2_add_frame(int ci, unsigned char type);
+static void http2_check_client_preface();
+static void http2_parse_frame(int bytes);
+static void http2_add_frame(unsigned char type);
 #endif  /* NPP_HTTP2 */
-static void set_state(int ci, int bytes, bool secure);
-static void respond_to_expect(int ci);
-static void log_proc_time(int ci);
-static void log_request(int ci);
+static void set_state(int bytes, bool secure);
+static void respond_to_expect();
+static void log_proc_time();
+static void log_request();
 static void close_connection(int ci, bool update_first_free);
 static bool init(int argc, char **argv);
 #ifdef NPP_FD_MON_SELECT
@@ -234,21 +235,21 @@ static bool ip_blocked(const char *addr);
 static bool ip_allowed(const char *addr);
 static int  first_free_stat(void);
 static bool read_resources(bool first_scan);
-static int  is_static_res(int ci);
-static void process_req(int ci);
-static void gen_response_header(int ci);
-static void print_content_type(int ci, char type);
-static bool a_session_ok(int ci);
+static int  is_static_res();
+static void process_request();
+static void gen_response_header();
+static void print_content_type(char type);
+static bool a_session_ok();
 static void close_old_conn(void);
 static void uses_close_timeouted(void);
 static void close_uses(int si, int ci);
-static void reset_conn(int ci, char new_state);
-static int  parse_req(int ci, int len);
-static int  set_http_req_val(int ci, const char *label, const char *value);
+static void reset_connection(int ci, char new_state);
+static int  parse_request(int len);
+static int  set_http_req_val(const char *label, const char *value);
 static void dump_counters(void);
 static void clean_up(void);
 static void sigdisp(int sig);
-static void render_page_msg(int ci, int code);
+static void render_page_msg(int code);
 
 
 
@@ -743,6 +744,8 @@ int main(int argc, char **argv)
 
 #endif  /* NPP_FD_MON_EPOLL */
 
+                    G_ci = ci;
+
 #ifdef NPP_FD_MON_SELECT
                     if ( FD_ISSET(G_connections[ci].fd, &M_readfds) )     /* incoming data ready */
                     {
@@ -800,7 +803,7 @@ int main(int argc, char **argv)
                                     G_connections[ci].was_read += bytes;
                                 }
 
-                                set_state(ci, bytes, TRUE);
+                                set_state(bytes, TRUE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
@@ -828,7 +831,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes, TRUE);
+                                set_state(bytes, TRUE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
@@ -858,7 +861,7 @@ int main(int argc, char **argv)
                                     G_connections[ci].was_read += bytes;
                                 }
 
-                                set_state(ci, bytes, FALSE);
+                                set_state(bytes, FALSE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
@@ -877,9 +880,9 @@ int main(int argc, char **argv)
                                 bytes = recv(G_connections[ci].fd, G_connections[ci].in, NPP_IN_BUFSIZE-1, 0);
 
                                 if ( bytes > 0 )
-                                    http2_check_client_preface(ci);   /* hopefully finish upgrade to HTTP/2 */
+                                    http2_check_client_preface();   /* hopefully finish upgrade to HTTP/2 */
                                 else
-                                    set_state(ci, bytes, FALSE);    /* disconnected */
+                                    set_state(bytes, FALSE);    /* disconnected */
                             }
 #endif  /* NPP_HTTP2 */
                             else if ( G_connections[ci].state == CONN_STATE_READING_DATA )   /* payload */
@@ -901,7 +904,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes, FALSE);
+                                set_state(bytes, FALSE);
 #ifdef NPP_HTTP2
                                 if ( G_connections[ci].state != CONN_STATE_DISCONNECTED )
                                 {
@@ -914,21 +917,23 @@ int main(int argc, char **argv)
 
                         sockets_ready--;
                     }
+
                     /* --------------------------------------------------------------------------------------- */
+
 #ifdef NPP_FD_MON_SELECT
-                    else if ( FD_ISSET(G_connections[ci].fd, &M_writefds) )        /* ready for outgoing data */
+                    if ( FD_ISSET(G_connections[ci].fd, &M_writefds) )        /* ready for outgoing data */
                     {
                         DDBG("FD_ISSET ready for outgoing data");
 #endif  /* NPP_FD_MON_SELECT */
 #ifdef NPP_FD_MON_POLL
-                    else if ( M_pollfds[pi].revents & POLLOUT )
+                    if ( M_pollfds[pi].revents & POLLOUT )
                     {
                         DDBG("POLLOUT");
 
                         M_pollfds[pi].revents = 0;
 #endif  /* NPP_FD_MON_POLL */
 #ifdef NPP_FD_MON_EPOLL
-                    else if ( M_epollevs[epi].events & EPOLLOUT )
+                    if ( M_epollevs[epi].events & EPOLLOUT )
                     {
                         DDBG("EPOLLOUT");
 #endif  /* NPP_FD_MON_EPOLL */
@@ -961,7 +966,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes, TRUE);
+                                set_state(bytes, TRUE);
                             }
                             else if ( G_connections[ci].state == CONN_STATE_SENDING_CONTENT )
                             {
@@ -982,7 +987,7 @@ int main(int argc, char **argv)
                                         break;
                                 }
 
-                                set_state(ci, bytes, TRUE);
+                                set_state(bytes, TRUE);
                             }
                         }
                         else    /* plain HTTP */
@@ -1032,7 +1037,7 @@ int main(int argc, char **argv)
                                                 break;
                                         }
 
-                                        set_state(ci, bytes, FALSE);
+                                        set_state(bytes, FALSE);
 #ifdef NPP_HTTP2
                                     }
                                 }
@@ -1066,7 +1071,7 @@ int main(int argc, char **argv)
                                             break;
                                     }
 
-                                    set_state(ci, bytes, FALSE);
+                                    set_state(bytes, FALSE);
 #ifdef NPP_HTTP2
                                 }
 #endif
@@ -1099,7 +1104,7 @@ int main(int argc, char **argv)
 
                     if ( G_connections[ci].state == CONN_STATE_READY_FOR_PARSE )
                     {
-                        G_connections[ci].status = parse_req(ci, G_connections[ci].was_read);
+                        G_connections[ci].status = parse_request(G_connections[ci].was_read);
 
                         if ( G_connections[ci].state != CONN_STATE_READING_DATA )
                         {
@@ -1111,7 +1116,7 @@ int main(int argc, char **argv)
                     /* received Expect: 100-continue before content */
 
                     if ( G_connections[ci].expect100 )
-                        respond_to_expect(ci);
+                        respond_to_expect();
 
                     /* ready for processing */
 
@@ -1139,11 +1144,11 @@ int main(int argc, char **argv)
                             DBG("ci=%d, static resource [%s]", ci, G_connections[ci].uri);
 #endif
                         if ( !G_connections[ci].location[0] && G_connections[ci].static_res == NPP_NOT_STATIC )   /* process request */
-                            process_req(ci);
+                            process_request();
 #ifdef NPP_ASYNC
                         if ( G_connections[ci].state != CONN_STATE_WAITING_FOR_ASYNC )
 #endif
-                        gen_response_header(ci);
+                        gen_response_header();
                     }
 
                     /* 100% saturation safety valve in case revents didn't match sockets_ready */
@@ -1507,11 +1512,11 @@ static bool housekeeping()
    Verify HTTP/2 client preface
    Finish protocol upgrade
 -------------------------------------------------------------------------- */
-static void http2_check_client_preface(int ci)
+static void http2_check_client_preface()
 {
     DDBG("ci=%d, http2_check_client_preface", ci);
 
-    if ( strcmp(G_connections[ci].in, HTTP2_CLIENT_PREFACE) == 0 )
+    if ( strcmp(G_connections[G_ci].in, HTTP2_CLIENT_PREFACE) == 0 )
     {
         DBG("HTTP/2 client preface OK");
 
@@ -1521,20 +1526,20 @@ static void http2_check_client_preface(int ci)
         DBG_LINE;
 #endif  /* NPP_DEBUG */
 
-        G_connections[ci].http_ver[0] = '2';
-        G_connections[ci].http_ver[1] = EOS;
+        G_connections[G_ci].http_ver[0] = '2';
+        G_connections[G_ci].http_ver[1] = EOS;
 
         /* at this point upgrade process should be over */
         /* we can now start serving normal HTTP/2 response frames */
 
-        G_connections[ci].status = 200;
+        G_connections[G_ci].status = 200;
 
-        G_connections[ci].http2_upgrade_in_progress = FALSE;
-//        G_connections[ci].http2_last_stream_id = 1;
+        G_connections[G_ci].http2_upgrade_in_progress = FALSE;
+//        G_connections[G_ci].http2_last_stream_id = 1;
 
         /* generate response header again */
 
-        gen_response_header(ci);
+        gen_response_header();
     }
     else
     {
@@ -1605,14 +1610,14 @@ int http2_24nbo_2_machine(const char *nbo_number)
    Parse HTTP/2 incoming frame
    bytes has to be > 0
 -------------------------------------------------------------------------- */
-static void http2_parse_frame(int ci, int bytes)
+static void http2_parse_frame(int bytes)
 {
     DDBG("ci=%d, http2_parse_frame, bytes=%d", ci, bytes);
 
 //    http2_frame_hdr_t hdr;
     char hdr[HTTP2_FRAME_HDR_LEN]={0};
 
-    memcpy(&hdr, &G_connections[ci].in, HTTP2_FRAME_HDR_LEN);
+    memcpy(&hdr, &G_connections[G_ci].in, HTTP2_FRAME_HDR_LEN);
 
     int32_t length=0;
 
@@ -1627,18 +1632,18 @@ static void http2_parse_frame(int ci, int bytes)
     {
         int32_t tmp = length;
         length = bswap32(tmp);
-        G_connections[ci].http2_last_stream_id = bswap32((int32_t)*(hdr+5));
+        G_connections[G_ci].http2_last_stream_id = bswap32((int32_t)*(hdr+5));
     }
     else    /* Big Endian */
     {
-        G_connections[ci].http2_last_stream_id = (int32_t)*(hdr+5);
+        G_connections[G_ci].http2_last_stream_id = (int32_t)*(hdr+5);
     }
 
 #ifdef NPP_DEBUG
     DBG("IN frame length = %d", length);
     DBG("IN frame type = %s", http2_get_frame_type(hdr[3]));
     DBG("IN frame flags = 0x%02x", hdr[4]);
-    DBG("IN frame stream_id = %d", G_connections[ci].http2_last_stream_id);
+    DBG("IN frame stream_id = %d", G_connections[G_ci].http2_last_stream_id);
 #endif  /* NPP_DEBUG */
 }
 
@@ -1646,7 +1651,7 @@ static void http2_parse_frame(int ci, int bytes)
 /* --------------------------------------------------------------------------
    Create HTTP/2 outgoing frame
 -------------------------------------------------------------------------- */
-static void http2_add_frame(int ci, unsigned char type)
+static void http2_add_frame(unsigned char type)
 {
     DDBG("ci=%d, http2_add_frame, type [%s]", ci, http2_get_frame_type(type));
 
@@ -1661,11 +1666,11 @@ static void http2_add_frame(int ci, unsigned char type)
 
     if ( type == HTTP2_FRAME_TYPE_DATA )
     {
-        frame_pld_len = G_connections[ci].out_len - G_connections[ci].out_hlen;
+        frame_pld_len = G_connections[G_ci].out_len - G_connections[G_ci].out_hlen;
     }
     else if ( type == HTTP2_FRAME_TYPE_HEADERS )
     {
-        frame_pld_len = G_connections[ci].out_hlen;
+        frame_pld_len = G_connections[G_ci].out_hlen;
         frame_pld_len += HTTP2_HEADERS_PLD_LEN;
     }
     else if ( type == HTTP2_FRAME_TYPE_SETTINGS )
@@ -1679,7 +1684,7 @@ static void http2_add_frame(int ci, unsigned char type)
         s.id = HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
         s.value = 100;
 
-        memcpy(G_connections[ci].out_data, &s, HTTP2_SETTINGS_PAIR_LEN);
+        memcpy(G_connections[G_ci].out_data, &s, HTTP2_SETTINGS_PAIR_LEN);
 
         frame_pld_len = HTTP2_SETTINGS_PAIR_LEN; */
 
@@ -1726,13 +1731,13 @@ static void http2_add_frame(int ci, unsigned char type)
     {
 /*        if ( G_endianness == ENDIANNESS_LITTLE )
         {
-            int32_t tmp = bswap32(G_connections[ci].http2_last_stream_id);
+            int32_t tmp = bswap32(G_connections[G_ci].http2_last_stream_id);
             memcpy(hdr+5, &tmp, 4);
         }
         else     Big Endian */
-//            memcpy(hdr+5, &G_connections[ci].http2_last_stream_id, 4);
+//            memcpy(hdr+5, &G_connections[G_ci].http2_last_stream_id, 4);
 
-        int32_t tmp = htonl(G_connections[ci].http2_last_stream_id);
+        int32_t tmp = htonl(G_connections[G_ci].http2_last_stream_id);
         memcpy(hdr+5, &tmp, 4);
     }
 
@@ -1745,20 +1750,20 @@ static void http2_add_frame(int ci, unsigned char type)
 
     if ( type == HTTP2_FRAME_TYPE_DATA )
     {
-        G_connections[ci].http2_frame_start = G_connections[ci].out_data - HTTP2_FRAME_HDR_LEN;
+        G_connections[G_ci].http2_frame_start = G_connections[G_ci].out_data - HTTP2_FRAME_HDR_LEN;
 
 //        hdr.flags |= HTTP2_FRAME_FLAG_END_STREAM;
         hdr[4] |= HTTP2_FRAME_FLAG_END_STREAM;
     }
     else if ( type == HTTP2_FRAME_TYPE_HEADERS )
     {
-        G_connections[ci].http2_frame_start = G_connections[ci].out_start - HTTP2_FRAME_HDR_LEN - HTTP2_HEADERS_PLD_LEN;
+        G_connections[G_ci].http2_frame_start = G_connections[G_ci].out_start - HTTP2_FRAME_HDR_LEN - HTTP2_HEADERS_PLD_LEN;
 
         http2_HEADERS_pld_t HEADERS_pld={0};
 
 //        HEADERS_pld.weight = 1;
 
-        memcpy(G_connections[ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, HTTP2_HEADERS_PLD_LEN);
+        memcpy(G_connections[G_ci].http2_frame_start+HTTP2_FRAME_HDR_LEN, (char*)&HEADERS_pld, HTTP2_HEADERS_PLD_LEN);
 
 //        hdr.flags |= HTTP2_FRAME_FLAG_END_HEADERS;
         hdr[4] |= HTTP2_FRAME_FLAG_END_HEADERS;
@@ -1767,17 +1772,17 @@ static void http2_add_frame(int ci, unsigned char type)
     {
 //        hdr[4] |= HTTP2_FRAME_FLAG_ACK;   // temp!
 
-        G_connections[ci].http2_frame_start = G_connections[ci].out_data - HTTP2_FRAME_HDR_LEN;
+        G_connections[G_ci].http2_frame_start = G_connections[G_ci].out_data - HTTP2_FRAME_HDR_LEN;
     }
 
-    G_connections[ci].http2_bytes_to_send = HTTP2_FRAME_HDR_LEN + frame_pld_len;
+    G_connections[G_ci].http2_bytes_to_send = HTTP2_FRAME_HDR_LEN + frame_pld_len;
 
-    DDBG("http2_bytes_to_send = %u", G_connections[ci].http2_bytes_to_send);
+    DDBG("http2_bytes_to_send = %u", G_connections[G_ci].http2_bytes_to_send);
 
     /* ------------------------------------------------ */
     /* copy frame header before the frame data */
 
-    memcpy(G_connections[ci].http2_frame_start, (char*)&hdr, HTTP2_FRAME_HDR_LEN);
+    memcpy(G_connections[G_ci].http2_frame_start, (char*)&hdr, HTTP2_FRAME_HDR_LEN);
 
     /* ------------------------------------------------ */
 
@@ -1787,7 +1792,7 @@ static void http2_add_frame(int ci, unsigned char type)
     DBG("OUT frame flags = 0x%02x", hdr[4]);
 
     if ( type != HTTP2_FRAME_TYPE_SETTINGS )
-        DBG("OUT frame stream_id = %d", G_connections[ci].http2_last_stream_id);
+        DBG("OUT frame stream_id = %d", G_connections[G_ci].http2_last_stream_id);
     else
         DBG("OUT frame stream_id = 0");
 #endif  /* NPP_DEBUG */
@@ -1859,32 +1864,32 @@ static int http2_encode_int(char *enc_val, int val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_status(int ci, int status)
+static void http2_hdr_status(int status)
 {
     DDBG("http2_hdr_status");
 
-    G_connections[ci].p_header += HTTP2_HEADERS_PLD_LEN;
+    G_connections[G_ci].p_header += HTTP2_HEADERS_PLD_LEN;
 
     if ( status == 200 )
-        *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_200);
+        *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_200);
     else if ( status == 400 )
-        *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_400);
+        *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_400);
     else if ( status == 404 )
-        *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_404);
+        *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_404);
     else if ( status == 500 )
-        *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_500);
+        *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_STATUS_500);
 }
 
 
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_date(int ci)
+static void http2_hdr_date()
 {
     DDBG("http2_hdr_date");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_DATE);
-    *G_connections[ci].p_header++ = (char)strlen(G_header_date);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_DATE);
+    *G_connections[G_ci].p_header++ = (char)strlen(G_header_date);
     HOUT(G_header_date);
 }
 
@@ -1892,25 +1897,25 @@ static void http2_hdr_date(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_location(int ci)
+static void http2_hdr_location()
 {
     DDBG("http2_hdr_location");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_LOCATION);
-    *G_connections[ci].p_header++ = (char)strlen(G_connections[ci].location);
-    HOUT(G_connections[ci].location);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_LOCATION);
+    *G_connections[G_ci].p_header++ = (char)strlen(G_connections[G_ci].location);
+    HOUT(G_connections[G_ci].location);
 }
 
 
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_content_type(int ci, const char *val)
+static void http2_hdr_content_type(const char *val)
 {
     DDBG("http2_hdr_content_type");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_TYPE);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_TYPE);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val);
 }
 
@@ -1918,12 +1923,12 @@ static void http2_hdr_content_type(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_content_disp(int ci, const char *val)
+static void http2_hdr_content_disp(const char *val)
 {
     DDBG("http2_hdr_content_disp");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_DISPOSITION);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_DISPOSITION);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val);
 }
 
@@ -1931,11 +1936,11 @@ static void http2_hdr_content_disp(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_content_len(int ci, unsigned val)
+static void http2_hdr_content_len(unsigned val)
 {
     DDBG("http2_hdr_content_len, val = %u", val);
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LENGTH);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LENGTH);
 
 //    char enc_val[HTTP2_MAX_ENC_INT_LEN];
 //    int bytes = http2_encode_int(enc_val, val);
@@ -1949,12 +1954,12 @@ static void http2_hdr_content_len(int ci, unsigned val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_cache_ctrl_public(int ci)
+static void http2_hdr_cache_ctrl_public()
 {
     DDBG("http2_hdr_cache_ctrl_public");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
-    *G_connections[ci].p_header++ = (char)24;
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
+    *G_connections[G_ci].p_header++ = (char)24;
     HOUT("public, max-age=31536000");
 }
 
@@ -1962,12 +1967,12 @@ static void http2_hdr_cache_ctrl_public(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_cache_ctrl_private(int ci)
+static void http2_hdr_cache_ctrl_private()
 {
     DDBG("http2_hdr_cache_ctrl_private");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
-    *G_connections[ci].p_header++ = (char)55;
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CACHE_CONTROL);
+    *G_connections[G_ci].p_header++ = (char)55;
     HOUT("private, must-revalidate, no-store, no-cache, max-age=0");
 }
 
@@ -1975,12 +1980,12 @@ static void http2_hdr_cache_ctrl_private(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_expires_statics(int ci)
+static void http2_hdr_expires_statics()
 {
     DDBG("http2_hdr_expires_statics");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
-    *G_connections[ci].p_header++ = (char)strlen(M_expires_stat);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
+    *G_connections[G_ci].p_header++ = (char)strlen(M_expires_stat);
     HOUT(M_expires_stat);
 }
 
@@ -1988,12 +1993,12 @@ static void http2_hdr_expires_statics(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_expires_rendered(int ci)
+static void http2_hdr_expires_rendered()
 {
 /*    DDBG("http2_hdr_expires_rendered");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
-    *G_connections[ci].p_header++ = (char)strlen(M_expires_gen);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_EXPIRES);
+    *G_connections[G_ci].p_header++ = (char)strlen(M_expires_gen);
     HOUT(M_expires_gen); */
 }
 
@@ -2001,12 +2006,12 @@ static void http2_hdr_expires_rendered(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_last_modified(int ci, const char *val)
+static void http2_hdr_last_modified(const char *val)
 {
     DDBG("http2_hdr_last_modified");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_LAST_MODIFIED);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_LAST_MODIFIED);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val);
 }
 
@@ -2014,12 +2019,12 @@ static void http2_hdr_last_modified(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_vary(int ci, const char *val)
+static void http2_hdr_vary(const char *val)
 {
 /*    DDBG("http2_hdr_vary");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_VARY);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_VARY);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val); */
 }
 
@@ -2027,12 +2032,12 @@ static void http2_hdr_vary(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_content_lang(int ci, const char *val)
+static void http2_hdr_content_lang(const char *val)
 {
     DDBG("http2_hdr_content_lang");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LANGUAGE);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_LANGUAGE);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val);
 }
 
@@ -2040,12 +2045,12 @@ static void http2_hdr_content_lang(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_content_enc_deflate(int ci)
+static void http2_hdr_content_enc_deflate()
 {
     DDBG("http2_hdr_content_enc_deflate");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_ENCODING);
-    *G_connections[ci].p_header++ = (char)7;
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_CONTENT_ENCODING);
+    *G_connections[G_ci].p_header++ = (char)7;
     HOUT("deflate");
 }
 
@@ -2053,12 +2058,12 @@ static void http2_hdr_content_enc_deflate(int ci)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_set_cookie(int ci, const char *val)
+static void http2_hdr_set_cookie(const char *val)
 {
     DDBG("http2_hdr_set_cookie");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_SET_COOKIE);
-    *G_connections[ci].p_header++ = (char)strlen(val);
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_SET_COOKIE);
+    *G_connections[G_ci].p_header++ = (char)strlen(val);
     HOUT(val);
 }
 
@@ -2066,12 +2071,12 @@ static void http2_hdr_set_cookie(int ci, const char *val)
 /* --------------------------------------------------------------------------
    Add HTTP/2 header
 -------------------------------------------------------------------------- */
-static void http2_hdr_server(int ci)
+static void http2_hdr_server()
 {
 /*    DDBG("http2_hdr_server");
 
-    *G_connections[ci].p_header++ = (0x80 | HTTP2_HDR_SERVER);
-    *G_connections[ci].p_header++ = (char)6;
+    *G_connections[G_ci].p_header++ = (0x80 | HTTP2_HDR_SERVER);
+    *G_connections[G_ci].p_header++ = (char)6;
     HOUT("Node++"); */
 }
 #endif  /* NPP_HTTP2 */
@@ -2080,19 +2085,19 @@ static void http2_hdr_server(int ci)
 /* --------------------------------------------------------------------------
    Free static resource
 -------------------------------------------------------------------------- */
-static void free_static_res(int ci)
+static void free_static_res()
 {
-    if ( M_statics[G_connections[ci].static_res].data )
+    if ( M_statics[G_connections[G_ci].static_res].data )
     {
-        free(M_statics[G_connections[ci].static_res].data);
-        M_statics[G_connections[ci].static_res].data = NULL;
+        free(M_statics[G_connections[G_ci].static_res].data);
+        M_statics[G_connections[G_ci].static_res].data = NULL;
     }
 
-    if ( M_statics[G_connections[ci].static_res].data_deflated )
+    if ( M_statics[G_connections[G_ci].static_res].data_deflated )
     {
-        free(M_statics[G_connections[ci].static_res].data_deflated);
-        M_statics[G_connections[ci].static_res].data_deflated = NULL;
-        M_statics[G_connections[ci].static_res].len_deflated = 0;
+        free(M_statics[G_connections[G_ci].static_res].data_deflated);
+        M_statics[G_connections[G_ci].static_res].data_deflated = NULL;
+        M_statics[G_connections[G_ci].static_res].len_deflated = 0;
     }
 }
 
@@ -2100,14 +2105,14 @@ static void free_static_res(int ci)
 /* --------------------------------------------------------------------------
    Set connection state after read or write
 -------------------------------------------------------------------------- */
-static void set_state(int ci, int bytes, bool secure)
+static void set_state(int bytes, bool secure)
 {
     int sockerr = NPP_SOCKET_GET_ERROR;
 
 #ifdef NPP_DEBUG
 static time_t dbg_last_time=0;
     if ( G_now != dbg_last_time )   /* only once in a second */
-        DBG("ci=%d, set_state, bytes=%d", ci, bytes);
+        DBG("ci=%d, set_state, bytes=%d", G_ci, bytes);
 #endif
 
     if ( bytes <= 0 )
@@ -2123,8 +2128,8 @@ static time_t dbg_last_time=0;
         {
             if ( !NPP_SOCKET_WOULD_BLOCK(sockerr) )
             {
-                DBG("Closing connection ci=%d\n", ci);
-                close_connection(ci, TRUE);
+                DBG("Closing connection ci=%d\n", G_ci);
+                close_connection(G_ci, TRUE);
                 return;
             }
         }
@@ -2133,57 +2138,57 @@ static time_t dbg_last_time=0;
         if ( secure )
         {
 #ifdef NPP_FD_MON_EPOLL
-            int prev_ssl_err = G_connections[ci].ssl_err;
+            int prev_ssl_err = G_connections[G_ci].ssl_err;
 #endif
-            G_connections[ci].ssl_err = SSL_get_error(G_connections[ci].ssl, bytes);
+            G_connections[G_ci].ssl_err = SSL_get_error(G_connections[G_ci].ssl, bytes);
 
 #ifdef NPP_DEBUG
-            if ( G_connections[ci].ssl_err == SSL_ERROR_SSL )                   /* 1 (A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.) */
-                DBG("ci=%d, ssl_err = SSL_ERROR_SSL", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )        /* 2 */
-                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_READ", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )       /* 3 */
-                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_WRITE", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_X509_LOOKUP ) /* 4 (The operation did not complete because an application callback set by SSL_CTX_set_client_cert_cb() has asked to be called again.) */
-                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_X509_LOOKUP", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_SYSCALL )          /* 5 (Some non-recoverable, fatal I/O error occurred. SSL_shutdown() must not be called.) */
-                DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_ZERO_RETURN )      /* 6 (The TLS/SSL peer has closed the connection for writing by sending the close_notify alert. No more data can be read.) */
-                DBG("ci=%d, ssl_err = SSL_ERROR_ZERO_RETURN", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_CONNECT )     /* 7 */
-                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_CONNECT", ci);
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_ACCEPT )      /* 8 */
-                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_ACCEPT", ci);
+            if ( G_connections[G_ci].ssl_err == SSL_ERROR_SSL )                   /* 1 (A non-recoverable, fatal error in the SSL library occurred, usually a protocol error.) */
+                DBG("ci=%d, ssl_err = SSL_ERROR_SSL", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_READ )        /* 2 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_READ", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_WRITE )       /* 3 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_WRITE", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_X509_LOOKUP ) /* 4 (The operation did not complete because an application callback set by SSL_CTX_set_client_cert_cb() has asked to be called again.) */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_X509_LOOKUP", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_SYSCALL )          /* 5 (Some non-recoverable, fatal I/O error occurred. SSL_shutdown() must not be called.) */
+                DBG("ci=%d, ssl_err = SSL_ERROR_SYSCALL", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_ZERO_RETURN )      /* 6 (The TLS/SSL peer has closed the connection for writing by sending the close_notify alert. No more data can be read.) */
+                DBG("ci=%d, ssl_err = SSL_ERROR_ZERO_RETURN", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_CONNECT )     /* 7 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_CONNECT", G_ci);
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_ACCEPT )      /* 8 */
+                DBG("ci=%d, ssl_err = SSL_ERROR_WANT_ACCEPT", G_ci);
             else
-                DBG("ci=%d, ssl_err = %d", ci, G_connections[ci].ssl_err);
+                DBG("ci=%d, ssl_err = %d", ci, G_connections[G_ci].ssl_err);
 #endif  /* NPP_DEBUG */
 
-            if ( G_connections[ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[ci].ssl_err != SSL_ERROR_WANT_WRITE )
+            if ( G_connections[G_ci].ssl_err != SSL_ERROR_WANT_READ && G_connections[G_ci].ssl_err != SSL_ERROR_WANT_WRITE )
             {
-                DBG("Closing connection ci=%d\n", ci);
-                close_connection(ci, TRUE);
+                DBG("Closing connection ci=%d\n", G_ci);
+                close_connection(G_ci, TRUE);
                 return;
             }
 
 #ifdef NPP_FD_MON_POLL
-            if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
-                M_pollfds[G_connections[ci].pi].events = POLLIN;
-            else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
-                M_pollfds[G_connections[ci].pi].events = POLLOUT;
+            if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_READ )
+                M_pollfds[G_connections[G_ci].pi].events = POLLIN;
+            else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_WRITE )
+                M_pollfds[G_connections[G_ci].pi].events = POLLOUT;
 #endif  /* NPP_FD_MON_POLL */
 
 #ifdef NPP_FD_MON_EPOLL
-            if ( G_connections[ci].ssl_err != prev_ssl_err )
+            if ( G_connections[G_ci].ssl_err != prev_ssl_err )
             {
-                DDBG("ssl_err has changed from %d to %d", prev_ssl_err, G_connections[ci].ssl_err);
+                DDBG("ssl_err has changed from %d to %d", prev_ssl_err, G_connections[G_ci].ssl_err);
 
                 struct epoll_event ev={0};
 
-                ev.data.fd = G_connections[ci].fd;
+                ev.data.fd = G_connections[G_ci].fd;
 
-                if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_READ )
+                if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_READ )
                     ev.events = EPOLLIN | EPOLLET;
-                else if ( G_connections[ci].ssl_err == SSL_ERROR_WANT_WRITE )
+                else if ( G_connections[G_ci].ssl_err == SSL_ERROR_WANT_WRITE )
                     ev.events = EPOLLOUT | EPOLLET;
 
                 epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
@@ -2197,122 +2202,122 @@ static time_t dbg_last_time=0;
 
     /* good to go */
 
-    if ( G_connections[ci].state == CONN_STATE_CONNECTED )
+    if ( G_connections[G_ci].state == CONN_STATE_CONNECTED )
     {
-        if ( G_connections[ci].was_read > 0 )   /* assume at least the whole header has been read */
+        if ( G_connections[G_ci].was_read > 0 )   /* assume at least the whole header has been read */
         {
-            G_connections[ci].in[G_connections[ci].was_read] = EOS;
+            G_connections[G_ci].in[G_connections[G_ci].was_read] = EOS;
 
-            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", ci);
-            G_connections[ci].state = CONN_STATE_READY_FOR_PARSE;
+            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PARSE", G_ci);
+            G_connections[G_ci].state = CONN_STATE_READY_FOR_PARSE;
         }
     }
-    else if ( G_connections[ci].state == CONN_STATE_READING_DATA )
+    else if ( G_connections[G_ci].state == CONN_STATE_READING_DATA )
     {
-        if ( G_connections[ci].was_read < G_connections[ci].clen )
+        if ( G_connections[G_ci].was_read < G_connections[G_ci].clen )
         {
-            DBG("ci=%d, was_read=%u, continue receiving", ci, G_connections[ci].was_read);
+            DBG("ci=%d, was_read=%u, continue receiving", G_ci, G_connections[G_ci].was_read);
         }
         else    /* data received */
         {
-            G_connections[ci].in_data[G_connections[ci].was_read] = EOS;
+            G_connections[G_ci].in_data[G_connections[G_ci].was_read] = EOS;
 
-            DBG("ci=%d, payload received", ci);
+            DBG("ci=%d, payload received", G_ci);
 
             /* ready for processing */
 
-            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", ci);
-            G_connections[ci].state = CONN_STATE_READY_FOR_PROCESS;
+            DDBG("ci=%d, changing state to CONN_STATE_READY_FOR_PROCESS", G_ci);
+            G_connections[G_ci].state = CONN_STATE_READY_FOR_PROCESS;
         }
     }
-    else if ( G_connections[ci].state == CONN_STATE_READY_TO_SEND_RESPONSE )
+    else if ( G_connections[G_ci].state == CONN_STATE_READY_TO_SEND_RESPONSE )
     {
-        if ( G_connections[ci].clen == 0 )   /* no content to send */
+        if ( G_connections[G_ci].clen == 0 )   /* no content to send */
         {
             DBG("clen = 0");
 
             /* assume the whole header has been sent */
 
-            log_request(ci);
+            log_request();
 
 #ifdef NPP_HTTP2
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) || G_connections[G_ci].http_ver[0] == '2' )
 #else
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) )
 #endif
             {
-                DBG("End of processing, reset_conn\n");
-                reset_conn(ci, CONN_STATE_CONNECTED);
+                DBG("End of processing, reset_connection\n");
+                reset_connection(G_ci, CONN_STATE_CONNECTED);
             }
             else
             {
                 DBG("End of processing, close_connection\n");
-                close_connection(ci, TRUE);
+                close_connection(G_ci, TRUE);
             }
         }
         else    /* there was a content to send */
         {
-            DDBG("ci=%d, data_sent = %u", ci, G_connections[ci].data_sent);
+            DDBG("ci=%d, data_sent = %u", G_ci, G_connections[G_ci].data_sent);
 
 #ifdef NPP_HTTP2
-            if ( G_connections[ci].data_sent < G_connections[ci].out_len && G_connections[ci].http_ver[0] != '2' )
+            if ( G_connections[G_ci].data_sent < G_connections[G_ci].out_len && G_connections[G_ci].http_ver[0] != '2' )
 #else
-            if ( G_connections[ci].data_sent < G_connections[ci].out_len )   /* not all have been sent yet */
+            if ( G_connections[G_ci].data_sent < G_connections[G_ci].out_len )   /* not all have been sent yet */
 #endif  /* NPP_HTTP2 */
             {
-                DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", ci);
-                G_connections[ci].state = CONN_STATE_SENDING_CONTENT;
+                DDBG("ci=%d, changing state to CONN_STATE_SENDING_CONTENT", G_ci);
+                G_connections[G_ci].state = CONN_STATE_SENDING_CONTENT;
             }
             else    /* the whole content has been sent at once */
             {
-                if ( G_connections[ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )
-                    free_static_res(ci);
+                if ( G_connections[G_ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[G_ci].static_res].len > G_resCacheTreshold )
+                    free_static_res();
 
-                log_request(ci);
+                log_request();
 
 #ifdef NPP_HTTP2
-                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
+                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) || G_connections[G_ci].http_ver[0] == '2' )
 #else
-                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+                if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) )
 #endif
                 {
-                    DBG("End of processing, reset_conn\n");
-                    reset_conn(ci, CONN_STATE_CONNECTED);
+                    DBG("End of processing, reset_connection\n");
+                    reset_connection(G_ci, CONN_STATE_CONNECTED);
                 }
                 else
                 {
                     DBG("End of processing, close_connection\n");
-                    close_connection(ci, TRUE);
+                    close_connection(G_ci, TRUE);
                 }
             }
         }
     }
-    else if ( G_connections[ci].state == CONN_STATE_SENDING_CONTENT )
+    else if ( G_connections[G_ci].state == CONN_STATE_SENDING_CONTENT )
     {
-        if ( G_connections[ci].data_sent < G_connections[ci].out_len )
+        if ( G_connections[G_ci].data_sent < G_connections[G_ci].out_len )
         {
-            DBG("ci=%d, data_sent=%u, continue sending", ci, G_connections[ci].data_sent);
+            DBG("ci=%d, data_sent=%u, continue sending", G_ci, G_connections[G_ci].data_sent);
         }
         else    /* all sent */
         {
-            if ( G_connections[ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )
-                free_static_res(ci);
+            if ( G_connections[G_ci].static_res != NPP_NOT_STATIC && M_statics[G_connections[G_ci].static_res].len > G_resCacheTreshold )
+                free_static_res();
 
-            log_request(ci);
+            log_request();
 
 #ifdef NPP_HTTP2
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) || G_connections[ci].http_ver[0] == '2' )
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) || G_connections[G_ci].http_ver[0] == '2' )
 #else
-            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[ci].flags) )
+            if ( NPP_CONN_IS_KEEP_ALIVE(G_connections[G_ci].flags) )
 #endif
             {
-                DBG("End of processing, reset_conn\n");
-                reset_conn(ci, CONN_STATE_CONNECTED);
+                DBG("End of processing, reset_connection\n");
+                reset_connection(G_ci, CONN_STATE_CONNECTED);
             }
             else
             {
                 DBG("End of processing, close_connection\n");
-                close_connection(ci, TRUE);
+                close_connection(G_ci, TRUE);
             }
         }
     }
@@ -2322,21 +2327,21 @@ static time_t dbg_last_time=0;
 /* --------------------------------------------------------------------------
    Respond to Expect: header
 -------------------------------------------------------------------------- */
-static void respond_to_expect(int ci)
+static void respond_to_expect()
 {
     static char reply_accept[]="HTTP/1.1 100 Continue\r\n\r\n";
     static char reply_refuse[]="HTTP/1.1 413 Request Entity Too Large\r\n\r\n";
     int bytes;
 
-    if ( G_connections[ci].clen >= NPP_MAX_PAYLOAD_SIZE-1 )   /* refuse */
+    if ( G_connections[G_ci].clen >= NPP_MAX_PAYLOAD_SIZE-1 )   /* refuse */
     {
         INF("Sending 413");
 #ifdef NPP_HTTPS
-        if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )
-            bytes = SSL_write(G_connections[ci].ssl, reply_refuse, 41);
+        if ( NPP_CONN_IS_SECURE(G_connections[G_ci].flags) )
+            bytes = SSL_write(G_connections[G_ci].ssl, reply_refuse, 41);
         else
 #endif
-            bytes = send(G_connections[ci].fd, reply_refuse, 41, 0);
+            bytes = send(G_connections[G_ci].fd, reply_refuse, 41, 0);
 
         if ( bytes < 41 ) ERR("write error, bytes = %d", bytes);
     }
@@ -2345,29 +2350,29 @@ static void respond_to_expect(int ci)
         INF("Sending 100");
 
 #ifdef NPP_HTTPS
-        if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )
-            bytes = SSL_write(G_connections[ci].ssl, reply_accept, 25);
+        if ( NPP_CONN_IS_SECURE(G_connections[G_ci].flags) )
+            bytes = SSL_write(G_connections[G_ci].ssl, reply_accept, 25);
         else
 #endif
-            bytes = send(G_connections[ci].fd, reply_accept, 25, 0);
+            bytes = send(G_connections[G_ci].fd, reply_accept, 25, 0);
 
         if ( bytes < 25 ) ERR("write error, bytes = %d", bytes);
     }
 
-    G_connections[ci].expect100 = FALSE;
+    G_connections[G_ci].expect100 = FALSE;
 }
 
 
 /* --------------------------------------------------------------------------
    Log processing time
 -------------------------------------------------------------------------- */
-static void log_proc_time(int ci)
+static void log_proc_time()
 {
-    G_connections[ci].elapsed = npp_elapsed(&G_connections[ci].proc_start);
+    G_connections[G_ci].elapsed = npp_elapsed(&G_connections[G_ci].proc_start);
 
-    DBG("Processing time: %.3lf ms [%s]\n", G_connections[ci].elapsed, G_connections[ci].resource);
+    DBG("Processing time: %.3lf ms [%s]\n", G_connections[G_ci].elapsed, G_connections[G_ci].resource);
 
-    G_cnts_today.elapsed += G_connections[ci].elapsed;
+    G_cnts_today.elapsed += G_connections[G_ci].elapsed;
     G_cnts_today.average = G_cnts_today.elapsed / G_cnts_today.req;
 }
 
@@ -2375,7 +2380,7 @@ static void log_proc_time(int ci)
 /* --------------------------------------------------------------------------
    Log processing time
 -------------------------------------------------------------------------- */
-static void log_request(int ci)
+static void log_request()
 {
     /* Use (almost) Combined Log Format */
 
@@ -2383,9 +2388,9 @@ static void log_request(int ci)
     strftime(logtime, 64, "%d/%b/%Y:%H:%M:%S +0000", G_ptm);
 
     if ( G_logCombined )
-        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", G_connections[ci].ip, logtime, G_connections[ci].method, G_connections[ci].uri, G_connections[ci].http_ver, G_connections[ci].status, G_connections[ci].clen, G_connections[ci].referer, G_connections[ci].uagent, G_connections[ci].req, G_connections[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u \"%s\" \"%s\"  #%u  %.3lf ms%s", G_connections[G_ci].ip, logtime, G_connections[G_ci].method, G_connections[G_ci].uri, G_connections[G_ci].http_ver, G_connections[G_ci].status, G_connections[G_ci].clen, G_connections[G_ci].referer, G_connections[G_ci].uagent, G_connections[G_ci].req, G_connections[G_ci].elapsed, REQ_BOT?"  [bot]":"");
     else
-        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u  #%u  %.3lf ms%s", G_connections[ci].ip, logtime, G_connections[ci].method, G_connections[ci].uri, G_connections[ci].http_ver, G_connections[ci].status, G_connections[ci].clen, G_connections[ci].req, G_connections[ci].elapsed, REQ_BOT?"  [bot]":"");
+        INF("%s - - [%s] \"%s /%s HTTP/%s\" %d %u  #%u  %.3lf ms%s", G_connections[G_ci].ip, logtime, G_connections[G_ci].method, G_connections[G_ci].uri, G_connections[G_ci].http_ver, G_connections[G_ci].status, G_connections[G_ci].clen, G_connections[G_ci].req, G_connections[G_ci].elapsed, REQ_BOT?"  [bot]":"");
 }
 
 
@@ -2490,7 +2495,7 @@ static void close_connection(int ci, bool update_first_free)
     close(G_connections[ci].fd);
 #endif  /* _WIN32 */
 
-    reset_conn(ci, CONN_STATE_DISCONNECTED);
+    reset_connection(ci, CONN_STATE_DISCONNECTED);
 
     if ( ci == NPP_MAX_CONNECTIONS )
         return;
@@ -3103,7 +3108,7 @@ static bool init(int argc, char **argv)
 
         G_connections[i].out_data_allocated = NPP_OUT_BUFSIZE;
         G_connections[i].in_data = NULL;
-        reset_conn(i, CONN_STATE_DISCONNECTED);
+        reset_connection(i, CONN_STATE_DISCONNECTED);
 
 #ifdef NPP_HTTPS
         G_connections[i].ssl = NULL;
@@ -4637,7 +4642,7 @@ static bool read_resources(bool first_scan)
 /* --------------------------------------------------------------------------
    Return M_statics array index if URI is on statics' list
 -------------------------------------------------------------------------- */
-static int is_static_res(int ci)
+static int is_static_res()
 {
     int first = 0;
     int last = M_statics_cnt - 1;
@@ -4648,27 +4653,27 @@ static int is_static_res(int ci)
 
     while ( first <= last )
     {
-        if ( M_statics[middle].host_id < G_connections[ci].host_id )
+        if ( M_statics[middle].host_id < G_connections[G_ci].host_id )
         {
             first = middle + 1;
         }
-        else if ( M_statics[middle].host_id == G_connections[ci].host_id )
+        else if ( M_statics[middle].host_id == G_connections[G_ci].host_id )
         {
-            result = strcmp(M_statics[middle].name, G_connections[ci].uri);
+            result = strcmp(M_statics[middle].name, G_connections[G_ci].uri);
 
             if ( result < 0 )
                 first = middle + 1;
             else if ( result == 0 )
             {
-                if ( G_connections[ci].if_mod_since >= M_statics[middle].modified )
-                    G_connections[ci].status = 304;  /* Not Modified */
+                if ( G_connections[G_ci].if_mod_since >= M_statics[middle].modified )
+                    G_connections[G_ci].status = 304;  /* Not Modified */
 
                 return middle;
             }
             else    /* result > 0 */
                 last = middle - 1;
         }
-        else    /* M_statics[middle].host_id > G_connections[ci].host_id */
+        else    /* M_statics[middle].host_id > G_connections[G_ci].host_id */
         {
             last = middle - 1;
         }
@@ -4680,14 +4685,14 @@ static int is_static_res(int ci)
 
     while ( first <= last )
     {
-        result = strcmp(M_statics[middle].name, G_connections[ci].uri);
+        result = strcmp(M_statics[middle].name, G_connections[G_ci].uri);
 
         if ( result < 0 )
             first = middle + 1;
         else if ( result == 0 )
         {
-            if ( G_connections[ci].if_mod_since >= M_statics[middle].modified )
-                G_connections[ci].status = 304;  /* Not Modified */
+            if ( G_connections[G_ci].if_mod_since >= M_statics[middle].modified )
+                G_connections[G_ci].status = 304;  /* Not Modified */
 
             return middle;
         }
@@ -4707,39 +4712,39 @@ static int is_static_res(int ci)
    Main new request processing
    Request received over current G_connections is already parsed
 -------------------------------------------------------------------------- */
-static void process_req(int ci)
+static void process_request()
 {
     int ret=OK;
 
-    DBG("ci=%d, process_req", ci);
+    DBG("ci=%d, process_request", G_ci);
 
     /* ------------------------------------------------------------------------ */
 
 #ifdef NPP_DEBUG
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags)
-            && G_connections[ci].in_data
-            && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART
-            && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_OCTET_STREAM )
-        npp_log_long(G_connections[ci].in_data, G_connections[ci].was_read, "\nPayload");
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags)
+            && G_connections[G_ci].in_data
+            && G_connections[G_ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART
+            && G_connections[G_ci].in_ctype != NPP_CONTENT_TYPE_OCTET_STREAM )
+        npp_log_long(G_connections[G_ci].in_data, G_connections[G_ci].was_read, "\nPayload");
 #endif
 
     /* ------------------------------------------------------------------------ */
     /* make room for an outgoing header */
 
-    G_connections[ci].p_content = G_connections[ci].out_data + NPP_OUT_HEADER_BUFSIZE;
+    G_connections[G_ci].p_content = G_connections[G_ci].out_data + NPP_OUT_HEADER_BUFSIZE;
 
     /* ------------------------------------------------------------------------ */
 
-    if ( ci == NPP_MAX_CONNECTIONS )    /* connections pool exhausted */
+    if ( G_ci == NPP_MAX_CONNECTIONS )    /* connections pool exhausted */
     {
         RES_STATUS(503);
-        render_page_msg(ci, ERR_SERVER_TOOBUSY);
+        render_page_msg(ERR_SERVER_TOOBUSY);
         RES_DONT_CACHE;
     }
 
     /* ------------------------------------------------------------------------ */
 
-    if ( G_connections[ci].status != 200 )
+    if ( G_connections[G_ci].status != 200 )
         return;
 
     /* ------------------------------------------------------------------------ */
@@ -4755,16 +4760,16 @@ static void process_req(int ci)
 #ifdef NPP_ALLOW_BEARER_AUTH
     /* copy bearer token to cookie_in_l */
 
-    if ( !G_connections[ci].cookie_in_l[0] && G_connections[ci].authorization[0] )
+    if ( !G_connections[G_ci].cookie_in_l[0] && G_connections[G_ci].authorization[0] )
     {
         char type[8];
-        strncpy(type, npp_upper(G_connections[ci].authorization), 7);
+        strncpy(type, npp_upper(G_connections[G_ci].authorization), 7);
         type[7] = EOS;
 
         if ( 0==strcmp(type, "BEARER ") )
         {
-            strncpy(G_connections[ci].cookie_in_l, G_connections[ci].authorization+7, NPP_SESSID_LEN);
-            G_connections[ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
+            strncpy(G_connections[G_ci].cookie_in_l, G_connections[G_ci].authorization+7, NPP_SESSID_LEN);
+            G_connections[G_ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
         }
     }
 #endif  /* NPP_ALLOW_BEARER_AUTH */
@@ -4773,11 +4778,11 @@ static void process_req(int ci)
 
     if ( LOGGED )
     {
-        DBG("Connection already authenticated, si=%d", G_connections[ci].si);
+        DBG("Connection already authenticated, si=%d", G_connections[G_ci].si);
     }
-    else if ( G_connections[ci].cookie_in_l[0] )  /* logged in sessid cookie present */
+    else if ( G_connections[G_ci].cookie_in_l[0] )  /* logged in sessid cookie present */
     {
-        ret = libusr_luses_ok(ci);     /* is it valid? */
+        ret = libusr_luses_ok();     /* is it valid? */
 
         if ( ret == OK )    /* valid sessid -- user logged in */
             DBG("User logged in from cookie");
@@ -4787,30 +4792,30 @@ static void process_req(int ci)
 
     /* authorization */
 
-    if ( LOGGED && G_connections[ci].required_auth_level > G_sessions[G_connections[ci].si].auth_level )
+    if ( LOGGED && G_connections[G_ci].required_auth_level > G_sessions[G_connections[G_ci].si].auth_level )
     {
         WAR("Insufficient user authorization level, returning 404");
         ret = ERR_NOT_FOUND;
         RES_DONT_CACHE;
     }
-    else if ( !LOGGED && G_connections[ci].required_auth_level > AUTH_LEVEL_ANONYMOUS )   /* redirect to login page */
+    else if ( !LOGGED && G_connections[G_ci].required_auth_level > AUTH_LEVEL_ANONYMOUS )   /* redirect to login page */
     {
         INF("auth_level > AUTH_LEVEL_ANONYMOUS required, redirecting to login");
 
         ret = ERR_REDIRECTION;
 
 #ifndef NPP_DONT_PASS_QS_ON_LOGIN_REDIRECTION
-        char *qs = strchr(G_connections[ci].uri, '?');
+        char *qs = strchr(G_connections[G_ci].uri, '?');
 
         if ( !strlen(NPP_LOGIN_URI) )   /* login page = landing page */
-            sprintf(G_connections[ci].location, "/%s", qs?qs:"");
+            sprintf(G_connections[G_ci].location, "/%s", qs?qs:"");
         else
-            sprintf(G_connections[ci].location, "%s%s", NPP_LOGIN_URI, qs?qs:"");
+            sprintf(G_connections[G_ci].location, "%s%s", NPP_LOGIN_URI, qs?qs:"");
 #else   /* don't pass the query string */
         if ( !strlen(NPP_LOGIN_URI) )   /* login page = landing page */
-            strcpy(G_connections[ci].location, "/");
+            strcpy(G_connections[G_ci].location, "/");
         else
-            strcpy(G_connections[ci].location, NPP_LOGIN_URI);
+            strcpy(G_connections[G_ci].location, NPP_LOGIN_URI);
 #endif  /* NPP_DONT_PASS_QS_ON_LOGIN_REDIRECTION */
 
     }
@@ -4822,9 +4827,9 @@ static void process_req(int ci)
 
     /* anonymous session check */
 
-    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[ci].method[0]!='H' && !LOGGED )    /* anonymous session required */
+    if ( G_connections[G_ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[G_ci].method[0]!='H' && !LOGGED )    /* anonymous session required */
 #else   /* NPP_USERS NOT defined */
-    if ( G_connections[ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[ci].method[0]!='H' )
+    if ( G_connections[G_ci].required_auth_level==AUTH_LEVEL_ANONYMOUS && G_connections[G_ci].method[0]!='H' )
 #endif  /* NPP_USERS */
     {
         DDBG("At least anonymous session is required");
@@ -4836,9 +4841,9 @@ static void process_req(int ci)
         if ( !REQ_BOT )
         {
 #endif
-            if ( !G_connections[ci].cookie_in_a[0] || !a_session_ok(ci) )       /* valid anonymous sessid cookie not present */
+            if ( !G_connections[G_ci].cookie_in_a[0] || !a_session_ok() )       /* valid anonymous sessid cookie not present */
             {
-                ret = npp_eng_session_start(ci, NULL);
+                ret = npp_eng_session_start(NULL);
 
                 if ( ret == OK )
                     fresh_session = TRUE;
@@ -4853,13 +4858,13 @@ static void process_req(int ci)
 
     if ( ret == OK )
     {
-        if ( !G_connections[ci].location[0] )    /* if not redirection */
+        if ( !G_connections[G_ci].location[0] )    /* if not redirection */
         {
 #ifdef NPP_SET_TZ
             if ( REQ("npp_set_tz") && REQ_POST )    /* set time zone for the session */
             {
                 if ( IS_SESSION && !SESSION.tz_set )
-                    npp_set_tz(ci);
+                    npp_set_tz();
             }
             else
             {
@@ -4873,7 +4878,7 @@ static void process_req(int ci)
 #endif  /* NPP_ENABLE_RELOAD_CONF */
                 {
                     DBG("Calling npp_app_main...");
-                    npp_app_main(ci);         /* main application called here */
+                    npp_app_main();         /* main application called here */
                 }
 #ifdef NPP_SET_TZ
             }
@@ -4883,61 +4888,61 @@ static void process_req(int ci)
 
     /* ------------------------------------------------------------------------ */
 
-    G_connections[ci].last_activity = G_now;
+    G_connections[G_ci].last_activity = G_now;
     if ( IS_SESSION ) SESSION.last_activity = G_now;
 
 #ifdef NPP_ASYNC
-    if ( G_connections[ci].state == CONN_STATE_WAITING_FOR_ASYNC ) return;
+    if ( G_connections[G_ci].state == CONN_STATE_WAITING_FOR_ASYNC ) return;
 #endif
     /* ------------------------------------------------------------------------ */
 
-    if ( G_connections[ci].location[0] || ret == ERR_REDIRECTION )    /* redirection has a priority */
-        G_connections[ci].status = 303;
+    if ( G_connections[G_ci].location[0] || ret == ERR_REDIRECTION )    /* redirection has a priority */
+        G_connections[G_ci].status = 303;
     else if ( ret == ERR_INVALID_REQUEST )
-        G_connections[ci].status = 400;
+        G_connections[G_ci].status = 400;
     else if ( ret == ERR_UNAUTHORIZED )
-        G_connections[ci].status = 401;
+        G_connections[G_ci].status = 401;
     else if ( ret == ERR_FORBIDDEN )
-        G_connections[ci].status = 403;
+        G_connections[G_ci].status = 403;
     else if ( ret == ERR_NOT_FOUND )
-        G_connections[ci].status = 404;
+        G_connections[G_ci].status = 404;
     else if ( ret == ERR_INT_SERVER_ERROR )
-        G_connections[ci].status = 500;
+        G_connections[G_ci].status = 500;
     else if ( ret == ERR_SERVER_TOOBUSY )
-        G_connections[ci].status = 503;
+        G_connections[G_ci].status = 503;
 
-    if ( ret==ERR_REDIRECTION || G_connections[ci].status==400 || G_connections[ci].status==401 || G_connections[ci].status==403 || G_connections[ci].status==404 || G_connections[ci].status==500 || G_connections[ci].status==503 )
+    if ( ret==ERR_REDIRECTION || G_connections[G_ci].status==400 || G_connections[G_ci].status==401 || G_connections[G_ci].status==403 || G_connections[G_ci].status==404 || G_connections[G_ci].status==500 || G_connections[G_ci].status==503 )
     {
         if ( fresh_session )    /* prevent sessions' exhaustion by vulnerability testing bots */
         {
 #ifdef NPP_USERS
-            if ( !LOGGED ) close_uses(G_connections[ci].si, ci);
+            if ( !LOGGED ) close_uses(G_connections[G_ci].si, G_ci);
 #else
-            close_uses(G_connections[ci].si, ci);
+            close_uses(G_connections[G_ci].si, G_ci);
 #endif
         }
 
-        if ( !NPP_CONN_IS_KEEP_CONTENT(G_connections[ci].flags) )   /* reset out buffer pointer as it could have contained something already */
+        if ( !NPP_CONN_IS_KEEP_CONTENT(G_connections[G_ci].flags) )   /* reset out buffer pointer as it could have contained something already */
         {
-            G_connections[ci].p_content = G_connections[ci].out_data + NPP_OUT_HEADER_BUFSIZE;
+            G_connections[G_ci].p_content = G_connections[G_ci].out_data + NPP_OUT_HEADER_BUFSIZE;
 
             if ( ret == OK )   /* RES_STATUS could be used, show the proper message */
             {
-                if ( G_connections[ci].status == 400 )
+                if ( G_connections[G_ci].status == 400 )
                     ret = ERR_INVALID_REQUEST;
-                else if ( G_connections[ci].status == 401 )
+                else if ( G_connections[G_ci].status == 401 )
                     ret = ERR_UNAUTHORIZED;
-                else if ( G_connections[ci].status == 403 )
+                else if ( G_connections[G_ci].status == 403 )
                     ret = ERR_FORBIDDEN;
-                else if ( G_connections[ci].status == 404 )
+                else if ( G_connections[G_ci].status == 404 )
                     ret = ERR_NOT_FOUND;
-                else if ( G_connections[ci].status == 500 )
+                else if ( G_connections[G_ci].status == 500 )
                     ret = ERR_INT_SERVER_ERROR;
-                else if ( G_connections[ci].status == 503 )
+                else if ( G_connections[G_ci].status == 503 )
                     ret = ERR_SERVER_TOOBUSY;
             }
 
-            render_page_msg(ci, ret);
+            render_page_msg(ret);
         }
 
         RES_DONT_CACHE;
@@ -4968,20 +4973,20 @@ static const char not_found[4]="";
 /* --------------------------------------------------------------------------
    Generate HTTP response header
 -------------------------------------------------------------------------- */
-static void gen_response_header(int ci)
+static void gen_response_header()
 {
 #ifdef NPP_DEBUG
     bool compressed=FALSE;
 #endif
 
-    DBG("ci=%d, gen_response_header", ci);
+    DBG("ci=%d, gen_response_header", G_ci);
 
     char out_header[NPP_OUT_HEADER_BUFSIZE];
-    G_connections[ci].p_header = out_header;
+    G_connections[G_ci].p_header = out_header;
 
 #ifdef NPP_HTTP2
 
-    if ( G_connections[ci].http2_upgrade_in_progress && G_connections[ci].status == 200 )   /* upgrade to HTTP/2 cleartext requested (rare) */
+    if ( G_connections[G_ci].http2_upgrade_in_progress && G_connections[G_ci].status == 200 )   /* upgrade to HTTP/2 cleartext requested (rare) */
     {
         DDBG("Responding with 101");
 
@@ -4991,34 +4996,34 @@ static void gen_response_header(int ci)
     }
     else    /* normal response */
     {
-        G_connections[ci].http2_upgrade_in_progress = FALSE;
+        G_connections[G_ci].http2_upgrade_in_progress = FALSE;
 
-        if ( G_connections[ci].http_ver[0] == '2' )
-            PRINT_HTTP2_STATUS(G_connections[ci].status);
+        if ( G_connections[G_ci].http_ver[0] == '2' )
+            PRINT_HTTP2_STATUS(G_connections[G_ci].status);
         else
 
 #endif  /* NPP_HTTP2 */
 
-            PRINT_HTTP_STATUS(G_connections[ci].status);
+            PRINT_HTTP_STATUS(G_connections[G_ci].status);
 
         /* Date */
 
 #ifdef NPP_HTTP2
-        if ( G_connections[ci].http_ver[0] == '2' )
+        if ( G_connections[G_ci].http_ver[0] == '2' )
             PRINT_HTTP2_DATE;
         else
 #endif  /* NPP_HTTP2 */
             PRINT_HTTP_DATE;
 
-        if ( G_connections[ci].status == 301 || G_connections[ci].status == 303 )     /* redirection */
+        if ( G_connections[G_ci].status == 301 || G_connections[G_ci].status == 303 )     /* redirection */
         {
             DDBG("Redirecting");
 
 #ifdef NPP_HTTPS
-            if ( NPP_CONN_IS_UPGRADE_TO_HTTPS(G_connections[ci].flags) )    /* Upgrade-Insecure-Requests */
+            if ( NPP_CONN_IS_UPGRADE_TO_HTTPS(G_connections[G_ci].flags) )    /* Upgrade-Insecure-Requests */
             {
 #ifdef NPP_HTTP2
-                if ( G_connections[ci].http_ver[0] == '2' )
+                if ( G_connections[G_ci].http_ver[0] == '2' )
                     PRINT_HTTP2_VARY_UIR;
                 else
 #endif  /* NPP_HTTP2 */
@@ -5026,19 +5031,19 @@ static void gen_response_header(int ci)
             }
 #endif  /* NPP_HTTPS */
 
-            if ( G_connections[ci].location[0] )    /* redirection */
+            if ( G_connections[G_ci].location[0] )    /* redirection */
             {
 #ifdef NPP_HTTP2
-                if ( G_connections[ci].http_ver[0] == '2' )
+                if ( G_connections[G_ci].http_ver[0] == '2' )
                     PRINT_HTTP2_LOCATION;
                 else
 #endif  /* NPP_HTTP2 */
                     PRINT_HTTP_LOCATION;
             }
 
-            G_connections[ci].clen = 0;
+            G_connections[G_ci].clen = 0;
         }
-        else if ( G_connections[ci].status == 304 )   /* not modified since */
+        else if ( G_connections[G_ci].status == 304 )   /* not modified since */
         {
             DDBG("Not Modified");
 
@@ -5051,21 +5056,21 @@ static void gen_response_header(int ci)
                the response does not have an ETag field).
             */
 
-            if ( G_connections[ci].static_res == NPP_NOT_STATIC )    /* rendered */
+            if ( G_connections[G_ci].static_res == NPP_NOT_STATIC )    /* rendered */
             {
-                if ( G_connections[ci].modified )
+                if ( G_connections[G_ci].modified )
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(G_connections[G_ci].modified));
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
+                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[G_ci].modified));
                 }
                 else    /* default modified */
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
                         PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                     else
 #endif  /* NPP_HTTP2 */
@@ -5075,7 +5080,7 @@ static void gen_response_header(int ci)
                 if ( NPP_EXPIRES_RENDERED > 0 )
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
                         PRINT_HTTP2_EXPIRES_RENDERED;
                     else
 #endif  /* NPP_HTTP2 */
@@ -5085,16 +5090,16 @@ static void gen_response_header(int ci)
             else    /* static resource */
             {
 #ifdef NPP_HTTP2
-                if ( G_connections[ci].http_ver[0] == '2' )
-                    PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
+                if ( G_connections[G_ci].http_ver[0] == '2' )
+                    PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[G_ci].static_res].modified));
                 else
 #endif  /* NPP_HTTP2 */
-                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
+                    PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[G_ci].static_res].modified));
 
                 if ( NPP_EXPIRES_STATICS > 0 )
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
                         PRINT_HTTP2_EXPIRES_STATICS;
                     else
 #endif  /* NPP_HTTP2 */
@@ -5102,16 +5107,16 @@ static void gen_response_header(int ci)
                 }
             }
 
-            G_connections[ci].clen = 0;
+            G_connections[G_ci].clen = 0;
         }
         else    /* normal response with content: 2xx, 4xx, 5xx */
         {
             DDBG("Normal response");
 
-            if ( NPP_CONN_IS_DONT_CACHE(G_connections[ci].flags) )    /* dynamic content */
+            if ( NPP_CONN_IS_DONT_CACHE(G_connections[G_ci].flags) )    /* dynamic content */
             {
 #ifdef NPP_HTTP2
-                if ( G_connections[ci].http_ver[0] == '2' )
+                if ( G_connections[G_ci].http_ver[0] == '2' )
                 {
                     PRINT_HTTP2_VARY_DYN;
                     PRINT_HTTP2_NO_CACHE;
@@ -5126,27 +5131,27 @@ static void gen_response_header(int ci)
             else    /* static content */
             {
 #ifdef NPP_HTTP2
-                if ( G_connections[ci].http_ver[0] == '2' )
+                if ( G_connections[G_ci].http_ver[0] == '2' )
                     PRINT_HTTP2_VARY_STAT;
                 else
 #endif  /* NPP_HTTP2 */
                     PRINT_HTTP_VARY_STAT;
 
-                if ( G_connections[ci].static_res == NPP_NOT_STATIC )   /* rendered -- moderate caching */
+                if ( G_connections[G_ci].static_res == NPP_NOT_STATIC )   /* rendered -- moderate caching */
                 {
-                    if ( G_connections[ci].modified )
+                    if ( G_connections[G_ci].modified )
                     {
 #ifdef NPP_HTTP2
-                        if ( G_connections[ci].http_ver[0] == '2' )
-                            PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
+                        if ( G_connections[G_ci].http_ver[0] == '2' )
+                            PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(G_connections[G_ci].modified));
                         else
 #endif  /* NPP_HTTP2 */
-                            PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[ci].modified));
+                            PRINT_HTTP_LAST_MODIFIED(time_epoch2http(G_connections[G_ci].modified));
                     }
                     else    /* default modified */
                     {
 #ifdef NPP_HTTP2
-                        if ( G_connections[ci].http_ver[0] == '2' )
+                        if ( G_connections[G_ci].http_ver[0] == '2' )
                             PRINT_HTTP2_LAST_MODIFIED(G_header_date);
                         else
 #endif  /* NPP_HTTP2 */
@@ -5156,7 +5161,7 @@ static void gen_response_header(int ci)
                     if ( NPP_EXPIRES_RENDERED > 0 )
                     {
 #ifdef NPP_HTTP2
-                        if ( G_connections[ci].http_ver[0] == '2' )
+                        if ( G_connections[G_ci].http_ver[0] == '2' )
                             PRINT_HTTP2_EXPIRES_RENDERED;
                         else
 #endif  /* NPP_HTTP2 */
@@ -5166,16 +5171,16 @@ static void gen_response_header(int ci)
                 else    /* static resource -- aggressive caching */
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[G_ci].static_res].modified));
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[ci].static_res].modified));
+                        PRINT_HTTP_LAST_MODIFIED(time_epoch2http(M_statics[G_connections[G_ci].static_res].modified));
 
                     if ( NPP_EXPIRES_STATICS > 0 )
                     {
 #ifdef NPP_HTTP2
-                        if ( G_connections[ci].http_ver[0] == '2' )
+                        if ( G_connections[G_ci].http_ver[0] == '2' )
                             PRINT_HTTP2_EXPIRES_STATICS;
                         else
 #endif  /* NPP_HTTP2 */
@@ -5186,29 +5191,29 @@ static void gen_response_header(int ci)
 
             /* content length and type */
 
-            if ( G_connections[ci].static_res == NPP_NOT_STATIC )
+            if ( G_connections[G_ci].static_res == NPP_NOT_STATIC )
             {
-                G_connections[ci].clen = G_connections[ci].p_content - G_connections[ci].out_data - NPP_OUT_HEADER_BUFSIZE;
+                G_connections[G_ci].clen = G_connections[G_ci].p_content - G_connections[G_ci].out_data - NPP_OUT_HEADER_BUFSIZE;
             }
             else    /* static resource */
             {
-                G_connections[ci].clen = M_statics[G_connections[ci].static_res].len;
-                G_connections[ci].out_ctype = M_statics[G_connections[ci].static_res].type;
+                G_connections[G_ci].clen = M_statics[G_connections[G_ci].static_res].len;
+                G_connections[G_ci].out_ctype = M_statics[G_connections[G_ci].static_res].type;
 
-                if ( M_statics[G_connections[ci].static_res].len > G_resCacheTreshold )    /* read from disk */
+                if ( M_statics[G_connections[G_ci].static_res].len > G_resCacheTreshold )    /* read from disk */
                 {
-                    DBG("Reading %s from disk...", M_statics[G_connections[ci].static_res].name);
+                    DBG("Reading %s from disk...", M_statics[G_connections[G_ci].static_res].name);
 
                     char resdir[NPP_STATIC_PATH_LEN+1];      /* full path to res */
                     char fullpath[NPP_STATIC_PATH_LEN*2+2];  /* full path including file name */
 
 #ifdef NPP_MULTI_HOST
-                    sprintf(resdir, "%s/%s", G_appdir, G_hosts[G_connections[ci].host_id].res);
+                    sprintf(resdir, "%s/%s", G_appdir, G_hosts[G_connections[G_ci].host_id].res);
 #else
                     sprintf(resdir, "%s/res", G_appdir);
 #endif
 
-                    sprintf(fullpath, "%s/%s", resdir, M_statics[G_connections[ci].static_res].name);
+                    sprintf(fullpath, "%s/%s", resdir, M_statics[G_connections[G_ci].static_res].name);
 
                     DDBG("fullpath [%s]", fullpath);
 
@@ -5222,46 +5227,46 @@ static void gen_response_header(int ci)
                         ERR("Couldn't open %s", fullpath);
                     else
                     {
-                        M_statics[G_connections[ci].static_res].data = (char*)malloc(M_statics[G_connections[ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE);
+                        M_statics[G_connections[G_ci].static_res].data = (char*)malloc(M_statics[G_connections[G_ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE);
 
-                        if ( NULL == M_statics[G_connections[ci].static_res].data )
+                        if ( NULL == M_statics[G_connections[G_ci].static_res].data )
                         {
-                            ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].name);
+                            ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[G_ci].static_res].len+1+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[G_ci].static_res].name);
                         }
-                        else if ( fread(M_statics[G_connections[ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].len, 1, fd) != 1 )
+                        else if ( fread(M_statics[G_connections[G_ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[G_ci].static_res].len, 1, fd) != 1 )
                         {
-                            ERR("Couldn't read from %s", M_statics[G_connections[ci].static_res].name);
+                            ERR("Couldn't read from %s", M_statics[G_connections[G_ci].static_res].name);
                         }
 #ifndef _WIN32
                         else    /* compress if aplicable */
                         {
-                            if ( SHOULD_BE_COMPRESSED(G_connections[ci].clen, G_connections[ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[ci].flags) && !NPP_UA_IE )
+                            if ( SHOULD_BE_COMPRESSED(G_connections[G_ci].clen, G_connections[G_ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[G_ci].flags) && !NPP_UA_IE )
                             {
                                 DBG("Compressing static resource");
 
                                 char *data_tmp=NULL;
 
-                                if ( NULL == (data_tmp=(char*)malloc(M_statics[G_connections[ci].static_res].len)) )
+                                if ( NULL == (data_tmp=(char*)malloc(M_statics[G_connections[G_ci].static_res].len)) )
                                 {
-                                    ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[ci].static_res].len, M_statics[G_connections[ci].static_res].name);
+                                    ERR("Couldn't allocate %u bytes for %s", M_statics[G_connections[G_ci].static_res].len, M_statics[G_connections[G_ci].static_res].name);
                                 }
                                 else
                                 {
-                                    int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[G_connections[ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].len);
+                                    int deflated_len = deflate_data((unsigned char*)data_tmp, (unsigned char*)M_statics[G_connections[G_ci].static_res].data+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[G_ci].static_res].len);
 
                                     if ( deflated_len == -1 )
                                     {
-                                        WAR("Couldn't compress %s", M_statics[G_connections[ci].static_res].name);
+                                        WAR("Couldn't compress %s", M_statics[G_connections[G_ci].static_res].name);
                                     }
                                     else    /* compressable */
                                     {
-                                        if ( NULL == (M_statics[G_connections[ci].static_res].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
+                                        if ( NULL == (M_statics[G_connections[G_ci].static_res].data_deflated=(char*)malloc(deflated_len+NPP_OUT_HEADER_BUFSIZE)) )
                                         {
-                                            ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[ci].static_res].name);
+                                            ERR("Couldn't allocate %u bytes for deflated %s", deflated_len+NPP_OUT_HEADER_BUFSIZE, M_statics[G_connections[G_ci].static_res].name);
                                         }
 
-                                        memcpy(M_statics[G_connections[ci].static_res].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
-                                        M_statics[G_connections[ci].static_res].len_deflated = deflated_len;
+                                        memcpy(M_statics[G_connections[G_ci].static_res].data_deflated+NPP_OUT_HEADER_BUFSIZE, data_tmp, deflated_len);
+                                        M_statics[G_connections[G_ci].static_res].len_deflated = deflated_len;
                                     }
 
                                     free(data_tmp);
@@ -5272,7 +5277,7 @@ static void gen_response_header(int ci)
                         fclose(fd);
                     }
 
-                    G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data;   /* update */
+                    G_connections[G_ci].out_data = M_statics[G_connections[G_ci].static_res].data;   /* update */
                 }
             }
 
@@ -5280,9 +5285,9 @@ static void gen_response_header(int ci)
 
 #ifndef _WIN32  /* in Windows it's just too much headache */
 
-            if ( SHOULD_BE_COMPRESSED(G_connections[ci].clen, G_connections[ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[ci].flags) && !NPP_UA_IE )
+            if ( SHOULD_BE_COMPRESSED(G_connections[G_ci].clen, G_connections[G_ci].out_ctype) && NPP_CONN_IS_ACCEPT_DEFLATE(G_connections[G_ci].flags) && !NPP_UA_IE )
             {
-                if ( G_connections[ci].static_res==NPP_NOT_STATIC )
+                if ( G_connections[G_ci].static_res==NPP_NOT_STATIC )
                 {
                     DBG("Compressing content");
 
@@ -5307,16 +5312,16 @@ static              bool first=TRUE;
                         first = FALSE;
                     }
 
-                    unsigned max = G_connections[ci].clen;
+                    unsigned max = G_connections[G_ci].clen;
 
-                    ret = deflate_inplace(&strm, (unsigned char*)G_connections[ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[ci].clen, &max);
+                    ret = deflate_inplace(&strm, (unsigned char*)G_connections[G_ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[G_ci].clen, &max);
 
                     if ( ret == Z_OK )
                     {
-                        DBG("Compression success, old len=%u, new len=%u", G_connections[ci].clen, max);
-                        G_connections[ci].clen = max;
+                        DBG("Compression success, old len=%u, new len=%u", G_connections[G_ci].clen, max);
+                        G_connections[G_ci].clen = max;
 #ifdef NPP_HTTP2
-                        if ( G_connections[ci].http_ver[0] == '2' )
+                        if ( G_connections[G_ci].http_ver[0] == '2' )
                             PRINT_HTTP2_CONTENT_ENCODING_DEFLATE;
                         else
 #endif  /* NPP_HTTP2 */
@@ -5330,12 +5335,12 @@ static              bool first=TRUE;
                         ERR("deflate_inplace failed, ret = %d", ret);
                     }
                 }
-                else if ( M_statics[G_connections[ci].static_res].len_deflated )   /* compressed static resource is available */
+                else if ( M_statics[G_connections[G_ci].static_res].len_deflated )   /* compressed static resource is available */
                 {
-                    G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data_deflated;
-                    G_connections[ci].clen = M_statics[G_connections[ci].static_res].len_deflated;
+                    G_connections[G_ci].out_data = M_statics[G_connections[G_ci].static_res].data_deflated;
+                    G_connections[G_ci].clen = M_statics[G_connections[G_ci].static_res].len_deflated;
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
                         PRINT_HTTP2_CONTENT_ENCODING_DEFLATE;
                     else
 #endif  /* NPP_HTTP2 */
@@ -5352,51 +5357,51 @@ static              bool first=TRUE;
 
         /* Content-Type */
 
-        if ( G_connections[ci].clen == 0 )   /* don't set for these */
+        if ( G_connections[G_ci].clen == 0 )   /* don't set for these */
         {                   /* this covers 301, 303 and 304 */
         }
-        else if ( G_connections[ci].ctypestr[0] )    /* custom */
+        else if ( G_connections[G_ci].ctypestr[0] )    /* custom */
         {
 #ifdef NPP_HTTP2
-            if ( G_connections[ci].http_ver[0] == '2' )
-                PRINT_HTTP2_CONTENT_TYPE(G_connections[ci].ctypestr);
+            if ( G_connections[G_ci].http_ver[0] == '2' )
+                PRINT_HTTP2_CONTENT_TYPE(G_connections[G_ci].ctypestr);
             else
 #endif
-                PRINT_HTTP_CONTENT_TYPE(G_connections[ci].ctypestr);
+                PRINT_HTTP_CONTENT_TYPE(G_connections[G_ci].ctypestr);
         }
-        else if ( G_connections[ci].out_ctype != NPP_CONTENT_TYPE_UNSET )
+        else if ( G_connections[G_ci].out_ctype != NPP_CONTENT_TYPE_UNSET )
         {
-            print_content_type(ci, G_connections[ci].out_ctype);
+            print_content_type(G_connections[G_ci].out_ctype);
         }
 
         /* Content-Disposition */
 
-        if ( G_connections[ci].cdisp[0] )
+        if ( G_connections[G_ci].cdisp[0] )
         {
 #ifdef NPP_HTTP2
-            if ( G_connections[ci].http_ver[0] == '2' )
-                PRINT_HTTP2_CONTENT_DISP(G_connections[ci].cdisp);
+            if ( G_connections[G_ci].http_ver[0] == '2' )
+                PRINT_HTTP2_CONTENT_DISP(G_connections[G_ci].cdisp);
             else
 #endif
-                PRINT_HTTP_CONTENT_DISP(G_connections[ci].cdisp);
+                PRINT_HTTP_CONTENT_DISP(G_connections[G_ci].cdisp);
         }
 
         /* Content-Length */
 
 #ifdef NPP_HTTP2
-        if ( G_connections[ci].http_ver[0] == '2' )
-            PRINT_HTTP2_CONTENT_LEN(G_connections[ci].clen);
+        if ( G_connections[G_ci].http_ver[0] == '2' )
+            PRINT_HTTP2_CONTENT_LEN(G_connections[G_ci].clen);
         else
 #endif  /* NPP_HTTP2 */
-            PRINT_HTTP_CONTENT_LEN(G_connections[ci].clen);
+            PRINT_HTTP_CONTENT_LEN(G_connections[G_ci].clen);
 
         /* Security */
 
-        if ( G_connections[ci].clen > 0 )
+        if ( G_connections[G_ci].clen > 0 )
         {
 #ifndef NPP_NO_SAMEORIGIN
 #ifdef NPP_HTTP2
-            if ( G_connections[ci].http_ver[0] == '2' )
+            if ( G_connections[G_ci].http_ver[0] == '2' )
                 PRINT_HTTP2_SAMEORIGIN;
             else
 #endif  /* NPP_HTTP2 */
@@ -5405,7 +5410,7 @@ static              bool first=TRUE;
 
 #ifndef NPP_NO_NOSNIFF
 #ifdef NPP_HTTP2
-            if ( G_connections[ci].http_ver[0] == '2' )
+            if ( G_connections[G_ci].http_ver[0] == '2' )
                 PRINT_HTTP2_NOSNIFF;
             else
 #endif  /* NPP_HTTP2 */
@@ -5416,69 +5421,69 @@ static              bool first=TRUE;
         /* Connection */
 
 #ifdef NPP_HTTP2
-        if ( G_connections[ci].http_ver[0] != '2' )
+        if ( G_connections[G_ci].http_ver[0] != '2' )
 #endif  /* NPP_HTTP2 */
             PRINT_HTTP_CONNECTION;
 
         /* Cookie */
 
-        if ( G_connections[ci].static_res == NPP_NOT_STATIC && (G_connections[ci].status == 200 || G_connections[ci].status == 303) && G_connections[ci].method[0]!='H' )
+        if ( G_connections[G_ci].static_res == NPP_NOT_STATIC && (G_connections[G_ci].status == 200 || G_connections[G_ci].status == 303) && G_connections[G_ci].method[0]!='H' )
         {
-            if ( G_connections[ci].cookie_out_l[0] )         /* logged in cookie has been produced */
+            if ( G_connections[G_ci].cookie_out_l[0] )         /* logged in cookie has been produced */
             {
-                if ( G_connections[ci].cookie_out_l_exp[0] )
+                if ( G_connections[G_ci].cookie_out_l_exp[0] )
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_COOKIE_L_EXP(ci);    /* with expiration date */
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_L_EXP;    /* with expiration date */
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_COOKIE_L_EXP(ci);
+                        PRINT_HTTP_COOKIE_L_EXP;
                 }
                 else
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_COOKIE_L(ci);
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_L;
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_COOKIE_L(ci);
+                        PRINT_HTTP_COOKIE_L;
                 }
             }
 
-            if ( G_connections[ci].cookie_out_a[0] )         /* anonymous cookie has been produced */
+            if ( G_connections[G_ci].cookie_out_a[0] )         /* anonymous cookie has been produced */
             {
-                if ( G_connections[ci].cookie_out_a_exp[0] )
+                if ( G_connections[G_ci].cookie_out_a_exp[0] )
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_COOKIE_A_EXP(ci);    /* with expiration date */
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_A_EXP;    /* with expiration date */
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_COOKIE_A_EXP(ci);
+                        PRINT_HTTP_COOKIE_A_EXP;
                 }
                 else
                 {
 #ifdef NPP_HTTP2
-                    if ( G_connections[ci].http_ver[0] == '2' )
-                        PRINT_HTTP2_COOKIE_A(ci);
+                    if ( G_connections[G_ci].http_ver[0] == '2' )
+                        PRINT_HTTP2_COOKIE_A;
                     else
 #endif  /* NPP_HTTP2 */
-                        PRINT_HTTP_COOKIE_A(ci);
+                        PRINT_HTTP_COOKIE_A;
                 }
             }
         }
 
 #ifdef NPP_HTTPS
 #ifndef NPP_NO_HSTS
-        if ( NPP_CONN_IS_SECURE(G_connections[ci].flags) )
+        if ( NPP_CONN_IS_SECURE(G_connections[G_ci].flags) )
             PRINT_HTTP_HSTS;
 #endif
 #endif  /* NPP_HTTPS */
 
 #ifndef NPP_NO_IDENTITY
 #ifdef NPP_HTTP2
-        if ( G_connections[ci].http_ver[0] == '2' )
+        if ( G_connections[G_ci].http_ver[0] == '2' )
             PRINT_HTTP2_SERVER;
         else
 #endif  /* NPP_HTTP2 */
@@ -5488,9 +5493,9 @@ static              bool first=TRUE;
         /* ------------------------------------------------------------- */
         /* custom headers */
 
-        if ( G_connections[ci].cust_headers[0] )
+        if ( G_connections[G_ci].cust_headers[0] )
         {
-            HOUT(G_connections[ci].cust_headers);
+            HOUT(G_connections[G_ci].cust_headers);
         }
 
         /* ------------------------------------------------------------- */
@@ -5500,68 +5505,68 @@ static              bool first=TRUE;
 #endif
 
 #ifdef NPP_HTTP2
-    if ( G_connections[ci].http_ver[0] != '2' )
+    if ( G_connections[G_ci].http_ver[0] != '2' )
 #endif
         PRINT_HTTP_END_OF_HEADER;
 
     /* header length */
 
-    G_connections[ci].out_hlen = G_connections[ci].p_header - out_header;
+    G_connections[G_ci].out_hlen = G_connections[G_ci].p_header - out_header;
 
-    DDBG("ci=%d, out_hlen = %u", ci, G_connections[ci].out_hlen);
+    DDBG("ci=%d, out_hlen = %u", G_ci, G_connections[G_ci].out_hlen);
 
-    DBG("Response status: %d", G_connections[ci].status);
+    DBG("Response status: %d", G_connections[G_ci].status);
 
-    DDBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_RESPONSE", ci);
-    G_connections[ci].state = CONN_STATE_READY_TO_SEND_RESPONSE;
+    DDBG("ci=%d, changing state to CONN_STATE_READY_TO_SEND_RESPONSE", G_ci);
+    G_connections[G_ci].state = CONN_STATE_READY_TO_SEND_RESPONSE;
 
 #ifdef NPP_FD_MON_POLL
-    M_pollfds[G_connections[ci].pi].events = POLLOUT;
+    M_pollfds[G_connections[G_ci].pi].events = POLLOUT;
 #endif
 
 #ifdef NPP_FD_MON_EPOLL
     struct epoll_event ev={0};
 
-    ev.data.fd = G_connections[ci].fd;
+    ev.data.fd = G_connections[G_ci].fd;
     ev.events = EPOLLOUT | EPOLLET;
     epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
 #endif
 
 #ifdef NPP_HTTP2
-    if ( G_connections[ci].http_ver[0] != '2' )
+    if ( G_connections[G_ci].http_ver[0] != '2' )
 #endif
 #if NPP_OUT_HEADER_BUFSIZE-1 <= NPP_MAX_LOG_STR_LEN
         DBG("\nResponse header:\n\n[%s]\n", out_header);
 #else
-        npp_log_long(out_header, G_connections[ci].out_hlen, "\nResponse header");
+        npp_log_long(out_header, G_connections[G_ci].out_hlen, "\nResponse header");
 #endif  /* NPP_OUT_HEADER_BUFSIZE-1 <= NPP_MAX_LOG_STR_LEN */
 
     /* ----------------------------------------------------------------- */
     /* try to send everything at once */
     /* copy response header just before the content */
 
-    G_connections[ci].out_start = G_connections[ci].out_data + (NPP_OUT_HEADER_BUFSIZE - G_connections[ci].out_hlen);
-    memcpy(G_connections[ci].out_start, out_header, G_connections[ci].out_hlen);
-    G_connections[ci].out_len = G_connections[ci].out_hlen + G_connections[ci].clen;
+    G_connections[G_ci].out_start = G_connections[G_ci].out_data + (NPP_OUT_HEADER_BUFSIZE - G_connections[G_ci].out_hlen);
+    memcpy(G_connections[G_ci].out_start, out_header, G_connections[G_ci].out_hlen);
+    G_connections[G_ci].out_len = G_connections[G_ci].out_hlen + G_connections[G_ci].clen;
 
     /* ----------------------------------------------------------------- */
 
 #ifdef NPP_DEBUG     /* low-level tests */
     if ( G_logLevel>=LOG_DBG
-            && G_connections[ci].clen > 0
-            && G_connections[ci].method[0]!='H'   /* HEAD */
-            && G_connections[ci].static_res==NPP_NOT_STATIC
+            && G_connections[G_ci].clen > 0
+            && G_connections[G_ci].method[0]!='H'   /* HEAD */
+            && G_connections[G_ci].static_res==NPP_NOT_STATIC
             && !compressed
-            && (G_connections[ci].out_ctype==NPP_CONTENT_TYPE_TEXT || G_connections[ci].out_ctype==NPP_CONTENT_TYPE_JSON) )
-        npp_log_long(G_connections[ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[ci].clen, "Content to send");
+            && (G_connections[G_ci].out_ctype==NPP_CONTENT_TYPE_TEXT || G_connections[G_ci].out_ctype==NPP_CONTENT_TYPE_JSON) )
+        npp_log_long(G_connections[G_ci].out_data+NPP_OUT_HEADER_BUFSIZE, G_connections[G_ci].clen, "Content to send");
 #endif  /* NPP_DEBUG */
 
     /* ----------------------------------------------------------------- */
 
-    G_connections[ci].last_activity = G_now;
+    G_connections[G_ci].last_activity = G_now;
     if ( IS_SESSION ) SESSION.last_activity = G_now;
 
-    log_proc_time(ci);
+    log_proc_time();
 }
 
 
@@ -5569,7 +5574,7 @@ static              bool first=TRUE;
    Print Content-Type to response header
    Mirrored npp_lib_set_res_content_type
 -------------------------------------------------------------------------- */
-static void print_content_type(int ci, char type)
+static void print_content_type(char type)
 {
     char http_type[256];
 
@@ -5613,7 +5618,7 @@ static void print_content_type(int ci, char type)
         strcpy(http_type, "text/plain");
 
 #ifdef NPP_HTTP2
-    if ( G_connections[ci].http_ver[0] == '2' )
+    if ( G_connections[G_ci].http_ver[0] == '2' )
         PRINT_HTTP2_CONTENT_TYPE(http_type);
     else
 #endif  /* NPP_HTTP2 */
@@ -5651,24 +5656,24 @@ int npp_eng_find_si(const char *sessid)
    Verify IP & User-Agent against sessid in G_sessions (anonymous users)
    Return true if session exists
 -------------------------------------------------------------------------- */
-static bool a_session_ok(int ci)
+static bool a_session_ok()
 {
     DBG("a_session_ok");
 
     if ( IS_SESSION )    /* existing connection */
     {
-        if ( G_sessions[G_connections[ci].si].sessid[0]
-                && G_sessions[G_connections[ci].si].auth_level<AUTH_LEVEL_AUTHENTICATED
+        if ( G_sessions[G_connections[G_ci].si].sessid[0]
+                && G_sessions[G_connections[G_ci].si].auth_level<AUTH_LEVEL_AUTHENTICATED
 #ifdef NPP_MULTI_HOST
-                && G_connections[ci].host_id == G_sessions[G_connections[ci].si].host_id
+                && G_connections[G_ci].host_id == G_sessions[G_connections[G_ci].si].host_id
 #endif
-                && 0==strcmp(G_connections[ci].cookie_in_a, G_sessions[G_connections[ci].si].sessid)
-                && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
+                && 0==strcmp(G_connections[G_ci].cookie_in_a, G_sessions[G_connections[G_ci].si].sessid)
+                && 0==strcmp(G_connections[G_ci].uagent, G_sessions[G_connections[G_ci].si].uagent) )
         {
 #ifdef NPP_DEBUG
-            DBG("Anonymous session found, si=%d, sessid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
+            DBG("Anonymous session found, si=%d, sessid [%s] (1)", G_connections[G_ci].si, G_sessions[G_connections[G_ci].si].sessid);
 #else
-            DBG("Anonymous session found, si=%d (1)", G_connections[ci].si);
+            DBG("Anonymous session found, si=%d (1)", G_connections[G_ci].si);
 #endif
             return TRUE;
         }
@@ -5676,27 +5681,27 @@ static bool a_session_ok(int ci)
         else    /* session was closed */
         {
             WAR("si > 0 and no session!");
-            G_connections[ci].si = 0;
+            G_connections[G_ci].si = 0;
         }
 #endif
     }
     else    /* fresh connection */
     {
 #ifdef NPP_MULTI_HOST
-        int si = npp_eng_find_si(G_connections[ci].host_id, G_connections[ci].cookie_in_a);
+        int si = npp_eng_find_si(G_connections[G_ci].host_id, G_connections[G_ci].cookie_in_a);
 #else
-        int si = npp_eng_find_si(G_connections[ci].cookie_in_a);
+        int si = npp_eng_find_si(G_connections[G_ci].cookie_in_a);
 #endif
         DDBG("npp_eng_find_si = %d", si);
 
-        if ( si != 0 && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent) )
+        if ( si != 0 && 0==strcmp(G_connections[G_ci].uagent, G_sessions[si].uagent) )
         {
 #ifdef NPP_DEBUG
             DBG("Anonymous session found, si=%d, sessid [%s] (2)", si, G_sessions[si].sessid);
 #else
             DBG("Anonymous session found, si=%d (2)", si);
 #endif
-            G_connections[ci].si = si;
+            G_connections[G_ci].si = si;
             return TRUE;
         }
     }
@@ -5759,11 +5764,11 @@ static void close_uses(int si, int ci)
     DBG("Calling npp_app_session_done...");
 
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
-        npp_app_session_done(ci);
+        npp_app_session_done();
     else    /* use special temporary G_connections slot to maintain consistency across npp_app_xxx functions */
     {       /* that use ci for everything -- including getting the session data */
         G_connections[NPP_CLOSING_SESSION_CI].si = si;
-        npp_app_session_done(NPP_CLOSING_SESSION_CI);
+        npp_app_session_done();
     }
 
     /* update sessions index */
@@ -5854,11 +5859,11 @@ static void close_uses(int si, int ci)
 /* --------------------------------------------------------------------------
    Reset connection after processing request
 -------------------------------------------------------------------------- */
-static void reset_conn(int ci, char new_state)
+static void reset_connection(int ci, char new_state)
 {
 #ifdef NPP_DEBUG
     if ( G_initialized )
-        DBG("ci=%d, reset_conn, fd=%d, new state == %s\n", ci, G_connections[ci].fd, new_state==CONN_STATE_CONNECTED?"CONN_STATE_CONNECTED":"CONN_STATE_DISCONNECTED");
+        DBG("ci=%d, reset_connection, fd=%d, new state == %s\n", ci, G_connections[ci].fd, new_state==CONN_STATE_CONNECTED?"CONN_STATE_CONNECTED":"CONN_STATE_DISCONNECTED");
 #endif
 
     G_connections[ci].state = new_state;
@@ -5875,15 +5880,15 @@ static void reset_conn(int ci, char new_state)
     G_connections[ci].was_read = 0;
     G_connections[ci].resource[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 1
-    G_connections[ci].req1[0] = EOS;
+    G_connections[ci].path1[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 2
-    G_connections[ci].req2[0] = EOS;
+    G_connections[ci].path2[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 3
-    G_connections[ci].req3[0] = EOS;
+    G_connections[ci].path3[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 4
-    G_connections[ci].req4[0] = EOS;
+    G_connections[ci].path4[0] = EOS;
 #if NPP_RESOURCE_LEVELS > 5
-    G_connections[ci].req5[0] = EOS;
+    G_connections[ci].path5[0] = EOS;
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
@@ -5997,11 +6002,11 @@ static void reset_conn(int ci, char new_state)
    Return TRUE if blocked
    It doesn't really change anything security-wise but just saves bandwidth
 -------------------------------------------------------------------------- */
-static bool check_block_ip(int ci, const char *rule, const char *value)
+static bool check_block_ip(const char *rule, const char *value)
 {
     if ( G_test ) return FALSE;    /* don't block for tests */
 
-    if ( (rule[0]=='H' && NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && isdigit(value[0])) /* Host */
+    if ( (rule[0]=='H' && NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && isdigit(value[0])) /* Host */
             || (rule[0]=='U' && 0==strcmp(value, "Mozilla/5.0 Jorgee"))     /* User-Agent */
             || (rule[0]=='R' && 0==strcmp(value, "wp-login.php"))           /* Resource */
             || (rule[0]=='R' && 0==strcmp(value, "wp-config.php"))          /* Resource */
@@ -6018,8 +6023,8 @@ static bool check_block_ip(int ci, const char *rule, const char *value)
             || (rule[0]=='R' && 0==strcmp(value, ".env"))                   /* Resource */
             || (rule[0]=='R' && strstr(value, "setup.php")) )               /* Resource */
     {
-        npp_eng_block_ip(G_connections[ci].ip, TRUE);
-        G_connections[ci].flags = G_connections[ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;    /* disconnect */
+        npp_eng_block_ip(G_connections[G_ci].ip, TRUE);
+        G_connections[G_ci].flags = G_connections[G_ci].flags & ~NPP_CONN_FLAG_KEEP_ALIVE;    /* disconnect */
         return TRUE;
     }
 
@@ -6031,7 +6036,7 @@ static bool check_block_ip(int ci, const char *rule, const char *value)
 /* --------------------------------------------------------------------------
    Find authorization level for the requested resource
 -------------------------------------------------------------------------- */
-static char find_auth_level(int ci)
+static char find_auth_level()
 {
     int i;
 
@@ -6039,18 +6044,18 @@ static char find_auth_level(int ci)
 
     i = 0;
 
-    while ( M_auth_levels[i].host_id != G_connections[ci].host_id && i<M_auth_levels_cnt ) ++i;
+    while ( M_auth_levels[i].host_id != G_connections[G_ci].host_id && i<M_auth_levels_cnt ) ++i;
 
     for ( ; i<M_auth_levels_cnt; ++i )
     {
-        if ( M_auth_levels[i].host_id != G_connections[ci].host_id )
+        if ( M_auth_levels[i].host_id != G_connections[G_ci].host_id )
             break;
 
-        if ( URI(M_auth_levels[i].path) && M_auth_levels[i].host_id == G_connections[ci].host_id )
+        if ( URI(M_auth_levels[i].path) && M_auth_levels[i].host_id == G_connections[G_ci].host_id )
             return M_auth_levels[i].level;
     }
 
-    return G_hosts[G_connections[ci].host_id].required_auth_level;
+    return G_hosts[G_connections[G_ci].host_id].required_auth_level;
 
 #else   /* NOT NPP_MULTI_HOST */
 
@@ -6070,7 +6075,7 @@ static char find_auth_level(int ci)
    Parse HTTP request
    Return HTTP status code
 -------------------------------------------------------------------------- */
-static int parse_req(int ci, int len)
+static int parse_request(int len)
 {
     int  ret=200;
 
@@ -6083,36 +6088,36 @@ static int parse_req(int ci, int len)
 
     -------------------------------------------- */
 
-    DBG("ci=%d, parse_req", ci);
+    DBG("ci=%d, parse_request", G_ci);
 
-    G_connections[ci].req = ++G_cnts_today.req;    /* for reporting processing time at the end */
+    G_connections[G_ci].req = ++G_cnts_today.req;    /* for reporting processing time at the end */
 
-    DBG("\n--------------------------------------------------\n %s  Request %u\n--------------------------------------------------\n", DT_NOW_GMT, G_connections[ci].req);
+    DBG("\n--------------------------------------------------\n %s  Request %u\n--------------------------------------------------\n", DT_NOW_GMT, G_connections[G_ci].req);
 
-//  if ( G_connections[ci].state != STATE_SENDING ) /* ignore Range requests for now */
-//      G_connections[ci].state = STATE_RECEIVED;   /* by default */
+//  if ( G_connections[G_ci].state != STATE_SENDING ) /* ignore Range requests for now */
+//      G_connections[G_ci].state = STATE_RECEIVED;   /* by default */
 
     if ( len < 14 )  /* ignore any junk */
     {
-        DDBG("ci=%d, incoming data [%s]", ci, G_connections[ci].in);
+        DDBG("ci=%d, incoming data [%s]", G_ci, G_connections[G_ci].in);
         DBG("request len < 14, ignoring");
         return 400;   /* Bad Request */
     }
 
     /* look for end of header */
 
-    char *p_hend = strstr(G_connections[ci].in, "\r\n\r\n");
+    char *p_hend = strstr(G_connections[G_ci].in, "\r\n\r\n");
 
     if ( !p_hend )
     {
-        p_hend = strstr(G_connections[ci].in, "\n\n");
+        p_hend = strstr(G_connections[G_ci].in, "\n\n");
 
         if ( !p_hend )
         {
-            if ( 0 == strncmp(G_connections[ci].in, "GET / HTTP/1.", 13) )   /* temporary solution for good looking partial requests */
+            if ( 0 == strncmp(G_connections[G_ci].in, "GET / HTTP/1.", 13) )   /* temporary solution for good looking partial requests */
             {
-                strcat(G_connections[ci].in, "\n");  /* for values reading algorithm */
-                p_hend = G_connections[ci].in + len;
+                strcat(G_connections[G_ci].in, "\n");  /* for values reading algorithm */
+                p_hend = G_connections[G_ci].in + len;
             }
             else
             {
@@ -6120,22 +6125,22 @@ static int parse_req(int ci, int len)
 
                 /* don't confuse log */
 
-                G_connections[ci].method[0] = EOS;
-                G_connections[ci].uri[0] = EOS;
-                strcpy(G_connections[ci].http_ver, "?");
-                G_connections[ci].referer[0] = EOS;
-                G_connections[ci].uagent[0] = EOS;
+                G_connections[G_ci].method[0] = EOS;
+                G_connections[G_ci].uri[0] = EOS;
+                strcpy(G_connections[G_ci].http_ver, "?");
+                G_connections[G_ci].referer[0] = EOS;
+                G_connections[G_ci].uagent[0] = EOS;
 
                 return 400;  /* Bad Request */
             }
         }
     }
 
-    int hlen = p_hend - G_connections[ci].in;    /* HTTP header length including first of the last new line characters to simplify parsing algorithm in the third 'for' loop below */
+    int hlen = p_hend - G_connections[G_ci].in;    /* HTTP header length including first of the last new line characters to simplify parsing algorithm in the third 'for' loop below */
 
     DDBG("hlen = %d", hlen);
 
-    npp_log_long(G_connections[ci].in, hlen, "Incoming buffer");     /* NPP_IN_BUFSIZE > NPP_MAX_LOG_STR_LEN! */
+    npp_log_long(G_connections[G_ci].in, hlen, "Incoming buffer");     /* NPP_IN_BUFSIZE > NPP_MAX_LOG_STR_LEN! */
 
     ++hlen;     /* HTTP header length including first of the last new line characters to simplify parsing algorithm in the third 'for' loop below */
 
@@ -6145,57 +6150,57 @@ static int parse_req(int ci, int len)
 
     for ( i=0; i<hlen; ++i )    /* the first line is special -- consists of more than one token */
     {                                   /* the very first token is a request method */
-        if ( isalpha(G_connections[ci].in[i]) )
+        if ( isalpha(G_connections[G_ci].in[i]) )
         {
             if ( i < NPP_METHOD_LEN )
-                G_connections[ci].method[i] = G_connections[ci].in[i];
+                G_connections[G_ci].method[i] = G_connections[G_ci].in[i];
             else
             {
                 WAR("Method too long, ignoring");
 
                 /* don't confuse log */
 
-                G_connections[ci].method[0] = EOS;
-                G_connections[ci].uri[0] = EOS;
-                strcpy(G_connections[ci].http_ver, "?");
-                G_connections[ci].referer[0] = EOS;
-                G_connections[ci].uagent[0] = EOS;
+                G_connections[G_ci].method[0] = EOS;
+                G_connections[G_ci].uri[0] = EOS;
+                strcpy(G_connections[G_ci].http_ver, "?");
+                G_connections[G_ci].referer[0] = EOS;
+                G_connections[G_ci].uagent[0] = EOS;
 
                 return 400;  /* Bad Request */
             }
         }
         else    /* most likely space = end of method */
         {
-            G_connections[ci].method[i] = EOS;
+            G_connections[G_ci].method[i] = EOS;
 
             /* check against the list of allowed methods */
 
-            if ( 0==strcmp(G_connections[ci].method, "GET") )
+            if ( 0==strcmp(G_connections[G_ci].method, "GET") )
             {
-                G_connections[ci].in_ctype = NPP_CONTENT_TYPE_URLENCODED;
+                G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_URLENCODED;
             }
-            else if ( 0==strcmp(G_connections[ci].method, "POST") || 0==strcmp(G_connections[ci].method, "PUT") || 0==strcmp(G_connections[ci].method, "DELETE") )
+            else if ( 0==strcmp(G_connections[G_ci].method, "POST") || 0==strcmp(G_connections[G_ci].method, "PUT") || 0==strcmp(G_connections[G_ci].method, "DELETE") )
             {
-                G_connections[ci].flags |= NPP_CONN_FLAG_PAYLOAD;
+                G_connections[G_ci].flags |= NPP_CONN_FLAG_PAYLOAD;
             }
-            else if ( 0==strcmp(G_connections[ci].method, "OPTIONS") )
+            else if ( 0==strcmp(G_connections[G_ci].method, "OPTIONS") )
             {
                 /* just go ahead */
             }
-            else if ( 0==strcmp(G_connections[ci].method, "HEAD") )
+            else if ( 0==strcmp(G_connections[G_ci].method, "HEAD") )
             {
                 /* just go ahead */
             }
             else
             {
-                WAR("Method [%s] not allowed, ignoring", G_connections[ci].method);
+                WAR("Method [%s] not allowed, ignoring", G_connections[G_ci].method);
 
                 /* don't confuse log */
 
-                G_connections[ci].uri[0] = EOS;
-                strcpy(G_connections[ci].http_ver, "?");
-                G_connections[ci].referer[0] = EOS;
-                G_connections[ci].uagent[0] = EOS;
+                G_connections[G_ci].uri[0] = EOS;
+                strcpy(G_connections[G_ci].http_ver, "?");
+                G_connections[G_ci].referer[0] = EOS;
+                G_connections[G_ci].uagent[0] = EOS;
 
                 return 405;
             }
@@ -6205,7 +6210,7 @@ static int parse_req(int ci, int len)
     }
 
     /* only for low-level tests ------------------------------------- */
-//  DBG("method: [%s]", G_connections[ci].method);
+//  DBG("method: [%s]", G_connections[G_ci].method);
     /* -------------------------------------------------------------- */
 
     i += 2;     /* skip " /" */
@@ -6219,73 +6224,73 @@ static int parse_req(int ci, int len)
 
 #pragma GCC diagnostic pop
 
-        if ( G_connections[ci].in[i] != ' ' && G_connections[ci].in[i] != '\t' )
+        if ( G_connections[G_ci].in[i] != ' ' && G_connections[G_ci].in[i] != '\t' )
         {
             if ( j < NPP_MAX_URI_LEN )
-                G_connections[ci].uri[j++] = G_connections[ci].in[i];
+                G_connections[G_ci].uri[j++] = G_connections[G_ci].in[i];
             else
             {
                 WAR("URI too long, ignoring");
 
                 /* don't confuse log */
 
-                G_connections[ci].uri[0] = EOS;
-                strcpy(G_connections[ci].http_ver, "?");
-                G_connections[ci].referer[0] = EOS;
-                G_connections[ci].uagent[0] = EOS;
+                G_connections[G_ci].uri[0] = EOS;
+                strcpy(G_connections[G_ci].http_ver, "?");
+                G_connections[G_ci].referer[0] = EOS;
+                G_connections[G_ci].uagent[0] = EOS;
 
                 return 414;  /* Request-URI Too Long */
             }
         }
         else    /* end of URI */
         {
-            G_connections[ci].uri[j] = EOS;
+            G_connections[G_ci].uri[j] = EOS;
             break;
         }
     }
 
     /* strip the trailing slash off */
 
-    if ( j && G_connections[ci].uri[j-1] == '/' )
+    if ( j && G_connections[G_ci].uri[j-1] == '/' )
     {
-        G_connections[ci].uri[j-1] = EOS;
+        G_connections[G_ci].uri[j-1] = EOS;
     }
 
 #ifdef NPP_ROOT_URI
     /*
        If i.e. NPP_ROOT_URI: "app"
        then with URL: example.com/app/something
-       we want G_connections[ci].uri to be "something"
+       we want G_connections[G_ci].uri to be "something"
 
-       Initial G_connections[ci].uri: app/something
+       Initial G_connections[G_ci].uri: app/something
        root_uri_len = 3
     */
     int root_uri_len = strlen(NPP_ROOT_URI);
-    if ( 0==strncmp(G_connections[ci].uri, NPP_ROOT_URI, root_uri_len) )
+    if ( 0==strncmp(G_connections[G_ci].uri, NPP_ROOT_URI, root_uri_len) )
     {
         char tmp[NPP_MAX_URI_LEN+1];
-        strcpy(tmp, G_connections[ci].uri+root_uri_len+1);
+        strcpy(tmp, G_connections[G_ci].uri+root_uri_len+1);
 
         DDBG("tmp [%s]", tmp);
 
-        strcpy(G_connections[ci].uri, tmp);
+        strcpy(G_connections[G_ci].uri, tmp);
     }
 #endif  /* NPP_ROOT_URI */
 
-    DDBG("URI [%s]", G_connections[ci].uri);
+    DDBG("URI [%s]", G_connections[G_ci].uri);
 
     i += 6;   /* skip the space and HTTP/ */
 
     j = 0;
-    while ( i < hlen && G_connections[ci].in[i] != '\r' && G_connections[ci].in[i] != '\n' )
+    while ( i < hlen && G_connections[G_ci].in[i] != '\r' && G_connections[G_ci].in[i] != '\n' )
     {
         if ( j < 3 )
-            G_connections[ci].http_ver[j++] = G_connections[ci].in[i];
+            G_connections[G_ci].http_ver[j++] = G_connections[G_ci].in[i];
         ++i;
     }
-    G_connections[ci].http_ver[j] = EOS;
+    G_connections[G_ci].http_ver[j] = EOS;
 
-    DDBG("http_ver [%s]", G_connections[ci].http_ver);
+    DDBG("http_ver [%s]", G_connections[G_ci].http_ver);
 
     /* -------------------------------------------------------------- */
     /* parse the rest of the header */
@@ -6296,7 +6301,7 @@ static int parse_req(int ci, int len)
     char label[NPP_MAX_LABEL_LEN+1];
     char value[NPP_MAX_VALUE_LEN+1];
 
-    while ( i < hlen && G_connections[ci].in[i] != '\n' ) ++i;
+    while ( i < hlen && G_connections[G_ci].in[i] != '\n' ) ++i;
 
     j = 0;
 
@@ -6308,19 +6313,19 @@ static int parse_req(int ci, int len)
 
 #pragma GCC diagnostic pop
 
-        if ( !now_value && (G_connections[ci].in[i] == ' ' || G_connections[ci].in[i] == '\t') )  /* omit whitespaces */
+        if ( !now_value && (G_connections[G_ci].in[i] == ' ' || G_connections[G_ci].in[i] == '\t') )  /* omit whitespaces */
             continue;
 
-        if ( G_connections[ci].in[i] == '\n' && was_cr )
+        if ( G_connections[G_ci].in[i] == '\n' && was_cr )
         {
             was_cr = FALSE;
             continue;   /* value has already been saved in a previous loop go */
         }
 
-        if ( G_connections[ci].in[i] == '\r' )
+        if ( G_connections[G_ci].in[i] == '\r' )
             was_cr = TRUE;
 
-        if ( G_connections[ci].in[i] == '\r' || G_connections[ci].in[i] == '\n' ) /* end of value. Caution: \n only if continue above is in place! */
+        if ( G_connections[G_ci].in[i] == '\r' || G_connections[G_ci].in[i] == '\n' ) /* end of value. Caution: \n only if continue above is in place! */
         {
             if ( now_value )
             {
@@ -6329,12 +6334,12 @@ static int parse_req(int ci, int len)
                 if ( j == 0 )
                     WAR("Value of %s is empty!", label);
                 else
-                    if ( (ret=set_http_req_val(ci, label, value+1)) > 200 ) return ret;
+                    if ( (ret=set_http_req_val(label, value+1)) > 200 ) return ret;
             }
             now_label = TRUE;
             j = 0;
         }
-        else if ( now_label && G_connections[ci].in[i] == ':' )   /* end of label, start of value */
+        else if ( now_label && G_connections[G_ci].in[i] == ':' )   /* end of label, start of value */
         {
             label[j] = EOS;
             now_label = FALSE;
@@ -6344,7 +6349,7 @@ static int parse_req(int ci, int len)
         else if ( now_label )   /* label */
         {
             if ( j < NPP_MAX_LABEL_LEN )
-                label[j++] = G_connections[ci].in[i];
+                label[j++] = G_connections[G_ci].in[i];
             else
             {
                 label[j] = EOS;
@@ -6352,15 +6357,15 @@ static int parse_req(int ci, int len)
 
                 /* don't confuse log */
 
-                G_connections[ci].referer[0] = EOS;
-                G_connections[ci].uagent[0] = EOS;
+                G_connections[G_ci].referer[0] = EOS;
+                G_connections[G_ci].uagent[0] = EOS;
 
                 return 400;  /* Bad Request */
             }
         }
         else if ( now_value )   /* value */
         {
-            value[j++] = G_connections[ci].in[i];
+            value[j++] = G_connections[G_ci].in[i];
 
             if ( j == NPP_MAX_VALUE_LEN )   /* truncate here */
             {
@@ -6369,7 +6374,7 @@ static int parse_req(int ci, int len)
 
                 DDBG("value: [%s]", value);
 
-                if ( (ret=set_http_req_val(ci, label, value+1)) > 200 ) return ret;
+                if ( (ret=set_http_req_val(label, value+1)) > 200 ) return ret;
                 now_value = FALSE;
             }
         }
@@ -6384,7 +6389,7 @@ static int parse_req(int ci, int len)
 
 #ifdef NPP_HTTP2
 
-//    if ( G_connections[ci].status == 101 && !G_connections[ci].http2_settings[0] )
+//    if ( G_connections[G_ci].status == 101 && !G_connections[G_ci].http2_settings[0] )
 //        return 400;     /* Bad request */
 
 #endif  /* NPP_HTTP2 */
@@ -6394,13 +6399,13 @@ static int parse_req(int ci, int len)
 
 #ifdef NPP_MULTI_HOST
 
-    G_connections[ci].host_id = find_host_id(G_connections[ci].host_normalized);
+    G_connections[G_ci].host_id = find_host_id(G_connections[G_ci].host_normalized);
 
-    DBG("host_id = %d", G_connections[ci].host_id);
+    DBG("host_id = %d", G_connections[G_ci].host_id);
 
-    G_connections[ci].required_auth_level = G_hosts[G_connections[ci].host_id].required_auth_level;
+    G_connections[G_ci].required_auth_level = G_hosts[G_connections[G_ci].host_id].required_auth_level;
 
-    DBG("required_auth_level = %d", G_connections[ci].required_auth_level);
+    DBG("required_auth_level = %d", G_connections[G_ci].required_auth_level);
 
 #endif  /* NPP_MULTI_HOST */
 
@@ -6408,18 +6413,18 @@ static int parse_req(int ci, int len)
 
 #ifndef NPP_DONT_LOOK_FOR_INDEX
 
-    if ( G_connections[ci].uri[0]==EOS && REQ_GET )
+    if ( G_connections[G_ci].uri[0]==EOS && REQ_GET )
     {
         DBG("M_index_present = %d", M_index_present);
 
 #ifdef NPP_MULTI_HOST
-        if ( (G_connections[ci].host_id==0 && M_index_present!=-1) || G_hosts[G_connections[ci].host_id].index_present != -1 )
+        if ( (G_connections[G_ci].host_id==0 && M_index_present!=-1) || G_hosts[G_connections[G_ci].host_id].index_present != -1 )
 #else
         if ( M_index_present != -1 )
 #endif
         {
             INF("Serving index.html");
-            strcpy(G_connections[ci].uri, "index.html");
+            strcpy(G_connections[G_ci].uri, "index.html");
         }
     }
 
@@ -6427,15 +6432,15 @@ static int parse_req(int ci, int len)
 
     /* split URI and resource / id --------------------------------------- */
 
-    if ( G_connections[ci].uri[0] )  /* if not empty */
+    if ( G_connections[G_ci].uri[0] )  /* if not empty */
     {
         /* cut the query string off */
 
         char uri[NPP_MAX_URI_LEN+1];
         int  uri_i=0;
-        while ( G_connections[ci].uri[uri_i] != EOS && G_connections[ci].uri[uri_i] != '?' )
+        while ( G_connections[G_ci].uri[uri_i] != EOS && G_connections[G_ci].uri[uri_i] != '?' )
         {
-            uri[uri_i] = G_connections[ci].uri[uri_i];
+            uri[uri_i] = G_connections[G_ci].uri[uri_i];
             ++uri_i;
         }
 
@@ -6454,44 +6459,44 @@ static int parse_req(int ci, int len)
         /* resource (REQ0) */
 
         if ( token )
-            COPY(G_connections[ci].resource, token, NPP_MAX_RESOURCE_LEN);
+            COPY(G_connections[G_ci].resource, token, NPP_MAX_RESOURCE_LEN);
         else
-            COPY(G_connections[ci].resource, uri, NPP_MAX_RESOURCE_LEN);
+            COPY(G_connections[G_ci].resource, uri, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 1
         /* REQ1 */
 
         if ( token && (token=strtok(NULL, slash)) )
         {
-            COPY(G_connections[ci].req1, token, NPP_MAX_RESOURCE_LEN);
+            COPY(G_connections[G_ci].path1, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 2
             /* REQ2 */
 
             if ( (token=strtok(NULL, slash)) )
             {
-                COPY(G_connections[ci].req2, token, NPP_MAX_RESOURCE_LEN);
+                COPY(G_connections[G_ci].path2, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 3
                 /* REQ3 */
 
                 if ( (token=strtok(NULL, slash)) )
                 {
-                    COPY(G_connections[ci].req3, token, NPP_MAX_RESOURCE_LEN);
+                    COPY(G_connections[G_ci].path3, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 4
                     /* REQ4 */
 
                     if ( (token=strtok(NULL, slash)) )
                     {
-                        COPY(G_connections[ci].req4, token, NPP_MAX_RESOURCE_LEN);
+                        COPY(G_connections[G_ci].path4, token, NPP_MAX_RESOURCE_LEN);
 
 #if NPP_RESOURCE_LEVELS > 5
                         /* REQ5 */
 
                         if ( (token=strtok(NULL, slash)) )
                         {
-                            COPY(G_connections[ci].req5, token, NPP_MAX_RESOURCE_LEN);
+                            COPY(G_connections[G_ci].path5, token, NPP_MAX_RESOURCE_LEN);
                         }
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
                     }
@@ -6506,7 +6511,7 @@ static int parse_req(int ci, int len)
         /* -------------------------------------------------------------- */
         /* REQ_ID for RESTful stuff */
 
-        char *last_slash = strrchr(G_connections[ci].uri, '/');
+        char *last_slash = strrchr(G_connections[G_ci].uri, '/');
 
         if ( last_slash )
         {
@@ -6515,58 +6520,58 @@ static int parse_req(int ci, int len)
             uri_i = 0;
 
             while ( *last_slash && *last_slash != '?' && uri_i < NPP_MAX_RESOURCE_LEN-1 )
-                G_connections[ci].id[uri_i++] = *last_slash++;
+                G_connections[G_ci].id[uri_i++] = *last_slash++;
 
-            G_connections[ci].id[uri_i] = EOS;
+            G_connections[G_ci].id[uri_i] = EOS;
         }
 
         /* -------------------------------------------------------------- */
 
 #ifdef NPP_DEBUG
-        DBG("REQ0 [%s]", G_connections[ci].resource);
+        DBG("REQ0 [%s]", G_connections[G_ci].resource);
 #if NPP_RESOURCE_LEVELS > 1
-        DBG("REQ1 [%s]", G_connections[ci].req1);
+        DBG("REQ1 [%s]", G_connections[G_ci].path1);
 #if NPP_RESOURCE_LEVELS > 2
-        DBG("REQ2 [%s]", G_connections[ci].req2);
+        DBG("REQ2 [%s]", G_connections[G_ci].path2);
 #if NPP_RESOURCE_LEVELS > 3
-        DBG("REQ3 [%s]", G_connections[ci].req3);
+        DBG("REQ3 [%s]", G_connections[G_ci].path3);
 #if NPP_RESOURCE_LEVELS > 4
-        DBG("REQ4 [%s]", G_connections[ci].req4);
+        DBG("REQ4 [%s]", G_connections[G_ci].path4);
 #if NPP_RESOURCE_LEVELS > 5
-        DBG("REQ5 [%s]", G_connections[ci].req5);
+        DBG("REQ5 [%s]", G_connections[G_ci].path5);
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
-        DBG("REQ_ID [%s]", G_connections[ci].id);
+        DBG("REQ_ID [%s]", G_connections[G_ci].id);
 #endif
         /* -------------------------------------------------------------- */
 
-        G_connections[ci].static_res = is_static_res(ci);    /* statics --> set the flag!!! */
-        /* now, it may have set G_connections[ci].status to 304 */
+        G_connections[G_ci].static_res = is_static_res();    /* statics --> set the flag!!! */
+        /* now, it may have set G_connections[G_ci].status to 304 */
 
-        if ( G_connections[ci].static_res != NPP_NOT_STATIC )    /* static resource */
-            G_connections[ci].out_data = M_statics[G_connections[ci].static_res].data;
+        if ( G_connections[G_ci].static_res != NPP_NOT_STATIC )    /* static resource */
+            G_connections[G_ci].out_data = M_statics[G_connections[G_ci].static_res].data;
     }
 
     /* -------------------------------------------------------------- */
     /* get the required authorization level for this resource */
 
-    if ( G_connections[ci].static_res == NPP_NOT_STATIC )
+    if ( G_connections[G_ci].static_res == NPP_NOT_STATIC )
     {
-        G_connections[ci].required_auth_level = find_auth_level(ci);
+        G_connections[G_ci].required_auth_level = find_auth_level();
 
         DDBG("Required authorization level = %d", M_auth_levels[i].level);
     }
     else    /* don't do any checks for static resources */
     {
-        G_connections[ci].required_auth_level = AUTH_LEVEL_NONE;
+        G_connections[G_ci].required_auth_level = AUTH_LEVEL_NONE;
     }
 
     /* ignore Range requests for now -------------------------------------------- */
 
-/*  if ( G_connections[ci].state == STATE_SENDING )
+/*  if ( G_connections[G_ci].state == STATE_SENDING )
     {
         DBG("state == STATE_SENDING, this request will be ignored");
         return 200;
@@ -6579,9 +6584,9 @@ static int parse_req(int ci, int len)
     if ( REQ_BOT )
         ++G_cnts_today.req_bot;
 
-    if ( G_connections[ci].ua_type == NPP_UA_TYPE_MOB )
+    if ( G_connections[G_ci].ua_type == NPP_UA_TYPE_MOB )
         ++G_cnts_today.req_mob;
-    else if ( G_connections[ci].ua_type == NPP_UA_TYPE_TAB )
+    else if ( G_connections[G_ci].ua_type == NPP_UA_TYPE_TAB )
         ++G_cnts_today.req_tab;
     else    /* desktop */
         ++G_cnts_today.req_dsk;
@@ -6589,7 +6594,7 @@ static int parse_req(int ci, int len)
     /* Block IP? ---------------------------------------------------------------- */
 
 #ifdef NPP_BLACKLIST_AUTO_UPDATE
-        if ( check_block_ip(ci, "Resource", G_connections[ci].resource) )
+        if ( check_block_ip("Resource", G_connections[G_ci].resource) )
             return 404;     /* Forbidden */
 #endif
 
@@ -6684,49 +6689,49 @@ static int parse_req(int ci, int len)
 #ifdef NPP_HTTPS
 
 #ifdef NPP_HSTS_ON
-        if ( !NPP_CONN_IS_SECURE(G_connections[ci].flags) )
+        if ( !NPP_CONN_IS_SECURE(G_connections[G_ci].flags) )
         {
             DDBG("Redirecting due to HSTS");
 #ifdef NPP_DOMAIN_ONLY
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("https://%s/%s", NPP_APP_DOMAIN, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("https://%s/%s", NPP_APP_DOMAIN, G_connections[G_ci].uri);
             else
                 RES_LOCATION("https://%s", NPP_APP_DOMAIN);
 #else
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("https://%s/%s", G_connections[ci].host, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("https://%s/%s", G_connections[G_ci].host, G_connections[G_ci].uri);
             else
-                RES_LOCATION("https://%s", G_connections[ci].host);
+                RES_LOCATION("https://%s", G_connections[G_ci].host);
 #endif
             return 301;
         }
 #endif  /* NPP_HSTS_ON */
 
-        if ( !NPP_CONN_IS_SECURE(G_connections[ci].flags) && NPP_CONN_IS_UPGRADE_TO_HTTPS(G_connections[ci].flags) )
+        if ( !NPP_CONN_IS_SECURE(G_connections[G_ci].flags) && NPP_CONN_IS_UPGRADE_TO_HTTPS(G_connections[G_ci].flags) )
         {
             DDBG("Redirecting due to upgrade2https");
 
 #ifdef NPP_DOMAIN_ONLY
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("https://%s/%s", NPP_APP_DOMAIN, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("https://%s/%s", NPP_APP_DOMAIN, G_connections[G_ci].uri);
             else
                 RES_LOCATION("https://%s", NPP_APP_DOMAIN);
 #else
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("https://%s/%s", G_connections[ci].host, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("https://%s/%s", G_connections[G_ci].host, G_connections[G_ci].uri);
             else
-                RES_LOCATION("https://%s", G_connections[ci].host);
+                RES_LOCATION("https://%s", G_connections[G_ci].host);
 #endif
             return 301;
         }
 
 #ifdef NPP_DOMAIN_ONLY
-        if ( 0 != strcmp(G_connections[ci].host, NPP_APP_DOMAIN) )
+        if ( 0 != strcmp(G_connections[G_ci].host, NPP_APP_DOMAIN) )
         {
             DDBG("Redirecting due to NPP_DOMAIN_ONLY");
 
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("%s://%s/%s", NPP_PROTOCOL, NPP_APP_DOMAIN, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("%s://%s/%s", NPP_PROTOCOL, NPP_APP_DOMAIN, G_connections[G_ci].uri);
             else
                 RES_LOCATION("%s://%s", NPP_PROTOCOL, NPP_APP_DOMAIN);
 
@@ -6737,12 +6742,12 @@ static int parse_req(int ci, int len)
 #else   /* not HTTPS */
 
 #ifdef NPP_DOMAIN_ONLY
-        if ( 0 != strcmp(G_connections[ci].host, NPP_APP_DOMAIN) )
+        if ( 0 != strcmp(G_connections[G_ci].host, NPP_APP_DOMAIN) )
         {
             DDBG("Redirecting due to NPP_DOMAIN_ONLY");
 
-            if ( G_connections[ci].uri[0] )
-                RES_LOCATION("http://%s/%s", NPP_APP_DOMAIN, G_connections[ci].uri);
+            if ( G_connections[G_ci].uri[0] )
+                RES_LOCATION("http://%s/%s", NPP_APP_DOMAIN, G_connections[G_ci].uri);
             else
                 RES_LOCATION("http://%s", NPP_APP_DOMAIN);
 
@@ -6756,7 +6761,7 @@ static int parse_req(int ci, int len)
 
     /* handle the POST content -------------------------------------------------- */
 
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen > 0 )
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 )
     {
         /* i = number of request characters read so far */
 
@@ -6767,41 +6772,41 @@ static int parse_req(int ci, int len)
         else    /* was "\n\n" */
             p_hend += 2;
 
-        len = G_connections[ci].in+len - p_hend;   /* remaining request length -- likely a content */
+        len = G_connections[G_ci].in+len - p_hend;   /* remaining request length -- likely a content */
 
         DDBG("Remaining request length (content) = %d", len);
 
-        if ( (unsigned)len > G_connections[ci].clen )
+        if ( (unsigned)len > G_connections[G_ci].clen )
             return 400;     /* Bad Request */
 
-        /* copy so far received payload data from G_connections[ci].in to G_connections[ci].in_data */
+        /* copy so far received payload data from G_connections[G_ci].in to G_connections[G_ci].in_data */
 
-        if ( NULL == (G_connections[ci].in_data=(char*)malloc(G_connections[ci].clen+1)) )
+        if ( NULL == (G_connections[G_ci].in_data=(char*)malloc(G_connections[G_ci].clen+1)) )
         {
-            ERR("Couldn't allocate %u bytes for payload data", G_connections[ci].clen);
+            ERR("Couldn't allocate %u bytes for payload data", G_connections[G_ci].clen);
             return 500;     /* Internal Sever Error */
         }
 
-        memcpy(G_connections[ci].in_data, p_hend, len);
-        G_connections[ci].was_read = len;    /* if POST then was_read applies to data section only! */
+        memcpy(G_connections[G_ci].in_data, p_hend, len);
+        G_connections[G_ci].was_read = len;    /* if POST then was_read applies to data section only! */
 
-        if ( (unsigned)len < G_connections[ci].clen )      /* the whole content not received yet */
+        if ( (unsigned)len < G_connections[G_ci].clen )      /* the whole content not received yet */
         {                               /* this is the only case when state != received */
             DBG("The whole content not received yet, len=%d", len);
 
-            DDBG("ci=%d, changing state to CONN_STATE_READING_DATA", ci);
-            G_connections[ci].state = CONN_STATE_READING_DATA;
+            DDBG("ci=%d, changing state to CONN_STATE_READING_DATA", G_ci);
+            G_connections[G_ci].state = CONN_STATE_READING_DATA;
 
             return ret;
         }
         else    /* the whole content received with the header at once */
         {
-            G_connections[ci].in_data[len] = EOS;
+            G_connections[G_ci].in_data[len] = EOS;
             DBG("Payload received with header");
         }
     }
 
-    if ( G_connections[ci].status == 304 )   /* Not Modified */
+    if ( G_connections[G_ci].status == 304 )   /* Not Modified */
         return 304;
     else
         return ret;
@@ -6894,7 +6899,7 @@ static int base64url_decode(unsigned char *dst, const char *src)
    Caller is responsible for ensuring value length > 0
    Return HTTP status code
 -------------------------------------------------------------------------- */
-static int set_http_req_val(int ci, const char *label, const char *value)
+static int set_http_req_val(const char *label, const char *value)
 {
     char ulabel[NPP_MAX_LABEL_LEN+1];
     char uvalue[NPP_MAX_VALUE_LEN+1];
@@ -6914,17 +6919,17 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     {
 #ifdef NPP_BLACKLIST_AUTO_UPDATE
 #ifdef NPP_ENABLE_RELOAD_CONF
-        if ( !NPP_VALID_RELOAD_CONF_REQUEST && check_block_ip(ci, "Host", value) )
+        if ( !NPP_VALID_RELOAD_CONF_REQUEST && check_block_ip("Host", value) )
 #else
-        if ( check_block_ip(ci, "Host", value) )
+        if ( check_block_ip("Host", value) )
 #endif
             return 404;     /* Forbidden */
 #endif  /* NPP_BLACKLIST_AUTO_UPDATE */
-        COPY(G_connections[ci].host, value, NPP_MAX_HOST_LEN);
+        COPY(G_connections[G_ci].host, value, NPP_MAX_HOST_LEN);
 
 #ifdef NPP_MULTI_HOST
 
-        DDBG("Host before normalization [%s]", G_connections[ci].host);
+        DDBG("Host before normalization [%s]", G_connections[G_ci].host);
 
         /* normalize for comparisons */
 
@@ -6934,71 +6939,71 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         int dots = 0;
         int first_dot;
 
-        while ( G_connections[ci].host[i] )
+        while ( G_connections[G_ci].host[i] )
         {
-            if ( G_connections[ci].host[i] == '.' )
+            if ( G_connections[G_ci].host[i] == '.' )
             {
                 if ( !dots )
                     first_dot = i;
 
                 ++dots;
 
-                G_connections[ci].host_normalized[i] = '.';
+                G_connections[G_ci].host_normalized[i] = '.';
             }
-            else if ( G_connections[ci].host[i] == ':' )
+            else if ( G_connections[G_ci].host[i] == ':' )
             {
                 break;
             }
             else
             {
-                G_connections[ci].host_normalized[i] = toupper(G_connections[ci].host[i]);
+                G_connections[G_ci].host_normalized[i] = toupper(G_connections[G_ci].host[i]);
             }
 
             ++i;
         }
 
-        G_connections[ci].host_normalized[i] = EOS;
+        G_connections[G_ci].host_normalized[i] = EOS;
 
-        if ( dots > 1 && !isdigit(G_connections[ci].host_normalized[i-1]) )
+        if ( dots > 1 && !isdigit(G_connections[G_ci].host_normalized[i-1]) )
         {
-            DDBG("Need to cut subdomain off [%s]", G_connections[ci].host_normalized);
+            DDBG("Need to cut subdomain off [%s]", G_connections[G_ci].host_normalized);
 
             i = first_dot + 1;
             int j=0;
 
-            while ( G_connections[ci].host[i] )
+            while ( G_connections[G_ci].host[i] )
             {
-                if ( G_connections[ci].host[i] == ':' ) break;
+                if ( G_connections[G_ci].host[i] == ':' ) break;
 
-                G_connections[ci].host_normalized[j++] = toupper(G_connections[ci].host[i]);
+                G_connections[G_ci].host_normalized[j++] = toupper(G_connections[G_ci].host[i]);
 
                 ++i;
             }
 
-            G_connections[ci].host_normalized[j] = EOS;
+            G_connections[G_ci].host_normalized[j] = EOS;
         }
 
-        DDBG("host_normalized [%s]", G_connections[ci].host_normalized);
+        DDBG("host_normalized [%s]", G_connections[G_ci].host_normalized);
 
 #endif  /* NPP_MULTI_HOST */
     }
     else if ( 0==strcmp(ulabel, "USER-AGENT") )
     {
 #ifdef NPP_BLACKLIST_AUTO_UPDATE
-        if ( check_block_ip(ci, "User-Agent", value) )
+        if ( check_block_ip("User-Agent", value) )
             return 404;     /* Forbidden */
 #endif
-        strcpy(G_connections[ci].uagent, value);
+        strcpy(G_connections[G_ci].uagent, value);
         strcpy(uvalue, npp_upper(value));
 
         if ( strstr(uvalue, "IPAD") || strstr(uvalue, "TABLET") || strstr(uvalue, "KINDLE") || strstr(uvalue, "PLAYBOOK") || strstr(uvalue, "SM-T555") )
         {
-            G_connections[ci].ua_type = NPP_UA_TYPE_TAB;
+            G_connections[G_ci].ua_type = NPP_UA_TYPE_TAB;
             DBG("ua_type = NPP_UA_TYPE_TAB");
         }
         else if ( strstr(uvalue, "ANDROID") || strstr(uvalue, "IPHONE") || strstr(uvalue, "BLACKBERRY") || strstr(uvalue, "MOBILE") || strstr(uvalue, "SYMBIAN") )
         {
-            G_connections[ci].ua_type = NPP_UA_TYPE_MOB;
+            G_connections[G_ci].ua_type = NPP_UA_TYPE_MOB;
             DBG("ua_type = NPP_UA_TYPE_MOB");
         }
         else
@@ -7027,22 +7032,22 @@ static int set_http_req_val(int ci, const char *label, const char *value)
                 || 0==strcmp(uvalue, "TELESPHOREO")
                 || 0==strcmp(uvalue, "MAGIC BROWSER")) )
         {
-            G_connections[ci].flags |= NPP_CONN_FLAG_BOT;
+            G_connections[G_ci].flags |= NPP_CONN_FLAG_BOT;
         }
 #endif  /* NPP_DONT_FLAG_BOTS */
     }
     else if ( 0==strcmp(ulabel, "CONNECTION") )
     {
-        if ( ci < NPP_MAX_CONNECTIONS )
+        if ( G_ci < NPP_MAX_CONNECTIONS )
         {
             strcpy(uvalue, npp_upper(value));
             if ( 0==strcmp(uvalue, "KEEP-ALIVE") )
-                G_connections[ci].flags |= NPP_CONN_FLAG_KEEP_ALIVE;
+                G_connections[G_ci].flags |= NPP_CONN_FLAG_KEEP_ALIVE;
         }
     }
     else if ( 0==strcmp(ulabel, "COOKIE") )
     {
-        strcpy(G_connections[ci].in_cookie, value);
+        strcpy(G_connections[G_ci].in_cookie, value);
 
         /* parse authentication data */
 
@@ -7055,8 +7060,8 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             p += 3;
             if ( strlen(p) >= NPP_SESSID_LEN )
             {
-                strncpy(G_connections[ci].cookie_in_a, p, NPP_SESSID_LEN);
-                G_connections[ci].cookie_in_a[NPP_SESSID_LEN] = EOS;
+                strncpy(G_connections[G_ci].cookie_in_a, p, NPP_SESSID_LEN);
+                G_connections[G_ci].cookie_in_a[NPP_SESSID_LEN] = EOS;
             }
         }
         if ( NULL != (p=(char*)strstr(value, "ls=")) )   /* logged in sessid present? */
@@ -7064,18 +7069,18 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             p += 3;
             if ( strlen(p) >= NPP_SESSID_LEN )
             {
-                strncpy(G_connections[ci].cookie_in_l, p, NPP_SESSID_LEN);
-                G_connections[ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
+                strncpy(G_connections[G_ci].cookie_in_l, p, NPP_SESSID_LEN);
+                G_connections[G_ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
             }
         }
     }
     else if ( 0==strcmp(ulabel, "REFERER") )
     {
-        strcpy(G_connections[ci].referer, value);
+        strcpy(G_connections[G_ci].referer, value);
     }
     else if ( 0==strcmp(ulabel, "CONTENT-TYPE") )
     {
-        strcpy(G_connections[ci].in_ctypestr, value);
+        strcpy(G_connections[G_ci].in_ctypestr, value);
 
         strcpy(uvalue, npp_upper(value));
 
@@ -7083,57 +7088,57 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         if ( len > 15 && 0==strncmp(uvalue, "APPLICATION/JSON", 16) )
         {
-            G_connections[ci].in_ctype = NPP_CONTENT_TYPE_JSON;
+            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_JSON;
         }
         else if ( len > 32 && 0==strncmp(uvalue, "APPLICATION/X-WWW-FORM-URLENCODED", 33) )
         {
-            G_connections[ci].in_ctype = NPP_CONTENT_TYPE_URLENCODED;
+            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_URLENCODED;
         }
         else if ( len > 18 && 0==strncmp(uvalue, "MULTIPART/FORM-DATA", 19) )
         {
-            G_connections[ci].in_ctype = NPP_CONTENT_TYPE_MULTIPART;
+            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_MULTIPART;
 
             if ( (p=(char*)strstr(value, "boundary=")) != NULL )
             {
-                COPY(G_connections[ci].boundary, p+9, NPP_MAX_BOUNDARY_LEN);
-                DBG("boundary: [%s]", G_connections[ci].boundary);
+                COPY(G_connections[G_ci].boundary, p+9, NPP_MAX_BOUNDARY_LEN);
+                DBG("boundary: [%s]", G_connections[G_ci].boundary);
             }
         }
         else if ( len > 23 && 0==strncmp(uvalue, "APPLICATION/OCTET-STREAM", 24) )
         {
-            G_connections[ci].in_ctype = NPP_CONTENT_TYPE_OCTET_STREAM;
+            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_OCTET_STREAM;
         }
     }
     else if ( 0==strcmp(ulabel, "AUTHORIZATION") )
     {
-        strcpy(G_connections[ci].authorization, value);
+        strcpy(G_connections[G_ci].authorization, value);
     }
 #ifndef NPP_DONT_FLAG_BOTS
     else if ( 0==strcmp(ulabel, "FROM") )
     {
         strcpy(uvalue, npp_upper(value));
         if ( !REQ_BOT && (strstr(uvalue, "GOOGLEBOT") || strstr(uvalue, "BINGBOT") || strstr(uvalue, "YANDEX") || strstr(uvalue, "CRAWLER")) )
-            G_connections[ci].flags |= NPP_CONN_FLAG_BOT;
+            G_connections[G_ci].flags |= NPP_CONN_FLAG_BOT;
     }
 #endif  /* NPP_DONT_FLAG_BOTS */
     else if ( 0==strcmp(ulabel, "IF-MODIFIED-SINCE") )
     {
-        G_connections[ci].if_mod_since = time_http2epoch(value);
+        G_connections[G_ci].if_mod_since = time_http2epoch(value);
     }
-    else if ( !NPP_CONN_IS_SECURE(G_connections[ci].flags) && !G_test && 0==strcmp(ulabel, "UPGRADE-INSECURE-REQUESTS") && 0==strcmp(value, "1") )
+    else if ( !NPP_CONN_IS_SECURE(G_connections[G_ci].flags) && !G_test && 0==strcmp(ulabel, "UPGRADE-INSECURE-REQUESTS") && 0==strcmp(value, "1") )
     {
         DBG("Client wants to upgrade to HTTPS");
-        G_connections[ci].flags |= NPP_CONN_FLAG_UPGRADE_TO_HTTPS;
+        G_connections[G_ci].flags |= NPP_CONN_FLAG_UPGRADE_TO_HTTPS;
     }
     else if ( 0==strcmp(ulabel, "CONTENT-LENGTH") )
     {
-        sscanf(value, "%u", &G_connections[ci].clen);
-        if ( (!NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen >= NPP_IN_BUFSIZE) || (NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen >= NPP_MAX_PAYLOAD_SIZE-1) )
+        sscanf(value, "%u", &G_connections[G_ci].clen);
+        if ( (!NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen >= NPP_IN_BUFSIZE) || (NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen >= NPP_MAX_PAYLOAD_SIZE-1) )
         {
-            ERR("Request too long, clen = %u, sending 413", G_connections[ci].clen);
+            ERR("Request too long, clen = %u, sending 413", G_connections[G_ci].clen);
             return 413;
         }
-        DBG("G_connections[ci].clen = %u", G_connections[ci].clen);
+        DBG("G_connections[G_ci].clen = %u", G_connections[G_ci].clen);
     }
     else if ( 0==strcmp(ulabel, "ACCEPT-ENCODING") )    /* gzip, deflate, br */
     {
@@ -7141,7 +7146,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
 
         if ( strstr(uvalue, "DEFLATE") )
         {
-            G_connections[ci].flags |= NPP_CONN_FLAG_ACCEPT_DEFLATE;
+            G_connections[G_ci].flags |= NPP_CONN_FLAG_ACCEPT_DEFLATE;
             DDBG("accept_deflate = TRUE");
         }
     }
@@ -7150,30 +7155,30 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         i = 0;
         while ( value[i] != EOS && value[i] != ',' && value[i] != ';' && i < NPP_LANG_LEN )
         {
-            G_connections[ci].lang[i] = toupper(value[i]);
+            G_connections[G_ci].lang[i] = toupper(value[i]);
             ++i;
         }
 
-        G_connections[ci].lang[i] = EOS;
+        G_connections[G_ci].lang[i] = EOS;
 
-        DBG("G_connections[ci].lang [%s]", G_connections[ci].lang);
+        DBG("G_connections[G_ci].lang [%s]", G_connections[G_ci].lang);
 
-        if ( IS_SESSION && G_connections[ci].lang[0] && strcmp(SESSION.lang, G_connections[ci].lang) != 0 )
+        if ( IS_SESSION && G_connections[G_ci].lang[0] && strcmp(SESSION.lang, G_connections[G_ci].lang) != 0 )
         {
-            DBG("Changing session language to [%s] and setting formats", G_connections[ci].lang);
+            DBG("Changing session language to [%s] and setting formats", G_connections[G_ci].lang);
 
-            npp_lib_set_formats(ci, G_connections[ci].lang);
-            strcpy(SESSION.lang, G_connections[ci].lang);
+            npp_lib_set_formats(G_connections[G_ci].lang);
+            strcpy(SESSION.lang, G_connections[G_ci].lang);
         }
 
         if ( !IS_SESSION || SESSION.lang[0]==EOS )    /* session data has priority */
         {
             DDBG("No session or no language in session, setting formats");
 
-            if ( G_connections[ci].lang[0] )
+            if ( G_connections[G_ci].lang[0] )
             {
-                npp_lib_set_formats(ci, G_connections[ci].lang);
-                strcpy(SESSION.lang, G_connections[ci].lang);
+                npp_lib_set_formats(G_connections[G_ci].lang);
+                strcpy(SESSION.lang, G_connections[G_ci].lang);
             }
         }
     }
@@ -7183,7 +7188,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
         if ( strcmp(value, "h2c") == 0 )
         {
             INF("Client wants to switch to HTTP/2 (cleartext)");
-            G_connections[ci].http2_upgrade_in_progress = TRUE;
+            G_connections[G_ci].http2_upgrade_in_progress = TRUE;
 //            return 101;     /* Switching Protocols */
         }
     }
@@ -7212,17 +7217,17 @@ static int set_http_req_val(int ci, const char *label, const char *value)
             if ( s.id == HTTP2_SETTINGS_MAX_CONCURRENT_STREAMS )
             {
                 DBG("http2_max_streams = %u", s.value);
-                G_connections[ci].http2_max_streams = s.value;
+                G_connections[G_ci].http2_max_streams = s.value;
             }
             else if ( s.id == HTTP2_SETTINGS_INITIAL_WINDOW_SIZE )
             {
                 DBG("http2_wnd_size = %u", s.value);
-                G_connections[ci].http2_wnd_size = s.value;
+                G_connections[G_ci].http2_wnd_size = s.value;
             }
             else if ( s.id == HTTP2_SETTINGS_MAX_FRAME_SIZE )
             {
                 DBG("http2_max_frame_size = %u", s.value);
-                G_connections[ci].http2_max_frame_size = s.value;
+                G_connections[G_ci].http2_max_frame_size = s.value;
             }
             else
             {
@@ -7236,7 +7241,7 @@ static int set_http_req_val(int ci, const char *label, const char *value)
     else if ( 0==strcmp(ulabel, "EXPECT") )
     {
         if ( 0==strcmp(value, "100-continue") )
-            G_connections[ci].expect100 = TRUE;
+            G_connections[G_ci].expect100 = TRUE;
     }
 
     return 200;
@@ -7348,13 +7353,13 @@ static void sigdisp(int sig)
 /* --------------------------------------------------------------------------
    Generic message page
 -------------------------------------------------------------------------- */
-static void render_page_msg(int ci, int code)
+static void render_page_msg(int code)
 {
     DBG("render_page_msg");
 
 #ifdef NPP_APP_CUSTOM_MESSAGE_PAGE
 
-    npp_app_custom_message_page(ci, code);
+    npp_app_custom_message_page(code);
 
 #else
 
@@ -7478,7 +7483,7 @@ void npp_require_auth(const char *host, const char *path, char level)
 /* --------------------------------------------------------------------------
    Start new anonymous user session
 -------------------------------------------------------------------------- */
-int npp_eng_session_start(int ci, const char *sessid)
+int npp_eng_session_start(const char *sessid)
 {
     DBG("npp_eng_session_start");
 
@@ -7490,7 +7495,7 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     ++G_sessions_cnt;   /* start from 1 */
 
-    G_connections[ci].si = M_first_free_si;
+    G_connections[G_ci].si = M_first_free_si;
 
     /* -------------------------------------------- */
 
@@ -7506,23 +7511,23 @@ int npp_eng_session_start(int ci, const char *sessid)
     }
 
 #ifdef NPP_DEBUG
-    INF("ci=%d, starting new session, si=%d, sessid [%s]", ci, G_connections[ci].si, new_sessid);
+    INF("ci=%d, starting new session, si=%d, sessid [%s]", G_ci, G_connections[G_ci].si, new_sessid);
 #else
-    INF("ci=%d, starting new session, si=%d", ci, G_connections[ci].si);
+    INF("ci=%d, starting new session, si=%d", G_ci, G_connections[G_ci].si);
 #endif
 
     /* -------------------------------------------- */
     /* add record to G_sessions */
 
 #ifdef NPP_MULTI_HOST
-    SESSION.host_id = G_connections[ci].host_id;
+    SESSION.host_id = G_connections[G_ci].host_id;
 #endif
     strcpy(SESSION.sessid, new_sessid);
-    strcpy(SESSION.ip, G_connections[ci].ip);
-    strcpy(SESSION.uagent, G_connections[ci].uagent);
-    strcpy(SESSION.referer, G_connections[ci].referer);
-    strcpy(SESSION.lang, G_connections[ci].lang);
-    SESSION.formats = G_connections[ci].formats;
+    strcpy(SESSION.ip, G_connections[G_ci].ip);
+    strcpy(SESSION.uagent, G_connections[G_ci].uagent);
+    strcpy(SESSION.referer, G_connections[G_ci].referer);
+    strcpy(SESSION.lang, G_connections[G_ci].lang);
+    SESSION.formats = G_connections[G_ci].formats;
 
     /* -------------------------------------------- */
     /* generate CSRF token */
@@ -7539,7 +7544,7 @@ int npp_eng_session_start(int ci, const char *sessid)
     /* update sessions index */
 
 #ifdef NPP_MULTI_HOST
-    G_sessions_idx[G_sessions_cnt-1].host_id = G_connections[ci].host_id;
+    G_sessions_idx[G_sessions_cnt-1].host_id = G_connections[G_ci].host_id;
 #endif
     memcpy(&G_sessions_idx[G_sessions_cnt-1].sessid, new_sessid, NPP_SESSID_LEN+1);
     G_sessions_idx[G_sessions_cnt-1].si = M_first_free_si;
@@ -7583,17 +7588,17 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     DBG("Calling npp_app_session_init...");
 
-    if ( !npp_app_session_init(ci) )
+    if ( !npp_app_session_init() )
     {
         ERR("npp_app_session_init failed");
-        close_uses(G_connections[ci].si, ci);
+        close_uses(G_connections[G_ci].si, G_ci);
         return ERR_INT_SERVER_ERROR;
     }
 
     /* -------------------------------------------- */
     /* set 'as' cookie */
 
-    strcpy(G_connections[ci].cookie_out_a, new_sessid);
+    strcpy(G_connections[G_ci].cookie_out_a, new_sessid);
 
     DBG("%d session(s)", G_sessions_cnt);
 
@@ -7636,7 +7641,7 @@ void npp_eng_session_downgrade_by_uid(int user_id, int ci)
 /* --------------------------------------------------------------------------
    Send asynchronous request
 -------------------------------------------------------------------------- */
-bool npp_eng_call_async(int ci, const char *service, const char *data, bool want_response, int timeout, int size)
+bool npp_eng_call_async(const char *service, const char *data, bool want_response, int timeout, int size)
 {
 #ifdef NPP_ASYNC
 
@@ -7656,53 +7661,53 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
     /* G_connections */
 
-    strcpy(req.hdr.ip, G_connections[ci].ip);
-    strcpy(req.hdr.method, G_connections[ci].method);
-    strcpy(req.hdr.uri, G_connections[ci].uri);
-    strcpy(req.hdr.resource, G_connections[ci].resource);
+    strcpy(req.hdr.ip, G_connections[G_ci].ip);
+    strcpy(req.hdr.method, G_connections[G_ci].method);
+    strcpy(req.hdr.uri, G_connections[G_ci].uri);
+    strcpy(req.hdr.resource, G_connections[G_ci].resource);
 #if NPP_RESOURCE_LEVELS > 1
-    strcpy(req.hdr.req1, G_connections[ci].req1);
+    strcpy(req.hdr.path1, G_connections[G_ci].path1);
 #if NPP_RESOURCE_LEVELS > 2
-    strcpy(req.hdr.req2, G_connections[ci].req2);
+    strcpy(req.hdr.path2, G_connections[G_ci].path2);
 #if NPP_RESOURCE_LEVELS > 3
-    strcpy(req.hdr.req3, G_connections[ci].req3);
+    strcpy(req.hdr.path3, G_connections[G_ci].path3);
 #if NPP_RESOURCE_LEVELS > 4
-    strcpy(req.hdr.req4, G_connections[ci].req4);
+    strcpy(req.hdr.path4, G_connections[G_ci].path4);
 #if NPP_RESOURCE_LEVELS > 5
-    strcpy(req.hdr.req5, G_connections[ci].req5);
+    strcpy(req.hdr.path5, G_connections[G_ci].path5);
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
 #endif  /* NPP_RESOURCE_LEVELS > 2 */
 #endif  /* NPP_RESOURCE_LEVELS > 1 */
-    strcpy(req.hdr.id, G_connections[ci].id);
-    strcpy(req.hdr.uagent, G_connections[ci].uagent);
-    req.hdr.ua_type = G_connections[ci].ua_type;
-    strcpy(req.hdr.referer, G_connections[ci].referer);
-    req.hdr.clen = G_connections[ci].clen;
-    strcpy(req.hdr.in_cookie, G_connections[ci].in_cookie);
-    strcpy(req.hdr.host, G_connections[ci].host);
+    strcpy(req.hdr.id, G_connections[G_ci].id);
+    strcpy(req.hdr.uagent, G_connections[G_ci].uagent);
+    req.hdr.ua_type = G_connections[G_ci].ua_type;
+    strcpy(req.hdr.referer, G_connections[G_ci].referer);
+    req.hdr.clen = G_connections[G_ci].clen;
+    strcpy(req.hdr.in_cookie, G_connections[G_ci].in_cookie);
+    strcpy(req.hdr.host, G_connections[G_ci].host);
 #ifdef NPP_MULTI_HOST
-    strcpy(req.hdr.host_normalized, G_connections[ci].host_normalized);
-    req.hdr.host_id = G_connections[ci].host_id;
+    strcpy(req.hdr.host_normalized, G_connections[G_ci].host_normalized);
+    req.hdr.host_id = G_connections[G_ci].host_id;
 #endif
-    strcpy(req.hdr.app_name, G_connections[ci].app_name);
-    strcpy(req.hdr.lang, G_connections[ci].lang);
-    req.hdr.in_ctype = G_connections[ci].in_ctype;
-    strcpy(req.hdr.boundary, G_connections[ci].boundary);
-    req.hdr.status = G_connections[ci].status;
-    strcpy(req.hdr.cust_headers, G_connections[ci].cust_headers);
-    req.hdr.cust_headers_len = G_connections[ci].cust_headers_len;
-    req.hdr.out_ctype = G_connections[ci].out_ctype;
-    strcpy(req.hdr.ctypestr, G_connections[ci].ctypestr);
-    strcpy(req.hdr.cdisp, G_connections[ci].cdisp);
-    strcpy(req.hdr.cookie_out_a, G_connections[ci].cookie_out_a);
-    strcpy(req.hdr.cookie_out_a_exp, G_connections[ci].cookie_out_a_exp);
-    strcpy(req.hdr.cookie_out_l, G_connections[ci].cookie_out_l);
-    strcpy(req.hdr.cookie_out_l_exp, G_connections[ci].cookie_out_l_exp);
-    strcpy(req.hdr.location, G_connections[ci].location);
-    req.hdr.si = G_connections[ci].si;
-    req.hdr.flags = G_connections[ci].flags;
+    strcpy(req.hdr.app_name, G_connections[G_ci].app_name);
+    strcpy(req.hdr.lang, G_connections[G_ci].lang);
+    req.hdr.in_ctype = G_connections[G_ci].in_ctype;
+    strcpy(req.hdr.boundary, G_connections[G_ci].boundary);
+    req.hdr.status = G_connections[G_ci].status;
+    strcpy(req.hdr.cust_headers, G_connections[G_ci].cust_headers);
+    req.hdr.cust_headers_len = G_connections[G_ci].cust_headers_len;
+    req.hdr.out_ctype = G_connections[G_ci].out_ctype;
+    strcpy(req.hdr.ctypestr, G_connections[G_ci].ctypestr);
+    strcpy(req.hdr.cdisp, G_connections[G_ci].cdisp);
+    strcpy(req.hdr.cookie_out_a, G_connections[G_ci].cookie_out_a);
+    strcpy(req.hdr.cookie_out_a_exp, G_connections[G_ci].cookie_out_a_exp);
+    strcpy(req.hdr.cookie_out_l, G_connections[G_ci].cookie_out_l);
+    strcpy(req.hdr.cookie_out_l_exp, G_connections[G_ci].cookie_out_l_exp);
+    strcpy(req.hdr.location, G_connections[G_ci].location);
+    req.hdr.si = G_connections[G_ci].si;
+    req.hdr.flags = G_connections[G_ci].flags;
 
     if ( want_response )
         req.hdr.async_flags = NPP_ASYNC_FLAG_WANT_RESPONSE;
@@ -7712,13 +7717,13 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
     /* For POST, the payload can be in the data space of the message,
        or -- if it's bigger -- in the shared memory */
 
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) && G_connections[ci].clen > 0 )
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 )
     {
-        if ( G_connections[ci].clen < G_async_req_data_size )
+        if ( G_connections[G_ci].clen < G_async_req_data_size )
         {
-            DBG("Payload (%u) fits in msg (data size: %u)", G_connections[ci].clen, G_async_req_data_size);
+            DBG("Payload (%u) fits in msg (data size: %u)", G_connections[G_ci].clen, G_async_req_data_size);
 
-            memcpy(req.data, G_connections[ci].in_data, G_connections[ci].clen+1);
+            memcpy(req.data, G_connections[G_ci].in_data, G_connections[G_ci].clen+1);
         }
         else    /* shared memory */
         {
@@ -7750,7 +7755,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
             if ( M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] == 0 )   /* free */
             {
-                memcpy(M_async_shm, G_connections[ci].in_data, G_connections[ci].clen+1);
+                memcpy(M_async_shm, G_connections[G_ci].in_data, G_connections[G_ci].clen+1);
                 M_async_shm[NPP_MAX_PAYLOAD_SIZE-1] = 1;
                 req.hdr.async_flags |= NPP_ASYNC_FLAG_PAYLOAD_IN_SHM;
             }
@@ -7826,16 +7831,16 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
             /* set request state */
 
             DDBG("ci=%d, changing state to CONN_STATE_WAITING_FOR_ASYNC", ci);
-            G_connections[ci].state = CONN_STATE_WAITING_FOR_ASYNC;
+            G_connections[G_ci].state = CONN_STATE_WAITING_FOR_ASYNC;
 
 #ifdef NPP_FD_MON_POLL
-            M_pollfds[G_connections[ci].pi].events = POLLOUT;
+            M_pollfds[G_connections[G_ci].pi].events = POLLOUT;
 #endif
 
 #ifdef NPP_FD_MON_EPOLL
             struct epoll_event ev={0};
 
-            ev.data.fd = G_connections[ci].fd;
+            ev.data.fd = G_connections[G_ci].fd;
             ev.events = EPOLLOUT | EPOLLET;
             epoll_ctl(M_epoll_fd, EPOLL_CTL_MOD, ev.data.fd, &ev);
 #endif
@@ -7849,7 +7854,7 @@ bool npp_eng_call_async(int ci, const char *service, const char *data, bool want
 
     if ( found || !want_response )
     {
-        DBG("Sending a message on behalf of ci=%d, call_id=%u, service [%s]", ci, req.hdr.call_id, req.hdr.service);
+        DBG("Sending a message on behalf of ci=%d, call_id=%u, service [%s]", G_ci, req.hdr.call_id, req.hdr.service);
         if ( mq_send(G_queue_req, (char*)&req, NPP_ASYNC_REQ_MSG_SIZE, 0) != 0 )
         {
             ERR("mq_send failed, errno = %d (%s)", errno, strerror(errno));
@@ -8060,7 +8065,7 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
            | logout      | T
            | logout?qs=1 | T
 -------------------------------------------------------------------------- */
-bool npp_eng_is_uri(int ci, const char *uri)
+bool npp_eng_is_uri(const char *uri)
 {
     const char *u = uri;
 
@@ -8072,7 +8077,7 @@ bool npp_eng_is_uri(int ci, const char *uri)
     if ( *(u+len-1) == '*' )
     {
         len--;
-        return (0==strncmp(G_connections[ci].uri, u, len));
+        return (0==strncmp(G_connections[G_ci].uri, u, len));
     }
     else if ( len > 4
                         && *(u+len-4)=='{'
@@ -8081,43 +8086,43 @@ bool npp_eng_is_uri(int ci, const char *uri)
                         && *(u+len-1)=='}' )
     {
         len -= 4;
-        return (0==strncmp(G_connections[ci].uri, u, len));
+        return (0==strncmp(G_connections[G_ci].uri, u, len));
     }
 
     /* ------------------------------------------------------------------- */
     /* no wildcard ==> exact match is required, but excluding query string */
 
-    char *q = strchr(G_connections[ci].uri, '?');
+    char *q = strchr(G_connections[G_ci].uri, '?');
 
     if ( !q )
-        return (0==strcmp(G_connections[ci].uri, u));
+        return (0==strcmp(G_connections[G_ci].uri, u));
 
     /* there's a query string */
 
-    int req_len = q - G_connections[ci].uri;
+    int req_len = q - G_connections[G_ci].uri;
 
     if ( req_len != len )
         return FALSE;
 
-    return (0==strncmp(G_connections[ci].uri, u, len));
+    return (0==strncmp(G_connections[G_ci].uri, u, len));
 }
 
 
 /* --------------------------------------------------------------------------
    Write string to output buffer with buffer overwrite protection
 -------------------------------------------------------------------------- */
-void npp_eng_out_check(int ci, const char *str)
+void npp_eng_out_check(const char *str)
 {
-    size_t available = NPP_OUT_BUFSIZE - (G_connections[ci].p_content - G_connections[ci].out_data);
+    size_t available = NPP_OUT_BUFSIZE - (G_connections[G_ci].p_content - G_connections[G_ci].out_data);
 
     if ( strlen(str) < available )  /* the whole string will fit */
     {
-        G_connections[ci].p_content = stpcpy(G_connections[ci].p_content, str);
+        G_connections[G_ci].p_content = stpcpy(G_connections[G_ci].p_content, str);
     }
     else    /* let's write only what we can. WARNING: no UTF-8 checking is done here! */
     {
-        G_connections[ci].p_content = stpncpy(G_connections[ci].p_content, str, available-1);
-        *G_connections[ci].p_content = EOS;
+        G_connections[G_ci].p_content = stpncpy(G_connections[G_ci].p_content, str, available-1);
+        *G_connections[G_ci].p_content = EOS;
     }
 }
 
@@ -8125,27 +8130,27 @@ void npp_eng_out_check(int ci, const char *str)
 /* --------------------------------------------------------------------------
    Write string to output buffer with buffer resizing if necessary
 -------------------------------------------------------------------------- */
-void npp_eng_out_check_realloc(int ci, const char *str)
+void npp_eng_out_check_realloc(const char *str)
 {
-    if ( strlen(str) < G_connections[ci].out_data_allocated - (unsigned)(G_connections[ci].p_content-G_connections[ci].out_data) )    /* the whole string will fit */
+    if ( strlen(str) < G_connections[G_ci].out_data_allocated - (unsigned)(G_connections[G_ci].p_content-G_connections[G_ci].out_data) )    /* the whole string will fit */
     {
-        G_connections[ci].p_content = stpcpy(G_connections[ci].p_content, str);
+        G_connections[G_ci].p_content = stpcpy(G_connections[G_ci].p_content, str);
     }
     else    /* resize output buffer and try again */
     {
-        unsigned used = G_connections[ci].p_content - G_connections[ci].out_data;
-        char *tmp = (char*)realloc(G_connections[ci].out_data_alloc, G_connections[ci].out_data_allocated*2);
+        unsigned used = G_connections[G_ci].p_content - G_connections[G_ci].out_data;
+        char *tmp = (char*)realloc(G_connections[G_ci].out_data_alloc, G_connections[G_ci].out_data_allocated*2);
         if ( !tmp )
         {
-            ERR("Couldn't reallocate output buffer for ci=%d, tried %u bytes", ci, G_connections[ci].out_data_allocated*2);
+            ERR("Couldn't reallocate output buffer for ci=%d, tried %u bytes", G_ci, G_connections[G_ci].out_data_allocated*2);
             return;
         }
-        G_connections[ci].out_data_alloc = tmp;
-        G_connections[ci].out_data = G_connections[ci].out_data_alloc;
-        G_connections[ci].out_data_allocated = G_connections[ci].out_data_allocated * 2;
-        G_connections[ci].p_content = G_connections[ci].out_data + used;
-        INF("Reallocated output buffer for ci=%d, new size = %u bytes", ci, G_connections[ci].out_data_allocated);
-        npp_eng_out_check_realloc(ci, str);     /* call itself! */
+        G_connections[G_ci].out_data_alloc = tmp;
+        G_connections[G_ci].out_data = G_connections[G_ci].out_data_alloc;
+        G_connections[G_ci].out_data_allocated = G_connections[G_ci].out_data_allocated * 2;
+        G_connections[G_ci].p_content = G_connections[G_ci].out_data + used;
+        INF("Reallocated output buffer for ci=%d, new size = %u bytes", G_ci, G_connections[G_ci].out_data_allocated);
+        npp_eng_out_check_realloc(str);     /* call itself! */
     }
 }
 
@@ -8153,28 +8158,28 @@ void npp_eng_out_check_realloc(int ci, const char *str)
 /* --------------------------------------------------------------------------
    Write binary data to output buffer with buffer resizing if necessary
 -------------------------------------------------------------------------- */
-void npp_eng_out_check_realloc_bin(int ci, const char *data, int len)
+void npp_eng_out_check_realloc_bin(const char *data, int len)
 {
-    if ( len < G_connections[ci].out_data_allocated - (G_connections[ci].p_content - G_connections[ci].out_data) )    /* the whole data will fit */
+    if ( len < G_connections[G_ci].out_data_allocated - (G_connections[G_ci].p_content - G_connections[G_ci].out_data) )    /* the whole data will fit */
     {
-        memcpy(G_connections[ci].p_content, data, len);
-        G_connections[ci].p_content += len;
+        memcpy(G_connections[G_ci].p_content, data, len);
+        G_connections[G_ci].p_content += len;
     }
     else    /* resize output buffer and try again */
     {
-        unsigned used = G_connections[ci].p_content - G_connections[ci].out_data;
-        char *tmp = (char*)realloc(G_connections[ci].out_data_alloc, G_connections[ci].out_data_allocated*2);
+        unsigned used = G_connections[G_ci].p_content - G_connections[G_ci].out_data;
+        char *tmp = (char*)realloc(G_connections[G_ci].out_data_alloc, G_connections[G_ci].out_data_allocated*2);
         if ( !tmp )
         {
-            ERR("Couldn't reallocate output buffer for ci=%d, tried %u bytes", ci, G_connections[ci].out_data_allocated*2);
+            ERR("Couldn't reallocate output buffer for ci=%d, tried %u bytes", G_ci, G_connections[G_ci].out_data_allocated*2);
             return;
         }
-        G_connections[ci].out_data_alloc = tmp;
-        G_connections[ci].out_data = G_connections[ci].out_data_alloc;
-        G_connections[ci].out_data_allocated = G_connections[ci].out_data_allocated * 2;
-        G_connections[ci].p_content = G_connections[ci].out_data + used;
-        INF("Reallocated output buffer for ci=%d, new size = %u bytes", ci, G_connections[ci].out_data_allocated);
-        npp_eng_out_check_realloc_bin(ci, data, len);       /* call itself! */
+        G_connections[G_ci].out_data_alloc = tmp;
+        G_connections[G_ci].out_data = G_connections[G_ci].out_data_alloc;
+        G_connections[G_ci].out_data_allocated = G_connections[G_ci].out_data_allocated * 2;
+        G_connections[G_ci].p_content = G_connections[G_ci].out_data + used;
+        INF("Reallocated output buffer for ci=%d, new size = %u bytes", G_ci, G_connections[G_ci].out_data_allocated);
+        npp_eng_out_check_realloc_bin(data, len);       /* call itself! */
     }
 }
 
@@ -8182,7 +8187,7 @@ void npp_eng_out_check_realloc_bin(int ci, const char *data, int len)
 /* --------------------------------------------------------------------------
    Return request header value
 -------------------------------------------------------------------------- */
-char *npp_eng_get_header(int ci, const char *header)
+char *npp_eng_get_header(const char *header)
 {
 static char value[NPP_MAX_VALUE_LEN+1];
     char uheader[NPP_MAX_LABEL_LEN+1];
@@ -8191,17 +8196,17 @@ static char value[NPP_MAX_VALUE_LEN+1];
 
     if ( 0==strcmp(uheader, "CONTENT-TYPE") )
     {
-        strcpy(value, G_connections[ci].in_ctypestr);
+        strcpy(value, G_connections[G_ci].in_ctypestr);
         return value;
     }
     else if ( 0==strcmp(uheader, "AUTHORIZATION") )
     {
-        strcpy(value, G_connections[ci].authorization);
+        strcpy(value, G_connections[G_ci].authorization);
         return value;
     }
     else if ( 0==strcmp(uheader, "COOKIE") )
     {
-        strcpy(value, G_connections[ci].in_cookie);
+        strcpy(value, G_connections[G_ci].in_cookie);
         return value;
     }
     else
@@ -8214,11 +8219,11 @@ static char value[NPP_MAX_VALUE_LEN+1];
 /* --------------------------------------------------------------------------
    HTTP calls -- pass request header value from the original request
 -------------------------------------------------------------------------- */
-void npp_eng_call_http_pass_header(int ci, const char *key)
+void npp_eng_call_http_pass_header(const char *key)
 {
     char value[NPP_MAX_VALUE_LEN+1];
 
-    strcpy(value, npp_eng_get_header(ci, key));
+    strcpy(value, npp_eng_get_header(key));
 
     if ( value[0] )
         CALL_HTTP_HEADER_SET(key, value);

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-29 20:05:41, generator v.2.0.1
+   Generated on nodepp.org on 2024-01-06 12:44:01, generator v.2.0.1
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -29,6 +29,8 @@ Cusers::Cusers()
                     "phone,"
                     "passwd1,"
                     "passwd2,"
+                    "otp,"
+                    "otp_expires,"
                     "lang,"
                     "about,"
                     "group_id,"
@@ -100,6 +102,8 @@ bool Cusers::Fetch()
 
     genDTStrings();
 
+    convDecStrings();
+
     return true;
 }
 
@@ -115,7 +119,7 @@ bool Cusers::Get(int arg_id)
     if ( firstGet_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "SELECT id,login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,created,last_login,visits,ula_cnt,ula_time FROM users WHERE id=?");
+        sprintf(q, "SELECT id,login,login_u,email,email_u,name,phone,passwd1,passwd2,otp,otp_expires,lang,about,group_id,auth_level,status,created,last_login,visits,ula_cnt,ula_time FROM users WHERE id=?");
         ret = mysql_stmt_prepare(sGet_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers::Get | mysql_stmt_prepare");
@@ -144,6 +148,8 @@ bool Cusers::Get(int arg_id)
 
     genDTStrings();
 
+    convDecStrings();
+
     return true;
 }
 
@@ -158,7 +164,7 @@ unsigned Cusers::Insert()
     if ( firstInsert_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "INSERT INTO users (login,login_u,email,email_u,name,phone,passwd1,passwd2,lang,about,group_id,auth_level,status,created,last_login,visits,ula_cnt,ula_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        sprintf(q, "INSERT INTO users (login,login_u,email,email_u,name,phone,passwd1,passwd2,otp,otp_expires,lang,about,group_id,auth_level,status,created,last_login,visits,ula_cnt,ula_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         ret = mysql_stmt_prepare(sInsert_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers::Insert | mysql_stmt_prepare");
@@ -188,7 +194,7 @@ void Cusers::Update(int arg_id)
     if ( firstUpdate_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "UPDATE users SET login=?,login_u=?,email=?,email_u=?,name=?,phone=?,passwd1=?,passwd2=?,lang=?,about=?,group_id=?,auth_level=?,status=?,created=?,last_login=?,visits=?,ula_cnt=?,ula_time=? WHERE id=?");
+        sprintf(q, "UPDATE users SET login=?,login_u=?,email=?,email_u=?,name=?,phone=?,passwd1=?,passwd2=?,otp=?,otp_expires=?,lang=?,about=?,group_id=?,auth_level=?,status=?,created=?,last_login=?,visits=?,ula_cnt=?,ula_time=? WHERE id=?");
         ret = mysql_stmt_prepare(sUpdate_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers::Update | mysql_stmt_prepare");
@@ -304,12 +310,15 @@ void Cusers::bindInput(MYSQL_STMT *s, bool withKey, int arg_id)
     phone_len_ = strlen(phone);
     passwd1_len_ = strlen(passwd1);
     passwd2_len_ = strlen(passwd2);
+    otp_len_ = strlen(otp);
     lang_len_ = strlen(lang);
     about_len_ = strlen(about);
 
+    set_datetime(&t_otp_expires_, otp_expires);
     set_datetime(&t_created_, created);
     set_datetime(&t_last_login_, last_login);
     set_datetime(&t_ula_time_, ula_time);
+
 
     memset(&bndi_, 0, sizeof(bndi_));
 
@@ -346,43 +355,50 @@ void Cusers::bindInput(MYSQL_STMT *s, bool withKey, int arg_id)
     bndi_[7].length = &passwd2_len_;
 
     bndi_[8].buffer_type = MYSQL_TYPE_STRING;
-    bndi_[8].buffer = (char*)lang;
-    bndi_[8].length = &lang_len_;
+    bndi_[8].buffer = (char*)otp;
+    bndi_[8].length = &otp_len_;
 
-    bndi_[9].buffer_type = MYSQL_TYPE_STRING;
-    bndi_[9].buffer = (char*)about;
-    bndi_[9].length = &about_len_;
+    bndi_[9].buffer_type = MYSQL_TYPE_DATETIME;
+    bndi_[9].buffer = (char*)&t_otp_expires_;
 
-    bndi_[10].buffer_type = MYSQL_TYPE_LONG;
-    bndi_[10].buffer = (char*)&group_id;
+    bndi_[10].buffer_type = MYSQL_TYPE_STRING;
+    bndi_[10].buffer = (char*)lang;
+    bndi_[10].length = &lang_len_;
 
-    bndi_[11].buffer_type = MYSQL_TYPE_TINY;
-    bndi_[11].buffer = (char*)&auth_level;
+    bndi_[11].buffer_type = MYSQL_TYPE_STRING;
+    bndi_[11].buffer = (char*)about;
+    bndi_[11].length = &about_len_;
 
-    bndi_[12].buffer_type = MYSQL_TYPE_TINY;
-    bndi_[12].buffer = (char*)&status;
+    bndi_[12].buffer_type = MYSQL_TYPE_LONG;
+    bndi_[12].buffer = (char*)&group_id;
 
-    bndi_[13].buffer_type = MYSQL_TYPE_DATETIME;
-    bndi_[13].buffer = (char*)&t_created_;
+    bndi_[13].buffer_type = MYSQL_TYPE_TINY;
+    bndi_[13].buffer = (char*)&auth_level;
 
-    bndi_[14].buffer_type = MYSQL_TYPE_DATETIME;
-    bndi_[14].buffer = (char*)&t_last_login_;
+    bndi_[14].buffer_type = MYSQL_TYPE_TINY;
+    bndi_[14].buffer = (char*)&status;
 
-    bndi_[15].buffer_type = MYSQL_TYPE_LONG;
-    bndi_[15].buffer = (char*)&visits;
+    bndi_[15].buffer_type = MYSQL_TYPE_DATETIME;
+    bndi_[15].buffer = (char*)&t_created_;
 
-    bndi_[16].buffer_type = MYSQL_TYPE_LONG;
-    bndi_[16].buffer = (char*)&ula_cnt;
+    bndi_[16].buffer_type = MYSQL_TYPE_DATETIME;
+    bndi_[16].buffer = (char*)&t_last_login_;
 
-    bndi_[17].buffer_type = MYSQL_TYPE_DATETIME;
-    bndi_[17].buffer = (char*)&t_ula_time_;
+    bndi_[17].buffer_type = MYSQL_TYPE_LONG;
+    bndi_[17].buffer = (char*)&visits;
+
+    bndi_[18].buffer_type = MYSQL_TYPE_LONG;
+    bndi_[18].buffer = (char*)&ula_cnt;
+
+    bndi_[19].buffer_type = MYSQL_TYPE_DATETIME;
+    bndi_[19].buffer = (char*)&t_ula_time_;
 
     if ( withKey )   /* after WHERE */
     {
         k_id_ = arg_id;
 
-        bndi_[18].buffer_type = MYSQL_TYPE_LONG;
-        bndi_[18].buffer = (char*)&k_id_;
+        bndi_[20].buffer_type = MYSQL_TYPE_LONG;
+        bndi_[20].buffer = (char*)&k_id_;
 
     }
 
@@ -443,46 +459,55 @@ void Cusers::bindOutput(MYSQL_STMT *s)
     bndo_[8].is_null = &passwd2_is_null_;
 
     bndo_[9].buffer_type = MYSQL_TYPE_STRING;
-    bndo_[9].buffer = (char*)lang;
-    bndo_[9].buffer_length = 6;
-    bndo_[9].is_null = &lang_is_null_;
+    bndo_[9].buffer = (char*)otp;
+    bndo_[9].buffer_length = 45;
+    bndo_[9].is_null = &otp_is_null_;
 
-    bndo_[10].buffer_type = MYSQL_TYPE_STRING;
-    bndo_[10].buffer = (char*)about;
-    bndo_[10].buffer_length = 251;
-    bndo_[10].is_null = &about_is_null_;
+    bndo_[10].buffer_type = MYSQL_TYPE_DATETIME;
+    bndo_[10].buffer = (char*)&t_otp_expires_;
+    bndo_[10].is_null = &otp_expires_is_null_;
 
-    bndo_[11].buffer_type = MYSQL_TYPE_LONG;
-    bndo_[11].buffer = (char*)&group_id;
-    bndo_[11].is_null = &group_id_is_null_;
+    bndo_[11].buffer_type = MYSQL_TYPE_STRING;
+    bndo_[11].buffer = (char*)lang;
+    bndo_[11].buffer_length = 6;
+    bndo_[11].is_null = &lang_is_null_;
 
-    bndo_[12].buffer_type = MYSQL_TYPE_TINY;
-    bndo_[12].buffer = (char*)&auth_level;
-    bndo_[12].is_null = &auth_level_is_null_;
+    bndo_[12].buffer_type = MYSQL_TYPE_STRING;
+    bndo_[12].buffer = (char*)about;
+    bndo_[12].buffer_length = 251;
+    bndo_[12].is_null = &about_is_null_;
 
-    bndo_[13].buffer_type = MYSQL_TYPE_TINY;
-    bndo_[13].buffer = (char*)&status;
-    bndo_[13].is_null = &status_is_null_;
+    bndo_[13].buffer_type = MYSQL_TYPE_LONG;
+    bndo_[13].buffer = (char*)&group_id;
+    bndo_[13].is_null = &group_id_is_null_;
 
-    bndo_[14].buffer_type = MYSQL_TYPE_DATETIME;
-    bndo_[14].buffer = (char*)&t_created_;
-    bndo_[14].is_null = &created_is_null_;
+    bndo_[14].buffer_type = MYSQL_TYPE_TINY;
+    bndo_[14].buffer = (char*)&auth_level;
+    bndo_[14].is_null = &auth_level_is_null_;
 
-    bndo_[15].buffer_type = MYSQL_TYPE_DATETIME;
-    bndo_[15].buffer = (char*)&t_last_login_;
-    bndo_[15].is_null = &last_login_is_null_;
+    bndo_[15].buffer_type = MYSQL_TYPE_TINY;
+    bndo_[15].buffer = (char*)&status;
+    bndo_[15].is_null = &status_is_null_;
 
-    bndo_[16].buffer_type = MYSQL_TYPE_LONG;
-    bndo_[16].buffer = (char*)&visits;
-    bndo_[16].is_null = &visits_is_null_;
+    bndo_[16].buffer_type = MYSQL_TYPE_DATETIME;
+    bndo_[16].buffer = (char*)&t_created_;
+    bndo_[16].is_null = &created_is_null_;
 
-    bndo_[17].buffer_type = MYSQL_TYPE_LONG;
-    bndo_[17].buffer = (char*)&ula_cnt;
-    bndo_[17].is_null = &ula_cnt_is_null_;
+    bndo_[17].buffer_type = MYSQL_TYPE_DATETIME;
+    bndo_[17].buffer = (char*)&t_last_login_;
+    bndo_[17].is_null = &last_login_is_null_;
 
-    bndo_[18].buffer_type = MYSQL_TYPE_DATETIME;
-    bndo_[18].buffer = (char*)&t_ula_time_;
-    bndo_[18].is_null = &ula_time_is_null_;
+    bndo_[18].buffer_type = MYSQL_TYPE_LONG;
+    bndo_[18].buffer = (char*)&visits;
+    bndo_[18].is_null = &visits_is_null_;
+
+    bndo_[19].buffer_type = MYSQL_TYPE_LONG;
+    bndo_[19].buffer = (char*)&ula_cnt;
+    bndo_[19].is_null = &ula_cnt_is_null_;
+
+    bndo_[20].buffer_type = MYSQL_TYPE_DATETIME;
+    bndo_[20].buffer = (char*)&t_ula_time_;
+    bndo_[20].is_null = &ula_time_is_null_;
 
     if ( mysql_stmt_bind_result(s, bndo_) )
         Cdb::ThrowSQL("Cusers::bindOutput | mysql_stmt_bind_result");
@@ -511,6 +536,11 @@ static int id;    /* to be scrapped anyway */
 --------------------------------------------------------------------------- */
 void Cusers::genDTStrings()
 {
+    if ( otp_expires_is_null_ )
+        otp_expires[0] = EOS;
+    else
+        sprintf(otp_expires, "%04d-%02d-%02d %02d:%02d:%02d", t_otp_expires_.year, t_otp_expires_.month, t_otp_expires_.day, t_otp_expires_.hour, t_otp_expires_.minute, t_otp_expires_.second);
+
     if ( created_is_null_ )
         created[0] = EOS;
     else
@@ -525,7 +555,14 @@ void Cusers::genDTStrings()
         ula_time[0] = EOS;
     else
         sprintf(ula_time, "%04d-%02d-%02d %02d:%02d:%02d", t_ula_time_.year, t_ula_time_.month, t_ula_time_.day, t_ula_time_.hour, t_ula_time_.minute, t_ula_time_.second);
+}
 
+
+/* ---------------------------------------------------------------------------
+   Convert decimal strings
+--------------------------------------------------------------------------- */
+void Cusers::convDecStrings()
+{
 }
 
 
@@ -543,6 +580,8 @@ void Cusers::Reset()
     phone[0] = EOS;
     passwd1[0] = EOS;
     passwd2[0] = EOS;
+    otp[0] = EOS;
+    otp_expires[0] = EOS;
     lang[0] = EOS;
     about[0] = EOS;
     group_id = 0;

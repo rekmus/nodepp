@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-28 14:28:27, generator v.2.0.1
+   Generated on nodepp.org on 2024-03-24 00:13:16, generator v.2.1.0
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -12,10 +12,10 @@
 #include <npp_mysql.h>
 
 
-typedef char USERS_LOGINS_SESSID[15+1];
+typedef char USERS_LOGINS_SESSID[20+1];
 typedef char USERS_LOGINS_UAGENT[250+1];
 typedef char USERS_LOGINS_IP[45+1];
-typedef char USERS_LOGINS_CSRFT[7+1];
+typedef char USERS_LOGINS_CSRFT[15+1];
 typedef char USERS_LOGINS_CREATED[19+1];
 typedef char USERS_LOGINS_LAST_USED[19+1];
 
@@ -35,6 +35,7 @@ typedef struct
 class Cusers_logins : public USERS_LOGINS_REC, public Cdb
 {
 public:
+
     Cusers_logins();
     ~Cusers_logins();
 

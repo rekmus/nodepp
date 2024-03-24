@@ -109,61 +109,61 @@
 #define NPP_ESC_SQL                     '1'
 #define NPP_ESC_HTML                    '2'
 
-#define QS_DONT_ESCAPE(param, val)      npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
-#define QS_SQL_ESCAPE(param, val)       npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
-#define QS_HTML_ESCAPE(param, val)      npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
+#define QS_DONT_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
+#define QS_SQL_ESCAPE(param, val)       npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
+#define QS_HTML_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
 
-#define QS_TEXT_DONT_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
-#define QS_TEXT_SQL_ESCAPE(param, val)  npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
-#define QS_TEXT_HTML_ESCAPE(param, val) npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
+#define QS_TEXT_DONT_ESCAPE(param, val) npp_lib_get_qs_param(param, val, 65535, NPP_ESC_NONE)
+#define QS_TEXT_SQL_ESCAPE(param, val)  npp_lib_get_qs_param(param, val, 65535, NPP_ESC_SQL)
+#define QS_TEXT_HTML_ESCAPE(param, val) npp_lib_get_qs_param(param, val, 65535, NPP_ESC_HTML)
 
-#define QS_FILE(param, retlen, retfname) (unsigned char*)npp_lib_get_qs_param_multipart(ci, param, retlen, retfname)
+#define QS_FILE(param, retlen, retfname) (unsigned char*)npp_lib_get_qs_param_multipart(param, retlen, retfname)
 
 #ifdef QS_DEF_HTML_ESCAPE
-#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
-#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_HTML)
-#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_HTML)
-#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_HTML)
-#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_HTML)
-#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_HTML)
-#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_HTML)
-#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
-#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_HTML)
+#define QS(param, val)                  npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
+#define QS1K(param, val)                npp_lib_get_qs_param(param, val, 1023, NPP_ESC_HTML)
+#define QS2K(param, val)                npp_lib_get_qs_param(param, val, 2047, NPP_ESC_HTML)
+#define QS4K(param, val)                npp_lib_get_qs_param(param, val, 4095, NPP_ESC_HTML)
+#define QS8K(param, val)                npp_lib_get_qs_param(param, val, 8191, NPP_ESC_HTML)
+#define QS16K(param, val)               npp_lib_get_qs_param(param, val, 16383, NPP_ESC_HTML)
+#define QS32K(param, val)               npp_lib_get_qs_param(param, val, 32767, NPP_ESC_HTML)
+#define QS64K(param, val)               npp_lib_get_qs_param(param, val, 65535, NPP_ESC_HTML)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(param, val, 65535, NPP_ESC_HTML)
 #endif
 #ifdef QS_DEF_SQL_ESCAPE
-#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
-#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_SQL)
-#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_SQL)
-#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_SQL)
-#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_SQL)
-#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_SQL)
-#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_SQL)
-#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
-#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_SQL)
+#define QS(param, val)                  npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
+#define QS1K(param, val)                npp_lib_get_qs_param(param, val, 1023, NPP_ESC_SQL)
+#define QS2K(param, val)                npp_lib_get_qs_param(param, val, 2047, NPP_ESC_SQL)
+#define QS4K(param, val)                npp_lib_get_qs_param(param, val, 4095, NPP_ESC_SQL)
+#define QS8K(param, val)                npp_lib_get_qs_param(param, val, 8191, NPP_ESC_SQL)
+#define QS16K(param, val)               npp_lib_get_qs_param(param, val, 16383, NPP_ESC_SQL)
+#define QS32K(param, val)               npp_lib_get_qs_param(param, val, 32767, NPP_ESC_SQL)
+#define QS64K(param, val)               npp_lib_get_qs_param(param, val, 65535, NPP_ESC_SQL)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(param, val, 65535, NPP_ESC_SQL)
 #endif
 #ifdef QS_DEF_DONT_ESCAPE
-#define QS(param, val)                  npp_lib_get_qs_param(ci, param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
-#define QS1K(param, val)                npp_lib_get_qs_param(ci, param, val, 1023, NPP_ESC_NONE)
-#define QS2K(param, val)                npp_lib_get_qs_param(ci, param, val, 2047, NPP_ESC_NONE)
-#define QS4K(param, val)                npp_lib_get_qs_param(ci, param, val, 4095, NPP_ESC_NONE)
-#define QS8K(param, val)                npp_lib_get_qs_param(ci, param, val, 8191, NPP_ESC_NONE)
-#define QS16K(param, val)               npp_lib_get_qs_param(ci, param, val, 16383, NPP_ESC_NONE)
-#define QS32K(param, val)               npp_lib_get_qs_param(ci, param, val, 32767, NPP_ESC_NONE)
-#define QS64K(param, val)               npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
-#define QS_TEXT(param, val)             npp_lib_get_qs_param(ci, param, val, 65535, NPP_ESC_NONE)
+#define QS(param, val)                  npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
+#define QS1K(param, val)                npp_lib_get_qs_param(param, val, 1023, NPP_ESC_NONE)
+#define QS2K(param, val)                npp_lib_get_qs_param(param, val, 2047, NPP_ESC_NONE)
+#define QS4K(param, val)                npp_lib_get_qs_param(param, val, 4095, NPP_ESC_NONE)
+#define QS8K(param, val)                npp_lib_get_qs_param(param, val, 8191, NPP_ESC_NONE)
+#define QS16K(param, val)               npp_lib_get_qs_param(param, val, 16383, NPP_ESC_NONE)
+#define QS32K(param, val)               npp_lib_get_qs_param(param, val, 32767, NPP_ESC_NONE)
+#define QS64K(param, val)               npp_lib_get_qs_param(param, val, 65535, NPP_ESC_NONE)
+#define QS_TEXT(param, val)             npp_lib_get_qs_param(param, val, 65535, NPP_ESC_NONE)
 #endif
 
-#define QSI(param, val)                 npp_lib_qsi(ci, param, val)
-#define QSU(param, val)                 npp_lib_qsu(ci, param, val)
-#define QSL(param, val)                 npp_lib_qsl(ci, param, val)
-#define QSF(param, val)                 npp_lib_qsf(ci, param, val)
-#define QSD(param, val)                 npp_lib_qsd(ci, param, val)
-#define QSB(param, val)                 npp_lib_qsb(ci, param, val)
+#define QSI(param, val)                 npp_lib_qsi(param, val)
+#define QSU(param, val)                 npp_lib_qsu(param, val)
+#define QSL(param, val)                 npp_lib_qsl(param, val)
+#define QSF(param, val)                 npp_lib_qsf(param, val)
+#define QSD(param, val)                 npp_lib_qsd(param, val)
+#define QSB(param, val)                 npp_lib_qsb(param, val)
 
 
-#define RES_HEADER(key, val)            npp_lib_res_header(ci, key, val)
+#define RES_HEADER(key, val)            npp_lib_res_header(key, val)
 
-#define RES_CONTENT_TYPE_FROM_FILE_EXTENSION(fname) (G_connections[ci].out_ctype = npp_lib_get_res_type(fname))
+#define RES_CONTENT_TYPE_FROM_FILE_EXTENSION(fname) (G_connections[G_ci].out_ctype = npp_lib_get_res_type(fname))
 
 
 #define NPP_OPER_CONNECT                '0'
@@ -181,23 +181,23 @@
 #define NPP_IS_THIS_TRUE(c)             (c=='t' || c=='T' || c=='1')
 
 
-#define npp_message(code)               npp_get_message(ci, code)
-#define MSG(code)                       npp_get_message(ci, code)
+#define npp_message(code)               npp_get_message(code)
+#define MSG(code)                       npp_get_message(code)
 #define MSG_CAT_GREEN(code)             npp_is_msg_main_cat(code, MSG_CAT_MESSAGE)
 #define MSG_CAT_ORANGE(code)            npp_is_msg_main_cat(code, MSG_CAT_WARNING)
 #define MSG_CAT_RED(code)               npp_is_msg_main_cat(code, MSG_CAT_ERROR)
 
-#define OUT_MSG_DESCRIPTION(code)       npp_lib_send_msg_description(ci, code)
+#define OUT_MSG_DESCRIPTION(code)       npp_lib_send_msg_description(code)
 
-#define OUT_HTML_HEADER                 npp_out_html_header(ci)
-#define OUT_HTML_FOOTER                 npp_out_html_footer(ci)
-#define OUT_SNIPPET(name)               npp_out_snippet(ci, name)
-#define OUT_SNIPPET_MD(name)            npp_out_snippet_md(ci, name)
+#define OUT_HTML_HEADER                 npp_out_html_header()
+#define OUT_HTML_FOOTER                 npp_out_html_footer()
+#define OUT_SNIPPET(name)               npp_out_snippet(name)
+#define OUT_SNIPPET_MD(name)            npp_out_snippet_md(name)
 
-#define REQ_COOKIE(key, val)            npp_lib_get_cookie(ci, key, val)
-#define RES_COOKIE(key, val, days)      npp_lib_set_cookie(ci, key, val, days)
+#define REQ_COOKIE(key, val)            npp_lib_get_cookie(key, val)
+#define RES_COOKIE(key, val, days)      npp_lib_set_cookie(key, val, days)
 
-#define STR(str)                        npp_lib_get_string(ci, str)
+#define STR(str)                        npp_lib_get_string(str)
 
 
 /* convenient & fast string building */
@@ -243,20 +243,20 @@
 
 #define NPP_FORMATS_SET                 0x80
 
-#define NPP_IS_FORMATS_SET              ((G_connections[ci].formats & NPP_FORMATS_SET) == NPP_FORMATS_SET)
+#define NPP_IS_FORMATS_SET              ((G_connections[G_ci].formats & NPP_FORMATS_SET) == NPP_FORMATS_SET)
 
 
 
 /* format date */
 
-#define DATE(year, month, day)          npp_lib_fmt_date(ci, year, month, day)
+#define DATE(year, month, day)          npp_lib_fmt_date(year, month, day)
 
 /* format amount */
 
 #ifdef NPP_CLIENT
 #define AMT(val)                        npp_lib_fmt_dec_generic(val)
 #else
-#define AMT(val)                        npp_lib_fmt_dec(ci, val)
+#define AMT(val)                        npp_lib_fmt_dec(val)
 #endif
 
 /* format integer */
@@ -264,7 +264,7 @@
 #ifdef NPP_CLIENT
 #define INT(val)                        npp_lib_fmt_int_generic(val)
 #else
-#define INT(val)                        npp_lib_fmt_int(ci, val)
+#define INT(val)                        npp_lib_fmt_int(val)
 #endif
 
 
@@ -840,7 +840,7 @@ extern "C" {
 #endif
 
 #ifndef NPP_CPP_STRINGS
-    bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet);
+    bool npp_menu_get_item(const char *path_sep, char *path, char *title, char *snippet);
 #endif
 
 #ifdef NPP_CPP_STRINGS
@@ -855,7 +855,7 @@ extern "C" {
     void npp_notify_admin(const char *msg);
 #endif
 
-    void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
+    void npp_admin_info(int users, admin_info_t ai[], int ai_cnt, bool header_n_footer);
 
 #endif  /* NPP_CLIENT */
 
@@ -1030,62 +1030,62 @@ extern "C" {
 const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, const char *str);
 
 #ifndef NPP_CLIENT  /* server processes only */
-    void npp_lib_set_formats(int ci, const char *lang);
-    const char *npp_get_message(int ci, int code);
-    void npp_out_html_header(int ci);
-    void npp_out_html_footer(int ci);
-    void npp_append_css(int ci, const char *fname, bool first);
-    void npp_append_script(int ci, const char *fname, bool first);
+    void npp_lib_set_formats(const char *lang);
+    const char *npp_get_message(int code);
+    void npp_out_html_header();
+    void npp_out_html_footer();
+    void npp_append_css(const char *fname, bool first);
+    void npp_append_script(const char *fname, bool first);
 
-    bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type);
-    const unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname);
+    bool npp_lib_get_qs_param(const char *name, char *retbuf, size_t maxlen, char esc_type);
+    const unsigned char *npp_lib_get_qs_param_multipart(const char *name, size_t *retlen, char *retfname);
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_lib_qsi(int ci, const std::string& name, int *retbuf);
-    bool npp_lib_qsu(int ci, const std::string& name, unsigned *retbuf);
-    bool npp_lib_qsl(int ci, const std::string& name, long *retbuf);
-    bool npp_lib_qsf(int ci, const std::string& name, float *retbuf);
-    bool npp_lib_qsd(int ci, const std::string& name, double *retbuf);
-    bool npp_lib_qsb(int ci, const std::string& name, bool *retbuf);
+    bool npp_lib_qsi(const std::string& name, int *retbuf);
+    bool npp_lib_qsu(const std::string& name, unsigned *retbuf);
+    bool npp_lib_qsl(const std::string& name, long *retbuf);
+    bool npp_lib_qsf(const std::string& name, float *retbuf);
+    bool npp_lib_qsd(const std::string& name, double *retbuf);
+    bool npp_lib_qsb(const std::string& name, bool *retbuf);
 #else
-    bool npp_lib_qsi(int ci, const char *name, int *retbuf);
-    bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf);
-    bool npp_lib_qsl(int ci, const char *name, long *retbuf);
-    bool npp_lib_qsf(int ci, const char *name, float *retbuf);
-    bool npp_lib_qsd(int ci, const char *name, double *retbuf);
-    bool npp_lib_qsb(int ci, const char *name, bool *retbuf);
+    bool npp_lib_qsi(const char *name, int *retbuf);
+    bool npp_lib_qsu(const char *name, unsigned *retbuf);
+    bool npp_lib_qsl(const char *name, long *retbuf);
+    bool npp_lib_qsf(const char *name, float *retbuf);
+    bool npp_lib_qsd(const char *name, double *retbuf);
+    bool npp_lib_qsb(const char *name, bool *retbuf);
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_lib_res_header(int ci, const std::string& hdr, const std::string& val);
+    bool npp_lib_res_header(const std::string& hdr, const std::string& val);
 #else
-    bool npp_lib_res_header(int ci, const char *hdr, const char *val);
+    bool npp_lib_res_header(const char *hdr, const char *val);
 #endif
 
 #ifndef NPP_CPP_STRINGS
-    bool npp_lib_get_cookie(int ci, const char *key, char *value);
+    bool npp_lib_get_cookie(const char *key, char *value);
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_lib_set_cookie(int ci, const std::string& key, const std::string& value, int days);
+    bool npp_lib_set_cookie(const std::string& key, const std::string& value, int days);
 #else
-    bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days);
+    bool npp_lib_set_cookie(const char *key, const char *value, int days);
 #endif
 
-    void npp_lib_set_res_status(int ci, int status);
+    void npp_lib_set_res_status(int status);
 
 #ifdef NPP_CPP_STRINGS
-    void npp_lib_set_res_content_type(int ci, const std::string& str);
+    void npp_lib_set_res_content_type(const std::string& str);
 #else
-    void npp_lib_set_res_content_type(int ci, const char *str);
+    void npp_lib_set_res_content_type(const char *str);
 #endif
 
 #ifndef NPP_CPP_STRINGS
-    void npp_lib_set_res_location(int ci, const char *str, ...);
-    void npp_lib_set_res_content_disposition(int ci, const char *str, ...);
+    void npp_lib_set_res_location(const char *str, ...);
+    void npp_lib_set_res_content_disposition(const char *str, ...);
 #endif
 
-    void npp_lib_send_msg_description(int ci, int code);
+    void npp_lib_send_msg_description(int code);
 
     void lib_sort_strings();
 
@@ -1096,33 +1096,33 @@ const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, cons
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    const char *npp_lib_get_string(int ci, const std::string& str);
+    const char *npp_lib_get_string(const std::string& str);
 #else
-    const char *npp_lib_get_string(int ci, const char *str);
+    const char *npp_lib_get_string(const char *str);
 #endif
 
-    void npp_set_tz(int ci);
-    time_t npp_ua_time(int ci);
-    char *npp_today_ua(int ci);
-    char *npp_lib_fmt_date(int ci, short year, short month, short day);
-    char *npp_lib_fmt_dec(int ci, double in_val);
-    char *npp_lib_fmt_int(int ci, long long in_val);
-    bool npp_csrft_ok(int ci);
+    void npp_set_tz();
+    time_t npp_ua_time();
+    char *npp_today_ua();
+    char *npp_lib_fmt_date(short year, short month, short day);
+    char *npp_lib_fmt_dec(double in_val);
+    char *npp_lib_fmt_int(long long in_val);
+    bool npp_csrft_ok();
     int  lib_compare_snippets(const void *a, const void *b);
     bool npp_lib_read_snippets(const char *host, int host_id, const char *directory, bool first_scan, const char *path);
-    char *npp_get_snippet(int ci, const char *name);
-    unsigned npp_get_snippet_len(int ci, const char *name);
+    char *npp_get_snippet(const char *name);
+    unsigned npp_get_snippet_len(const char *name);
 
 #ifdef NPP_CPP_STRINGS
-    void npp_out_snippet(int ci, const std::string& name);
+    void npp_out_snippet(const std::string& name);
 #else
-    void npp_out_snippet(int ci, const char *name);
+    void npp_out_snippet(const char *name);
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    void npp_out_snippet_md(int ci, const std::string& name);
+    void npp_out_snippet_md(const std::string& name);
 #else
-    void npp_out_snippet_md(int ci, const char *name);
+    void npp_out_snippet_md(const char *name);
 #endif
 
     int  npp_lib_compare_sess_idx(const void *a, const void *b);
@@ -1175,14 +1175,14 @@ auto cnv_variadic_arg(T&& t)
 /* --------------------------------------------------------------------------
    Overloaded version for std::string
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const std::string& name, std::string& retbuf, size_t maxlen, char esc_type);
+bool npp_lib_get_qs_param(const std::string& name, std::string& retbuf, size_t maxlen, char esc_type);
 
 
 int  npp_b64_encode(char *dst, const unsigned char *src, size_t len);
 int  npp_b64_encode(std::string& dst, const unsigned char* src, size_t len);
 
-bool npp_lib_get_cookie(int ci, const std::string& key, char *value);
-bool npp_lib_get_cookie(int ci, const std::string& key, std::string& value);
+bool npp_lib_get_cookie(const std::string& key, char *value);
+bool npp_lib_get_cookie(const std::string& key, std::string& value);
 
 bool npp_read_param_str(const std::string& param, char *dest);
 bool npp_read_param_str(const std::string& param, std::string& dest);
@@ -1190,14 +1190,14 @@ bool npp_read_param_str(const std::string& param, std::string& dest);
 bool lib_json_get_str(JSON *json, const std::string& name, int i, char *retval, size_t maxlen);
 bool lib_json_get_str(JSON *json, const std::string& name, int i, std::string& retval, size_t maxlen);
 
-bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, char *title, char *snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, char *title, std::string& snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, std::string& title, char *snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, char *path, std::string& title, std::string& snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, char *title, char *snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, char *title, std::string& snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, std::string& title, char *snippet);
-bool npp_menu_get_item(int ci, const std::string& path_sep, std::string& path, std::string& title, std::string& snippet);
+bool npp_menu_get_item(const std::string& path_sep, char *path, char *title, char *snippet);
+bool npp_menu_get_item(const std::string& path_sep, char *path, char *title, std::string& snippet);
+bool npp_menu_get_item(const std::string& path_sep, char *path, std::string& title, char *snippet);
+bool npp_menu_get_item(const std::string& path_sep, char *path, std::string& title, std::string& snippet);
+bool npp_menu_get_item(const std::string& path_sep, std::string& path, char *title, char *snippet);
+bool npp_menu_get_item(const std::string& path_sep, std::string& path, char *title, std::string& snippet);
+bool npp_menu_get_item(const std::string& path_sep, std::string& path, std::string& title, char *snippet);
+bool npp_menu_get_item(const std::string& path_sep, std::string& path, std::string& title, std::string& snippet);
 
 
 
@@ -1361,7 +1361,7 @@ extern npp_connection_t G_connections[NPP_MAX_CONNECTIONS+2];
 #ifdef NPP_SVC
 void npp_svc_out_check_realloc(const char *str);
 #else
-void npp_eng_out_check_realloc(int ci, const char *str);
+void npp_eng_out_check_realloc(const char *str);
 #endif
 }   /* extern "C" */
 
@@ -1370,7 +1370,7 @@ void npp_eng_out_check_realloc(int ci, const char *str);
    OUT
 -------------------------------------------------------------------------- */
 template<typename... Args>
-void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
+void NPP_CPP_STRINGS_OUT(const std::string& str, Args&& ... args)
 {
 
 #if __GNUC__ > 7
@@ -1383,7 +1383,7 @@ void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
     npp_svc_out_check_realloc(G_tmp);
 #else   /* NPP_APP */
     std::snprintf(G_tmp, NPP_TMP_STR_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
-    npp_eng_out_check_realloc(ci, G_tmp);
+    npp_eng_out_check_realloc(G_tmp);
 #endif  /* NPP_SVC */
 
 #if __GNUC__ > 7
@@ -1397,7 +1397,7 @@ void NPP_CPP_STRINGS_OUT(int ci, const std::string& str, Args&& ... args)
    Set location
 -------------------------------------------------------------------------- */
 template<typename... Args>
-void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
+void npp_lib_set_res_location(const std::string& str, Args&& ... args)
 {
 
 #if __GNUC__ > 7
@@ -1405,7 +1405,7 @@ void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
 
-    std::snprintf(G_connections[ci].location, NPP_MAX_URI_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+    std::snprintf(G_connections[G_ci].location, NPP_MAX_URI_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
 
 #if __GNUC__ > 7
 #pragma GCC diagnostic pop
@@ -1418,7 +1418,7 @@ void npp_lib_set_res_location(int ci, const std::string& str, Args&& ... args)
    Set response content disposition
 -------------------------------------------------------------------------- */
 template<typename... Args>
-void npp_lib_set_res_content_disposition(int ci, const std::string& str, Args&& ... args)
+void npp_lib_set_res_content_disposition(const std::string& str, Args&& ... args)
 {
 
 #if __GNUC__ > 7
@@ -1426,7 +1426,7 @@ void npp_lib_set_res_content_disposition(int ci, const std::string& str, Args&& 
 #pragma GCC diagnostic ignored "-Wformat-security"
 #endif
 
-    std::snprintf(G_connections[ci].cdisp, NPP_CONTENT_DISP_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
+    std::snprintf(G_connections[G_ci].cdisp, NPP_CONTENT_DISP_LEN, str.c_str(), cnv_variadic_arg(std::forward<Args>(args))...);
 
 #if __GNUC__ > 7
 #pragma GCC diagnostic pop

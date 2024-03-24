@@ -13,7 +13,7 @@
 /* --------------------------------------------------------------------------
    Output HTML & page header
 -------------------------------------------------------------------------- */
-static void header(int ci)
+static void header()
 {
     OUT("<!DOCTYPE html>");
     OUT("<html>");
@@ -95,7 +95,7 @@ static char logo[]="<img src=\"/nodepp.jpg\" alt=\"Logo\" width=\"250\" height=\
 /* --------------------------------------------------------------------------
    Output footer; body & html tags close here
 -------------------------------------------------------------------------- */
-static void footer(int ci)
+static void footer()
 {
     OUT("</body></html>");
 }
@@ -104,9 +104,9 @@ static void footer(int ci)
 /* --------------------------------------------------------------------------
    Render landing page
 -------------------------------------------------------------------------- */
-void render_landing(int ci)
+void render_landing()
 {
-    header(ci);
+    header();
 
     OUT("<h2>Congratulations!</h2>");
 
@@ -135,16 +135,16 @@ void render_landing(int ci)
 
     OUT("<p class=mt><i>To see the source code look at <code>render_landing()</code>.</i></p>");
 
-    footer(ci);
+    footer();
 }
 
 
 /* --------------------------------------------------------------------------
    Render page
 -------------------------------------------------------------------------- */
-void render_welcome(int ci)
+void render_welcome()
 {
-    header(ci);
+    header();
 
     /* display form */
 
@@ -172,16 +172,16 @@ void render_welcome(int ci)
     if ( QS("name", NULL) )    /* show this only if there's a name in query string */
         OUT("<p class=mt><i>To see the source code look at <code>render_welcome()</code>.</i></p>");
 
-    footer(ci);
+    footer();
 }
 
 
 /* --------------------------------------------------------------------------
    Render page
 -------------------------------------------------------------------------- */
-void render_snippets(int ci)
+void render_snippets()
 {
-    header(ci);
+    header();
 
     OUT("<p>You don't have to wrap all the output in <b class=m>OUT</b> macros.</p>");
 
@@ -195,16 +195,16 @@ void render_snippets(int ci)
 
     OUT("<p class=mt><i>To see the source code look at <code>render_snippets()</code>.</i></p>");
 
-    footer(ci);
+    footer();
 }
 
 
 /* --------------------------------------------------------------------------
    Render page
 -------------------------------------------------------------------------- */
-void render_performance(int ci)
+void render_performance()
 {
-    header(ci);
+    header();
 
     if ( G_cnts_today.req < 2 )
     {
@@ -227,7 +227,7 @@ void render_performance(int ci)
 
     RES_DONT_CACHE;
 
-    footer(ci);
+    footer();
 }
 
 
@@ -251,23 +251,23 @@ void render_performance(int ci)
    Response content type is text/html by default
    Use RES_CONTENT_TYPE() if you want to change it
 -------------------------------------------------------------------------------- */
-void npp_app_main(int ci)
+void npp_app_main()
 {
     if ( REQ("") )  // landing page
     {
-        render_landing(ci);
+        render_landing();
     }
     else if ( REQ("welcome") )
     {
-        render_welcome(ci);
+        render_welcome();
     }
     else if ( REQ("snippets") )
     {
-        render_snippets(ci);
+        render_snippets();
     }
     else if ( REQ("performance") )
     {
-        render_performance(ci);
+        render_performance();
     }
     else  // page not found
     {
@@ -299,7 +299,7 @@ bool npp_app_init(int argc, char *argv[])
    and npp_app_session_done() will be called
    Response status will be set to 500
 -------------------------------------------------------------------------------- */
-bool npp_app_session_init(int ci)
+bool npp_app_session_init()
 {
     return true;
 }
@@ -317,7 +317,7 @@ bool npp_app_session_init(int ci)
    Returning false will cause the session to be downgraded back to anonymous
    and npp_app_user_logout() will be called
 -------------------------------------------------------------------------------- */
-bool npp_app_user_login(int ci)
+bool npp_app_user_login()
 {
     return true;
 }
@@ -330,7 +330,7 @@ bool npp_app_user_login(int ci)
    Application session data (SESSION_DATA) will be zero-ed as well,
    unless NPP_KEEP_SESSION_DATA_ON_LOGOUT is defined
 -------------------------------------------------------------------------------- */
-void npp_app_user_logout(int ci)
+void npp_app_user_logout()
 {
 }
 #endif  /* NPP_USERS */
@@ -340,7 +340,7 @@ void npp_app_user_logout(int ci)
    Called when closing anonymous session
    After calling this the session memory will be zero-ed
 -------------------------------------------------------------------------------- */
-void npp_app_session_done(int ci)
+void npp_app_session_done()
 {
 }
 

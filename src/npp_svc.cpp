@@ -18,7 +18,7 @@
 /* --------------------------------------------------------------------------
    Service
 -------------------------------------------------------------------------- */
-void getCustomer(int ci)
+void getCustomer()
 {
     OUT_HTML_HEADER;
     OUT("<h1>%s</h1>", NPP_APP_NAME);
@@ -30,7 +30,7 @@ void getCustomer(int ci)
 /* --------------------------------------------------------------------------
    Service
 -------------------------------------------------------------------------- */
-void getAccounts(int ci)
+void getAccounts()
 {
     OUT_HTML_HEADER;
     OUT("<h1>%s</h1>", NPP_APP_NAME);
@@ -48,12 +48,12 @@ void getAccounts(int ci)
 /* --------------------------------------------------------------------------
    Entry point
 -------------------------------------------------------------------------- */
-void npp_svc_main(int ci)
+void npp_svc_main()
 {
     if ( SVC("getCustomer") )
-        getCustomer(ci);
+        getCustomer();
     else if ( SVC("getAccounts") )
-        getAccounts(ci);
+        getAccounts();
 }
 
 

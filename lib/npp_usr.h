@@ -100,6 +100,14 @@
 #define NPP_AUTH_SESSION_TIMEOUT        1800                    /* authenticated session timeout in seconds (120 for tests / 1800 live) */
 #endif                                                          /* (it's really how long it stays in cache) */
 
+#ifndef NPP_OTP_LEN
+#define NPP_OTP_LEN                     7
+#endif
+
+#ifndef NPP_OTP_EXPIRATION_MINUTES
+#define NPP_OTP_EXPIRATION_MINUTES      15
+#endif
+
 
 #ifndef REFUSE_10_COMMON_PASSWORDS
 #ifndef REFUSE_100_COMMON_PASSWORDS
@@ -150,6 +158,7 @@
 #define ERR_EMAIL_FORMAT                112
 #define ERR_EMAIL_FORMAT_OR_EMPTY       113
 #define ERR_EMAIL_TAKEN                 114
+#define ERR_EMAIL_NOT_REGISTERED        115
 /* ------------------------------------- */
 #define ERR_MAX_USR_EMAIL_ERROR         120
 /* ------------------------------------- */
@@ -160,6 +169,7 @@
 #define ERR_IN_100_COMMON_PASSWORDS     124
 #define ERR_IN_1000_COMMON_PASSWORDS    125
 #define ERR_IN_10000_COMMON_PASSWORDS   126
+#define ERR_OTP_EXPIRED                 127
 /* ------------------------------------- */
 #define ERR_MAX_USR_PASSWORD_ERROR      130
 /* ------------------------------------- */
@@ -214,6 +224,7 @@
 #define MSG_FEEDBACK_SENT               310
 #define MSG_USER_ALREADY_ACTIVATED      311
 #define MSG_ACCOUNT_DELETED             312
+#define MSG_OTP_PASSWORD_SENT           313
 /* ------------------------------------- */
 #define MSG_MAX_USR_MESSAGE             399
 /* ------------------------------------- */
@@ -273,6 +284,16 @@
 #else   /* NPP_MEM_SMALL -- default */
 #define FAILED_LOGIN_CNT_SIZE           1000
 #endif
+
+
+/* One-time passwords require emails as the keys */
+
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+#ifndef NPP_USERS_BY_EMAIL
+#undef NPP_USERS_BY_LOGIN
+#define NPP_USERS_BY_EMAIL
+#endif
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
 
 
