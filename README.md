@@ -89,7 +89,7 @@ If `resource` is a file present in `res` or `resmin` (i.e. an image or css), it 
 Return static file if present, otherwise "Hello World!".
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     OUT("Hello World!");
 }
@@ -100,7 +100,7 @@ void npp_app_main(int ci)
 Application, yet without moving parts.
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     if ( REQ("") )  // landing page
     {
@@ -133,7 +133,7 @@ This is a simple 2-pages application demonstrating [QS()](https://github.com/rek
 `QS` works with all popular HTTP methods and payload types.
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     if ( REQ("") )  // landing page
     {

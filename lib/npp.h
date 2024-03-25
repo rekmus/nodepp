@@ -149,17 +149,6 @@ typedef char                            bool;
 #define NPP_SQLBUF                      4096            /* SQL query buffer size */
 
 
-/* Silgy compatibility */
-
-#define LOGIN_LEN                       NPP_LOGIN_LEN
-#define EMAIL_LEN                       NPP_EMAIL_LEN
-#define UNAME_LEN                       NPP_UNAME_LEN
-#define PHONE_LEN                       NPP_PHONE_LEN
-#define ABOUT_LEN                       NPP_ABOUT_LEN
-#define LANG_LEN                        NPP_LANG_LEN
-#define SQLBUF                          NPP_SQLBUF
-
-
 /* executable types */
 
 #ifndef NPP_APP
@@ -202,13 +191,6 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
     #else
         #define NPP_FD_MON_POLL  /* default */
     #endif
-#endif
-
-
-/* Silgy compatibility */
-
-#ifdef NPP_SILGY_COMPATIBILITY
-#include "npp_silgy.h"
 #endif
 
 

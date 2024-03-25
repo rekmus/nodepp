@@ -399,7 +399,7 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Set client's time zone offset on the server
 -------------------------------------------------------------------------- */
-void npp_set_tz(int ci)
+void npp_set_tz()
 {
     DBG("npp_set_tz");
 

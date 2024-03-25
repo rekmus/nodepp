@@ -486,10 +486,11 @@ int main(int argc, char **argv)
             if ( M_areqs[j].state==NPP_ASYNC_STATE_SENT && M_areqs[j].sent < G_now-M_areqs[j].timeout )
             {
                 DBG("Async request %d timeout-ed", j);
-                G_connections[M_areqs[j].ci].async_err_code = ERR_ASYNC_TIMEOUT;
-                G_connections[M_areqs[j].ci].status = 500;
+                G_ci = M_areqs[j].ci;
+                G_connections[G_ci].async_err_code = ERR_ASYNC_TIMEOUT;
+                G_connections[G_ci].status = 500;
                 M_areqs[j].state = NPP_ASYNC_STATE_FREE;
-                gen_response_header(M_areqs[j].ci);
+                gen_response_header();
             }
         }
 #endif
@@ -1225,6 +1226,9 @@ int main(int argc, char **argv)
             if ( ASYNC_CHUNK_IS_FIRST(res.chunk) )  /* get all the response's details */
             {
                 DBG("ASYNC_CHUNK_IS_FIRST");
+
+                G_ci = res.ci;
+
                 DBG("res.ci=%d", res.ci);
                 DBG("res.hdr.err_code = %d", res.hdr.err_code);
                 DBG("res.hdr.status = %d", res.hdr.status);
@@ -1266,7 +1270,7 @@ int main(int argc, char **argv)
                 {
                     DBG("New session has been started in npp_svc, trying to add it to G_sessions...");
 
-                    int session_start_ret = npp_eng_session_start(res.ci, res.hdr.eng_session_data.sessid);
+                    int session_start_ret = npp_eng_session_start(res.hdr.eng_session_data.sessid);
 
                     if ( session_start_ret == OK )
                     {
@@ -1290,7 +1294,7 @@ int main(int argc, char **argv)
 
                 if ( res.hdr.invalidate_uid )
                 {
-                    npp_eng_session_downgrade_by_uid(res.hdr.invalidate_uid, res.hdr.invalidate_ci);
+                    npp_eng_session_downgrade_by_uid(res.hdr.invalidate_uid, TRUE);
                 }
 
                 /* update connection details */
@@ -1329,6 +1333,8 @@ int main(int argc, char **argv)
 
                 async_res_data_t *resd = (async_res_data_t*)&res;
 
+                G_ci = resd->ci;
+
                 res_ai = resd->ai;
                 res_ci = resd->ci;
                 res_len = resd->len;
@@ -1341,7 +1347,7 @@ int main(int argc, char **argv)
             {
                 DBG("res_len = %d", res_len);
 #ifdef NPP_OUT_CHECK_REALLOC
-                npp_eng_out_check_realloc_bin(res_ci, res_data, res_len);
+                npp_eng_out_check_realloc_bin(res_data, res_len);
 #else
                 unsigned checked_len = res_len > NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE ? NPP_OUT_BUFSIZE-NPP_OUT_HEADER_BUFSIZE : res_len;
                 memcpy(G_connections[res_ci].p_content, res_data, checked_len);
@@ -1358,7 +1364,7 @@ int main(int argc, char **argv)
                 if ( G_connections[res_ci].location[0] )
                     G_connections[res_ci].status = 303;
 
-                gen_response_header(res_ci);
+                gen_response_header();
             }
         }
 #ifdef NPP_DEBUG
@@ -7652,7 +7658,7 @@ bool npp_eng_call_async(const char *service, const char *data, bool want_respons
     if ( M_last_call_id >= NPP_ASYNC_HIGHEST_CALL_ID ) M_last_call_id = 0;
 
     req.hdr.call_id = ++M_last_call_id;
-    req.hdr.ci = ci;
+    req.hdr.ci = G_ci;
 
     if ( service )
         strcpy(req.hdr.service, service);
@@ -7814,7 +7820,7 @@ bool npp_eng_call_async(const char *service, const char *data, bool want_respons
             if ( M_areqs[j].state == NPP_ASYNC_STATE_FREE )    /* free slot */
             {
                 DBG("free slot %d found in M_areqs", j);
-                M_areqs[j].ci = ci;
+                M_areqs[j].ci = G_ci;
                 M_areqs[j].state = NPP_ASYNC_STATE_SENT;
                 M_areqs[j].sent = G_now;
                 if ( timeout < 0 ) timeout = 0;
@@ -7830,7 +7836,7 @@ bool npp_eng_call_async(const char *service, const char *data, bool want_respons
         {
             /* set request state */
 
-            DDBG("ci=%d, changing state to CONN_STATE_WAITING_FOR_ASYNC", ci);
+            DDBG("ci=%d, changing state to CONN_STATE_WAITING_FOR_ASYNC", G_ci);
             G_connections[G_ci].state = CONN_STATE_WAITING_FOR_ASYNC;
 
 #ifdef NPP_FD_MON_POLL
