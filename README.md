@@ -22,7 +22,7 @@ There is a [RESTful API generator](https://nodepp.org/generators) to generate al
 
 ### ci
 
-Version 3 gets rid of **ci** (connection index) carried around for all those years. I kind of forgot about it, even after it had become obvious that Node++ was going to retain a single-threaded model. Migration to 3.x.x requires removing `int ci` and `ci` function arguments.
+Version 3 gets rid of **ci** (connection index) carried around for all those years. I kind of forgot about it, even after it had become obvious that Node++ was going to retain a single-threaded model. Migration to 3.x.x requires removing `int ci` function arguments.
 
 ### Silgy
 
@@ -30,11 +30,11 @@ Silgy compatibility has been removed. It's been so long that it no loger makes s
 
 ### USERS
 
-Although 62 power 15 gives insane number of possible combinations (exactly 768,909,704,948,766,668,552,634,368 of them), I decided to extend **sessid** to 20 characters, in case the whole universe and all of its IoT devices started using Node++. I skip providing the updated number of combinations. Also, CSRF token has been extended to 15 characters.
+Although 62 power 15 gives insane number of possible combinations (exactly 768,909,704,948,766,668,552,634,368 of them), I decided to extend **sessid** to 20 characters, in case the whole universe and all of its IoT devices started using Node++. I skip providing the updated number of combinations here. Also, CSRF token has been extended to 15 characters.
 
-One time password is now possible with `NPP_USER_ONE_TIME_PASSWORD_ONLY` macro in `npp_app.h`.
+One Time Password is now possible with `NPP_USER_ONE_TIME_PASSWORD_ONLY` macro present in `npp_app.h`.
 
-The above requires some database changes:
+All of the above requires some database changes:
 
 ```source.sql
 alter table users add otp char(44);
