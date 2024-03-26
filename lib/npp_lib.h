@@ -1144,6 +1144,7 @@ const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, cons
 #ifdef NPP_CPP_STRINGS
 
 extern "C" {
+extern int          G_ci;
 extern char         G_tmp[NPP_TMP_BUFSIZE];
 extern bool         G_initialized;
 extern char         *G_strm;
