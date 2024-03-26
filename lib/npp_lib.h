@@ -109,6 +109,8 @@
 #define NPP_ESC_SQL                     '1'
 #define NPP_ESC_HTML                    '2'
 
+#define REQ(res)                        npp_lib_req(res)
+
 #define QS_DONT_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
 #define QS_SQL_ESCAPE(param, val)       npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
 #define QS_HTML_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
@@ -1032,6 +1034,12 @@ const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, cons
     void npp_out_html_footer();
     void npp_append_css(const char *fname, bool first);
     void npp_append_script(const char *fname, bool first);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_lib_req(const std::string& res);
+#else
+    bool npp_lib_req(const char *res);
+#endif
 
     bool npp_lib_get_qs_param(const char *name, char *retbuf, size_t maxlen, char esc_type);
     const unsigned char *npp_lib_get_qs_param_multipart(const char *name, size_t *retlen, char *retfname);

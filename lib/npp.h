@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "3.0.1"
+#define NPP_VERSION                     "3.1.0"
 
 
 #ifndef FALSE
@@ -1069,7 +1069,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define REQ_TAB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_TAB)
 #define REQ_MOB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_MOB)
 #define URI(uri)                        npp_eng_is_uri(uri)
-#define REQ(res)                        (0==strcmp(G_connections[G_ci].resource, res))
+//#define REQ(res)                        (0==strcmp(G_connections[G_ci].resource, res))
 #define REQ0(res)                       (0==strcmp(G_connections[G_ci].resource, res))
 #define REQ1(res)                       (0==strcmp(G_connections[G_ci].path1, res))
 #define REQ2(res)                       (0==strcmp(G_connections[G_ci].path2, res))

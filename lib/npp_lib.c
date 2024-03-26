@@ -3127,6 +3127,28 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
 
 
 /* --------------------------------------------------------------------------
+   Dispatcher logic
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_req(const std::string& res_)
+{
+    const char *res = res_.c_str();
+#else
+bool npp_lib_req(const char *res)
+{
+#endif
+    const char *p;
+
+    if ( res[0] == '/' )
+        p = res + 1;
+    else
+        p = res;
+
+    return (0==strcmp(G_connections[G_ci].resource, p));
+}
+
+
+/* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */
 static bool get_qs_param_json(const char *name, char *retbuf, int maxlen)
