@@ -18,6 +18,32 @@ Node++ library (paired with OpenSSL and optionally MySQL) contains everything th
 There is a [RESTful API generator](https://nodepp.org/generators) to generate almost the whole backend code in a few clicks, requiring only an SQL table definition.
 
 
+## Node++ 3 vs 2
+
+### ci
+
+Version 3 gets rid of **ci** (connection index) carried around for all those years. I kind of forgot about it, even after it had become obvious that Node++ was going to retain a single-threaded model. Migration to 3.x.x requires removing `int ci` function arguments.
+
+### Silgy
+
+Silgy compatibility has been removed. It's been so long that it no loger makes sense to clutter Node++'s code base with `npp_silgy.h`.
+
+### USERS
+
+Although 62 power 15 gives insane number of possible combinations (exactly 768,909,704,948,766,668,552,634,368 of them), I decided to extend **sessid** to 20 characters, in case the whole universe and all of its IoT devices started using Node++. I skip providing the updated number of combinations here. Also, CSRF token has been extended to 15 characters.
+
+One Time Password is now possible with `NPP_USER_ONE_TIME_PASSWORD_ONLY` macro present in `npp_app.h`.
+
+All of the above requires some database changes:
+
+```source.sql
+alter table users add otp char(44);
+alter table users add otp_expires datetime;
+alter table users_logins modify sessid char(20);
+alter table users_logins modify csrft char(15);
+```
+
+
 ## Framework
 
 The *backend framework* means that there are **7 server-side events** you can react to:
@@ -89,7 +115,7 @@ If `resource` is a file present in `res` or `resmin` (i.e. an image or css), it 
 Return static file if present, otherwise "Hello World!".
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     OUT("Hello World!");
 }
@@ -100,7 +126,7 @@ void npp_app_main(int ci)
 Application, yet without moving parts.
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     if ( REQ("") )  // landing page
     {
@@ -133,7 +159,7 @@ This is a simple 2-pages application demonstrating [QS()](https://github.com/rek
 `QS` works with all popular HTTP methods and payload types.
 
 ```source.c++
-void npp_app_main(int ci)
+void npp_app_main()
 {
     if ( REQ("") )  // landing page
     {

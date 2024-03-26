@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Table access class
-   Generated on nodepp.org on 2022-03-28 14:28:27, generator v.2.0.1
+   Generated on nodepp.org on 2024-03-24 00:13:16, generator v.2.1.0
    Using C-style strings
    Using exceptions
 --------------------------------------------------------------------------- */
@@ -42,6 +42,7 @@ Cusers_logins::Cusers_logins()
         ThrowSQL("mysql_stmt_init");
     if ( !(sSet_=mysql_stmt_init(dbConn_)) )
         ThrowSQL("mysql_stmt_init");
+
 
     Reset();
 }
@@ -103,7 +104,7 @@ bool Cusers_logins::Get(const std::string& arg_sessid)
     if ( firstGet_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "SELECT sessid,uagent,ip,user_id,csrft,created,last_used FROM users_logins WHERE sessid=BINARY ?");
+        sprintf(q, "SELECT sessid,uagent,ip,user_id,csrft,created,last_used FROM users_logins WHERE sessid=?");
         ret = mysql_stmt_prepare(sGet_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_logins::Get | mysql_stmt_prepare");
@@ -174,7 +175,7 @@ void Cusers_logins::Update(const std::string& arg_sessid)
     if ( firstUpdate_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "UPDATE users_logins SET sessid=?,uagent=?,ip=?,user_id=?,csrft=?,created=?,last_used=? WHERE sessid=BINARY ?");
+        sprintf(q, "UPDATE users_logins SET sessid=?,uagent=?,ip=?,user_id=?,csrft=?,created=?,last_used=? WHERE sessid=?");
         ret = mysql_stmt_prepare(sUpdate_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_logins::Update | mysql_stmt_prepare");
@@ -200,7 +201,7 @@ void Cusers_logins::Delete(const std::string& arg_sessid)
     if ( firstDelete_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "DELETE FROM users_logins WHERE sessid=BINARY ?");
+        sprintf(q, "DELETE FROM users_logins WHERE sessid=?");
         ret = mysql_stmt_prepare(sDelete_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_logins::Delete | mysql_stmt_prepare");
@@ -226,7 +227,7 @@ void Cusers_logins::Set(const std::string& arg_sessid)
     if ( firstSet_ )
     {
         char q[CDB_SQLBUF];
-        sprintf(q, "SELECT sessid FROM users_logins WHERE sessid=BINARY ?");
+        sprintf(q, "SELECT sessid FROM users_logins WHERE sessid=?");
         ret = mysql_stmt_prepare(sSet_, q, strlen(q));
         if ( ret != 0 )
             Cdb::ThrowSQL("Cusers_logins::Set | mysql_stmt_prepare");
@@ -251,8 +252,8 @@ void Cusers_logins::Set(const std::string& arg_sessid)
     }
     else if ( ret == 1 || ret == MYSQL_NO_DATA )   /* not found ==> insert new */
     {
-        strncpy(sessid, arg_sessid.c_str(), 15);
-        sessid[15] = EOS;
+        strncpy(sessid, arg_sessid.c_str(), 20);
+        sessid[20] = EOS;
 
         Insert();
     }
@@ -266,8 +267,8 @@ void Cusers_logins::Set(const std::string& arg_sessid)
 --------------------------------------------------------------------------- */
 void Cusers_logins::bindKey(MYSQL_STMT *s, const std::string& arg_sessid)
 {
-    strncpy(k_sessid_, arg_sessid.c_str(), 15);
-    k_sessid_[15] = EOS;
+    strncpy(k_sessid_, arg_sessid.c_str(), 20);
+    k_sessid_[20] = EOS;
 
     k_sessid_len_ = strlen(k_sessid_);
 
@@ -324,8 +325,8 @@ void Cusers_logins::bindInput(MYSQL_STMT *s, bool withKey, const std::string& ar
 
     if ( withKey )   /* after WHERE */
     {
-        strncpy(k_sessid_, arg_sessid.c_str(), 15);
-        k_sessid_[15] = EOS;
+        strncpy(k_sessid_, arg_sessid.c_str(), 20);
+        k_sessid_[20] = EOS;
 
         k_sessid_len_ = strlen(k_sessid_);
 
@@ -349,7 +350,7 @@ void Cusers_logins::bindOutput(MYSQL_STMT *s)
 
     bndo_[0].buffer_type = MYSQL_TYPE_STRING;
     bndo_[0].buffer = (char*)sessid;
-    bndo_[0].buffer_length = 16;
+    bndo_[0].buffer_length = 21;
     bndo_[0].is_null = &sessid_is_null_;
 
     bndo_[1].buffer_type = MYSQL_TYPE_STRING;
@@ -368,7 +369,7 @@ void Cusers_logins::bindOutput(MYSQL_STMT *s)
 
     bndo_[4].buffer_type = MYSQL_TYPE_STRING;
     bndo_[4].buffer = (char*)csrft;
-    bndo_[4].buffer_length = 8;
+    bndo_[4].buffer_length = 16;
     bndo_[4].is_null = &csrft_is_null_;
 
     bndo_[5].buffer_type = MYSQL_TYPE_DATETIME;
@@ -395,7 +396,7 @@ static USERS_LOGINS_SESSID sessid;    /* to be scrapped anyway */
 
     bndso_[0].buffer_type = MYSQL_TYPE_STRING;
     bndso_[0].buffer = (char*)sessid;
-    bndso_[0].buffer_length = 16;
+    bndso_[0].buffer_length = 21;
 
     if ( mysql_stmt_bind_result(sSet_, bndso_) )
         Cdb::ThrowSQL("Cusers_logins::bindSetOutput | mysql_stmt_bind_result");
@@ -416,6 +417,7 @@ void Cusers_logins::genDTStrings()
         last_used[0] = EOS;
     else
         sprintf(last_used, "%04d-%02d-%02d %02d:%02d:%02d", t_last_used_.year, t_last_used_.month, t_last_used_.day, t_last_used_.hour, t_last_used_.minute, t_last_used_.second);
+
 }
 
 

@@ -16,6 +16,8 @@ CREATE TABLE users
     phone VARCHAR(30),
     passwd1 CHAR(44),               -- SHA256 hash in base64
     passwd2 CHAR(44),               -- SHA256 hash in base64
+    otp CHAR(44),                   -- SHA256 hash in base64 (one-time password)
+    otp_expires DATETIME,           -- one-time password expiration time
     lang CHAR(5),
     about VARCHAR(250),
     group_id INT,
@@ -69,11 +71,11 @@ CREATE TABLE users_settings
 
 CREATE TABLE users_logins
 (
-    sessid CHAR(15) CHARACTER SET latin1 COLLATE latin1_bin PRIMARY KEY,
+    sessid CHAR(20) CHARACTER SET latin1 COLLATE latin1_bin PRIMARY KEY,
     uagent VARCHAR(250),
     ip CHAR(45),
     user_id INT,
-    csrft CHAR(7),
+    csrft CHAR(15),
     created DATETIME,
     last_used DATETIME
 );

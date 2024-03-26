@@ -40,6 +40,9 @@
 //#define NPP_ASYNC
 
 
+//#define NPP_DEBUG
+
+
 /* app session data */
 /* accessible via SESSION_DATA macro */
 

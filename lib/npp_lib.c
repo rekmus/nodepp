@@ -399,7 +399,7 @@ static char dst[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Set client's time zone offset on the server
 -------------------------------------------------------------------------- */
-void npp_set_tz(int ci)
+void npp_set_tz()
 {
     DBG("npp_set_tz");
 
@@ -431,7 +431,7 @@ void npp_set_tz(int ci)
 /* --------------------------------------------------------------------------
    Calculate client's local time
 -------------------------------------------------------------------------- */
-time_t npp_ua_time(int ci)
+time_t npp_ua_time()
 {
     return G_now + SESSION.tz_offset * 60;
 }
@@ -440,7 +440,7 @@ time_t npp_ua_time(int ci)
 /* --------------------------------------------------------------------------
    Return client's local today string
 -------------------------------------------------------------------------- */
-char *npp_today_ua(int ci)
+char *npp_today_ua()
 {
 static char today[11];
     strncpy(today, DT_NOW_LOCAL, 10);
@@ -1134,7 +1134,7 @@ static char dest[NPP_LIB_STR_BUF];
 /* --------------------------------------------------------------------------
    Verify CSRF token
 -------------------------------------------------------------------------- */
-bool npp_csrft_ok(int ci)
+bool npp_csrft_ok()
 {
 #ifndef NPP_CLIENT
 
@@ -1379,7 +1379,7 @@ static const char not_found[4]="~~~";
    Get error description for user
    Pick the user session language if possible
 -------------------------------------------------------------------------- */
-const char *npp_get_message(int ci, int code)
+const char *npp_get_message(int code)
 {
     const char *result;
 
@@ -1675,11 +1675,11 @@ static const char not_found[4]="~~~";
    If not, return given string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-const char *npp_lib_get_string(int ci, const std::string& str_)
+const char *npp_lib_get_string(const std::string& str_)
 {
     const char *str = str_.c_str();
 #else
-const char *npp_lib_get_string(int ci, const char *str)
+const char *npp_lib_get_string(const char *str)
 {
 #endif
     if ( SESSION.lang[0]==EOS || 0==strcmp(SESSION.lang, NPP_DEFAULT_LANG) )
@@ -2121,7 +2121,7 @@ const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, cons
 /* --------------------------------------------------------------------------
    Output standard HTML header
 -------------------------------------------------------------------------- */
-void npp_out_html_header(int ci)
+void npp_out_html_header()
 {
     OUT("<!DOCTYPE html>");
     OUT("<html>");
@@ -2143,7 +2143,7 @@ void npp_out_html_header(int ci)
 /* --------------------------------------------------------------------------
    Output standard HTML footer
 -------------------------------------------------------------------------- */
-void npp_out_html_footer(int ci)
+void npp_out_html_footer()
 {
     OUT("</body>");
     OUT("</html>");
@@ -2525,10 +2525,10 @@ bool npp_lib_read_snippets(const char *host, int host_id, const char *directory,
 /* --------------------------------------------------------------------------
    Get snippet
 -------------------------------------------------------------------------- */
-char *npp_get_snippet(int ci, const char *name)
+char *npp_get_snippet(const char *name)
 {
 #ifdef NPP_MULTI_HOST
-    int i = get_snippet_idx(G_connections[ci].host_id, name);
+    int i = get_snippet_idx(G_connections[G_ci].host_id, name);
 #else
     int i = get_snippet_idx(name);
 #endif
@@ -2543,10 +2543,10 @@ char *npp_get_snippet(int ci, const char *name)
 /* --------------------------------------------------------------------------
    Get snippet length
 -------------------------------------------------------------------------- */
-unsigned npp_get_snippet_len(int ci, const char *name)
+unsigned npp_get_snippet_len(const char *name)
 {
 #ifdef NPP_MULTI_HOST
-    int i = get_snippet_idx(G_connections[ci].host_id, name);
+    int i = get_snippet_idx(G_connections[G_ci].host_id, name);
 #else
     int i = get_snippet_idx(name);
 #endif
@@ -2562,15 +2562,15 @@ unsigned npp_get_snippet_len(int ci, const char *name)
    OUT snippet
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_out_snippet(int ci, const std::string& name_)
+void npp_out_snippet(const std::string& name_)
 {
     const char *name = name_.c_str();
 #else
-void npp_out_snippet(int ci, const char *name)
+void npp_out_snippet(const char *name)
 {
 #endif
 #ifdef NPP_MULTI_HOST
-    int i = get_snippet_idx(G_connections[ci].host_id, name);
+    int i = get_snippet_idx(G_connections[G_ci].host_id, name);
 #else
     int i = get_snippet_idx(name);
 #endif
@@ -2584,15 +2584,15 @@ void npp_out_snippet(int ci, const char *name)
    OUT markdown snippet
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_out_snippet_md(int ci, const std::string& name_)
+void npp_out_snippet_md(const std::string& name_)
 {
     const char *name = name_.c_str();
 #else
-void npp_out_snippet_md(int ci, const char *name)
+void npp_out_snippet_md(const char *name)
 {
 #endif
 #ifdef NPP_MULTI_HOST
-    int i = get_snippet_idx(G_connections[ci].host_id, name);
+    int i = get_snippet_idx(G_connections[G_ci].host_id, name);
 #else
     int i = get_snippet_idx(name);
 #endif
@@ -2608,7 +2608,7 @@ void npp_out_snippet_md(int ci, const char *name)
 /* --------------------------------------------------------------------------
    Add CSS link to HTML head
 -------------------------------------------------------------------------- */
-void npp_append_css(int ci, const char *fname, bool first)
+void npp_append_css(const char *fname, bool first)
 {
     if ( first )
     {
@@ -2622,7 +2622,7 @@ void npp_append_css(int ci, const char *fname, bool first)
 /* --------------------------------------------------------------------------
    Add script to HTML head
 -------------------------------------------------------------------------- */
-void npp_append_script(int ci, const char *fname, bool first)
+void npp_append_script(const char *fname, bool first)
 {
     if ( first )
     {
@@ -2733,13 +2733,13 @@ void npp_menu_add_item(int id, int parent, const char *resource, const char *tit
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
 /* allow return values to be char as well as std::string */
-bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *title, char *snippet)
+bool npp_menu_get_item(const std::string& path_sep_, char *path, char *title, char *snippet)
 {
     std::string path_;
     std::string title_;
     std::string snippet_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( path )
         strcpy(path, path_.c_str());
@@ -2753,12 +2753,12 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *t
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *title, std::string& snippet_)
+bool npp_menu_get_item(const std::string& path_sep_, char *path, char *title, std::string& snippet_)
 {
     std::string path_;
     std::string title_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( path )
         strcpy(path, path_.c_str());
@@ -2769,12 +2769,12 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, char *t
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::string& title_, char *snippet)
+bool npp_menu_get_item(const std::string& path_sep_, char *path, std::string& title_, char *snippet)
 {
     std::string path_;
     std::string snippet_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( path )
         strcpy(path, path_.c_str());
@@ -2785,11 +2785,11 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::st
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::string& title_, std::string& snippet_)
+bool npp_menu_get_item(const std::string& path_sep_, char *path, std::string& title_, std::string& snippet_)
 {
     std::string path_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( path )
         strcpy(path, path_.c_str());
@@ -2797,12 +2797,12 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, char *path, std::st
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, char *title, char *snippet)
+bool npp_menu_get_item(const std::string& path_sep_, std::string& path_, char *title, char *snippet)
 {
     std::string title_;
     std::string snippet_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( title )
         strcpy(title, title_.c_str());
@@ -2813,11 +2813,11 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_,
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, char *title, std::string& snippet_)
+bool npp_menu_get_item(const std::string& path_sep_, std::string& path_, char *title, std::string& snippet_)
 {
     std::string title_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( title )
         strcpy(title, title_.c_str());
@@ -2825,11 +2825,11 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_,
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, std::string& title_, char *snippet)
+bool npp_menu_get_item(const std::string& path_sep_, std::string& path_, std::string& title_, char *snippet)
 {
     std::string snippet_;
 
-    bool ret = npp_menu_get_item(ci, path_sep_, path_, title_, snippet_);
+    bool ret = npp_menu_get_item(path_sep_, path_, title_, snippet_);
 
     if ( snippet )
         strcpy(snippet, snippet_.c_str());
@@ -2837,14 +2837,14 @@ bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_,
     return ret;
 }
 
-bool npp_menu_get_item(int ci, const std::string& path_sep_, std::string& path_, std::string& title_, std::string& snippet_)
+bool npp_menu_get_item(const std::string& path_sep_, std::string& path_, std::string& title_, std::string& snippet_)
 {
     const char *path_sep = path_sep_.c_str();
 static char path[4096];
 static char title[256];
 static char snippet[256];
 #else
-bool npp_menu_get_item(int ci, const char *path_sep, char *path, char *title, char *snippet)
+bool npp_menu_get_item(const char *path_sep, char *path, char *title, char *snippet)
 {
 #endif
     int  found=FALSE;
@@ -3129,7 +3129,7 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
 /* --------------------------------------------------------------------------
    Get the incoming param if Content-Type == JSON
 -------------------------------------------------------------------------- */
-static bool get_qs_param_json(int ci, const char *name, char *retbuf, int maxlen)
+static bool get_qs_param_json(const char *name, char *retbuf, int maxlen)
 {
 static int prev_ci=-1;
 static unsigned prev_req;
@@ -3137,7 +3137,7 @@ static JSON req={0};
 
     /* parse JSON only once per request */
 
-    if ( ci != prev_ci || G_cnts_today.req != prev_req )
+    if ( G_ci != prev_ci || G_cnts_today.req != prev_req )
     {
         if ( !REQ_DATA )
             return FALSE;
@@ -3145,7 +3145,7 @@ static JSON req={0};
         if ( !lib_json_from_string(&req, REQ_DATA, 0, 0) )
             return FALSE;
 
-        prev_ci = ci;
+        prev_ci = G_ci;
         prev_req = G_cnts_today.req;
     }
 
@@ -3164,12 +3164,12 @@ static JSON req={0};
 /* --------------------------------------------------------------------------
    Get text value from multipart-form-data
 -------------------------------------------------------------------------- */
-static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, size_t maxlen)
+static bool get_qs_param_multipart_txt(const char *name, char *retbuf, size_t maxlen)
 {
     const unsigned char *p;
     size_t len;
 
-    p = npp_lib_get_qs_param_multipart(ci, name, &len, NULL);
+    p = npp_lib_get_qs_param_multipart(name, &len, NULL);
 
     if ( !p ) return FALSE;
 
@@ -3190,7 +3190,7 @@ static bool get_qs_param_multipart_txt(int ci, const char *name, char *retbuf, s
 /* --------------------------------------------------------------------------
    Get the query string value. Return TRUE if found.
 -------------------------------------------------------------------------- */
-static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxlen)
+static bool get_qs_param_raw(const char *name, char *retbuf, size_t maxlen)
 {
     char *qs, *end;
 
@@ -3198,28 +3198,28 @@ static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxl
 
     DDBG("get_qs_param_raw: name [%s]", name);
 
-    if ( NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) )
     {
-        if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_JSON )
+        if ( G_connections[G_ci].in_ctype == NPP_CONTENT_TYPE_JSON )
         {
-            return get_qs_param_json(ci, name, retbuf, maxlen);
+            return get_qs_param_json(name, retbuf, maxlen);
         }
-        else if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_MULTIPART )
+        else if ( G_connections[G_ci].in_ctype == NPP_CONTENT_TYPE_MULTIPART )
         {
-            return get_qs_param_multipart_txt(ci, name, retbuf, maxlen);
+            return get_qs_param_multipart_txt(name, retbuf, maxlen);
         }
-        else if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_URLENCODED && G_connections[ci].in_ctype != NPP_CONTENT_TYPE_UNSET )
+        else if ( G_connections[G_ci].in_ctype != NPP_CONTENT_TYPE_URLENCODED && G_connections[G_ci].in_ctype != NPP_CONTENT_TYPE_UNSET )
         {
             WAR("Invalid Content-Type");
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
         }
-        qs = G_connections[ci].in_data;
-        end = qs + G_connections[ci].clen;
+        qs = G_connections[G_ci].in_data;
+        end = qs + G_connections[G_ci].clen;
     }
     else    /* GET */
     {
-        qs = strchr(G_connections[ci].uri, '?');
+        qs = strchr(G_connections[G_ci].uri, '?');
     }
 
     if ( qs == NULL )
@@ -3228,11 +3228,11 @@ static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxl
         return FALSE;
     }
 
-    if ( !NPP_CONN_IS_PAYLOAD(G_connections[ci].flags) )   /* GET */
+    if ( !NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) )   /* GET */
     {
         ++qs;      /* skip the question mark */
-        end = qs + (strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
-        DDBG("get_qs_param_raw: qs len = %d", strlen(G_connections[ci].uri) - (qs-G_connections[ci].uri));
+        end = qs + (strlen(G_connections[G_ci].uri) - (qs-G_connections[G_ci].uri));
+        DDBG("get_qs_param_raw: qs len = %d", strlen(G_connections[G_ci].uri) - (qs-G_connections[G_ci].uri));
     }
 
     int fnamelen = strlen(name);
@@ -3302,15 +3302,15 @@ static bool get_qs_param_raw(int ci, const char *name, char *retbuf, size_t maxl
 /* --------------------------------------------------------------------------
    Get incoming request data. TRUE if found.
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const char *name, char *retbuf, size_t maxlen, char esc_type)
+bool npp_lib_get_qs_param(const char *name, char *retbuf, size_t maxlen, char esc_type)
 {
 static char interbuf[65536];
 
-    if ( G_connections[ci].in_ctype == NPP_CONTENT_TYPE_URLENCODED )
+    if ( G_connections[G_ci].in_ctype == NPP_CONTENT_TYPE_URLENCODED )
     {
 static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count */
 
-        if ( !get_qs_param_raw(ci, name, rawbuf, maxlen*3-1) )
+        if ( !get_qs_param_raw(name, rawbuf, maxlen*3-1) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -3321,7 +3321,7 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
     }
     else    /* usually JSON or multipart */
     {
-        if ( !get_qs_param_raw(ci, name, interbuf, maxlen) )
+        if ( !get_qs_param_raw(name, interbuf, maxlen) )
         {
             if ( retbuf ) retbuf[0] = EOS;
             return FALSE;
@@ -3348,12 +3348,12 @@ static char rawbuf[196608];    /* URL-encoded can have up to 3 times bytes count
 /* --------------------------------------------------------------------------
    Overloaded version for std::string
 -------------------------------------------------------------------------- */
-bool npp_lib_get_qs_param(int ci, const std::string& name_, std::string& retbuf_, size_t maxlen, char esc_type)
+bool npp_lib_get_qs_param(const std::string& name_, std::string& retbuf_, size_t maxlen, char esc_type)
 {
     const char *name = name_.c_str();
 static char retbuf[65536];
 
-    bool ret = npp_lib_get_qs_param(ci, name, retbuf, maxlen, esc_type);
+    bool ret = npp_lib_get_qs_param(name, retbuf, maxlen, esc_type);
 
     if ( ret )
         retbuf_ = retbuf;
@@ -3368,7 +3368,7 @@ static char retbuf[65536];
    Return data pointer or NULL if error
    If retfname is not NULL then assume binary data
 -------------------------------------------------------------------------- */
-const unsigned char *npp_lib_get_qs_param_multipart(int ci, const char *name, size_t *retlen, char *retfname)
+const unsigned char *npp_lib_get_qs_param_multipart(const char *name, size_t *retlen, char *retfname)
 {
     const unsigned char *cp;            /* current pointer */
     const unsigned char *p;             /* tmp pointer */
@@ -3378,26 +3378,26 @@ static unsigned blen;                   /* boundary length */
     const unsigned char *end;           /* end of data */
     size_t   len;
 
-    if ( G_connections[ci].boundary[0] == EOS )   /* first time in this request */
+    if ( G_connections[G_ci].boundary[0] == EOS )   /* first time in this request */
     {
         /* Couple of checks to make sure it's properly formatted multipart content */
 
-        if ( G_connections[ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART )
+        if ( G_connections[G_ci].in_ctype != NPP_CONTENT_TYPE_MULTIPART )
         {
             WAR("This is not multipart/form-data");
             return NULL;
         }
 
-        if ( !G_connections[ci].in_data )
+        if ( !G_connections[G_ci].in_data )
             return NULL;
 
-        if ( G_connections[ci].clen < 10 )
+        if ( G_connections[G_ci].clen < 10 )
         {
-            WAR("Content length seems to be too small for multipart (%u)", G_connections[ci].clen);
+            WAR("Content length seems to be too small for multipart (%u)", G_connections[G_ci].clen);
             return NULL;
         }
 
-        if ( G_connections[ci].in_data[G_connections[ci].clen-4] != '-' || G_connections[ci].in_data[G_connections[ci].clen-3] != '-' )
+        if ( G_connections[G_ci].in_data[G_connections[G_ci].clen-4] != '-' || G_connections[G_ci].in_data[G_connections[G_ci].clen-3] != '-' )
         {
             WAR("Content doesn't end with '--'");
             return NULL;
@@ -3405,7 +3405,7 @@ static unsigned blen;                   /* boundary length */
 
         /* find first end of line -- that would be end of boundary */
 
-        cp = (unsigned char*)G_connections[ci].in_data;
+        cp = (unsigned char*)G_connections[G_ci].in_data;
 
         if ( NULL == (p=(unsigned char*)strchr((char*)cp, '\n')) )
         {
@@ -3426,23 +3426,23 @@ static unsigned blen;                   /* boundary length */
             return NULL;
         }
 
-        strncpy(G_connections[ci].boundary, (char*)cp+2, blen);
+        strncpy(G_connections[G_ci].boundary, (char*)cp+2, blen);
 
-        if ( G_connections[ci].boundary[blen-1] == '\r' )
+        if ( G_connections[G_ci].boundary[blen-1] == '\r' )
             blen--;
 
-        G_connections[ci].boundary[blen] = EOS;
+        G_connections[G_ci].boundary[blen] = EOS;
     }
 
     DDBG("Looking for [%s] in multipart content...", name);
 
-    cp = (unsigned char*)G_connections[ci].in_data + blen;   /* skip the first boundary */
+    cp = (unsigned char*)G_connections[G_ci].in_data + blen;   /* skip the first boundary */
 
 //    bool found = FALSE;
 
     while ( TRUE )   /* find the right section */
     {
-//        int rem = G_connections[ci].clen - (cp - G_connections[ci].in_data);
+//        int rem = G_connections[G_ci].clen - (cp - G_connections[G_ci].in_data);
 
 //        DDBG("rem = %d", rem);   /* remaining bytes */
 
@@ -3491,9 +3491,9 @@ static unsigned blen;                   /* boundary length */
 
         /* keep looking */
 
-        int rem = G_connections[ci].clen - (cp - (unsigned char*)G_connections[ci].in_data);
+        int rem = G_connections[G_ci].clen - (cp - (unsigned char*)G_connections[G_ci].in_data);
 
-        if ( NULL == (p=npp_binstr(cp, rem, G_connections[ci].boundary)) )
+        if ( NULL == (p=npp_binstr(cp, rem, G_connections[G_ci].boundary)) )
         {
             WAR("No next boundary found");
             return NULL;
@@ -3552,7 +3552,7 @@ static unsigned blen;                   /* boundary length */
 
     if ( !retfname )    /* text */
     {
-        if ( NULL == (end=(unsigned char*)strstr((char*)cp, G_connections[ci].boundary)) )
+        if ( NULL == (end=(unsigned char*)strstr((char*)cp, G_connections[G_ci].boundary)) )
         {
             WAR("No closing boundary found");
             return NULL;
@@ -3571,13 +3571,13 @@ static unsigned blen;                   /* boundary length */
     else    /* binary */
     {
 #ifdef NPP_QS_MULTIPART_FAST
-        len = G_connections[ci].clen - (cp - G_connections[ci].in_data) - blen - 8;  /* fast version */
+        len = G_connections[G_ci].clen - (cp - G_connections[G_ci].in_data) - blen - 8;  /* fast version */
                                                                 /* Note that the file content must come as last! */
 #else   /* look for the next boundary */
 
-        int rem = G_connections[ci].clen - (cp - (unsigned char*)G_connections[ci].in_data);
+        int rem = G_connections[G_ci].clen - (cp - (unsigned char*)G_connections[G_ci].in_data);
 
-        if ( NULL == (end=npp_binstr(cp, rem, G_connections[ci].boundary)) )
+        if ( NULL == (end=npp_binstr(cp, rem, G_connections[G_ci].boundary)) )
         {
             WAR("No closing boundary found");
             return NULL;
@@ -3610,16 +3610,16 @@ static unsigned blen;                   /* boundary length */
    Get integer value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsi(int ci, const std::string& name_, int *retbuf)
+bool npp_lib_qsi(const std::string& name_, int *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsi(int ci, const char *name, int *retbuf)
+bool npp_lib_qsi(const char *name, int *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%d", retbuf);
@@ -3635,16 +3635,16 @@ bool npp_lib_qsi(int ci, const char *name, int *retbuf)
    Get unsigned value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsu(int ci, const std::string& name_, unsigned *retbuf)
+bool npp_lib_qsu(const std::string& name_, unsigned *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf)
+bool npp_lib_qsu(const char *name, unsigned *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%u", retbuf);
@@ -3660,16 +3660,16 @@ bool npp_lib_qsu(int ci, const char *name, unsigned *retbuf)
    Get long value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsl(int ci, const std::string& name_, long *retbuf)
+bool npp_lib_qsl(const std::string& name_, long *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsl(int ci, const char *name, long *retbuf)
+bool npp_lib_qsl(const char *name, long *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%ld", retbuf);
@@ -3685,16 +3685,16 @@ bool npp_lib_qsl(int ci, const char *name, long *retbuf)
    Get float value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsf(int ci, const std::string& name_, float *retbuf)
+bool npp_lib_qsf(const std::string& name_, float *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsf(int ci, const char *name, float *retbuf)
+bool npp_lib_qsf(const char *name, float *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%f", retbuf);
@@ -3710,16 +3710,16 @@ bool npp_lib_qsf(int ci, const char *name, float *retbuf)
    Get double value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsd(int ci, const std::string& name_, double *retbuf)
+bool npp_lib_qsd(const std::string& name_, double *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsd(int ci, const char *name, double *retbuf)
+bool npp_lib_qsd(const char *name, double *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
             sscanf(s, "%lf", retbuf);
@@ -3735,16 +3735,16 @@ bool npp_lib_qsd(int ci, const char *name, double *retbuf)
    Get bool value from the query string
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_qsb(int ci, const std::string& name_, bool *retbuf)
+bool npp_lib_qsb(const std::string& name_, bool *retbuf)
 {
     const char *name = name_.c_str();
 #else
-bool npp_lib_qsb(int ci, const char *name, bool *retbuf)
+bool npp_lib_qsb(const char *name, bool *retbuf)
 {
 #endif
     QSVAL s;
 
-    if ( get_qs_param_raw(ci, name, s, MAX_URI_VAL_LEN) )
+    if ( get_qs_param_raw(name, s, MAX_URI_VAL_LEN) )
     {
         if ( retbuf )
         {
@@ -3764,9 +3764,9 @@ bool npp_lib_qsb(int ci, const char *name, bool *retbuf)
 /* --------------------------------------------------------------------------
    Set response status
 -------------------------------------------------------------------------- */
-void npp_lib_set_res_status(int ci, int status)
+void npp_lib_set_res_status(int status)
 {
-    G_connections[ci].status = status;
+    G_connections[G_ci].status = status;
 }
 
 
@@ -3774,30 +3774,30 @@ void npp_lib_set_res_status(int ci, int status)
    Set custom header
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_res_header(int ci, const std::string& hdr_, const std::string& val_)
+bool npp_lib_res_header(const std::string& hdr_, const std::string& val_)
 {
     const char *hdr = hdr_.c_str();
     const char *val = val_.c_str();
 #else
-bool npp_lib_res_header(int ci, const char *hdr, const char *val)
+bool npp_lib_res_header(const char *hdr, const char *val)
 {
 #endif
     int hlen = strlen(hdr);
     int vlen = strlen(val);
     int all = hlen + vlen + 4;
 
-    if ( all > NPP_CUST_HDR_LEN - G_connections[ci].cust_headers_len )
+    if ( all > NPP_CUST_HDR_LEN - G_connections[G_ci].cust_headers_len )
     {
         WAR("Couldn't add %s to custom headers: no space", hdr);
         return FALSE;
     }
 
-    strcat(G_connections[ci].cust_headers, hdr);
-    strcat(G_connections[ci].cust_headers, ": ");
-    strcat(G_connections[ci].cust_headers, val);
-    strcat(G_connections[ci].cust_headers, "\r\n");
+    strcat(G_connections[G_ci].cust_headers, hdr);
+    strcat(G_connections[G_ci].cust_headers, ": ");
+    strcat(G_connections[G_ci].cust_headers, val);
+    strcat(G_connections[G_ci].cust_headers, "\r\n");
 
-    G_connections[ci].cust_headers_len += all;
+    G_connections[G_ci].cust_headers_len += all;
 
     return TRUE;
 }
@@ -3808,21 +3808,21 @@ bool npp_lib_res_header(int ci, const char *hdr, const char *val)
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
 /* allow value to be char as well as std::string */
-bool npp_lib_get_cookie(int ci, const std::string& key_, char *value)
+bool npp_lib_get_cookie(const std::string& key_, char *value)
 {
     std::string value_;
-    bool ret = npp_lib_get_cookie(ci, key_, value_);
+    bool ret = npp_lib_get_cookie(key_, value_);
     if ( value )
         strcpy(value, value_.c_str());
     return ret;
 }
 
-bool npp_lib_get_cookie(int ci, const std::string& key_, std::string& value_)
+bool npp_lib_get_cookie(const std::string& key_, std::string& value_)
 {
     const char *key = key_.c_str();
 static char value[NPP_MAX_VALUE_LEN+1];
 #else
-bool npp_lib_get_cookie(int ci, const char *key, char *value)
+bool npp_lib_get_cookie(const char *key, char *value)
 {
 #endif
     char nkey[256];
@@ -3830,7 +3830,7 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
 
     sprintf(nkey, "%s=", key);
 
-    v = strstr(G_connections[ci].in_cookie, nkey);
+    v = strstr(G_connections[G_ci].in_cookie, nkey);
 
     if ( !v ) return FALSE;
 
@@ -3862,12 +3862,12 @@ bool npp_lib_get_cookie(int ci, const char *key, char *value)
    Set cookie
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-bool npp_lib_set_cookie(int ci, const std::string& key_, const std::string& value_, int days)
+bool npp_lib_set_cookie(const std::string& key_, const std::string& value_, int days)
 {
     const char *key = key_.c_str();
     const char *value = value_.c_str();
 #else
-bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
+bool npp_lib_set_cookie(const char *key, const char *value, int days)
 {
 #endif
     char v[NPP_CUST_HDR_LEN+1];
@@ -3877,7 +3877,7 @@ bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
     else    /* current session only */
         sprintf(v, "%s=%s", key, value);
 
-    return npp_lib_res_header(ci, "Set-Cookie", v);
+    return npp_lib_res_header("Set-Cookie", v);
 }
 
 
@@ -3886,63 +3886,63 @@ bool npp_lib_set_cookie(int ci, const char *key, const char *value, int days)
    Mirrored print_content_type
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-void npp_lib_set_res_content_type(int ci, const std::string& str_)
+void npp_lib_set_res_content_type(const std::string& str_)
 {
     const char *str = str_.c_str();
 #else
-void npp_lib_set_res_content_type(int ci, const char *str)
+void npp_lib_set_res_content_type(const char *str)
 {
 #endif
     if ( 0==strcmp(str, "text/html; charset=utf-8") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     else if ( 0==strcmp(str, "text/plain") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
     else if ( 0==strcmp(str, "text/css") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_CSS;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_CSS;
     else if ( 0==strcmp(str, "application/javascript") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JS;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_JS;
     else if ( 0==strcmp(str, "image/gif") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_GIF;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_GIF;
     else if ( 0==strcmp(str, "image/jpeg") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JPG;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_JPG;
     else if ( 0==strcmp(str, "image/x-icon") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ICO;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(str, "image/png") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PNG;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_PNG;
     else if ( 0==strcmp(str, "application/font-woff2") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_WOFF2;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_WOFF2;
     else if ( 0==strcmp(str, "image/svg+xml") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_SVG;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_SVG;
     else if ( 0==strcmp(str, "application/json") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_JSON;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_JSON;
     else if ( 0==strcmp(str, "text/markdown") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_MD;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_MD;
     else if ( 0==strcmp(str, "application/pdf") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_PDF;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_PDF;
     else if ( 0==strcmp(str, "application/xml") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_XML;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_XML;
     else if ( 0==strcmp(str, "audio/mpeg") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_AMPEG;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_AMPEG;
     else if ( 0==strcmp(str, "application/x-msdownload") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_EXE;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_EXE;
     else if ( 0==strcmp(str, "application/zip") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_ZIP;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_ZIP;
     else if ( 0==strcmp(str, "application/gzip") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_GZIP;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_GZIP;
     else if ( 0==strcmp(str, "image/bmp") )
-        G_connections[ci].out_ctype = NPP_CONTENT_TYPE_BMP;
+        G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_BMP;
     else    /* custom */
     {
         if ( 0==strncmp(str, "text/html", 9) )
-            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
+            G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_HTML;
         else if ( 0==strncmp(str, "text/plain", 10) )
-            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
+            G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_TEXT;
         else if ( !str[0] )
-            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_UNSET;
+            G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_UNSET;
         else
-            G_connections[ci].out_ctype = NPP_CONTENT_TYPE_USER;
+            G_connections[G_ci].out_ctype = NPP_CONTENT_TYPE_USER;
 
-        COPY(G_connections[ci].ctypestr, str, NPP_CONTENT_TYPE_LEN);
+        COPY(G_connections[G_ci].ctypestr, str, NPP_CONTENT_TYPE_LEN);
     }
 }
 
@@ -3950,12 +3950,12 @@ void npp_lib_set_res_content_type(int ci, const char *str)
 /* --------------------------------------------------------------------------
    Set location
 -------------------------------------------------------------------------- */
-void npp_lib_set_res_location(int ci, const char *str, ...)
+void npp_lib_set_res_location(const char *str, ...)
 {
     va_list plist;
 
     va_start(plist, str);
-    vsprintf(G_connections[ci].location, str, plist);
+    vsprintf(G_connections[G_ci].location, str, plist);
     va_end(plist);
 }
 
@@ -3963,12 +3963,12 @@ void npp_lib_set_res_location(int ci, const char *str, ...)
 /* --------------------------------------------------------------------------
    Set response content disposition
 -------------------------------------------------------------------------- */
-void npp_lib_set_res_content_disposition(int ci, const char *str, ...)
+void npp_lib_set_res_content_disposition(const char *str, ...)
 {
     va_list plist;
 
     va_start(plist, str);
-    vsprintf(G_connections[ci].cdisp, str, plist);
+    vsprintf(G_connections[G_ci].cdisp, str, plist);
     va_end(plist);
 }
 
@@ -3977,7 +3977,7 @@ void npp_lib_set_res_content_disposition(int ci, const char *str, ...)
    Send message description as plain, pipe-delimited text as follows:
    <code>|<category>|<description>
 -------------------------------------------------------------------------- */
-void npp_lib_send_msg_description(int ci, int code)
+void npp_lib_send_msg_description(int code)
 {
     char cat[64];
     char msg[1024];
@@ -4002,7 +4002,7 @@ void npp_lib_send_msg_description(int ci, int code)
 /* --------------------------------------------------------------------------
    Format counters
 -------------------------------------------------------------------------- */
-static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
+static void format_counters(counters_fmt_t *s, npp_counters_t *n)
 {
     DDBG("format_counters");
 
@@ -4025,7 +4025,7 @@ static void format_counters(int ci, counters_fmt_t *s, npp_counters_t *n)
 /* --------------------------------------------------------------------------
    Users info
 -------------------------------------------------------------------------- */
-static void users_info(int ci, char activity, int rows, admin_info_t ai[], int ai_cnt)
+static void users_info(char activity, int rows, admin_info_t ai[], int ai_cnt)
 {
     char        sql[NPP_SQLBUF];
     MYSQL_RES   *result;
@@ -4221,7 +4221,7 @@ static void users_info(int ci, char activity, int rows, admin_info_t ai[], int a
 /* --------------------------------------------------------------------------
    Admin dashboard
 -------------------------------------------------------------------------- */
-void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool header_n_footer)
+void npp_admin_info(int users, admin_info_t ai[], int ai_cnt, bool header_n_footer)
 {
 #ifdef NPP_USERS
     if ( SESSION.auth_level < AUTH_LEVEL_ADMIN )
@@ -4295,10 +4295,10 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     counters_fmt_t y;       /* yesterday */
     counters_fmt_t b;       /* the day before */
 
-    format_counters(ci, &t, &G_cnts_today);
-    format_counters(ci, &y, &G_cnts_yesterday);
+    format_counters(&t, &G_cnts_today);
+    format_counters(&y, &G_cnts_yesterday);
     if ( REQ_DSK )
-        format_counters(ci, &b, &G_cnts_day_before);
+        format_counters(&b, &G_cnts_day_before);
 
     OUT("<table cellpadding=4 border=1>");
 
@@ -4349,10 +4349,10 @@ void npp_admin_info(int ci, int users, admin_info_t ai[], int ai_cnt, bool heade
     if ( users > 0 )
     {
         OUT("<h2>Users</h2>");
-        users_info(ci, AI_USERS_ALL, users, ai, ai_cnt);
-        users_info(ci, AI_USERS_YAU, users, ai, ai_cnt);
-        users_info(ci, AI_USERS_MAU, users, ai, ai_cnt);
-        users_info(ci, AI_USERS_DAU, users, ai, ai_cnt);
+        users_info(AI_USERS_ALL, users, ai, ai_cnt);
+        users_info(AI_USERS_YAU, users, ai, ai_cnt);
+        users_info(AI_USERS_MAU, users, ai, ai_cnt);
+        users_info(AI_USERS_DAU, users, ai, ai_cnt);
     }
 #endif  /* NPP_USERS */
 
@@ -7326,11 +7326,11 @@ static void human_size(int64_t bytes, human_size_t *hs)
    Open and read (potentially large) file into data
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int64_t npp_open_read_file(const std::string& fname_, void **data)
+int64_t npp_read_file(const std::string& fname_, void **data)
 {
     const char *fname = fname_.c_str();
 #else
-int64_t npp_open_read_file(const char *fname, void **data)
+int64_t npp_read_file(const char *fname, void **data)
 {
 #endif
     int64_t size;
@@ -9454,25 +9454,33 @@ bool npp_email(const char *to, const char *subject, const char *message)
 
     sprintf(command, "/usr/lib/sendmail -t -f \"%s\"", sender_bare);
 
-    FILE *pipe = popen(command, "w");
+    FILE *pipe;
+
+    pipe = popen(command, "w");
+
+    if ( pipe == NULL )
+    {
+        WAR("popen failed, will try again in 500 milliseconds...");
+        msleep(500);
+        pipe = popen(command, "w");
+        msleep(500);
+    }
 
     if ( pipe == NULL )
     {
         ERR("Failed to invoke sendmail");
         return FALSE;
     }
-    else
-    {
-        fprintf(pipe, "Date: %s\r\n", G_header_date);
-        fprintf(pipe, "From: %s\r\n", sender_full);
-        fprintf(pipe, "To: %s\r\n", to);
-        fprintf(pipe, "Subject: %s\r\n", subject);
-        fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
-        fprintf(pipe, "\r\n");
-        fwrite(message, strlen(message), 1, pipe);
-        fwrite("\r\n.\r\n", 5, 1, pipe);
-        pclose(pipe);
-    }
+
+    fprintf(pipe, "Date: %s\r\n", G_header_date);
+    fprintf(pipe, "From: %s\r\n", sender_full);
+    fprintf(pipe, "To: %s\r\n", to);
+    fprintf(pipe, "Subject: %s\r\n", subject);
+    fprintf(pipe, "Content-Type: text/plain; charset=\"utf-8\"\r\n");
+    fprintf(pipe, "\r\n");
+    fwrite(message, strlen(message), 1, pipe);
+    fwrite("\r\n.\r\n", 5, 1, pipe);
+    pclose(pipe);
 
     return TRUE;
 
@@ -11788,87 +11796,87 @@ char *strnstr(const char *haystack, const char *needle, size_t len)
    Set date format, decimal & thousand separator
    for current connection and session
 ---------------------------------------------------------------------------*/
-void npp_lib_set_formats(int ci, const char *lang)
+void npp_lib_set_formats(const char *lang)
 {
     DBG("npp_lib_set_formats, lang [%s]", lang);
 
-    G_connections[ci].formats = 0;
+    G_connections[G_ci].formats = 0;
 
     /* date format */
 
     if ( 0==strcmp(lang, "EN-US") )
-        G_connections[ci].formats |= NPP_DATE_US;
+        G_connections[G_ci].formats |= NPP_DATE_US;
     else if ( 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "FR-FR") || 0==strcmp(lang, "EN-IE") || 0==strcmp(lang, "ES-ES") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "PT-PT") || 0==strcmp(lang, "PT-BR") || 0==strcmp(lang, "ES-AR") )
-        G_connections[ci].formats |= NPP_DATE_GB;
+        G_connections[G_ci].formats |= NPP_DATE_GB;
     else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "RU-RU") || 0==strcmp(lang, "DE-CH") || 0==strcmp(lang, "FR-CH") )
-        G_connections[ci].formats |= NPP_DATE_PL;
+        G_connections[G_ci].formats |= NPP_DATE_PL;
 
     /* amount format */
 
     if ( 0==strcmp(lang, "EN-US") || 0==strcmp(lang, "EN-GB") || 0==strcmp(lang, "EN-AU") || 0==strcmp(lang, "TH-TH") )
     {
-        G_connections[ci].formats |= NPP_NUMBER_DS_DOT;
-        G_connections[ci].formats |= NPP_NUMBER_TS_COMMA;
+        G_connections[G_ci].formats |= NPP_NUMBER_DS_DOT;
+        G_connections[G_ci].formats |= NPP_NUMBER_TS_COMMA;
     }
     else if ( 0==strcmp(lang, "PL-PL") || 0==strcmp(lang, "IT-IT") || 0==strcmp(lang, "NB-NO") || 0==strcmp(lang, "ES-ES") )
     {
-        G_connections[ci].formats |= NPP_NUMBER_TS_DOT;
+        G_connections[G_ci].formats |= NPP_NUMBER_TS_DOT;
     }
 
-    G_connections[ci].formats |= NPP_FORMATS_SET;
+    G_connections[G_ci].formats |= NPP_FORMATS_SET;
 
-    SESSION.formats = G_connections[ci].formats;
+    SESSION.formats = G_connections[G_ci].formats;
 }
 
 
 /* --------------------------------------------------------------------------
    Format date
 ---------------------------------------------------------------------------*/
-static bool lib_is_date_US(int ci)
+static bool lib_is_date_US()
 {
     if ( IS_SESSION )
         return ((SESSION.formats & NPP_DATE_US) == NPP_DATE_US);
     else
-        return ((G_connections[ci].formats & NPP_DATE_US) == NPP_DATE_US);
+        return ((G_connections[G_ci].formats & NPP_DATE_US) == NPP_DATE_US);
 }
 
 
 /* --------------------------------------------------------------------------
    Format date
 ---------------------------------------------------------------------------*/
-static bool lib_is_date_GB(int ci)
+static bool lib_is_date_GB()
 {
     if ( IS_SESSION )
         return ((SESSION.formats & NPP_DATE_GB) == NPP_DATE_GB);
     else
-        return ((G_connections[ci].formats & NPP_DATE_GB) == NPP_DATE_GB);
+        return ((G_connections[G_ci].formats & NPP_DATE_GB) == NPP_DATE_GB);
 }
 
 
 /* --------------------------------------------------------------------------
    Format date
 ---------------------------------------------------------------------------*/
-static bool lib_is_date_PL(int ci)
+static bool lib_is_date_PL()
 {
     if ( IS_SESSION )
         return ((SESSION.formats & NPP_DATE_PL) == NPP_DATE_PL);
     else
-        return ((G_connections[ci].formats & NPP_DATE_PL) == NPP_DATE_PL);
+        return ((G_connections[G_ci].formats & NPP_DATE_PL) == NPP_DATE_PL);
 }
 
 
 /* --------------------------------------------------------------------------
    Format date
 ---------------------------------------------------------------------------*/
-char *npp_lib_fmt_date(int ci, short year, short month, short day)
+char *npp_lib_fmt_date(short year, short month, short day)
 {
 static char dest[32];
 
-    if ( lib_is_date_US(ci) )
+    if ( lib_is_date_US() )
         sprintf(dest, "%02hd/%02hd/%hd", month, day, year);
-    else if ( lib_is_date_GB(ci) )
+    else if ( lib_is_date_GB() )
         sprintf(dest, "%02hd/%02hd/%hd", day, month, year);
-    else if ( lib_is_date_PL(ci) )
+    else if ( lib_is_date_PL() )
         sprintf(dest, "%02hd.%02hd.%hd", day, month, year);
     else    /* NPP_DATE_DEFAULT */
         sprintf(dest, "%hd-%02hd-%02hd", year, month, day);
@@ -11880,7 +11888,7 @@ static char dest[32];
 /* --------------------------------------------------------------------------
    Format amount
 ---------------------------------------------------------------------------*/
-static char get_dsep(int ci)
+static char get_dsep()
 {
     if ( IS_SESSION )
     {
@@ -11891,7 +11899,7 @@ static char get_dsep(int ci)
     }
     else    /* no session -- get from current request */
     {
-        if ( (G_connections[ci].formats & NPP_NUMBER_DS_COMMA) == NPP_NUMBER_DS_COMMA )
+        if ( (G_connections[G_ci].formats & NPP_NUMBER_DS_COMMA) == NPP_NUMBER_DS_COMMA )
             return ',';
         else
             return '.';
@@ -11902,7 +11910,7 @@ static char get_dsep(int ci)
 /* --------------------------------------------------------------------------
    Format amount
 ---------------------------------------------------------------------------*/
-static char get_tsep(int ci)
+static char get_tsep()
 {
     if ( IS_SESSION )
     {
@@ -11915,9 +11923,9 @@ static char get_tsep(int ci)
     }
     else    /* no session -- get from current request */
     {
-        if ( (G_connections[ci].formats & NPP_NUMBER_TS_SPACE) == NPP_NUMBER_TS_SPACE )
+        if ( (G_connections[G_ci].formats & NPP_NUMBER_TS_SPACE) == NPP_NUMBER_TS_SPACE )
             return ' ';
-        else if ( (G_connections[ci].formats & NPP_NUMBER_TS_COMMA) == NPP_NUMBER_TS_COMMA )
+        else if ( (G_connections[G_ci].formats & NPP_NUMBER_TS_COMMA) == NPP_NUMBER_TS_COMMA )
             return ',';
         else
             return '.';
@@ -11928,7 +11936,7 @@ static char get_tsep(int ci)
 /* --------------------------------------------------------------------------
    Format decimal amount
 ---------------------------------------------------------------------------*/
-char *npp_lib_fmt_dec(int ci, double in_val)
+char *npp_lib_fmt_dec(double in_val)
 {
 static char dest[256];
 
@@ -11947,8 +11955,8 @@ static char dest[256];
 
     int len = strlen(in_val_str);
 
-    char dsep = get_dsep(ci);   /* decimal separator */
-    char tsep = get_tsep(ci);   /* thousand separator */
+    char dsep = get_dsep();   /* decimal separator */
+    char tsep = get_tsep();   /* thousand separator */
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {
@@ -11973,7 +11981,7 @@ static char dest[256];
 /* --------------------------------------------------------------------------
    Format integer amount
 ---------------------------------------------------------------------------*/
-char *npp_lib_fmt_int(int ci, long long in_val)
+char *npp_lib_fmt_int(long long in_val)
 {
 static char dest[256];
 
@@ -11994,7 +12002,7 @@ static char dest[256];
 
     int len = strlen(in_val_str);
 
-    char tsep = get_tsep(ci);    /* thousand separator */
+    char tsep = get_tsep();    /* thousand separator */
 
     for ( i=(j?1:0); i<len; ++i, ++j )
     {

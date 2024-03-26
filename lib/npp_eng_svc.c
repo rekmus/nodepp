@@ -70,6 +70,7 @@ npp_counters_t G_cnts_day_before={0};       /* day before's counters */
 int         G_days_up=0;                    /* web server's days up */
 int         G_connections_cnt=0;            /* number of open connections */
 int         G_connections_hwm=0;            /* highest number of open connections (high water mark) */
+int         G_ci=0;
 int         G_sessions_cnt=0;               /* number of active user sessions */
 int         G_sessions_hwm=0;               /* highest number of active user sessions (high water mark) */
 int         G_blacklist_cnt=0;              /* G_blacklist length */
@@ -348,15 +349,15 @@ int main(int argc, char *argv[])
             strcpy(G_connections[0].uri, G_svc_req.hdr.uri);
             strcpy(G_connections[0].resource, G_svc_req.hdr.resource);
 #if NPP_RESOURCE_LEVELS > 1
-            strcpy(G_connections[0].req1, G_svc_req.hdr.req1);
+            strcpy(G_connections[0].path1, G_svc_req.hdr.path1);
 #if NPP_RESOURCE_LEVELS > 2
-            strcpy(G_connections[0].req2, G_svc_req.hdr.req2);
+            strcpy(G_connections[0].path2, G_svc_req.hdr.path2);
 #if NPP_RESOURCE_LEVELS > 3
-            strcpy(G_connections[0].req3, G_svc_req.hdr.req3);
+            strcpy(G_connections[0].path3, G_svc_req.hdr.path3);
 #if NPP_RESOURCE_LEVELS > 4
-            strcpy(G_connections[0].req4, G_svc_req.hdr.req4);
+            strcpy(G_connections[0].path4, G_svc_req.hdr.path4);
 #if NPP_RESOURCE_LEVELS > 5
-            strcpy(G_connections[0].req5, G_svc_req.hdr.req5);
+            strcpy(G_connections[0].path5, G_svc_req.hdr.path5);
 #endif  /* NPP_RESOURCE_LEVELS > 5 */
 #endif  /* NPP_RESOURCE_LEVELS > 4 */
 #endif  /* NPP_RESOURCE_LEVELS > 3 */
@@ -470,7 +471,7 @@ int main(int argc, char *argv[])
 
             DBG("Calling npp_svc_main...");
 
-            npp_svc_main(0);
+            npp_svc_main();
 
             /* ----------------------------------------------------------- */
 
@@ -620,7 +621,7 @@ int main(int argc, char *argv[])
    It is optimistically assumed here that in the meantime NPP_MAX_SESSIONS
    won't be reached in any of the npp_* processes.
 -------------------------------------------------------------------------- */
-int npp_eng_session_start(int ci, const char *sessid)
+int npp_eng_session_start(const char *sessid)
 {
     char new_sessid[NPP_SESSID_LEN+1];
 
@@ -634,7 +635,7 @@ int npp_eng_session_start(int ci, const char *sessid)
 
     ++G_sessions_cnt;
 
-    G_connections[ci].si = 1;
+    G_connections[G_ci].si = 1;
 
     strcpy(new_sessid, npp_random(NPP_SESSID_LEN));
 
@@ -645,15 +646,15 @@ int npp_eng_session_start(int ci, const char *sessid)
 #endif
 
     strcpy(SESSION.sessid, new_sessid);
-    strcpy(SESSION.ip, G_connections[ci].ip);
-    strcpy(SESSION.uagent, G_connections[ci].uagent);
-    strcpy(SESSION.referer, G_connections[ci].referer);
-    strcpy(SESSION.lang, G_connections[ci].lang);
-    SESSION.formats = G_connections[ci].formats;
+    strcpy(SESSION.ip, G_connections[G_ci].ip);
+    strcpy(SESSION.uagent, G_connections[G_ci].uagent);
+    strcpy(SESSION.referer, G_connections[G_ci].referer);
+    strcpy(SESSION.lang, G_connections[G_ci].lang);
+    SESSION.formats = G_connections[G_ci].formats;
 
     /* set 'as' cookie */
 
-    strcpy(G_connections[ci].cookie_out_a, new_sessid);
+    strcpy(G_connections[G_ci].cookie_out_a, new_sessid);
 
     DBG("%d session(s)", G_sessions_cnt);
 
@@ -668,10 +669,10 @@ int npp_eng_session_start(int ci, const char *sessid)
    Invalidate active user sessions belonging to user_id
    Called after password change
 -------------------------------------------------------------------------- */
-void npp_eng_session_downgrade_by_uid(int user_id, int ci)
+void npp_eng_session_downgrade_by_uid(int user_id, bool keep_current)
 {
     G_svc_res.hdr.invalidate_uid = user_id;
-    G_svc_res.hdr.invalidate_ci = ci;
+    G_svc_res.hdr.invalidate_ci = G_ci;
 }
 
 

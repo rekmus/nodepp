@@ -68,10 +68,10 @@ int  M_common_cnt=0;
 
 static bool valid_username(const char *login);
 static bool valid_email(const char *email);
-static int  upgrade_uses(int ci, eng_session_data_t *us);
+static int  upgrade_uses(eng_session_data_t *us);
 static int  user_exists(const char *login);
 static int  email_exists(const char *email);
-static int  do_login(int ci, eng_session_data_t *us, char status, int visits);
+static int  do_login(eng_session_data_t *us, char status, int visits);
 static void get_hashes(char *result1, char *result2, const char *login, const char *email, const char *passwd);
 static void doit(char *result1, char *result2, const char *usr, const char *email, const char *passwd);
 static bool load_common_passwd(void);
@@ -92,12 +92,14 @@ void libusr_init()
     npp_add_message(ERR_EMAIL_FORMAT,             "EN-US", "Please enter valid email address");
     npp_add_message(ERR_EMAIL_FORMAT_OR_EMPTY,    "EN-US", "Please enter valid email address or leave this field empty");
     npp_add_message(ERR_EMAIL_TAKEN,              "EN-US", "This email address has already been registered");
+    npp_add_message(ERR_EMAIL_NOT_REGISTERED,     "EN-US", "This email has not been registered");
     npp_add_message(ERR_INVALID_PASSWORD,         "EN-US", "Please enter your existing password");
     npp_add_message(ERR_PASSWORD_TOO_SHORT,       "EN-US", "Password must be at least %d characters long", NPP_MIN_PASSWORD_LEN);
     npp_add_message(ERR_IN_10_COMMON_PASSWORDS,   "EN-US", "Your password is in 10 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_100_COMMON_PASSWORDS,  "EN-US", "Your password is in 100 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_1000_COMMON_PASSWORDS, "EN-US", "Your password is in 1,000 most common passwords, which makes it too easy to guess");
     npp_add_message(ERR_IN_10000_COMMON_PASSWORDS,"EN-US", "Your password is in 10,000 most common passwords, which makes it too easy to guess");
+    npp_add_message(ERR_OTP_EXPIRED,              "EN-US", "Your one-time password has expired");
     npp_add_message(ERR_PASSWORD_DIFFERENT,       "EN-US", "Please retype password exactly like in the previous field");
     npp_add_message(ERR_OLD_PASSWORD,             "EN-US", "Please enter your existing password");
     npp_add_message(ERR_SESSION_EXPIRED,          "EN-US", "Your session has expired. Please log in to continue:");
@@ -128,6 +130,7 @@ void libusr_init()
     npp_add_message(MSG_FEEDBACK_SENT,            "EN-US", "Thank you for your feedback!");
     npp_add_message(MSG_USER_ALREADY_ACTIVATED,   "EN-US", "Your account has already been activated");
     npp_add_message(MSG_ACCOUNT_DELETED,          "EN-US", "Your user account has been deleted. Thank you for trying %s!", NPP_APP_NAME);
+    npp_add_message(MSG_OTP_PASSWORD_SENT,        "EN-US", "Your one-time password has been sent");
 
 #ifndef DONT_REFUSE_COMMON_PASSWORDS
     load_common_passwd();
@@ -184,23 +187,23 @@ static bool valid_email(const char *email)
 /* --------------------------------------------------------------------------
    Set ls cookie expiration time
 -------------------------------------------------------------------------- */
-static void set_ls_cookie_expiration(int ci, time_t from)
+static void set_ls_cookie_expiration(time_t from)
 {
-    strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(from + 3600*24*NPP_USER_KEEP_LOGGED_DAYS));
+    strcpy(G_connections[G_ci].cookie_out_l_exp, time_epoch2http(from + 3600*24*NPP_USER_KEEP_LOGGED_DAYS));
 }
 
 
 /* --------------------------------------------------------------------------
    Upgrade anonymous user session to logged in
 -------------------------------------------------------------------------- */
-static int upgrade_uses(int ci, eng_session_data_t *us)
+static int upgrade_uses(eng_session_data_t *us)
 {
     DBG("upgrade_uses");
 
 #ifdef NPP_DEBUG
-    DBG("Upgrading anonymous session to authenticated, si=%d, sessid [%s]", G_connections[ci].si, SESSION.sessid);
+    DBG("Upgrading anonymous session to authenticated, si=%d, sessid [%s]", G_connections[G_ci].si, SESSION.sessid);
 #else
-    DBG("Upgrading anonymous session to authenticated, si=%d", G_connections[ci].si);
+    DBG("Upgrading anonymous session to authenticated, si=%d", G_connections[G_ci].si);
 #endif
 
     SESSION.user_id = us->user_id;
@@ -216,16 +219,16 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
 #ifndef NPP_SVC
     DBG("Calling npp_app_user_login...");
 
-    if ( !npp_app_user_login(ci) )
+    if ( !npp_app_user_login() )
     {
         ERR("npp_app_user_login failed");
-        libusr_luses_downgrade(G_connections[ci].si, ci, false);
+        libusr_luses_downgrade(G_connections[G_ci].si, G_ci, false);
         return ERR_INT_SERVER_ERROR;
     }
 #endif
 
-    strcpy(G_connections[ci].cookie_out_a, "x");                                /* no longer needed */
-    strcpy(G_connections[ci].cookie_out_a_exp, time_epoch2http(G_start_time));  /* to be removed by browser */
+    strcpy(G_connections[G_ci].cookie_out_a, "x");                                /* no longer needed */
+    strcpy(G_connections[G_ci].cookie_out_a_exp, time_epoch2http(G_start_time));  /* to be removed by browser */
 
     return OK;
 }
@@ -236,7 +239,7 @@ static int upgrade_uses(int ci, eng_session_data_t *us)
    Verify IP & User-Agent against user_id and sessid in G_sessions (logged in users)
    set user session array index (si) if all ok
 -------------------------------------------------------------------------- */
-int libusr_luses_ok(int ci)
+int libusr_luses_ok()
 {
     int ret=OK;
     int i;
@@ -247,37 +250,37 @@ int libusr_luses_ok(int ci)
 
     if ( IS_SESSION )   /* existing connection */
     {
-        if ( G_sessions[G_connections[ci].si].sessid[0]
-                && G_sessions[G_connections[ci].si].auth_level>AUTH_LEVEL_ANONYMOUS
+        if ( G_sessions[G_connections[G_ci].si].sessid[0]
+                && G_sessions[G_connections[G_ci].si].auth_level>AUTH_LEVEL_ANONYMOUS
 #ifdef NPP_MULTI_HOST
-                && G_connections[ci].host_id == G_sessions[G_connections[ci].si].host_id
+                && G_connections[G_ci].host_id == G_sessions[G_connections[G_ci].si].host_id
 #endif
-                && 0==strcmp(G_connections[ci].cookie_in_l, G_sessions[G_connections[ci].si].sessid)
-                && 0==strcmp(G_connections[ci].uagent, G_sessions[G_connections[ci].si].uagent) )
+                && 0==strcmp(G_connections[G_ci].cookie_in_l, G_sessions[G_connections[G_ci].si].sessid)
+                && 0==strcmp(G_connections[G_ci].uagent, G_sessions[G_connections[G_ci].si].uagent) )
         {
 #ifdef NPP_DEBUG
-            DBG("Authenticated session found in cache, si=%d, sessid [%s] (1)", G_connections[ci].si, G_sessions[G_connections[ci].si].sessid);
+            DBG("Authenticated session found in cache, si=%d, sessid [%s] (1)", G_connections[G_ci].si, G_sessions[G_connections[G_ci].si].sessid);
 #else
-            DBG("Authenticated session found in cache, si=%d (1)", G_connections[ci].si);
+            DBG("Authenticated session found in cache, si=%d (1)", G_connections[G_ci].si);
 #endif
             return OK;
         }
         else    /* session was closed */
         {
-            G_connections[ci].si = 0;
+            G_connections[G_ci].si = 0;
         }
     }
     else    /* fresh connection */
     {
 #ifdef NPP_MULTI_HOST
-        int si = npp_eng_find_si(G_connections[ci].host_id, G_connections[ci].cookie_in_l);
+        int si = npp_eng_find_si(G_connections[G_ci].host_id, G_connections[G_ci].cookie_in_l);
 #else
-        int si = npp_eng_find_si(G_connections[ci].cookie_in_l);
+        int si = npp_eng_find_si(G_connections[G_ci].cookie_in_l);
 #endif
         DDBG("npp_eng_find_si = %d", si);
 
         if ( si != 0
-                && 0==strcmp(G_connections[ci].uagent, G_sessions[si].uagent)
+                && 0==strcmp(G_connections[G_ci].uagent, G_sessions[si].uagent)
                 && G_sessions[si].auth_level>AUTH_LEVEL_ANONYMOUS )
         {
 #ifdef NPP_DEBUG
@@ -285,13 +288,13 @@ int libusr_luses_ok(int ci)
 #else
             DBG("Authenticated session found in cache, si=%d (2)", si);
 #endif
-            G_connections[ci].si = si;
+            G_connections[G_ci].si = si;
             return OK;
         }
     }
 
 #ifdef NPP_DEBUG
-    DBG("Authenticated session [%s] not found in cache", G_connections[ci].cookie_in_l);
+    DBG("Authenticated session [%s] not found in cache", G_connections[G_ci].cookie_in_l);
 #else
     DBG("Authenticated session not found in cache");
 #endif
@@ -309,13 +312,13 @@ int libusr_luses_ok(int ci)
 static Cusers_logins ul;
 
         char sanlscookie[NPP_SESSID_LEN+1];
-        strcpy(sanlscookie, npp_filter_strict(G_connections[ci].cookie_in_l));
+        strcpy(sanlscookie, npp_filter_strict(G_connections[G_ci].cookie_in_l));
 
         if ( !ul.Get(sanlscookie) )
         {
             WAR("No authenticated session in database [%s]", sanlscookie);
-            strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
+            strcpy(G_connections[G_ci].cookie_out_l, "x");
+            strcpy(G_connections[G_ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             /* ---------------------------------------------------------------------------------- */
             /* brute force ls cookie attack prevention */
@@ -329,14 +332,14 @@ static Cusers_logins ul;
 
             for ( i=0; i<failed_cnt_used && i<FAILED_LOGIN_CNT_SIZE; ++i )
             {
-                if ( 0==strcmp(G_connections[ci].ip, failed_cnt[i].ip) )
+                if ( 0==strcmp(G_connections[G_ci].ip, failed_cnt[i].ip) )
                 {
                     if ( (failed_cnt[i].cnt > 10 && failed_cnt[i].when > G_now-60)      /* 10 failed attempts within a minute or */
                         || (failed_cnt[i].cnt > 100 && failed_cnt[i].when > G_now-3600) /* 100 failed attempts within an hour or */
                         || failed_cnt[i].cnt > 1000 )                                   /* 1000 failed attempts */
                     {
                         WAR("Looks like brute-force cookie attack, blocking IP");
-                        npp_eng_block_ip(G_connections[ci].ip, true);
+                        npp_eng_block_ip(G_connections[G_ci].ip, true);
                     }
                     else
                     {
@@ -350,7 +353,7 @@ static Cusers_logins ul;
 
             if ( !found )   /* add record to failed_cnt array */
             {
-                strcpy(failed_cnt[failed_cnt_next].ip, G_connections[ci].ip);
+                strcpy(failed_cnt[failed_cnt_next].ip, G_connections[G_ci].ip);
                 failed_cnt[failed_cnt_next].cnt = 1;
                 failed_cnt[failed_cnt_next].when = G_now;
 
@@ -372,23 +375,23 @@ static Cusers_logins ul;
 
         /* verify uagent */
 
-        if ( 0 != strncmp(G_connections[ci].uagent, ul.uagent, NPP_DB_UAGENT_LEN) )
+        if ( 0 != strncmp(G_connections[G_ci].uagent, ul.uagent, NPP_DB_UAGENT_LEN) )
         {
 #ifdef NPP_DEBUG
             DBG("Different uagent in database for sessid [%s]", sanlscookie);
 #else
             DBG("Different uagent in database");
 #endif
-            strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
+            strcpy(G_connections[G_ci].cookie_out_l, "x");
+            strcpy(G_connections[G_ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             return ERR_SESSION_EXPIRED;
         }
 
 #ifdef NPP_DEBUG
-        DBG("ci=%d, sessid [%s] uagent OK", ci, sanlscookie);
+        DBG("ci=%d, sessid [%s] uagent OK", G_ci, sanlscookie);
 #else
-        DBG("ci=%d, uagent OK", ci);
+        DBG("ci=%d, uagent OK", G_ci);
 #endif
 
         /* -------------------------------------------------- */
@@ -398,14 +401,14 @@ static Cusers_logins ul;
 
         if ( created < G_now - 3600*24*NPP_USER_KEEP_LOGGED_DAYS )
         {
-            DBG("Removing old authenticated session, si=%d, sessid [%s], created %s from database", G_connections[ci].si, sanlscookie, ul.created);
+            DBG("Removing old authenticated session, si=%d, sessid [%s], created %s from database", G_connections[G_ci].si, sanlscookie, ul.created);
 
             ul.Delete(sanlscookie);
 
             /* tell browser we're logging out */
 
-            strcpy(G_connections[ci].cookie_out_l, "x");
-            strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
+            strcpy(G_connections[G_ci].cookie_out_l, "x");
+            strcpy(G_connections[G_ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* expire ls cookie */
 
             INF("Session [%s] expired", sanlscookie);
 
@@ -413,9 +416,9 @@ static Cusers_logins ul;
         }
 
 #ifdef NPP_DEBUG
-        DBG("ci=%d, session [%s] created not too long ago => OK", ci, sanlscookie);
+        DBG("ci=%d, session [%s] created not too long ago => OK", G_ci, sanlscookie);
 #else
-        DBG("ci=%d, session created not too long ago => OK", ci);
+        DBG("ci=%d, session created not too long ago => OK", G_ci);
 #endif
 
         /* -------------------------------------------------- */
@@ -445,7 +448,7 @@ static Cusers_logins ul;
         /* -------------------------------------------------- */
         /* start a fresh anonymous session */
 
-        if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
+        if ( (ret=npp_eng_session_start(NULL)) != OK )
             return ret;
 
         if ( csrft[0] )   /* using previous CSRFT */
@@ -469,13 +472,13 @@ static Cusers_logins ul;
 
     /* set cookie */
 
-    strcpy(G_connections[ci].cookie_out_l, SESSION.sessid);
+    strcpy(G_connections[G_ci].cookie_out_l, SESSION.sessid);
 
-    set_ls_cookie_expiration(ci, created);
+    set_ls_cookie_expiration(created);
 
     /* upgrade G_sessions */
 
-    return do_login(ci, &us, 100, 0);
+    return do_login(&us, 100, 0);
 }
 
 
@@ -555,7 +558,7 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
     G_sessions[si].phone[0] = EOS;
 
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
-        strcpy(G_sessions[si].lang, G_connections[ci].lang);
+        strcpy(G_sessions[si].lang, G_connections[G_ci].lang);
     else
     {
         G_sessions[si].lang[0] = EOS;
@@ -571,12 +574,12 @@ void libusr_luses_downgrade(int si, int ci, bool usr_logout)
 
     if ( ci != NPP_NOT_CONNECTED )   /* still connected */
     {
-        npp_app_user_logout(ci);
+        npp_app_user_logout();
     }
     else    /* trick to maintain consistency across npp_app_xxx functions */
     {       /* that use ci for everything -- even to get session data */
         G_connections[NPP_CLOSING_SESSION_CI].si = si;
-        npp_app_user_logout(NPP_CLOSING_SESSION_CI);
+        npp_app_user_logout();
     }
 #endif  /* NPP_SVC */
 
@@ -590,10 +593,10 @@ static Cusers_logins ul;
 
             if ( ci != NPP_NOT_CONNECTED )   /* still connected */
             {
-                strcpy(G_connections[ci].cookie_out_l, "x");
-                strcpy(G_connections[ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* in the past => to be removed by browser straight away */
+                strcpy(G_connections[G_ci].cookie_out_l, "x");
+                strcpy(G_connections[G_ci].cookie_out_l_exp, time_epoch2http(G_start_time));  /* in the past => to be removed by browser straight away */
 
-                strcpy(G_connections[ci].cookie_out_a, G_sessions[si].sessid);
+                strcpy(G_connections[G_ci].cookie_out_a, G_sessions[si].sessid);
             }
         }
         else    /* timeout */
@@ -681,10 +684,10 @@ static bool first=true;
 /* --------------------------------------------------------------------------
    Log user in -- called either by l_usession_ok or npp_usr_login
    Authentication has already been done prior to calling this.
-   Connection (G_connections[ci]) has to have an anonymous session.
+   Connection (G_connections[G_ci]) has to have an anonymous session.
    us serves here to pass user information
 -------------------------------------------------------------------------- */
-static int do_login(int ci, eng_session_data_t *us, char status, int visits)
+static int do_login(eng_session_data_t *us, char status, int visits)
 {
     DBG("do_login");
 
@@ -750,13 +753,13 @@ static Cusers_groups ug;
 
         /* set formats */
 
-        if ( SESSION.lang[0] == EOS && G_connections[ci].lang[0] )  /* user has empty lang in database */
+        if ( SESSION.lang[0] == EOS && G_connections[G_ci].lang[0] )  /* user has empty lang in database */
         {
-            strcpy(SESSION.lang, G_connections[ci].lang);   /* formats should already be set */
+            strcpy(SESSION.lang, G_connections[G_ci].lang);   /* formats should already be set */
         }
-        else if ( strcmp(SESSION.lang, G_connections[ci].lang) != 0 )   /* user has different lang in db than in req */
+        else if ( strcmp(SESSION.lang, G_connections[G_ci].lang) != 0 )   /* user has different lang in db than in req */
         {
-            npp_lib_set_formats(ci, SESSION.lang);
+            npp_lib_set_formats(SESSION.lang);
         }
 
         DBG("SESSION.lang [%s]", SESSION.lang);
@@ -765,7 +768,7 @@ static Cusers_groups ug;
 
         int ret;
 
-        if ( (ret=upgrade_uses(ci, &SESSION)) != OK )
+        if ( (ret=upgrade_uses(&SESSION)) != OK )
             return ret;
 
         /* update user record */
@@ -807,7 +810,7 @@ static Cusers_groups ug;
 /* --------------------------------------------------------------------------
    Send activation email
 -------------------------------------------------------------------------- */
-static int generic_user_activation_email(int ci, int user_id, const char *email, const char *linkkey)
+static int generic_user_activation_email(int user_id, const char *email, const char *linkkey)
 {
     char subject[256];
     char message[4096];
@@ -815,14 +818,14 @@ static int generic_user_activation_email(int ci, int user_id, const char *email,
     STRM_BEGIN(message);
 
     STRM("Dear %s,\n\n", npp_usr_name(NULL, NULL, NULL, user_id));
-    STRM("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", G_connections[ci].app_name);
+    STRM("Welcome to %s! Your account requires activation. Please visit this URL to activate your account:\n\n", G_connections[G_ci].app_name);
 #ifdef NPP_HTTPS
     if ( G_test )
-        STRM("http://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
+        STRM("http://%s/activate_acc?k=%s\n\n", G_connections[G_ci].host, linkkey);
     else
-        STRM("https://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
+        STRM("https://%s/activate_acc?k=%s\n\n", G_connections[G_ci].host, linkkey);
 #else
-    STRM("http://%s/activate_acc?k=%s\n\n", G_connections[ci].host, linkkey);
+    STRM("http://%s/activate_acc?k=%s\n\n", G_connections[G_ci].host, linkkey);
 #endif  /* NPP_HTTPS */
     STRM("Please keep in mind that this link will only be valid for the next %d hours.\n\n", NPP_USER_ACTIVATION_HOURS);
     STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
@@ -830,11 +833,11 @@ static int generic_user_activation_email(int ci, int user_id, const char *email,
     STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
     STRM("Kind Regards\n");
-    STRM("%s\n", G_connections[ci].app_name);
+    STRM("%s\n", G_connections[G_ci].app_name);
 
     STRM_END;
 
-    sprintf(subject, "%s Account Activation", G_connections[ci].app_name);
+    sprintf(subject, "%s Account Activation", G_connections[G_ci].app_name);
 
     if ( !npp_email(email, subject, message) )
         return ERR_INT_SERVER_ERROR;
@@ -846,7 +849,7 @@ static int generic_user_activation_email(int ci, int user_id, const char *email,
 /* --------------------------------------------------------------------------
    Send activation link
 -------------------------------------------------------------------------- */
-static int send_activation_link(int ci, int user_id, const char *email)
+static int send_activation_link(int user_id, const char *email)
 {
     int  ret=OK;
     char linkkey[NPP_PASSWD_RESET_KEY_LEN+1];
@@ -875,9 +878,9 @@ static Cusers_activations ua;
     /* send an email */
 
 #ifdef NPP_APP_CUSTOM_ACTIVATION_EMAIL
-    ret = npp_app_custom_activation_email(ci, user_id, email, linkkey);
+    ret = npp_app_custom_activation_email(user_id, email, linkkey);
 #else
-    ret = generic_user_activation_email(ci, user_id, email, linkkey);
+    ret = generic_user_activation_email(user_id, email, linkkey);
 #endif
 
     return ret;
@@ -887,7 +890,7 @@ static Cusers_activations ua;
 /* --------------------------------------------------------------------------
    Verify activation key
 -------------------------------------------------------------------------- */
-static int npp_usr_verify_activation_key(int ci, char *linkkey, int *user_id)
+static int npp_usr_verify_activation_key(char *linkkey, int *user_id)
 {
     DBG("npp_usr_verify_activation_key");
 
@@ -1016,7 +1019,7 @@ static bool load_common_passwd()
 /* --------------------------------------------------------------------------
    Create user account using query string values
 -------------------------------------------------------------------------- */
-static int create_account(int ci, char auth_level, char status, bool current_session)
+static int create_account(char auth_level, char status, bool current_session)
 {
     int   ret=OK;
     QSVAL qsval;
@@ -1095,12 +1098,16 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     /* ------------------------------------------------ */
 
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
     if ( !QS_DONT_ESCAPE("passwd", passwd)
             || !QS_DONT_ESCAPE("rpasswd", rpasswd) )
     {
         ERR("Invalid request (passwd or rpasswd missing)");
         return ERR_INVALID_REQUEST;
     }
+
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
     /* ------------------------------------------------ */
     /* optional */
@@ -1138,12 +1145,12 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
     if ( lang[0] && current_session && IS_SESSION && strcmp(lang, SESSION.lang) != 0 )
     {
         strcpy(SESSION.lang, lang);   /* update current session language */
-        npp_lib_set_formats(ci, lang);
+        npp_lib_set_formats(lang);
     }
     else if ( lang[0]==EOS && IS_SESSION && SESSION.lang[0] )
         strcpy(lang, SESSION.lang);         /* use current session language */
-    else if ( lang[0]==EOS && G_connections[ci].lang[0] )
-        strcpy(lang, G_connections[ci].lang);   /* use current request language */
+    else if ( lang[0]==EOS && G_connections[G_ci].lang[0] )
+        strcpy(lang, G_connections[G_ci].lang);   /* use current request language */
 
     /* ------------------------------------------------ */
 
@@ -1179,14 +1186,21 @@ static int create_account(int ci, char auth_level, char status, bool current_ses
 
     if ( email[0] && OK != (ret=email_exists(email)) )  /* email in use */
         return ret;
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
     else if ( (ret=npp_usr_password_quality(passwd)) != OK )
         return ret;
     else if ( 0 != strcmp(passwd, rpasswd) )            /* passwords differ */
         return ERR_PASSWORD_DIFFERENT;
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
     /* welcome! -- and generate password hashes ------------------------------------------------------- */
 
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
     get_hashes(str1, str2, login, email, passwd);
+#else
+    str1[0] = EOS;
+    str2[0] = EOS;
+#endif
 
     strcpy(login_u, npp_upper(login));
     strcpy(email_u, npp_upper(email));
@@ -1224,7 +1238,7 @@ static Cusers u;
 
     if ( G_usersRequireActivation )
     {
-        if ( (ret=send_activation_link(ci, G_new_user_id, email)) != OK )
+        if ( (ret=send_activation_link(G_new_user_id, email)) != OK )
             return ret;
     }
 
@@ -1255,7 +1269,7 @@ static Cusers u;
    and through do_login:
    ERR_SERVER_TOOBUSY
 -------------------------------------------------------------------------- */
-int npp_usr_login(int ci)
+int npp_usr_login()
 {
     int   ret=OK;
     QSVAL login;
@@ -1265,6 +1279,10 @@ int npp_usr_login(int ci)
     QSVAL passwd;
     QSVAL keep;
     char  p1[NPP_PASSWD_HASH_BUFLEN], p2[NPP_PASSWD_HASH_BUFLEN];
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+    char  p3[NPP_PASSWD_HASH_BUFLEN];
+    char  otp_expires[32];
+#endif
     char  str1[NPP_PASSWD_HASH_BUFLEN], str2[NPP_PASSWD_HASH_BUFLEN];
     char  status;
     int   visits;
@@ -1275,31 +1293,55 @@ int npp_usr_login(int ci)
 
     DBG("npp_usr_login");
 
-#ifdef NPP_USERS_BY_EMAIL
+    /* ------------------------------------------ */
 
-    if ( !QS_DONT_ESCAPE("email", email) || !QS_DONT_ESCAPE("passwd", passwd) )
+#if defined NPP_USERS_BY_EMAIL || defined NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+    if ( !QS_DONT_ESCAPE("email", email) )
     {
-        WAR("Invalid request (email or passwd missing)");
+        WAR("Invalid request (email missing)");
         return ERR_INVALID_REQUEST;
     }
 
     stp_right(email);
 
-#else    /* by login */
+    COPY(SESSION.email, email, NPP_EMAIL_LEN);
 
-    if ( !QS_DONT_ESCAPE("login", login) || !QS_DONT_ESCAPE("passwd", passwd) )
+#endif  /* NPP_USERS_BY_EMAIL */
+
+    /* ------------------------------------------ */
+
+#ifdef NPP_USERS_BY_LOGIN
+
+    if ( !QS_DONT_ESCAPE("login", login) )
     {
-        WAR("Invalid request (login or passwd missing)");
+        WAR("Invalid request (login missing)");
         return ERR_INVALID_REQUEST;
     }
 
     stp_right(login);
 
+    COPY(SESSION.login, login, NPP_LOGIN_LEN);
+
     QSVAL ulogin;
 
     strcpy(ulogin, npp_upper(login));
 
-#endif  /* NPP_USERS_BY_EMAIL */
+#endif  /* NPP_USERS_BY_LOGIN */
+
+    /* ------------------------------------------ */
+
+#ifndef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+    if ( !QS_DONT_ESCAPE("passwd", passwd) )
+    {
+        WAR("Invalid request (passwd missing)");
+        return ERR_INVALID_REQUEST;
+    }
+
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
+
+    /* ------------------------------------------ */
 
     try
     {
@@ -1329,7 +1371,12 @@ static bool first=true;
 #else
             DBG("No records matching login [%s]", login);
 #endif
+
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+            return ERR_EMAIL_NOT_REGISTERED;
+#else
             return ERR_INVALID_LOGIN;   /* invalid user and/or password */
+#endif
         }
 
         /* login/email found */
@@ -1348,6 +1395,10 @@ static bool first=true;
 
         strcpy(p1, u.passwd1);
         strcpy(p2, u.passwd2);
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+        strcpy(p3, u.otp);
+        strcpy(otp_expires, u.otp_expires);
+#endif
         status = u.status;
         visits = u.visits;
         ula_cnt = u.ula_cnt;
@@ -1388,16 +1439,16 @@ static bool first=true;
                     STRM_BEGIN(message);
 
                     STRM("Dear %s,\n\n", npp_usr_name(us.login, us.email, us.name, 0));
-                    STRM("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", G_connections[ci].app_name, MAX_ULA_BEFORE_LOCK);
+                    STRM("Someone has tried to log in to your %s account unsuccessfully more than %d times. To protect it from brute-force attack your account has been locked.\n\n", G_connections[G_ci].app_name, MAX_ULA_BEFORE_LOCK);
 #ifdef NPP_CONTACT_EMAIL
                     STRM("Please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
                     STRM("Kind Regards\n");
-                    STRM("%s\n", G_connections[ci].app_name);
+                    STRM("%s\n", G_connections[G_ci].app_name);
 
                     STRM_END;
 
-                    sprintf(subject, "%s account locked", G_connections[ci].app_name);
+                    sprintf(subject, "%s account locked", G_connections[G_ci].app_name);
 
                     npp_email(us.email, subject, message);
                 }
@@ -1435,6 +1486,101 @@ static bool first=true;
             }
         }
 
+        /* activated? ------------------------------------- */
+
+        if ( status == USER_STATUS_INACTIVE )
+        {
+            WAR("User not activated");
+            return ERR_INVALID_LOGIN;
+        }
+
+        DBG("User activation status OK");
+
+        /* password --------------------------------------- */
+
+#ifdef NPP_USER_ONE_TIME_PASSWORD_ONLY
+
+        if ( !valid_email(email) )    /* invalid email format */
+            return ERR_EMAIL_FORMAT;
+
+        QSVAL qsval;
+        char  otp[NPP_OTP_LEN+1];
+
+        if ( QS_DONT_ESCAPE("passwd", qsval) )  /* validate one-time password */
+        {
+            COPY(otp, qsval, NPP_OTP_LEN);
+
+            DBG("Verifying one-time password...");
+
+            /* expired? */
+
+            time_t otp_expires_epoch = time_db2epoch(otp_expires);
+
+            if ( G_now > otp_expires_epoch )
+            {
+                WAR("One-time password expired");
+
+                u.ula_cnt = ula_cnt + 1;
+                strcpy(u.ula_time, DT_NOW_GMT);
+
+                u.Update(us.user_id);
+
+                return ERR_OTP_EXPIRED;
+            }
+
+            /* correct? */
+
+            get_hashes(str1, str2, us.login, us.email, otp);
+
+            if ( 0 != strcmp(str2, p3) )
+            {
+                WAR("Invalid one-time password");
+
+                u.ula_cnt = ula_cnt + 1;
+                strcpy(u.ula_time, DT_NOW_GMT);
+
+                u.Update(us.user_id);
+
+                return ERR_INVALID_LOGIN;   /* invalid user and/or password */
+            }
+
+            DBG("One-time password OK");
+        }
+        else    /* generate, save and email one-time password */
+        {
+            strcpy(otp, npp_random(NPP_OTP_LEN));
+
+            DBG("OTP [%s] generated", otp);
+
+            char subject[256];
+            char message[4096];
+
+            STRM_BEGIN(message);
+
+            STRM("This is your one-time password:\n\n");
+            STRM("%s\n\n", otp);
+            STRM("Copy and paste it on the login page.\n\n");
+            STRM("Kind Regards\n");
+            STRM("%s\n", NPP_APP_NAME);
+
+            STRM_END;
+
+            sprintf(subject, "%s", STR("One Time Password"));
+
+            npp_email(email, subject, message);
+
+            get_hashes(str1, str2, us.login, us.email, otp);
+
+            strcpy(u.otp, str2);
+            strcpy(u.otp_expires, time_epoch2db((time_t)(G_now+(NPP_OTP_EXPIRATION_MINUTES*60))));
+
+            u.Update(us.user_id);
+
+            return MSG_OTP_PASSWORD_SENT;
+        }
+
+#else   /* normal password */
+
         /* now check username/email and password pairs as they should be */
 
         DBG("Verifying password...");
@@ -1459,17 +1605,11 @@ static bool first=true;
 
         DBG("Password OK");
 
-        /* activated? */
+#endif  /* NPP_USER_ONE_TIME_PASSWORD_ONLY */
 
-        if ( status == USER_STATUS_INACTIVE )
-        {
-            WAR("User not activated");
-            return ERR_NOT_ACTIVATED;
-        }
-
-        DBG("User activation status OK");
-
+        /* ----------------------------------------------------------------------------- */
         /* successful login ------------------------------------------------------------ */
+        /* ----------------------------------------------------------------------------- */
 
         if ( ula_cnt )   /* clear it */
         {
@@ -1485,16 +1625,16 @@ static bool first=true;
         {
 #ifdef NPP_APP
 #ifdef NPP_MULTI_HOST
-            int idx = npp_lib_find_sess_idx_idx(G_connections[ci].host_id, SESSION.sessid);
+            int idx = npp_lib_find_sess_idx_idx(G_connections[G_ci].host_id, SESSION.sessid);
 #else
             int idx = npp_lib_find_sess_idx_idx(SESSION.sessid);
 #endif
 #endif  /* NPP_APP */
             strcpy(SESSION.sessid, npp_random(NPP_SESSID_LEN));
 #ifdef NPP_DEBUG
-            DBG("Using current session si=%d, generated new sessid [%s]", G_connections[ci].si, SESSION.sessid);
+            DBG("Using current session si=%d, generated new sessid [%s]", G_connections[G_ci].si, SESSION.sessid);
 #else
-            DBG("Using current session si=%d, generated new sessid", G_connections[ci].si);
+            DBG("Using current session si=%d, generated new sessid", G_connections[G_ci].si);
 #endif
 
 #ifdef NPP_APP
@@ -1515,7 +1655,7 @@ static bool first=true;
         {
             DBG("No session, starting new");
 
-            if ( (ret=npp_eng_session_start(ci, NULL)) != OK )
+            if ( (ret=npp_eng_session_start(NULL)) != OK )
                 return ret;
         }
 
@@ -1530,8 +1670,8 @@ static bool first=true;
 static Cusers_logins ul;
 
         strcpy(ul.sessid, SESSION.sessid);
-        COPY(ul.uagent, G_connections[ci].uagent, NPP_DB_UAGENT_LEN);
-        strcpy(ul.ip, G_connections[ci].ip);
+        COPY(ul.uagent, G_connections[G_ci].uagent, NPP_DB_UAGENT_LEN);
+        strcpy(ul.ip, G_connections[G_ci].ip);
         ul.user_id = us.user_id;
         strcpy(ul.csrft, SESSION.csrft);
         strcpy(ul.created, DT_NOW_GMT);
@@ -1549,19 +1689,19 @@ static Cusers_logins ul;
 
     /* set cookie */
 
-    strcpy(G_connections[ci].cookie_out_l, SESSION.sessid);
+    strcpy(G_connections[G_ci].cookie_out_l, SESSION.sessid);
 
     /* Keep me logged in -- set cookie expiry date */
 
     if ( QS_DONT_ESCAPE("keep", keep) && 0==strcmp(keep, "on") )
     {
         DBG("keep is ON");
-        set_ls_cookie_expiration(ci, G_now);
+        set_ls_cookie_expiration(G_now);
     }
 
     /* upgrade G_sessions */
 
-    return do_login(ci, &us, status, visits);
+    return do_login(&us, status, visits);
 }
 
 
@@ -1619,7 +1759,7 @@ int npp_usr_password_quality(const char *passwd)
 /* --------------------------------------------------------------------------
    Create user account (wrapper)
 -------------------------------------------------------------------------- */
-int npp_usr_create_account(int ci)
+int npp_usr_create_account()
 {
     DBG("npp_usr_create_account");
 
@@ -1630,14 +1770,14 @@ int npp_usr_create_account(int ci)
     else
         status = USER_STATUS_ACTIVE;
 
-    return create_account(ci, NPP_DEFAULT_USER_AUTH_LEVEL, status, true);
+    return create_account(NPP_DEFAULT_USER_AUTH_LEVEL, status, true);
 }
 
 
 /* --------------------------------------------------------------------------
    Send an email about new account
 -------------------------------------------------------------------------- */
-static int new_account_notification(int ci, const char *login, const char *email, const char *name, const char *passwd, char status)
+static int new_account_notification(const char *login, const char *email, const char *name, const char *passwd, char status)
 {
     char subject[256];
     char message[4096];
@@ -1645,15 +1785,15 @@ static int new_account_notification(int ci, const char *login, const char *email
     STRM_BEGIN(message);
 
     STRM("Dear %s,\n\n", npp_usr_name(login, email, name, 0));
-    STRM("An account has been created for you at %s.\n\n", G_connections[ci].app_name);
+    STRM("An account has been created for you at %s.\n\n", G_connections[G_ci].app_name);
     STRM("Please visit this address to log in:\n\n");
 #ifdef NPP_HTTPS
     if ( G_test )
-        STRM("http://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
+        STRM("http://%s/%s\n\n", G_connections[G_ci].host, NPP_LOGIN_URI);
     else
-        STRM("https://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
+        STRM("https://%s/%s\n\n", G_connections[G_ci].host, NPP_LOGIN_URI);
 #else
-    STRM("http://%s/%s\n\n", G_connections[ci].host, NPP_LOGIN_URI);
+    STRM("http://%s/%s\n\n", G_connections[G_ci].host, NPP_LOGIN_URI);
 #endif
     if ( status == USER_STATUS_PASSWORD_CHANGE )
         STRM("Your password is %s and you will have to change it on your first login.\n\n", passwd[0]?passwd:"empty");
@@ -1661,11 +1801,11 @@ static int new_account_notification(int ci, const char *login, const char *email
     STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
     STRM("Kind Regards\n");
-    STRM("%s\n", G_connections[ci].app_name);
+    STRM("%s\n", G_connections[G_ci].app_name);
 
     STRM_END;
 
-    sprintf(subject, "Welcome to %s", G_connections[ci].app_name);
+    sprintf(subject, "Welcome to %s", G_connections[G_ci].app_name);
 
     if ( !npp_email(email, subject, message) )
         return ERR_INT_SERVER_ERROR;
@@ -1678,7 +1818,7 @@ static int new_account_notification(int ci, const char *login, const char *email
    Create user account
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int npp_usr_add_user(int ci, bool use_qs, const std::string& login_, const std::string& email_, const std::string& name_, const std::string& passwd_, const std::string& phone_, const std::string& lang_, const std::string& about_, char group_id, char auth_level, char status)
+int npp_usr_add_user(bool use_qs, const std::string& login_, const std::string& email_, const std::string& name_, const std::string& passwd_, const std::string& phone_, const std::string& lang_, const std::string& about_, char group_id, char auth_level, char status)
 {
     const char *login = login_.c_str();
     const char *email = email_.c_str();
@@ -1688,7 +1828,7 @@ int npp_usr_add_user(int ci, bool use_qs, const std::string& login_, const std::
     const char *lang = lang_.c_str();
     const char *about = about_.c_str();
 #else
-int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, const char *name, const char *passwd, const char *phone, const char *lang, const char *about, char group_id, char auth_level, char status)
+int npp_usr_add_user(bool use_qs, const char *login, const char *email, const char *name, const char *passwd, const char *phone, const char *lang, const char *about, char group_id, char auth_level, char status)
 {
 #endif
     int   ret=OK;
@@ -1699,7 +1839,7 @@ int npp_usr_add_user(int ci, bool use_qs, const char *login, const char *email, 
 
     if ( use_qs )   /* use query string / POST payload */
     {
-        if ( (ret=create_account(ci, auth_level, status, false)) != OK )
+        if ( (ret=create_account(auth_level, status, false)) != OK )
         {
             ERR("create_account failed");
             return ret;
@@ -1848,7 +1988,7 @@ static Cusers u;
         return ERR_EMAIL_FORMAT;
 
     if ( notif_email[0] )
-        new_account_notification(ci, dst_login, notif_email, name, password, status);
+        new_account_notification(dst_login, notif_email, name, password, status);
 #endif
 
     return ret;
@@ -1858,7 +1998,7 @@ static Cusers u;
 /* --------------------------------------------------------------------------
    Get MAX(msg_id) from users_messages for current user
 -------------------------------------------------------------------------- */
-static int max_msg_id(int ci)
+static int max_msg_id()
 {
     int max=0;
 static bool first=true;
@@ -1923,7 +2063,7 @@ static MYSQL_STMT *stmt;
 /* --------------------------------------------------------------------------
    Save user message
 -------------------------------------------------------------------------- */
-int npp_usr_send_message(int ci)
+int npp_usr_send_message()
 {
     QSVAL_TEXT message;
 
@@ -1945,10 +2085,10 @@ int npp_usr_send_message(int ci)
 static Cusers_messages um;
 
         um.user_id = SESSION.user_id;
-        um.msg_id = max_msg_id(ci) + 1;
+        um.msg_id = max_msg_id() + 1;
         COPY(um.email, email, NPP_EMAIL_LEN);
 
-        sprintf(um.message, "[From %s] ", G_connections[ci].ip);
+        sprintf(um.message, "[From %s] ", G_connections[G_ci].ip);
         COPY(um.message+strlen(um.message), message, 65000);
 
         strcpy(um.created, DT_NOW_GMT);
@@ -1974,7 +2114,7 @@ static Cusers_messages um;
 /* --------------------------------------------------------------------------
    Save changes to user account
 -------------------------------------------------------------------------- */
-int npp_usr_save_account(int ci)
+int npp_usr_save_account()
 {
     int   ret=OK;
     QSVAL qsval;
@@ -2082,12 +2222,12 @@ int npp_usr_save_account(int ci)
     if ( lang[0] && IS_SESSION && strcmp(lang, SESSION.lang) != 0 )
     {
         strcpy(SESSION.lang, lang);   /* update current session language */
-        npp_lib_set_formats(ci, lang);
+        npp_lib_set_formats(lang);
     }
     else if ( lang[0]==EOS && IS_SESSION && SESSION.lang[0] )
         strcpy(lang, SESSION.lang);         /* use current session language */
-    else if ( lang[0]==EOS && G_connections[ci].lang[0] )
-        strcpy(lang, G_connections[ci].lang);   /* use current request language */
+    else if ( lang[0]==EOS && G_connections[G_ci].lang[0] )
+        strcpy(lang, G_connections[G_ci].lang);   /* use current request language */
 
     /* ------------------------------------------------ */
 
@@ -2136,7 +2276,7 @@ int npp_usr_save_account(int ci)
     strcpy(uemail_old, npp_upper(SESSION.email));
     strcpy(uemail_new, npp_upper(email));
 
-    if ( uemail_new[0] && strcmp(uemail_old, uemail_new) != 0 && (ret=npp_usr_email_registered(ci)) != OK )
+    if ( uemail_new[0] && strcmp(uemail_old, uemail_new) != 0 && (ret=npp_usr_email_registered()) != OK )
         return ret;
 
     /* verify existing password against login/email/passwd1 */
@@ -2193,7 +2333,7 @@ static bool first=true;
                 u.status = USER_STATUS_DELETED;
                 u.Update(SESSION.user_id);
 
-                libusr_luses_downgrade(G_connections[ci].si, ci, true);   /* log user out */
+                libusr_luses_downgrade(G_connections[G_ci].si, G_ci, true);   /* log user out */
 
                 return MSG_ACCOUNT_DELETED;
             }
@@ -2251,7 +2391,7 @@ static bool first_inv=true;
             /* downgrade all currently active sessions belonging to this user */
             /* except of the current one */
 
-            npp_eng_session_downgrade_by_uid(SESSION.user_id, ci);
+            npp_eng_session_downgrade_by_uid(SESSION.user_id, true);
         }
     }
     catch (std::exception& e)
@@ -2267,7 +2407,7 @@ static bool first_inv=true;
 /* --------------------------------------------------------------------------
    Email taken?
 -------------------------------------------------------------------------- */
-int npp_usr_email_registered(int ci)
+int npp_usr_email_registered()
 {
     QSVAL email;
 
@@ -2393,7 +2533,7 @@ static Cusers u;
 /* --------------------------------------------------------------------------
    Send an email with password reset link
 -------------------------------------------------------------------------- */
-int npp_usr_send_passwd_reset_email(int ci)
+int npp_usr_send_passwd_reset_email()
 {
     QSVAL email;
 
@@ -2462,14 +2602,14 @@ static Cusers_p_resets upr;
         STRM_BEGIN(message);
 
         STRM("Dear %s,\n\n", npp_usr_name(u.login, u.email, u.name, 0));
-        STRM("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", G_connections[ci].app_name);
+        STRM("You have requested to have your password reset for your account at %s. Please visit this URL to reset your password:\n\n", G_connections[G_ci].app_name);
 #ifdef NPP_HTTPS
         if ( G_test )
-            STRM("http://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
+            STRM("http://%s/preset?k=%s\n\n", G_connections[G_ci].host, linkkey);
         else
-            STRM("https://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
+            STRM("https://%s/preset?k=%s\n\n", G_connections[G_ci].host, linkkey);
 #else
-        STRM("http://%s/preset?k=%s\n\n", G_connections[ci].host, linkkey);
+        STRM("http://%s/preset?k=%s\n\n", G_connections[G_ci].host, linkkey);
 #endif  /* NPP_HTTPS */
         STRM("Please keep in mind that this link will only be valid for the next 24 hours.\n\n");
         STRM("If you did this by mistake or it wasn't you, you can safely ignore this email.\n\n");
@@ -2477,11 +2617,11 @@ static Cusers_p_resets upr;
         STRM("In case you needed any help, please contact us at %s.\n\n", NPP_CONTACT_EMAIL);
 #endif
         STRM("Kind Regards\n");
-        STRM("%s\n", G_connections[ci].app_name);
+        STRM("%s\n", G_connections[G_ci].app_name);
 
         STRM_END;
 
-        sprintf(subject, "%s Password Reset", G_connections[ci].app_name);
+        sprintf(subject, "%s Password Reset", G_connections[G_ci].app_name);
 
         if ( !npp_email(email, subject, message) )
             return ERR_INT_SERVER_ERROR;
@@ -2503,11 +2643,11 @@ static Cusers_p_resets upr;
    Verify the link key for password reset
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int npp_usr_verify_passwd_reset_key(int ci, const std::string& linkkey_, int *user_id)
+int npp_usr_verify_passwd_reset_key(const std::string& linkkey_, int *user_id)
 {
     const char *linkkey = linkkey_.c_str();
 #else
-int npp_usr_verify_passwd_reset_key(int ci, const char *linkkey, int *user_id)
+int npp_usr_verify_passwd_reset_key(const char *linkkey, int *user_id)
 {
 #endif
     char esc_linkkey[256];
@@ -2569,7 +2709,7 @@ static Cusers_p_resets upr;
 /* --------------------------------------------------------------------------
    Activate user account
 -------------------------------------------------------------------------- */
-int npp_usr_activate(int ci)
+int npp_usr_activate()
 {
     int   ret;
     QSVAL linkkey;
@@ -2585,7 +2725,7 @@ int npp_usr_activate(int ci)
 
     /* verify the key */
 
-    if ( (ret=npp_usr_verify_activation_key(ci, linkkey, &user_id)) != OK )
+    if ( (ret=npp_usr_verify_activation_key(linkkey, &user_id)) != OK )
         return ret;
 
     /* everything's OK -- activate user -------------------- */
@@ -2625,7 +2765,7 @@ static Cusers_activations ua;
 /* --------------------------------------------------------------------------
    Save user's avatar
 -------------------------------------------------------------------------- */
-int npp_usr_save_avatar(int ci, int user_id)
+int npp_usr_save_avatar(int user_id)
 {
     QSVAL  name;
     char   name_filtered[128];
@@ -2686,7 +2826,7 @@ static Cusers_avatars ua;
 /* --------------------------------------------------------------------------
    Get user's avatar
 -------------------------------------------------------------------------- */
-int npp_usr_get_avatar(int ci, int user_id)
+int npp_usr_get_avatar(int user_id)
 {
     DBG("npp_usr_get_avatar");
 
@@ -2721,7 +2861,7 @@ static Cusers_avatars ua;
    Used in case user is forced to change their password
    (status == USER_STATUS_PASSWORD_CHANGE)
 -------------------------------------------------------------------------- */
-int npp_usr_change_password(int ci)
+int npp_usr_change_password()
 {
     int   ret;
     QSVAL opasswd;
@@ -2818,7 +2958,7 @@ static bool first=true;
 /* --------------------------------------------------------------------------
    Save new password after reset
 -------------------------------------------------------------------------- */
-int npp_usr_reset_password(int ci)
+int npp_usr_reset_password()
 {
     int   ret;
     QSVAL email;
@@ -2852,7 +2992,7 @@ int npp_usr_reset_password(int ci)
 
     /* verify the key */
 
-    if ( (ret=npp_usr_verify_passwd_reset_key(ci, linkkey, &user_id)) != OK )
+    if ( (ret=npp_usr_verify_passwd_reset_key(linkkey, &user_id)) != OK )
         return ret;
 
     /* verify that emails match each other */
@@ -2903,7 +3043,7 @@ static bool first=true;
 
         /* downgrade all currently active sessions belonging to this user */
 
-        npp_eng_session_downgrade_by_uid(user_id, -1);
+        npp_eng_session_downgrade_by_uid(user_id, false);
 
         /* remove all password reset keys */
 
@@ -2927,10 +3067,10 @@ static bool first=true;
 /* --------------------------------------------------------------------------
    Log user out
 -------------------------------------------------------------------------- */
-void npp_usr_logout(int ci)
+void npp_usr_logout()
 {
     DBG("npp_usr_logout");
-    libusr_luses_downgrade(G_connections[ci].si, ci, true);
+    libusr_luses_downgrade(G_connections[G_ci].si, G_ci, true);
 }
 
 
@@ -3008,12 +3148,12 @@ static void get_hashes(char *result1, char *result2, const char *login, const ch
    Save user string setting
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int npp_usr_set_str(int ci, const std::string& us_key_, const std::string& us_val_)
+int npp_usr_set_str(const std::string& us_key_, const std::string& us_val_)
 {
     const char *us_key = us_key_.c_str();
     const char *us_val = us_val_.c_str();
 #else
-int npp_usr_set_str(int ci, const char *us_key, const char *us_val)
+int npp_usr_set_str(const char *us_key, const char *us_val)
 {
 #endif
 
@@ -3049,20 +3189,20 @@ static Cusers_settings us;
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
 /* allow us_val to be char as well as std::string */
-int npp_usr_get_str(int ci, const std::string& us_key_, char *us_val)
+int npp_usr_get_str(const std::string& us_key_, char *us_val)
 {
     std::string us_val_;
-    int ret = npp_usr_get_str(ci, us_key_, us_val_);
+    int ret = npp_usr_get_str(us_key_, us_val_);
     if ( ret == OK && us_val )
         strcpy(us_val, us_val_.c_str());
     return ret;
 }
 
-int npp_usr_get_str(int ci, const std::string& us_key_, std::string& us_val_)
+int npp_usr_get_str(const std::string& us_key_, std::string& us_val_)
 {
     const char *us_key = us_key_.c_str();
 #else
-int npp_usr_get_str(int ci, const char *us_key, char *us_val)
+int npp_usr_get_str(const char *us_key, char *us_val)
 {
 #endif
     try
@@ -3093,17 +3233,17 @@ static Cusers_settings us;
    Save user integer setting
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int npp_usr_set_int(int ci, const std::string& us_key_, int us_val)
+int npp_usr_set_int(const std::string& us_key_, int us_val)
 {
     const char *us_key = us_key_.c_str();
 #else
-int npp_usr_set_int(int ci, const char *us_key, int us_val)
+int npp_usr_set_int(const char *us_key, int us_val)
 {
 #endif
     char val[256];
 
     sprintf(val, "%d", us_val);
-    return npp_usr_set_str(ci, us_key, val);
+    return npp_usr_set_str(us_key, val);
 }
 
 
@@ -3111,17 +3251,17 @@ int npp_usr_set_int(int ci, const char *us_key, int us_val)
    Read user integer setting
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
-int npp_usr_get_int(int ci, const std::string& us_key_, int *us_val)
+int npp_usr_get_int(const std::string& us_key_, int *us_val)
 {
     const char *us_key = us_key_.c_str();
 #else
-int npp_usr_get_int(int ci, const char *us_key, int *us_val)
+int npp_usr_get_int(const char *us_key, int *us_val)
 {
 #endif
     int  ret;
     char val[256];
 
-    if ( (ret=npp_usr_get_str(ci, us_key, val)) == OK )
+    if ( (ret=npp_usr_get_str(us_key, val)) == OK )
         *us_val = atoi(val);
 
     return ret;
