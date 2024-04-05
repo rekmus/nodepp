@@ -8071,8 +8071,14 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
            | logout      | T
            | logout?qs=1 | T
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_eng_is_uri(const std::string& uri_)
+{
+    const char *uri = uri_.c_str();
+#else
 bool npp_eng_is_uri(const char *uri)
 {
+#endif
     const char *u = uri;
 
     if ( uri[0] == '/' )

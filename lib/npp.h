@@ -1931,7 +1931,13 @@ extern "C" {
     void npp_eng_read_blocked_ips(void);
     void npp_eng_read_allowed_ips(void);
     void npp_eng_block_ip(const char *value, bool autoblocked);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_eng_is_uri(const std::string& uri);
+#else
     bool npp_eng_is_uri(const char *uri);
+#endif
+
     void npp_eng_out_check(const char *str);
     void npp_eng_out_check_realloc(const char *str);
     void npp_eng_out_check_realloc_bin(const char *data, int len);
