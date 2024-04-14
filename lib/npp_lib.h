@@ -705,6 +705,12 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
+    char *npp_filter_qs(const std::string& src);
+#else
+    char *npp_filter_qs(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
     char *npp_add_spaces(const std::string& src, int new_len);
 #else
     char *npp_add_spaces(const char *src, int new_len);
@@ -842,9 +848,17 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
+//    #ifdef NPP_PHP
+//        bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, const std::string& php, char required_auth_level);
+//    #else
+        bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
+//    #endif
 #else
-    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
+//    #ifdef NPP_PHP
+//        bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, const char *php, char required_auth_level);
+//    #else
+        bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
+//    #endif
 #endif
 
 #ifdef NPP_CPP_STRINGS

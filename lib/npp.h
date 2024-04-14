@@ -976,6 +976,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define STATIC_SOURCE_RES               '1'
 #define STATIC_SOURCE_RESMIN            '2'
 #define STATIC_SOURCE_SNIPPETS          '3'
+#define STATIC_SOURCE_PHP               '4'
 
 
 #define NPP_RES_CACHE_DEF_TRESHOLD      16777216                /* 16 MiB */
@@ -1037,6 +1038,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_JPG            'j'
 #define NPP_CONTENT_TYPE_ICO            'i'
 #define NPP_CONTENT_TYPE_PNG            'p'
+#define NPP_CONTENT_TYPE_PHP            'P'
 #define NPP_CONTENT_TYPE_WOFF2          'w'
 #define NPP_CONTENT_TYPE_SVG            'v'
 //#define NPP_CONTENT_TYPE_JSON           'o'
@@ -1219,7 +1221,11 @@ typedef struct {
     char resmin[256];
     char snippets[256];
     char required_auth_level;
-    int  index_present;
+    int  index_html_present;
+#ifdef NPP_PHP
+    char php[256];
+    int  index_php_present;
+#endif
 } npp_host_t;
 
 
@@ -1537,6 +1543,7 @@ typedef struct {
     unsigned was_read;                              /* request bytes read so far */
     /* parsed HTTP request starts here */
     char     uri[NPP_MAX_URI_LEN+1];                /* requested URI string */
+    char     uri_no_qs[NPP_MAX_URI_LEN+1];          /* requested URI without query string */
     char     resource[NPP_MAX_RESOURCE_LEN+1];      /* from URI (REQ0) */
 #if NPP_RESOURCE_LEVELS > 1
     char     path1[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 1 */
@@ -1628,6 +1635,9 @@ typedef struct {
     int      ssl_err;
     int      si;                                    /* session index */
     int      static_res;                            /* static resource index in M_stat */
+#ifdef NPP_PHP
+    bool     php;
+#endif
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
     int      pi;                                    /* M_pollfds array index */
