@@ -5078,6 +5078,9 @@ static void process_php()
     STRM("SCRIPT_FILENAME=%s/res/%s ", G_appdir, G_connections[G_ci].uri_no_qs);
     STRM("REQUEST_METHOD=%s ", G_connections[G_ci].method);
 
+    if ( G_connections[G_ci].in_cookie[0] )
+        STRM("HTTP_COOKIE=\"%s\" ", npp_filter_cookie(G_connections[G_ci].in_cookie));
+
     if ( REQ_GET && qs && *(qs+1) != EOS )
     {
         STRM("QUERY_STRING=\"%s\" ", npp_filter_qs(qs+1));
@@ -5135,6 +5138,11 @@ static void process_php()
         {
             DBG("Redirecting to [%s]", line+10);
             RES_LOCATION(line+10);
+        }
+        else if ( (line[0]=='S' || line[0]=='s') && 0==strncmp(line+1, "et-", 3) && line[5]=='o' )
+        {
+            DBG("Setting cookie [%s]", line+12);
+            npp_lib_res_header("Set-Cookie", line+12);
         }
     }
 

@@ -6403,6 +6403,39 @@ static char dst[NPP_LIB_STR_BUF];
 
 
 /* --------------------------------------------------------------------------
+   Filter everything but cookie session chars
+---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_filter_cookie(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
+char *npp_filter_cookie(const char *src)
+{
+#endif
+static char dst[NPP_LIB_STR_BUF];
+    int     i=0, j=0;
+
+    while ( src[i] && j<NPP_LIB_STR_CHECK )
+    {
+        if ( (src[i] >= 65 && src[i] <= 90)
+                || (src[i] >= 97 && src[i] <= 122)
+                || isdigit(src[i])
+                || src[i] == '='
+                || src[i] == ';'
+                || src[i] == ' ' )
+            dst[j++] = src[i];
+
+        ++i;
+    }
+
+    dst[j] = EOS;
+
+    return dst;
+}
+
+
+/* --------------------------------------------------------------------------
    Add spaces to make string to have len length
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS

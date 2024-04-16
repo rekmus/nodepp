@@ -711,6 +711,12 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
+    char *npp_filter_cookie(const std::string& src);
+#else
+    char *npp_filter_cookie(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
     char *npp_add_spaces(const std::string& src, int new_len);
 #else
     char *npp_add_spaces(const char *src, int new_len);
