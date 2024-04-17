@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "3.0.1"
+#define NPP_VERSION                     "3.1.0"
 
 
 #ifndef FALSE
@@ -722,6 +722,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_SESSID_LEN                      20              /* session id length (15 gives ~ 89 bits of entropy) */
 #endif
 
+#ifndef NPP_PHP_SESSID_LEN
+#define NPP_PHP_SESSID_LEN                  31              /* PHP session id length */
+#endif
+
 #ifndef NPP_CSRFT_LEN
 #define NPP_CSRFT_LEN                       15              /* CSRF token length */
 #endif
@@ -976,6 +980,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define STATIC_SOURCE_RES               '1'
 #define STATIC_SOURCE_RESMIN            '2'
 #define STATIC_SOURCE_SNIPPETS          '3'
+#define STATIC_SOURCE_PHP               '4'
 
 
 #define NPP_RES_CACHE_DEF_TRESHOLD      16777216                /* 16 MiB */
@@ -1037,6 +1042,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_CONTENT_TYPE_JPG            'j'
 #define NPP_CONTENT_TYPE_ICO            'i'
 #define NPP_CONTENT_TYPE_PNG            'p'
+#define NPP_CONTENT_TYPE_PHP            'P'
 #define NPP_CONTENT_TYPE_WOFF2          'w'
 #define NPP_CONTENT_TYPE_SVG            'v'
 //#define NPP_CONTENT_TYPE_JSON           'o'
@@ -1069,7 +1075,7 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define REQ_TAB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_TAB)
 #define REQ_MOB                         (G_connections[G_ci].ua_type==NPP_UA_TYPE_MOB)
 #define URI(uri)                        npp_eng_is_uri(uri)
-#define REQ(res)                        (0==strcmp(G_connections[G_ci].resource, res))
+//#define REQ(res)                        (0==strcmp(G_connections[G_ci].resource, res))
 #define REQ0(res)                       (0==strcmp(G_connections[G_ci].resource, res))
 #define REQ1(res)                       (0==strcmp(G_connections[G_ci].path1, res))
 #define REQ2(res)                       (0==strcmp(G_connections[G_ci].path2, res))
@@ -1219,7 +1225,11 @@ typedef struct {
     char resmin[256];
     char snippets[256];
     char required_auth_level;
-    int  index_present;
+    int  index_html_present;
+#ifdef NPP_PHP
+    char php[256];
+    int  index_php_present;
+#endif
 } npp_host_t;
 
 
@@ -1537,6 +1547,7 @@ typedef struct {
     unsigned was_read;                              /* request bytes read so far */
     /* parsed HTTP request starts here */
     char     uri[NPP_MAX_URI_LEN+1];                /* requested URI string */
+    char     uri_no_qs[NPP_MAX_URI_LEN+1];          /* requested URI without query string */
     char     resource[NPP_MAX_RESOURCE_LEN+1];      /* from URI (REQ0) */
 #if NPP_RESOURCE_LEVELS > 1
     char     path1[NPP_MAX_RESOURCE_LEN+1];          /* from URI -- level 1 */
@@ -1628,12 +1639,13 @@ typedef struct {
     int      ssl_err;
     int      si;                                    /* session index */
     int      static_res;                            /* static resource index in M_stat */
+#ifdef NPP_PHP
+    bool     php;
+    char     php_sessid[NPP_PHP_SESSID_LEN+1];
+#endif
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
     int      pi;                                    /* M_pollfds array index */
-#endif
-#ifdef NPP_FD_MON_EPOLL
-//    bool     epoll_out_ready;
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];
@@ -1931,7 +1943,13 @@ extern "C" {
     void npp_eng_read_blocked_ips(void);
     void npp_eng_read_allowed_ips(void);
     void npp_eng_block_ip(const char *value, bool autoblocked);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_eng_is_uri(const std::string& uri);
+#else
     bool npp_eng_is_uri(const char *uri);
+#endif
+
     void npp_eng_out_check(const char *str);
     void npp_eng_out_check_realloc(const char *str);
     void npp_eng_out_check_realloc_bin(const char *data, int len);

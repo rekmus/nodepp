@@ -206,7 +206,10 @@ static unsigned     M_last_call_id=0;               /* counter */
 static char         *M_async_shm=NULL;              /* shared memory address */
 #endif  /* NPP_ASYNC */
 
-static int          M_index_present=-1;             /* index.html present in res? */
+static int          M_index_html_present=-1;        /* index.html present in res? */
+#ifdef NPP_PHP
+static int          M_index_php_present=-1;         /* index.php present in res? */
+#endif
 
 
 
@@ -222,9 +225,9 @@ static void http2_parse_frame(int bytes);
 static void http2_add_frame(unsigned char type);
 #endif  /* NPP_HTTP2 */
 static void set_state(int bytes, bool secure);
-static void respond_to_expect();
-static void log_proc_time();
-static void log_request();
+static void respond_to_expect(void);
+static void log_proc_time(void);
+static void log_request(void);
 static void close_connection(int ci, bool update_first_free);
 static bool init(int argc, char **argv);
 #ifdef NPP_FD_MON_SELECT
@@ -235,11 +238,12 @@ static bool ip_blocked(const char *addr);
 static bool ip_allowed(const char *addr);
 static int  first_free_stat(void);
 static bool read_resources(bool first_scan);
-static int  is_static_res();
-static void process_request();
-static void gen_response_header();
+static int  is_static_res(void);
+static void process_request(void);
+static void process_php(void);
+static void gen_response_header(void);
 static void print_content_type(char type);
-static bool a_session_ok();
+static bool a_session_ok(void);
 static void close_old_conn(void);
 static void uses_close_timeouted(void);
 static void close_uses(int si, int ci);
@@ -4183,12 +4187,24 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 if ( 0==strcmp(M_statics[i].name, "index.html") )
                 {
                     if ( host_id == 0 )
-                        M_index_present = -1;
+                        M_index_html_present = -1;
 #ifdef NPP_MULTI_HOST
                     else
-                        G_hosts[host_id].index_present = -1;
+                        G_hosts[host_id].index_html_present = -1;
 #endif
                 }
+
+#ifdef NPP_PHP
+                if ( 0==strcmp(M_statics[i].name, "index.php") )
+                {
+                    if ( host_id == 0 )
+                        M_index_php_present = -1;
+#ifdef NPP_MULTI_HOST
+                    else
+                        G_hosts[host_id].index_php_present = -1;
+#endif
+                }
+#endif  /* NPP_PHP */
 
 #ifdef NPP_MULTI_HOST
                 M_statics[i].host[0] = EOS;
@@ -4483,12 +4499,23 @@ static bool read_files(const char *host, int host_id, const char *directory, cha
                 if ( 0==strcmp(M_statics[i].name, "index.html") )
                 {
                     if ( host_id == 0 )
-                        M_index_present = i;
+                        M_index_html_present = i;
 #ifdef NPP_MULTI_HOST
                     else
-                        G_hosts[host_id].index_present = i;
+                        G_hosts[host_id].index_html_present = i;
 #endif
                 }
+#ifdef NPP_PHP
+                else if ( 0==strcmp(M_statics[i].name, "index.php") )
+                {
+                    if ( host_id == 0 )
+                        M_index_php_present = i;
+#ifdef NPP_MULTI_HOST
+                    else
+                        G_hosts[host_id].index_php_present = i;
+#endif
+                }
+#endif  /* NPP_PHP */
             }
 
             /* compress ---------------------------------------- */
@@ -4582,6 +4609,8 @@ static bool read_resources(bool first_scan)
     if ( first_scan )
         DBG("Reading res OK");
 
+    /* ------------------------------------------------------------ */
+
     if ( !read_files("", 0, "resmin", STATIC_SOURCE_RESMIN, first_scan, NULL) )
     {
         ERR("Reading resmin failed");
@@ -4590,6 +4619,23 @@ static bool read_resources(bool first_scan)
 
     if ( first_scan )
         DBG("Reading resmin OK");
+
+    /* ------------------------------------------------------------ */
+
+#ifdef NPP_PHP
+
+/*    if ( !read_files("", 0, "php", STATIC_SOURCE_PHP, first_scan, NULL) )
+    {
+        ERR("Reading php failed");
+        return FALSE;
+    }
+
+    if ( first_scan )
+        DBG("Reading php OK"); */
+
+#endif  /* NPP_PHP */
+
+    /* ------------------------------------------------------------ */
 
     if ( !npp_lib_read_snippets("", 0, "snippets", first_scan, NULL) )
     {
@@ -4600,6 +4646,7 @@ static bool read_resources(bool first_scan)
     if ( first_scan )
         DBG("Reading snippets OK");
 
+    /* ------------------------------------------------------------ */
 
 #ifdef NPP_MULTI_HOST   /* side gigs */
 
@@ -4616,6 +4663,8 @@ static bool read_resources(bool first_scan)
         if ( first_scan )
             DBG("Reading %s's res OK", G_hosts[i].host);
 
+        /* ------------------------------------------------------------ */
+
         if ( G_hosts[i].resmin[0] && !read_files(G_hosts[i].host, i, G_hosts[i].resmin, STATIC_SOURCE_RESMIN, first_scan, NULL) )
         {
             ERR("Reading %s's resmin failed", G_hosts[i].host);
@@ -4624,6 +4673,23 @@ static bool read_resources(bool first_scan)
 
         if ( first_scan )
             DBG("Reading %s's resmin OK", G_hosts[i].host);
+
+        /* ------------------------------------------------------------ */
+
+#ifdef NPP_PHP
+
+/*        if ( G_hosts[i].php[0] && !read_files(G_hosts[i].host, i, G_hosts[i].php, STATIC_SOURCE_PHP, first_scan, NULL) )
+        {
+            ERR("Reading %s's php failed", G_hosts[i].host);
+            return FALSE;
+        }
+
+        if ( first_scan )
+            DBG("Reading %s's php OK", G_hosts[i].host); */
+
+#endif  /* NPP_PHP */
+
+        /* ------------------------------------------------------------ */
 
         if ( G_hosts[i].snippets[0] && !npp_lib_read_snippets(G_hosts[i].host, i, G_hosts[i].snippets, first_scan, NULL) )
         {
@@ -4637,9 +4703,13 @@ static bool read_resources(bool first_scan)
 
 #endif  /* NPP_MULTI_HOST */
 
+    /* ------------------------------------------------------------ */
+
     qsort(&M_statics, M_statics_cnt, sizeof(M_statics[0]), compare_statics);
 
     qsort(&G_snippets, G_snippets_cnt, sizeof(G_snippets[0]), lib_compare_snippets);
+
+    /* ------------------------------------------------------------ */
 
     return TRUE;
 }
@@ -4665,12 +4735,19 @@ static int is_static_res()
         }
         else if ( M_statics[middle].host_id == G_connections[G_ci].host_id )
         {
-            result = strcmp(M_statics[middle].name, G_connections[G_ci].uri);
+            result = strcmp(M_statics[middle].name, G_connections[G_ci].uri_no_qs);
 
             if ( result < 0 )
                 first = middle + 1;
             else if ( result == 0 )
             {
+#ifdef NPP_PHP
+                if ( M_statics[middle].type == NPP_CONTENT_TYPE_PHP )
+                {
+                    G_connections[G_ci].php = TRUE;
+                    return -1;
+                }
+#endif
                 if ( G_connections[G_ci].if_mod_since >= M_statics[middle].modified )
                     G_connections[G_ci].status = 304;  /* Not Modified */
 
@@ -4691,12 +4768,19 @@ static int is_static_res()
 
     while ( first <= last )
     {
-        result = strcmp(M_statics[middle].name, G_connections[G_ci].uri);
+        result = strcmp(M_statics[middle].name, G_connections[G_ci].uri_no_qs);
 
         if ( result < 0 )
             first = middle + 1;
         else if ( result == 0 )
         {
+#ifdef NPP_PHP
+            if ( M_statics[middle].type == NPP_CONTENT_TYPE_PHP )
+            {
+                G_connections[G_ci].php = TRUE;
+                return -1;
+            }
+#endif
             if ( G_connections[G_ci].if_mod_since >= M_statics[middle].modified )
                 G_connections[G_ci].status = 304;  /* Not Modified */
 
@@ -4756,10 +4840,21 @@ static void process_request()
     /* ------------------------------------------------------------------------ */
     /* Generate HTML content before header -- to know its size & type --------- */
 
+    bool fresh_session=FALSE;
+
+#ifdef NPP_PHP
+
+    if ( G_connections[G_ci].php )
+    {
+        process_php();
+    }
+    else
+    {
+
+#endif  /* NPP_PHP */
+
     /* ------------------------------------------------------------------------ */
     /* authorization check / log in from cookies ------------------------------ */
-
-    bool fresh_session=FALSE;
 
 #ifdef NPP_USERS
 
@@ -4892,6 +4987,10 @@ static void process_request()
         }
     }
 
+#ifdef NPP_PHP
+    }
+#endif
+
     /* ------------------------------------------------------------------------ */
 
     G_connections[G_ci].last_activity = G_now;
@@ -4954,6 +5053,120 @@ static void process_request()
         RES_DONT_CACHE;
     }
 }
+
+
+#ifdef NPP_PHP
+/* --------------------------------------------------------------------------
+   PHP request processing
+-------------------------------------------------------------------------- */
+static void process_php()
+{
+    DBG("process_php");
+
+    char *qs = strchr(G_connections[G_ci].uri, '?');
+
+    char cmd[4096];
+
+    STRM_BEGIN(cmd);
+
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 && G_connections[G_ci].clen < 3072 )
+    {
+        STRM("echo \"%s\" | ", npp_filter_qs(G_connections[G_ci].in_data));
+    }
+
+    STRM("REDIRECT_STATUS=CGI ");
+    STRM("SCRIPT_FILENAME=%s/res/%s ", G_appdir, G_connections[G_ci].uri_no_qs);
+    STRM("REQUEST_METHOD=%s ", G_connections[G_ci].method);
+
+    if ( G_connections[G_ci].in_cookie[0] )
+#ifdef NPP_PHP_ALL_COOKIES
+        STRM("HTTP_COOKIE=\"%s\" ", npp_filter_cookie(G_connections[G_ci].in_cookie));
+#else
+        STRM("HTTP_COOKIE=\"PHPSESSID=%s\" ", npp_filter_strict(G_connections[G_ci].php_sessid));
+#endif
+
+    if ( REQ_GET && qs && *(qs+1) != EOS )
+    {
+        STRM("QUERY_STRING=\"%s\" ", npp_filter_qs(qs+1));
+        STRM("CONTENT_LENGTH=%d ", strlen(qs+1));
+        STRM("CONTENT_TYPE=application/www-form-urlencoded ");
+    }
+    else if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 && G_connections[G_ci].clen < 3072 )
+    {
+        STRM("CONTENT_LENGTH=%d ", G_connections[G_ci].clen);
+
+        if ( G_connections[G_ci].in_ctypestr[0] )
+            STRM("CONTENT_TYPE=%s ", G_connections[G_ci].in_ctypestr);
+        else
+            STRM("CONTENT_TYPE=application/www-form-urlencoded ");
+    }
+
+    STRM("php-cgi");
+    STRM_END;
+
+    DBG("Executing [%s]...", cmd);
+
+    FILE *pipe = popen(cmd, "r");
+
+    if ( !pipe )
+    {
+        ERR("Couldn't execute php-cgi");
+        RES_STATUS(500);
+        return;
+    }
+
+    /* read the HTTP response header */
+
+    char line[2048];
+    int  len;
+
+    while ( fgets(line, 2047, pipe) )
+    {
+        len = strlen(line);
+
+        while ( len && (line[len-1]=='\n' || line[len-1]=='\r' || line[len-1]==' ' || line[len-1]=='.') )
+        {
+            line[len-1] = EOS;
+            len--;
+        }
+
+        DDBG("line [%s]", line);
+
+        if ( line[0] == EOS )   /* end of header */
+        {
+            DDBG("empty line, breaking");
+            break;
+        }
+
+        if ( (line[0]=='L' || line[0]=='l') && 0==strncmp(line+1, "ocation:", 8) )
+        {
+            DBG("Redirecting to [%s]", line+10);
+            RES_LOCATION(line+10);
+        }
+        else if ( (line[0]=='S' || line[0]=='s') && 0==strncmp(line+1, "et-", 3) && line[5]=='o' )
+        {
+            DBG("Setting cookie [%s]", line+12);
+            npp_lib_res_header("Set-Cookie", line+12);
+        }
+    }
+
+    /* read the body */
+
+static char buffer[NPP_OUT_BUFSIZE+1];
+
+    memset(buffer, 0, NPP_OUT_BUFSIZE);   /* we'll not have EOS from fread */
+
+    fread(buffer, NPP_OUT_BUFSIZE, 1, pipe);
+
+    OUT(buffer);
+
+#ifdef NPP_DEBUG
+    npp_log_long(buffer, strlen(buffer), "PHP output");
+#endif
+
+    pclose(pipe);
+}
+#endif  /* NPP_PHP */
 
 
 /* --------------------------------------------------------------------------
@@ -5944,6 +6157,10 @@ static void reset_connection(int ci, char new_state)
     }
 
     G_connections[ci].static_res = NPP_NOT_STATIC;
+#ifdef NPP_PHP
+    G_connections[ci].php = FALSE;
+    G_connections[ci].php_sessid[0] = EOS;
+#endif
     G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     G_connections[ci].ctypestr[0] = EOS;
     G_connections[ci].cdisp[0] = EOS;
@@ -6225,6 +6442,8 @@ static int parse_request(int len)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
 
+    bool end_of_uri_no_qs = FALSE;
+
     for ( i; i<hlen; ++i )   /* URI */
     {
 
@@ -6233,7 +6452,19 @@ static int parse_request(int len)
         if ( G_connections[G_ci].in[i] != ' ' && G_connections[G_ci].in[i] != '\t' )
         {
             if ( j < NPP_MAX_URI_LEN )
-                G_connections[G_ci].uri[j++] = G_connections[G_ci].in[i];
+            {
+                G_connections[G_ci].uri[j] = G_connections[G_ci].in[i];
+
+                if ( G_connections[G_ci].in[i] == '?' )
+                {
+                    G_connections[G_ci].uri_no_qs[j] = EOS;
+                    end_of_uri_no_qs = TRUE;
+                }
+                else if ( !end_of_uri_no_qs )
+                    G_connections[G_ci].uri_no_qs[j] = G_connections[G_ci].in[i];
+
+                ++j;
+            }
             else
             {
                 WAR("URI too long, ignoring");
@@ -6251,6 +6482,7 @@ static int parse_request(int len)
         else    /* end of URI */
         {
             G_connections[G_ci].uri[j] = EOS;
+            G_connections[G_ci].uri_no_qs[j] = EOS;
             break;
         }
     }
@@ -6283,7 +6515,8 @@ static int parse_request(int len)
     }
 #endif  /* NPP_ROOT_URI */
 
-    DDBG("URI [%s]", G_connections[G_ci].uri);
+    DDBG("      URI [%s]", G_connections[G_ci].uri);
+    DDBG("uri_no_qs [%s]", G_connections[G_ci].uri_no_qs);
 
     i += 6;   /* skip the space and HTTP/ */
 
@@ -6421,17 +6654,31 @@ static int parse_request(int len)
 
     if ( G_connections[G_ci].uri[0]==EOS && REQ_GET )
     {
-        DBG("M_index_present = %d", M_index_present);
+        DBG("M_index_html_present = %d", M_index_html_present);
 
 #ifdef NPP_MULTI_HOST
-        if ( (G_connections[G_ci].host_id==0 && M_index_present!=-1) || G_hosts[G_connections[G_ci].host_id].index_present != -1 )
+        if ( (G_connections[G_ci].host_id==0 && M_index_html_present!=-1) || G_hosts[G_connections[G_ci].host_id].index_html_present != -1 )
 #else
-        if ( M_index_present != -1 )
+        if ( M_index_html_present != -1 )
 #endif
         {
             INF("Serving index.html");
             strcpy(G_connections[G_ci].uri, "index.html");
         }
+
+#ifdef NPP_PHP
+        DBG("M_index_php_present = %d", M_index_php_present);
+
+#ifdef NPP_MULTI_HOST
+        if ( (G_connections[G_ci].host_id==0 && M_index_php_present!=-1) || G_hosts[G_connections[G_ci].host_id].index_php_present != -1 )
+#else
+        if ( M_index_php_present != -1 )
+#endif
+        {
+            INF("Serving index.php");
+            strcpy(G_connections[G_ci].uri, "index.php");
+        }
+#endif  /* NPP_PHP */
     }
 
 #endif  /* NPP_DONT_LOOK_FOR_INDEX */
@@ -7070,6 +7317,7 @@ static int set_http_req_val(const char *label, const char *value)
                 G_connections[G_ci].cookie_in_a[NPP_SESSID_LEN] = EOS;
             }
         }
+
         if ( NULL != (p=(char*)strstr(value, "ls=")) )   /* logged in sessid present? */
         {
             p += 3;
@@ -7079,6 +7327,27 @@ static int set_http_req_val(const char *label, const char *value)
                 G_connections[G_ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
             }
         }
+#ifdef NPP_PHP
+        if ( NULL != (p=(char*)strstr(value, "PHPSESSID=")) )
+        {
+            p += 10;
+
+            char *end = (char*)strchr(p, ';');
+
+            int len;
+
+            if ( end )
+                len = end - p;
+            else
+                len = strlen(p);
+
+            if ( len <= NPP_PHP_SESSID_LEN )
+            {
+                strncpy(G_connections[G_ci].php_sessid, p, len);
+                G_connections[G_ci].php_sessid[len] = EOS;
+            }
+        }
+#endif  /* NPP_PHP */
     }
     else if ( 0==strcmp(ulabel, "REFERER") )
     {
@@ -7092,13 +7361,13 @@ static int set_http_req_val(const char *label, const char *value)
 
         int len = strlen(value);
 
-        if ( len > 15 && 0==strncmp(uvalue, "APPLICATION/JSON", 16) )
-        {
-            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_JSON;
-        }
-        else if ( len > 32 && 0==strncmp(uvalue, "APPLICATION/X-WWW-FORM-URLENCODED", 33) )
+        if ( len > 32 && 0==strncmp(uvalue, "APPLICATION/X-WWW-FORM-URLENCODED", 33) )
         {
             G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_URLENCODED;
+        }
+        else if ( len > 15 && 0==strncmp(uvalue, "APPLICATION/JSON", 16) )
+        {
+            G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_JSON;
         }
         else if ( len > 18 && 0==strncmp(uvalue, "MULTIPART/FORM-DATA", 19) )
         {
@@ -7113,6 +7382,10 @@ static int set_http_req_val(const char *label, const char *value)
         else if ( len > 23 && 0==strncmp(uvalue, "APPLICATION/OCTET-STREAM", 24) )
         {
             G_connections[G_ci].in_ctype = NPP_CONTENT_TYPE_OCTET_STREAM;
+        }
+        else    /* do not allow (CGI safety) */
+        {
+            G_connections[G_ci].in_ctypestr[0] = EOS;
         }
     }
     else if ( 0==strcmp(ulabel, "AUTHORIZATION") )
@@ -7935,12 +8208,23 @@ void npp_add_to_static_res(const char *host, const char *name, const char *src)
     if ( 0==strcmp(M_statics[M_statics_cnt].name, "index.html") )
     {
         if ( M_statics[M_statics_cnt].host_id == 0 )
-            M_index_present = M_statics_cnt;
+            M_index_html_present = M_statics_cnt;
 #ifdef NPP_MULTI_HOST
         else
-            G_hosts[M_statics[M_statics_cnt].host_id].index_present = M_statics_cnt;
+            G_hosts[M_statics[M_statics_cnt].host_id].index_html_present = M_statics_cnt;
 #endif
     }
+#ifdef NPP_PHP
+    else if ( 0==strcmp(M_statics[M_statics_cnt].name, "index.php") )
+    {
+        if ( M_statics[M_statics_cnt].host_id == 0 )
+            M_index_php_present = M_statics_cnt;
+#ifdef NPP_MULTI_HOST
+        else
+            G_hosts[M_statics[M_statics_cnt].host_id].index_php_present = M_statics_cnt;
+#endif
+    }
+#endif  /* NPP_PHP */
 
     /* compress ---------------------------------------- */
 
@@ -8071,8 +8355,14 @@ void npp_eng_block_ip(const char *value, bool autoblocked)
            | logout      | T
            | logout?qs=1 | T
 -------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_eng_is_uri(const std::string& uri_)
+{
+    const char *uri = uri_.c_str();
+#else
 bool npp_eng_is_uri(const char *uri)
 {
+#endif
     const char *u = uri;
 
     if ( uri[0] == '/' )

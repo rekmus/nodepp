@@ -106,7 +106,7 @@ function center(d)
 // Create modal window
 // l1 = first line
 // l2 = second line
-// w = width (em)
+// w = width (em), optional, default = 23
 // --------------------------------------------------------------------------
 function mw(l1, l2, w)
 {
@@ -115,7 +115,7 @@ function mw(l1, l2, w)
     if ( w )
         d.style.width = w + "em";
     else
-        d.style.width = "20em";
+        d.style.width = "23em";
 
     d.className = "mw";
     d.id = "mw";
@@ -123,7 +123,7 @@ function mw(l1, l2, w)
     let s1 = document.createElement("span");
 
     s1.innerHTML = "<div style=\"display:flex;\">"
-        + "<span style=\"width:92%;margin-top:6px;\">" + l1 + "</span>"
+        + "<span style=\"width:92%;margin-top:12px;margin-left:11px;\">" + l1 + "</span>"
         + "<div style=\"width:8%;text-align:right;\"><span style=\"font-size:1.5em;cursor:pointer;\" onClick=\"mw_off();\">&#10005;</span></div>"
         + "</div><br>";
 

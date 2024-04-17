@@ -3089,16 +3089,30 @@ static int compare_hosts(const void *a, const void *b)
    Add a host and assign resource directories
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
+//#ifdef NPP_PHP
+//bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_, const std::string& php_, char required_auth_level)
+//{
+//#else
 bool npp_add_host(const std::string& host_, const std::string& res_, const std::string& resmin_, const std::string& snippets_, char required_auth_level)
 {
+//#endif
     const char *host = host_.c_str();
     const char *res = res_.c_str();
     const char *resmin = resmin_.c_str();
     const char *snippets = snippets_.c_str();
+//#ifdef NPP_PHP
+//    const char *php = php_.c_str();
+//#endif
 #else
+//#ifdef NPP_PHP
+//bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, const char *php, char required_auth_level)
+//{
+//#else
 bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level)
 {
+//#endif
 #endif
+
 #ifdef NPP_MULTI_HOST
 
     if ( G_hosts_cnt >= NPP_MAX_HOSTS ) return FALSE;
@@ -3111,10 +3125,17 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
         COPY(G_hosts[G_hosts_cnt].resmin, resmin, 255);
     if ( snippets && snippets[0] )
         COPY(G_hosts[G_hosts_cnt].snippets, snippets, 255);
+//#ifdef NPP_PHP
+//    if ( php && php[0] )
+//        COPY(G_hosts[G_hosts_cnt].php, php, 255);
+//#endif
 
     G_hosts[G_hosts_cnt].required_auth_level = required_auth_level;
 
-    G_hosts[G_hosts_cnt].index_present = -1;
+    G_hosts[G_hosts_cnt].index_html_present = -1;
+#ifdef NPP_PHP
+    G_hosts[G_hosts_cnt].index_php_present = -1;
+#endif
 
     ++G_hosts_cnt;
 
@@ -3123,6 +3144,28 @@ bool npp_add_host(const char *host, const char *res, const char *resmin, const c
 #endif  /* NPP_MULTI_HOST */
 
     return TRUE;
+}
+
+
+/* --------------------------------------------------------------------------
+   Dispatcher logic
+-------------------------------------------------------------------------- */
+#ifdef NPP_CPP_STRINGS
+bool npp_lib_req(const std::string& res_)
+{
+    const char *res = res_.c_str();
+#else
+bool npp_lib_req(const char *res)
+{
+#endif
+    const char *p;
+
+    if ( res[0] == '/' )
+        p = res + 1;
+    else
+        p = res;
+
+    return (0==strcmp(G_connections[G_ci].resource, p));
 }
 
 
@@ -6323,6 +6366,76 @@ static char dst[NPP_LIB_STR_BUF];
 
 
 /* --------------------------------------------------------------------------
+   Filter everything but query string-allowed chars
+---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_filter_qs(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
+char *npp_filter_qs(const char *src)
+{
+#endif
+static char dst[NPP_LIB_STR_BUF];
+    int     i=0, j=0;
+
+    while ( src[i] && j<NPP_LIB_STR_CHECK )
+    {
+        if ( (src[i] >= 65 && src[i] <= 90)
+                || (src[i] >= 97 && src[i] <= 122)
+                || isdigit(src[i])
+                || src[i] == '.'
+                || src[i] == '+'
+                || src[i] == '-'
+                || src[i] == '_'
+                || src[i] == '='
+                || src[i] == '&'
+                || src[i] == '%' )
+            dst[j++] = src[i];
+
+        ++i;
+    }
+
+    dst[j] = EOS;
+
+    return dst;
+}
+
+
+/* --------------------------------------------------------------------------
+   Filter everything but cookie session chars
+---------------------------------------------------------------------------*/
+#ifdef NPP_CPP_STRINGS
+char *npp_filter_cookie(const std::string& src_)
+{
+    const char *src = src_.c_str();
+#else
+char *npp_filter_cookie(const char *src)
+{
+#endif
+static char dst[NPP_LIB_STR_BUF];
+    int     i=0, j=0;
+
+    while ( src[i] && j<NPP_LIB_STR_CHECK )
+    {
+        if ( (src[i] >= 65 && src[i] <= 90)
+                || (src[i] >= 97 && src[i] <= 122)
+                || isdigit(src[i])
+                || src[i] == '='
+                || src[i] == ';'
+                || src[i] == ' ' )
+            dst[j++] = src[i];
+
+        ++i;
+    }
+
+    dst[j] = EOS;
+
+    return dst;
+}
+
+
+/* --------------------------------------------------------------------------
    Add spaces to make string to have len length
 -------------------------------------------------------------------------- */
 #ifdef NPP_CPP_STRINGS
@@ -6490,6 +6603,8 @@ char npp_lib_get_res_type(const char *fname)
         return NPP_CONTENT_TYPE_ICO;
     else if ( 0==strcmp(uext, "PNG") )
         return NPP_CONTENT_TYPE_PNG;
+    else if ( 0==strcmp(uext, "PHP") )
+        return NPP_CONTENT_TYPE_PHP;
     else if ( 0==strcmp(uext, "WOFF2") )
         return NPP_CONTENT_TYPE_WOFF2;
     else if ( 0==strcmp(uext, "SVG") )

@@ -109,6 +109,8 @@
 #define NPP_ESC_SQL                     '1'
 #define NPP_ESC_HTML                    '2'
 
+#define REQ(res)                        npp_lib_req(res)
+
 #define QS_DONT_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_NONE)
 #define QS_SQL_ESCAPE(param, val)       npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_SQL)
 #define QS_HTML_ESCAPE(param, val)      npp_lib_get_qs_param(param, val, MAX_URI_VAL_LEN, NPP_ESC_HTML)
@@ -703,6 +705,18 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
+    char *npp_filter_qs(const std::string& src);
+#else
+    char *npp_filter_qs(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
+    char *npp_filter_cookie(const std::string& src);
+#else
+    char *npp_filter_cookie(const char *src);
+#endif
+
+#ifdef NPP_CPP_STRINGS
     char *npp_add_spaces(const std::string& src, int new_len);
 #else
     char *npp_add_spaces(const char *src, int new_len);
@@ -840,9 +854,17 @@ extern "C" {
 #endif
 
 #ifdef NPP_CPP_STRINGS
-    bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
+//    #ifdef NPP_PHP
+//        bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, const std::string& php, char required_auth_level);
+//    #else
+        bool npp_add_host(const std::string& host, const std::string& res, const std::string& resmin, const std::string& snippets, char required_auth_level);
+//    #endif
 #else
-    bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
+//    #ifdef NPP_PHP
+//        bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, const char *php, char required_auth_level);
+//    #else
+        bool npp_add_host(const char *host, const char *res, const char *resmin, const char *snippets, char required_auth_level);
+//    #endif
 #endif
 
 #ifdef NPP_CPP_STRINGS
@@ -1032,6 +1054,12 @@ const unsigned char *npp_binstr(const unsigned char *data, size_t data_len, cons
     void npp_out_html_footer();
     void npp_append_css(const char *fname, bool first);
     void npp_append_script(const char *fname, bool first);
+
+#ifdef NPP_CPP_STRINGS
+    bool npp_lib_req(const std::string& res);
+#else
+    bool npp_lib_req(const char *res);
+#endif
 
     bool npp_lib_get_qs_param(const char *name, char *retbuf, size_t maxlen, char esc_type);
     const unsigned char *npp_lib_get_qs_param_multipart(const char *name, size_t *retlen, char *retfname);
