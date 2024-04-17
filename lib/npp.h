@@ -722,6 +722,10 @@ typedef char                            QSVAL_TEXT[NPP_QSBUF_TEXT];
 #define NPP_SESSID_LEN                      20              /* session id length (15 gives ~ 89 bits of entropy) */
 #endif
 
+#ifndef NPP_PHP_SESSID_LEN
+#define NPP_PHP_SESSID_LEN                  31              /* PHP session id length */
+#endif
+
 #ifndef NPP_CSRFT_LEN
 #define NPP_CSRFT_LEN                       15              /* CSRF token length */
 #endif
@@ -1637,13 +1641,11 @@ typedef struct {
     int      static_res;                            /* static resource index in M_stat */
 #ifdef NPP_PHP
     bool     php;
+    char     php_sessid[NPP_PHP_SESSID_LEN+1];
 #endif
     time_t   last_activity;
 #ifdef NPP_FD_MON_POLL
     int      pi;                                    /* M_pollfds array index */
-#endif
-#ifdef NPP_FD_MON_EPOLL
-//    bool     epoll_out_ready;
 #endif
 #ifdef NPP_ASYNC
     char     service[NPP_SVC_NAME_LEN+1];

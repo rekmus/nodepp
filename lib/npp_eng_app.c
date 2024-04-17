@@ -6155,6 +6155,7 @@ static void reset_connection(int ci, char new_state)
     G_connections[ci].static_res = NPP_NOT_STATIC;
 #ifdef NPP_PHP
     G_connections[ci].php = FALSE;
+    G_connections[ci].php_sessid[0] = EOS;
 #endif
     G_connections[ci].out_ctype = NPP_CONTENT_TYPE_HTML;
     G_connections[ci].ctypestr[0] = EOS;
@@ -7312,6 +7313,7 @@ static int set_http_req_val(const char *label, const char *value)
                 G_connections[G_ci].cookie_in_a[NPP_SESSID_LEN] = EOS;
             }
         }
+
         if ( NULL != (p=(char*)strstr(value, "ls=")) )   /* logged in sessid present? */
         {
             p += 3;
@@ -7321,6 +7323,27 @@ static int set_http_req_val(const char *label, const char *value)
                 G_connections[G_ci].cookie_in_l[NPP_SESSID_LEN] = EOS;
             }
         }
+#ifdef NPP_PHP
+        if ( NULL != (p=(char*)strstr(value, "PHPSESSID=")) )
+        {
+            p += 10;
+
+            char *end = (char*)strchr(p, ';');
+
+            int len;
+
+            if ( end )
+                len = end - p;
+            else
+                len = strlen(p);
+
+            if ( len <= NPP_PHP_SESSID_LEN )
+            {
+                strncpy(G_connections[G_ci].php_sessid, p, len);
+                G_connections[G_ci].php_sessid[len] = EOS;
+            }
+        }
+#endif  /* NPP_PHP */
     }
     else if ( 0==strcmp(ulabel, "REFERER") )
     {
