@@ -5079,7 +5079,11 @@ static void process_php()
     STRM("REQUEST_METHOD=%s ", G_connections[G_ci].method);
 
     if ( G_connections[G_ci].in_cookie[0] )
+#ifdef NPP_PHP_ALL_COOKIES
         STRM("HTTP_COOKIE=\"%s\" ", npp_filter_cookie(G_connections[G_ci].in_cookie));
+#else
+        STRM("HTTP_COOKIE=\"PHPSESSID=%s\" ", npp_filter_strict(G_connections[G_ci].php_sessid));
+#endif
 
     if ( REQ_GET && qs && *(qs+1) != EOS )
     {
