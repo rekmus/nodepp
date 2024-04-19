@@ -121,6 +121,10 @@ char        G_call_http_content_type[NPP_MAX_VALUE_LEN+1];
 int         G_call_http_res_len=0;
 int         G_qs_len=0;
 
+#ifdef NPP_PHP
+char        G_phpPathWindows[256]="C:\\php";
+#endif
+
 
 /* locals */
 
@@ -10510,6 +10514,10 @@ void npp_lib_read_conf(bool first)
 #endif
 
         G_callHTTPTimeout = CALL_HTTP_DEFAULT_TIMEOUT;
+
+#ifdef NPP_PHP
+        strcpy(G_phpPathWindows, "C:\\php");
+#endif
     }
 
     /* -------------------------------------------------- */
@@ -10803,6 +10811,27 @@ void npp_lib_read_conf(bool first)
                 npp_eng_read_allowed_ips();
             }
         }
+
+        /* -------------------------------------------------- */
+        /* PHP path on Windows */
+
+#ifdef NPP_PHP
+
+        if ( first )
+        {
+            npp_read_param_str("phpPathWindows", G_phpPathWindows);
+        }
+        else    /* npp_reload_conf */
+        {
+            char tmp_phpPathWindows[256]="";
+
+            npp_read_param_str("phpPathWindows", tmp_phpPathWindows);
+
+            if ( strcmp(tmp_phpPathWindows, G_phpPathWindows) != 0 )
+                strcpy(G_phpPathWindows, tmp_phpPathWindows);
+        }
+
+#endif  /* NPP_PHP */
 
 #endif  /* NPP_APP */
 

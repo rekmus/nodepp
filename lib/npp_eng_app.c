@@ -2994,6 +2994,10 @@ static bool init(int argc, char **argv)
 
     ALWAYS("        callHTTPTimeout = %d", G_callHTTPTimeout);
 
+#ifdef NPP_PHP
+    ALWAYS("         phpPathWindows = %s", G_phpPathWindows);
+#endif
+
     ALWAYS("");
     ALWAYS_LINE_LONG;
     ALWAYS("");
@@ -5067,6 +5071,48 @@ static void process_php()
 
     char cmd[4096];
 
+#ifdef _WIN32
+
+    STRM_BEGIN(cmd);
+
+    if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 && G_connections[G_ci].clen < 3072 )
+    {
+        STRM("echo \"%s\" | ", npp_filter_qs(G_connections[G_ci].in_data));
+    }
+
+    STRM("set REDIRECT_STATUS=CGI ");
+    STRM("& set SCRIPT_FILENAME=%s/res/%s ", G_appdir, G_connections[G_ci].uri_no_qs);
+    STRM("& set REQUEST_METHOD=%s ", G_connections[G_ci].method);
+
+#ifdef NPP_PHP_ALL_COOKIES
+    if ( G_connections[G_ci].in_cookie[0] )
+        STRM("& set \"HTTP_COOKIE=%s\" ", npp_filter_cookie(G_connections[G_ci].in_cookie));
+#else
+    if ( G_connections[G_ci].php_sessid[0] )
+        STRM("& set \"HTTP_COOKIE=PHPSESSID=%s\" ", npp_filter_strict(G_connections[G_ci].php_sessid));
+#endif
+
+    if ( REQ_GET && qs && *(qs+1) != EOS )
+    {
+        STRM("& set \"QUERY_STRING=%s\" ", npp_filter_qs(qs+1));
+        STRM("& set CONTENT_LENGTH=%d ", strlen(qs+1));
+        STRM("& set CONTENT_TYPE=application/www-form-urlencoded ");
+    }
+    else if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 && G_connections[G_ci].clen < 3072 )
+    {
+        STRM("& set CONTENT_LENGTH=%d ", G_connections[G_ci].clen);
+
+        if ( G_connections[G_ci].in_ctypestr[0] )
+            STRM("& set CONTENT_TYPE=%s ", G_connections[G_ci].in_ctypestr);
+        else
+            STRM("& set CONTENT_TYPE=application/www-form-urlencoded ");
+    }
+
+    STRM("| %s\\php-cgi", G_phpPathWindows);
+    STRM_END;
+
+#else   /* Linux */
+
     STRM_BEGIN(cmd);
 
     if ( NPP_CONN_IS_PAYLOAD(G_connections[G_ci].flags) && G_connections[G_ci].clen > 0 && G_connections[G_ci].clen < 3072 )
@@ -5078,10 +5124,11 @@ static void process_php()
     STRM("SCRIPT_FILENAME=%s/res/%s ", G_appdir, G_connections[G_ci].uri_no_qs);
     STRM("REQUEST_METHOD=%s ", G_connections[G_ci].method);
 
-    if ( G_connections[G_ci].in_cookie[0] )
 #ifdef NPP_PHP_ALL_COOKIES
+    if ( G_connections[G_ci].in_cookie[0] )
         STRM("HTTP_COOKIE=\"%s\" ", npp_filter_cookie(G_connections[G_ci].in_cookie));
 #else
+    if ( G_connections[G_ci].php_sessid[0] )
         STRM("HTTP_COOKIE=\"PHPSESSID=%s\" ", npp_filter_strict(G_connections[G_ci].php_sessid));
 #endif
 
@@ -5103,6 +5150,8 @@ static void process_php()
 
     STRM("php-cgi");
     STRM_END;
+
+#endif  /* _WIN32 */
 
     DBG("Executing [%s]...", cmd);
 
