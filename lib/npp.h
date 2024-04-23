@@ -100,7 +100,7 @@ typedef char                            bool;
    macros
 -------------------------------------------------------------------------- */
 
-#define NPP_VERSION                     "3.1.0"
+#define NPP_VERSION                     "3.2.0"
 
 
 #ifndef FALSE
@@ -1787,6 +1787,9 @@ extern int          G_ASYNCId;
 extern int          G_ASYNCSvcProcesses;
 extern int          G_ASYNCDefTimeout;
 extern int          G_callHTTPTimeout;
+#ifdef NPP_PHP
+extern char         G_phpPathWindows[256];
+#endif
 
 /* end of config params */
 
