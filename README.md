@@ -60,7 +60,7 @@ Low latency gets Node++ applications "Faster than 100% of tested sites" badge fr
 
 Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/rekmus/nodepp/wiki/CSRFT_OK).
 
-Default SSL settings give A+ result:
+Default SSL settings give **A+ result**:
 
 <div align="center">
 <img src="https://nodepp.org/ssllabs.jpg" width=600>
