@@ -18,32 +18,6 @@ Node++ library (paired with OpenSSL and optionally MySQL) contains everything th
 There is a [RESTful API generator](https://nodepp.org/generators) to generate almost the whole backend code in a few clicks, requiring only an SQL table definition.
 
 
-## Node++ 3 vs 2
-
-### ci
-
-Version 3 gets rid of **ci** (connection index) carried around for all those years. I kind of forgot about it, even after it had become obvious that Node++ was going to retain a single-threaded model. Migration to 3.x.x requires removing `int ci` function arguments.
-
-### Silgy
-
-Silgy compatibility has been removed. It's been so long that it no loger makes sense to clutter Node++'s code base with `npp_silgy.h`.
-
-### USERS
-
-Although 62 power 15 gives insane number of possible combinations (exactly 768,909,704,948,766,668,552,634,368 of them), I decided to extend **sessid** to 20 characters, in case the whole universe and all of its IoT devices started using Node++. I skip providing the updated number of combinations here. Also, CSRF token has been extended to 15 characters.
-
-One Time Password is now possible with `NPP_USER_ONE_TIME_PASSWORD_ONLY` macro present in `npp_app.h`.
-
-All of the above requires some database changes:
-
-```source.sql
-alter table users add otp char(44);
-alter table users add otp_expires datetime;
-alter table users_logins modify sessid char(20);
-alter table users_logins modify csrft char(15);
-```
-
-
 ## Framework
 
 The *backend framework* means that there are **7 server-side events** you can react to:
@@ -73,16 +47,10 @@ Node++'s efficiency makes single CPU, 1 GB AWS EC2 t2.micro free instance suffic
 
 On a typical server it handles [50,000 requests per second](https://nodepp.org/docs/performance).
 
-Low latency gets Node++ applications "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com).
+Low latency gets Node++ applications "Faster than 100% of tested sites" badge from [Pingdom](https://tools.pingdom.com) or – as they now don't publish the percentage – it shows the **complete page load in 67 ms**:
 
 <div align="center">
-<img src="https://minishare.com/show?p=MWPcAbmY&i=2" width=300>
-</div>
-
-Or – as they now don't publish the percentage – it shows the **complete page load in 67 ms**:
-
-<div align="center">
-<img src="https://minishare.com/show?p=PRRizqb2&i=2" width=600>
+<img src="https://nodepp.org/pingdom.jpg" width=600>
 </div>
 
 [Why is Node++ faster than other engines?](https://nodepp.org/docs/design)
@@ -92,10 +60,10 @@ Or – as they now don't publish the percentage – it shows the **complete page
 
 Node++ has built-in (and enabled by default) protection against most popular attacks, including BEAST, SQL-injection, XSS, and password and cookie brute-force. It does not directly expose the filesystem nor allows any scripting. Its random string generator is FIPS-compliant. CSRF protection is as easy as adding [3 lines to the code](https://github.com/rekmus/nodepp/wiki/CSRFT_OK).
 
-Default SSL settings give this result:
+Default SSL settings give A+ result:
 
 <div align="center">
-<img src="https://minishare.com/show?p=K8GvQDag&i=3" width=600>
+<img src="https://nodepp.org/ssllabs.jpg" width=600>
 </div>
 
 
@@ -104,7 +72,7 @@ Default SSL settings give this result:
 ### Basic convention
 
 <div align="center">
-<img src="https://minishare.com/show?p=4xlHEJwL&i=5" width=600>
+<img src="https://nodepp.org/npp_example.jpg" width=700>
 </div>
 
 If `resource` is a file present in `res` or `resmin` (i.e. an image or css), it will be served and `npp_app_main()` will not be called.
